@@ -1,0 +1,71 @@
+<!-- HTMX Partial: Chat Thread Messages -->
+<!-- Rendered inside #chat-thread, polled every 5s by case_detail.html -->
+<div class="jk-chat-messages" id="chat-messages-inner" style="scroll-behavior:smooth;">
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="jk-msg {% if msg.direction == 'OUT' %}jk-msg--out{% else %}jk-msg--in{% endif %}">
+        <!-- Avatar -->
+        <div class="jk-msg__avatar">
+            {% if msg.direction == 'IN' %}
+            <div class="jk-msg__avatar-circle jk-msg__avatar--client">
+                {{ msg.sender_employee.full_name|default:"E"|slice:":1"|upper }}
+            </div>
+            {% else %}
+            <div class="jk-msg__avatar-circle jk-msg__avatar--staff">
+                {{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Bubble -->
+        <div class="jk-msg__content">
+            <div class="jk-msg__info jk-msg-log-info">
+                <span class="jk-msg__name">
+                    {% if msg.direction == "OUT" %}
+                    {{ msg.sender_staff.username|default:"Support" }}
+                    {% else %}
+                    {{ msg.sender_employee.full_name|default:"Employee" }}
+                    {% endif %}
+                </span>
+                {% if msg.channel == "WhatsApp" %}
+                <span class="jk-msg__badge jk-msg__badge--wa">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.178 0-4.204-.681-5.867-1.84l-.412-.282-2.644.886.886-2.644-.282-.412A9.956 9.956 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                    WA
+                </span>
+                {% elif msg.channel == "Email" %}
+                <span class="jk-msg__badge jk-msg__badge--email">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Email
+                </span>
+                {% endif %}
+                <span class="jk-msg__time">{{ msg.sent_at|date:"d M H:i" }}</span>
+            </div>
+
+            <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %}">
+                <div class="jk-msg__text">{{ msg.body }}</div>
+
+                {% if msg.attachments.all %}
+                <div class="jk-msg__files">
+                    {% for att in msg.attachments.all %}
+                    <a href="{{ att.file.url }}" target="_blank" class="jk-msg__file">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        <span>{{ att.original_filename|default:"Attachment" }}</span>
+                        <small>({{ att.file_size|filesizeformat }})</small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="jk-chat-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <p>No messages yet</p>
+        <small>Start the conversation using the reply box below</small>
+    </div>
+    {% endif %}
+</div>

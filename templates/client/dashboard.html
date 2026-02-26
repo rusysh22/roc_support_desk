@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}RoC Desk — Service Portal{% endblock %}
+{% block page_title %}Service Portal{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="mb-8">
+    <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">
+        How can we help you today?
+    </h2>
+    <p class="text-slate-500 text-sm">
+        Select a service category below to submit your request. Our support team will respond promptly.
+    </p>
+</div>
+
+<!-- Category Grid -->
+{% if categories %}
+<div class="jk-category-grid">
+    {% for category in categories %}
+    <a href="{% url 'cases:create_case_category' slug=category.slug %}"
+        class="jk-card jk-card-clickable jk-category-card">
+        <div class="jk-card-body">
+            <div class="jk-category-icon">
+                {{ category.icon|default:"📝" }}
+            </div>
+            <h3 class="jk-category-name">{{ category.name }}</h3>
+            <p class="jk-category-desc">{{ category.description|default:"Submit a request for this category." }}</p>
+            <div class="mt-4 flex items-center text-indigo-500 text-sm font-semibold gap-1">
+                <span>Submit Request</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="jk-card">
+    <div class="jk-empty-state">
+        <div class="jk-empty-state-icon">📭</div>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">No Categories Available</h3>
+        <p class="text-slate-500 text-sm">Service categories haven't been set up yet. Please contact your administrator.
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Info Footer -->
+<div class="mt-10 text-center text-xs text-slate-400">
+    <p>Need urgent help? Contact the IT Helpdesk directly via WhatsApp or email.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar — RoC Desk{% endblock %}
+{% block page_title %}Support Desk — Calendar{% endblock %}
+{% block nav_cases %}active{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;align-items:center;gap:6px;">
+    <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm">🌐 Client Portal</a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- FullCalendar CDN -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<style>
+    #calendar-container {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .fc {
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+    .fc .fc-toolbar-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .fc .fc-button {
+        background: #6366f1;
+        border-color: #6366f1;
+        font-size: 12px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+    .fc .fc-button:hover {
+        background: #4f46e5;
+        border-color: #4f46e5;
+    }
+    .fc .fc-button-active {
+        background: #4338ca !important;
+        border-color: #4338ca !important;
+    }
+    .fc .fc-daygrid-day-number {
+        font-size: 12px;
+        color: #64748b;
+        padding: 4px 8px;
+    }
+    .fc .fc-daygrid-event {
+        border-radius: 6px;
+        font-size: 11px;
+        padding: 2px 6px;
+        border: none;
+        cursor: pointer;
+    }
+    .fc .fc-col-header-cell {
+        background: #f8fafc;
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        padding: 8px 0;
+    }
+    .fc .fc-daygrid-day.fc-day-today {
+        background: #eef2ff;
+    }
+    .fc .fc-daygrid-more-link {
+        font-size: 11px;
+        color: #6366f1;
+        font-weight: 600;
+    }
+    /* Legend */
+    .calendar-legend {
+        display: flex;
+        gap: 16px;
+        padding: 12px 0 0;
+        flex-wrap: wrap;
+    }
+    .calendar-legend__item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #64748b;
+    }
+    .calendar-legend__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- View Mode Tabs -->
+<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div class="flex items-center gap-2 bg-white rounded-xl p-1 shadow-sm border border-slate-200">
+        <a href="{% url 'desk:case_list' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
+            📋 Table
+        </a>
+        <a href="{% url 'desk:case_kanban' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
+            📊 Kanban
+        </a>
+        <a href="{% url 'desk:case_calendar' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-indigo-500 text-white shadow-sm">
+            📅 Calendar
+        </a>
+    </div>
+    <a href="{% url 'desk:case_export' %}?{{ request.GET.urlencode }}"
+       class="jk-btn jk-btn-sm" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="jk-card mb-4">
+    <div class="jk-card-body py-3">
+        <form method="get" class="flex flex-wrap items-center gap-3">
+            <select name="status" class="jk-select" style="width:auto;min-width:150px;">
+                <option value="">All Statuses</option>
+                {% for value, label in statuses %}
+                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="source" class="jk-select" style="width:auto;min-width:150px;">
+                <option value="">All Sources</option>
+                {% for value, label in sources %}
+                <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="category" class="jk-select" style="width:auto;min-width:150px;">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Filter</button>
+            <a href="{% url 'desk:case_calendar' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
+        </form>
+    </div>
+</div>
+
+<!-- Calendar -->
+<div id="calendar-container">
+    <div id="calendar"></div>
+    <div class="calendar-legend">
+        <div class="calendar-legend__item">
+            <div class="calendar-legend__dot" style="background:#6366f1;"></div> Open
+        </div>
+        <div class="calendar-legend__item">
+            <div class="calendar-legend__dot" style="background:#f59e0b;"></div> Investigating
+        </div>
+        <div class="calendar-legend__item">
+            <div class="calendar-legend__dot" style="background:#0ea5e9;"></div> Pending Info
+        </div>
+        <div class="calendar-legend__item">
+            <div class="calendar-legend__dot" style="background:#10b981;"></div> Resolved
+        </div>
+        <div class="calendar-legend__item">
+            <div class="calendar-legend__dot" style="background:#64748b;"></div> Closed
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const calendarEl = document.getElementById('calendar');
+        const events = {{ events_json|safe }};
+
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,dayGridWeek,listWeek'
+            },
+            events: events,
+            eventClick: function (info) {
+                info.jsEvent.preventDefault();
+                if (info.event.url) {
+                    window.location.href = info.event.url;
+                }
+            },
+            eventDidMount: function (info) {
+                // Tooltip
+                info.el.title = info.event.title +
+                    '\nRequester: ' + (info.event.extendedProps.requester || '—') +
+                    '\nStatus: ' + (info.event.extendedProps.status || '—');
+            },
+            height: 'auto',
+            dayMaxEvents: 3,
+            firstDay: 1, // Monday
+            locale: 'id',
+        });
+
+        calendar.render();
+    });
+</script>
+{% endblock %}

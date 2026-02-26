@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Cases — RoC Desk{% endblock %}
+{% block page_title %}Support Desk — All Cases{% endblock %}
+{% block nav_cases %}active{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;align-items:center;gap:6px;">
+    <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm">🌐 Client Portal</a>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- View Mode Tabs -->
+<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div class="flex items-center gap-2 bg-white rounded-xl p-1 shadow-sm border border-slate-200">
+        <a href="{% url 'desk:case_list' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-indigo-500 text-white shadow-sm">
+            📋 Table
+        </a>
+        <a href="{% url 'desk:case_kanban' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
+            📊 Kanban
+        </a>
+        <a href="{% url 'desk:case_calendar' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
+            📅 Calendar
+        </a>
+    </div>
+    <a href="{% url 'desk:case_export' %}?{{ request.GET.urlencode }}"
+       class="jk-btn jk-btn-sm" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+    </a>
+</div>
+
+<!-- Filters Bar -->
+<div class="jk-card mb-6">
+    <div class="jk-card-body py-3">
+        <form method="get" class="flex flex-wrap items-center gap-3">
+            <!-- Search -->
+            <div class="flex-1 min-w-[200px]">
+                <input type="text" name="q" value="{{ current_filters.q }}" placeholder="Search cases..."
+                    class="jk-input">
+            </div>
+
+            <!-- Status Filter -->
+            <select name="status" class="jk-select" style="width: auto; min-width: 150px;">
+                <option value="">All Statuses</option>
+                {% for value, label in statuses %}
+                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Source Filter -->
+            <select name="source" class="jk-select" style="width: auto; min-width: 150px;">
+                <option value="">All Sources</option>
+                {% for value, label in sources %}
+                <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Category Filter -->
+            <select name="category" class="jk-select" style="width: auto; min-width: 150px;">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{
+                    cat.name }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Filter</button>
+            <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
+        </form>
+    </div>
+</div>
+
+<!-- Case Count -->
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm text-slate-500">
+        <span class="font-semibold text-slate-700">{{ cases|length }}</span> case{{ cases|length|pluralize }}
+    </p>
+</div>
+
+<!-- Cases Table -->
+{% if cases %}
+<div class="jk-table-wrapper">
+    <table class="jk-table">
+        <thead>
+            <tr>
+                <th>Case #</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Requester</th>
+                <th>Category</th>
+                <th>Assigned To</th>
+                <th>Created</th>
+                <th>SLA</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for case in cases %}
+            <tr>
+                <td>
+                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link">
+                        {{ case.case_number }}
+                    </a>
+                </td>
+                <td>
+                    <a href="{% url 'desk:case_detail' case_id=case.id %}"
+                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[250px]">
+                        {{ case.subject }}
+                    </a>
+                </td>
+                <td>
+                    {% if case.status == "Open" %}
+                    <span class="jk-badge jk-badge-open">Open</span>
+                    {% elif case.status == "Investigating" %}
+                    <span class="jk-badge jk-badge-investigating">Investigating</span>
+                    {% elif case.status == "PendingInfo" %}
+                    <span class="jk-badge jk-badge-pending">Pending Info</span>
+                    {% elif case.status == "Resolved" %}
+                    <span class="jk-badge jk-badge-resolved">Resolved</span>
+                    {% elif case.status == "Closed" %}
+                    <span class="jk-badge jk-badge-closed">Closed</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if case.source == "EvolutionAPI_WA" %}
+                    <span class="jk-badge jk-badge-wa">💬 WhatsApp</span>
+                    {% elif case.source == "Email" %}
+                    <span class="jk-badge jk-badge-email">📧 Email</span>
+                    {% else %}
+                    <span class="jk-badge jk-badge-web">🌐 Web</span>
+                    {% endif %}
+                </td>
+                <td class="text-sm">{{ case.requester.full_name }}</td>
+                <td class="text-sm text-slate-500">{{ case.category.name }}</td>
+                <td class="text-sm">
+                    {% if case.assigned_to %}
+                    <span class="font-medium">{{ case.assigned_to.username }}</span>
+                    {% else %}
+                    <span class="text-slate-400">Unassigned</span>
+                    {% endif %}
+                </td>
+                <td class="text-sm text-slate-500 whitespace-nowrap">
+                    {{ case.created_at|date:"d M Y" }}<br>
+                    <span class="text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
+                </td>
+                <td>
+                    {% if case.resolution_due_at %}
+                    {% if case.status == "Resolved" or case.status == "Closed" %}
+                    <span class="jk-badge jk-badge-sla-ok">✓ Met</span>
+                    {% else %}
+                    <span class="jk-badge jk-badge-sla-warn">{{ case.resolution_due_at|date:"d M H:i" }}</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-xs text-slate-400">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="jk-card">
+    <div class="jk-empty-state">
+        <div class="jk-empty-state-icon">📭</div>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">No Cases Found</h3>
+        <p class="text-slate-500 text-sm">No cases match your current filters.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

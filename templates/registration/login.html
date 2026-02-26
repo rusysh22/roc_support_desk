@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Login — RoC Desk{% endblock %}
+{% block page_title %}Staff Login{% endblock %}
+{% block main_class %}full-width{% endblock %}
+
+{% block layout %}
+<!-- Login page — no sidebar, full-width centered layout -->
+<div class="jk-page min-h-screen flex items-center justify-center px-4"
+    style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);">
+    <div class="w-full max-w-md">
+
+        <!-- Brand -->
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center text-2xl"
+                style="background: linear-gradient(135deg, #6366f1, #0ea5e9);">
+                🛠️
+            </div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">RoC Desk</h1>
+            <p class="text-slate-400 text-sm mt-1">Sign in to your support desk account</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="jk-card">
+            <div class="jk-card-body p-8">
+
+                {% if form.errors %}
+                <div class="jk-alert jk-alert-error mb-4">
+                    ❌ Invalid login credentials. Please try again.
+                </div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="jk-form-group">
+                        <label for="id_username" class="jk-label">Login Username</label>
+                        <input type="text" name="username" id="id_username" class="jk-input"
+                            placeholder="Enter your login username" autofocus required>
+                    </div>
+
+                    <div class="jk-form-group">
+                        <label for="id_password" class="jk-label">Password</label>
+                        <input type="password" name="password" id="id_password" class="jk-input"
+                            placeholder="Enter your password" required>
+                    </div>
+
+                    <button type="submit" class="jk-btn jk-btn-primary jk-btn-lg jk-btn-block mt-2">
+                        Sign In
+                    </button>
+                </form>
+
+                <div class="text-center mt-6">
+                    <a href="{% url 'cases:dashboard' %}"
+                        class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+                        ← Back to Client Portal
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-500 mt-6">
+            RoC Desk — Internal Service Desk System
+        </p>
+    </div>
+</div>
+{% endblock %}

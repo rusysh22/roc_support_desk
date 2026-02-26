@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Case Submitted — RoC Desk{% endblock %}
+{% block page_title %}Case Submitted{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto text-center mt-8">
+    <div class="jk-card">
+        <div class="jk-card-body py-10 px-8">
+            <!-- Success Icon -->
+            <div class="w-16 h-16 mx-auto mb-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg class="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+
+            <h2 class="text-xl font-bold text-slate-800 mb-2">Case Submitted Successfully!</h2>
+            <p class="text-sm text-slate-500 mb-6">
+                Your request has been received and is now being reviewed by our support team.
+            </p>
+
+            <!-- Case Details -->
+            <div class="bg-slate-50 rounded-lg p-4 text-left mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs text-slate-400 font-medium">Case Number</span>
+                    <span class="text-sm font-bold text-indigo-600">{{ case.case_number }}</span>
+                </div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs text-slate-400 font-medium">Category</span>
+                    <span class="text-sm text-slate-700">{{ case.category.name }}</span>
+                </div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs text-slate-400 font-medium">Subject</span>
+                    <span class="text-sm text-slate-700 jk-truncate max-w-[200px]">{{ case.subject }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400 font-medium">Status</span>
+                    <span class="jk-badge jk-badge-open">Open</span>
+                </div>
+            </div>
+
+            <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary">
+                ← Back to Service Portal
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

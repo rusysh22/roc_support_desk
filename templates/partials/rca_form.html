@@ -1,0 +1,93 @@
+<!-- HTMX Partial: Root Cause Analysis & Solving Steps Form -->
+<!-- Rendered inside #rca-panel in case_detail.html -->
+<div class="jk-card">
+    <div class="jk-card-header">
+        <span>🔍 Root Cause Analysis & Solution</span>
+        <div class="jk-spinner htmx-indicator" id="rca-spinner"></div>
+    </div>
+    <div class="jk-card-body">
+
+        {% if success_message %}
+        <div class="jk-alert jk-alert-success">
+            ✅ {{ success_message }}
+        </div>
+        {% endif %}
+
+        {% if error_message %}
+        <div class="jk-alert jk-alert-error">
+            ❌ {{ error_message }}
+        </div>
+        {% endif %}
+
+        <form hx-post="{% url 'desk:case_update_rca' case_id=case.id %}" hx-target="#rca-panel" hx-swap="innerHTML"
+            hx-indicator="#rca-spinner">
+            {% csrf_token %}
+
+            <!-- Status -->
+            <div class="jk-form-group">
+                <label for="id_status" class="jk-label">Status</label>
+                {{ rca_form.status }}
+                {% if rca_form.status.errors %}
+                <div class="jk-form-error">{{ rca_form.status.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Assigned To -->
+            <div class="jk-form-group">
+                <label for="id_assigned_to" class="jk-label">Assigned To</label>
+                {{ rca_form.assigned_to }}
+                {% if rca_form.assigned_to.errors %}
+                <div class="jk-form-error">{{ rca_form.assigned_to.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- SLA Fields -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="jk-form-group">
+                    <label for="id_response_due_at" class="jk-label">Response SLA</label>
+                    {{ rca_form.response_due_at }}
+                    {% if rca_form.response_due_at.errors %}
+                    <div class="jk-form-error">{{ rca_form.response_due_at.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div class="jk-form-group">
+                    <label for="id_resolution_due_at" class="jk-label">Resolution SLA</label>
+                    {{ rca_form.resolution_due_at }}
+                    {% if rca_form.resolution_due_at.errors %}
+                    <div class="jk-form-error">{{ rca_form.resolution_due_at.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <hr class="jk-divider">
+
+            <!-- Root Cause Analysis -->
+            <div class="jk-form-group">
+                <label for="id_root_cause_analysis" class="jk-label">
+                    Root Cause Analysis
+                    <span class="text-xs font-normal text-slate-400 ml-1">Required before Resolved</span>
+                </label>
+                {{ rca_form.root_cause_analysis }}
+                {% if rca_form.root_cause_analysis.errors %}
+                <div class="jk-form-error">{{ rca_form.root_cause_analysis.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Solving Steps -->
+            <div class="jk-form-group">
+                <label for="id_solving_steps" class="jk-label">
+                    Solving Steps
+                    <span class="text-xs font-normal text-slate-400 ml-1">Required before Resolved</span>
+                </label>
+                {{ rca_form.solving_steps }}
+                {% if rca_form.solving_steps.errors %}
+                <div class="jk-form-error">{{ rca_form.solving_steps.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="jk-btn jk-btn-success jk-btn-block">
+                💾 Save Changes
+            </button>
+        </form>
+    </div>
+</div>
