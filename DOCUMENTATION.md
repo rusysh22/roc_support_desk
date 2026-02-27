@@ -23,6 +23,7 @@ Staff Support Desk kemudian mengelola case melalui panel admin dengan fitur spli
 | Komponen | Teknologi |
 |----------|-----------|
 | Backend | Django 5.1 + Python 3.x |
+| Admin Theme | Django Unfold |
 | Database | PostgreSQL 14+ |
 | Task Queue | Celery 5.x + Redis |
 | WhatsApp Gateway | Evolution API v2 (Docker) |
@@ -119,7 +120,7 @@ erDiagram
 | `/api/gateways/evolution/webhook/<event>` | gateways | Webhook Evolution API v2 (POST, event suffix) |
 | `/auth/login/` | django.auth | Login staff |
 | `/auth/logout/` | django.auth | Logout |
-| `/admin/` | django.admin | Django Admin panel |
+| `/admin/` | django.admin | Django Admin panel (menggunakan tema Django Unfold) |
 | `/kb/` | knowledge_base | Knowledge base (future) |
 
 ---
@@ -631,3 +632,106 @@ Gunakan checklist ini untuk memastikan instalasi berjalan lancar:
 - [ ] Test: Kirim email → cek tiket terbuat + auto-reply diterima
 - [ ] Test: Kirim WA → cek tiket terbuat + auto-reply WA diterima
 - [ ] Test: Buat tiket via Web Form → cek di panel staff
+
+---
+
+## 16. Integrasi dengan n8n (Workflow Automation)
+
+RoC Support Desk didesain untuk mudah diintegrasikan dengan platform otomasi seperti **n8n**, **Make**, atau **Zapier**. Berikut adalah panduan konseptual dan teknis untuk mengintegrasikannya:
+
+### 16.1. Skenario 1: Trigger dari RoC Desk ke n8n (Outbound Webhooks)
+**Tujuan:** n8n bereaksi saat ada event di RoC Desk (misal: Case baru dibuat, atau Status berubah menjadi "Resolved").
+
+**Cara Implementasi di Django:**
+Anda cukup menambahkan mekanisme `post_save` signal di `cases/models.py`, yang menembakkan HTTP POST ke Webhook URL n8n Anda via Celery (agar tidak memblokir proses aplikasi utama).
+
+**Contoh Kode Signal (Django):**
+```python
+# cases/signals.py
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .models import CaseRecord
+import requests
+import json
+
+@receiver(post_save, sender=CaseRecord)
+def notify_n8n_on_case_change(sender, instance, created, **kwargs):
+    # Ganti dengan Webhook URL dari n8n
+    N8N_WEBHOOK_URL = "http://n8n-server.local:5678/webhook/roc-desk-event"
+    
+    payload = {
+        "event": "case_created" if created else "case_updated",
+        "case_id": str(instance.id),
+        "case_number": instance.case_number,
+        "subject": instance.subject,
+        "status": instance.status,
+        "requester": instance.requester.full_name if instance.requester else "Unknown"
+    }
+    
+    try:
+        # Gunakan timeout agar tidak hang
+        requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
+    except Exception as e:
+        print(f"Failed to notify n8n: {e}")
+```
+
+**Di n8n:**
+1. Tambahkan node **Webhook**.
+2. Set Http Method menjadi `POST`.
+3. Gunakan URL yang tertera di layar node tersebut sebagai `N8N_WEBHOOK_URL` di kode Django.
+4. Hubungkan node Webhook ini ke node lain (Slack, Jira, Discord, dll).
+
+### 16.2. Skenario 2: Action dari n8n ke RoC Desk (Inbound API)
+**Tujuan:** n8n yang memerintahkan RoC Desk (misalnya: Otomatis menutup tiket tertentu, atau membuat case otomatis saat invoice Xero gagal dibayar).
+
+**Cara Implementasi di Django:**
+Buat sebuah REST API endpoint sederhana di `cases/views.py` (atau pisahkan dalam app baru misal `api/`).
+
+**Contoh Kode API Endpoint (Django):**
+```python
+# cases/api.py
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+from .models import CaseRecord, CaseCategory
+from core.models import Employee
+
+@csrf_exempt
+def api_create_case(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+        
+    # Contoh autentikasi token sederhana
+    token = request.headers.get("Authorization")
+    if token != "Bearer MY_SECRET_API_TOKEN":
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+        
+    data = json.loads(request.body)
+    
+    # Logika pembuatan Case
+    # ...
+    return JsonResponse({"message": "Case created successfully", "case_number": "CS-12345678"})
+```
+
+**Di n8n:**
+1. Gunakan node **HTTP Request**.
+2. Set URL ke `http://your-django-server/api/v1/cases/create/`.
+3. Set Method `POST` dan tambahkan Header Authentication.
+4. Body format JSON sesuai parameter yang diminta API.
+
+### 16.3. Skenario 3: Direct Database Connection (Cepat, khusus Report)
+Jika digunakan untuk menarik data dalam jumlah banyak langsung ke Google Sheets/Metabase/Looker via n8n.
+
+**Di n8n:**
+1. Tambahkan node **PostgreSQL**.
+2. Masukkan kredensial database yang digunakan oleh RoC Desk (Host, Port, User, Password, Database).
+3. Anda bisa mengeksekusi `SELECT * FROM cases_caserecord WHERE status = 'Open'` langsung dari n8n!
+> **Peringatan:** Sangat tidak disarankan menggunakan mode ini untuk kebutuhan *INSERT*/*UPDATE* data. Gunakan API untuk modifikasi data agar _business logic_ dan _SLA Tracking_ di Django tetap berjalan.
+
+### 16.4. Skenario 4: Cron via n8n (Automated Reminders)
+Anda bisa memindahkan logika Celery Beat rumit menjadi Workflow visual di n8n.
+
+**Skenario**: n8n mengecek tiket "*Pending Info*" yang menganggur selama 2 hari setiap pagi jam 08:00, lalu mengeksekusi REST API Node ke RoC Desk, atau langsung menembak API WhatsApp (Evolution API) untuk Follow-up klien.
+
+**Alur n8n:**
+`Schedule Trigger (Setiap Hari 08:00)` ➡️ `PostgreSQL Node (Cari Tiket PendingInfo > 2 Hari)` ➡️ `Loop Node` ➡️ `HTTP Request (Tembak WhatsApp Webhook)`.

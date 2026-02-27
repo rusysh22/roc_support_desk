@@ -5,6 +5,7 @@ Provides full admin interfaces with inline messages and attachments,
 list filters, and audit field auto-population.
 """
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline, StackedInline
 
 from .models import Attachment, CaseCategory, CaseRecord, Message
 
@@ -13,14 +14,14 @@ from .models import Attachment, CaseCategory, CaseRecord, Message
 # Inlines
 # =====================================================================
 
-class AttachmentInline(admin.TabularInline):
+class AttachmentInline(TabularInline):
     """Inline attachments within a Message."""
     model = Attachment
     extra = 0
     readonly_fields = ("id", "file_size", "mime_type", "created_at")
 
 
-class MessageInline(admin.StackedInline):
+class MessageInline(StackedInline):
     """Inline messages within a CaseRecord."""
     model = Message
     extra = 0
@@ -36,7 +37,7 @@ class MessageInline(admin.StackedInline):
 # =====================================================================
 
 @admin.register(CaseCategory)
-class CaseCategoryAdmin(admin.ModelAdmin):
+class CaseCategoryAdmin(ModelAdmin):
     """Admin for service catalogue categories."""
 
     list_display = ("name", "slug", "icon", "created_at")
@@ -56,7 +57,7 @@ class CaseCategoryAdmin(admin.ModelAdmin):
 # =====================================================================
 
 @admin.register(CaseRecord)
-class CaseRecordAdmin(admin.ModelAdmin):
+class CaseRecordAdmin(ModelAdmin):
     """Admin for case management — includes inline messages."""
 
     list_display = (
@@ -119,7 +120,7 @@ class CaseRecordAdmin(admin.ModelAdmin):
 # =====================================================================
 
 @admin.register(Message)
-class MessageAdmin(admin.ModelAdmin):
+class MessageAdmin(ModelAdmin):
     """Admin for individual messages."""
 
     list_display = (
@@ -163,7 +164,7 @@ class MessageAdmin(admin.ModelAdmin):
 # =====================================================================
 
 @admin.register(Attachment)
-class AttachmentAdmin(admin.ModelAdmin):
+class AttachmentAdmin(ModelAdmin):
     """Admin for file attachments."""
 
     list_display = ("original_filename", "mime_type", "file_size", "message", "created_at")

@@ -27,6 +27,15 @@ urlpatterns = [
     # HTMX partials
     path("cases/<uuid:case_id>/rca/", views.case_update_rca, name="case_update_rca"),
     path("cases/<uuid:case_id>/reply/", views.case_send_reply, name="case_send_reply"),
+    path("cases/<uuid:case_id>/comment/", views.case_add_comment, name="case_add_comment"),
     path("cases/<uuid:case_id>/thread/", views.chat_thread, name="chat_thread"),
     path("cases/<uuid:case_id>/status/", views.case_update_status, name="case_update_status"),
+    path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
+
+    # API
+    path("api/users/", views.api_users_list, name="api_users_list"),
+
+    # Notifications Bell
+    path("notifications/", views.notification_bell, name="notifications"),
+    path("notifications/<str:notif_type>/<str:notif_id>/read/", views.mark_notification_read, name="mark_notification_read"),
 ]

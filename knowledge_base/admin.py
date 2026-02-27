@@ -3,12 +3,13 @@ Knowledge Base App — Django Admin Registration
 ================================================
 """
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import Article
 
 
 @admin.register(Article)
-class ArticleAdmin(admin.ModelAdmin):
+class ArticleAdmin(ModelAdmin):
     """Admin for knowledge base articles."""
 
     list_display = (

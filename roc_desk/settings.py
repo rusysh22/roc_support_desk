@@ -35,9 +35,9 @@ ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 AUTH_USER_MODEL = "core.User"
 
 # -----------------------------------------------------------------
-# Application definition
-# -----------------------------------------------------------------
 INSTALLED_APPS = [
+    # Admin Theme
+    "unfold",
     # Django built-in
     "django.contrib.admin",
     "django.contrib.auth",

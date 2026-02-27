@@ -1,0 +1,66 @@
+<div id="closure-modal" 
+     class="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity" 
+     x-data="{ open: true }" 
+     x-show="open" 
+     style="display: none;">
+    
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" 
+         @click="open = false" 
+         x-show="open" 
+         x-transition.opacity></div>
+    
+    <!-- Modal Panel -->
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col" 
+         x-show="open" 
+         x-transition.scale.origin.bottom>
+         
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                <span class="text-xl">✅</span> Confirm Case Closure
+            </h3>
+            <button @click="open = false" type="button" class="text-slate-400 hover:text-slate-600 transition-colors p-1" title="Close">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        
+        <form hx-post="{% url 'desk:case_close_and_notify' case_id=case.id %}" 
+              class="p-6 flex flex-col gap-5">
+            {% csrf_token %}
+            
+            <div class="bg-indigo-50 text-indigo-800 p-3 rounded-lg text-sm flex items-start gap-2 border border-indigo-100">
+                <span class="mt-0.5">ℹ️</span>
+                <div>
+                    This professional message will be sent to the requester <strong>({{ case.requester.full_name|default:case.requester_name }})</strong> via 
+                    <strong>{% if case.source == 'EvolutionAPI_WA' %}WhatsApp💬{% else %}Email📧{% endif %}</strong>. 
+                    You may edit the template below before sending.
+                </div>
+            </div>
+            
+            <textarea name="closure_message_body" rows="12" class="jk-input text-sm text-slate-700 leading-relaxed font-mono w-full resize-y" required>Hello {{ case.requester.full_name|default:case.requester_name }},
+
+Your service ticket #{{ case.case_number }} ("{{ case.subject }}") has been marked as Resolved and Closed.
+Here are the details of your ticket:
+- Name: {{ case.requester.full_name|default:"-" }}
+- Job Role: {{ case.requester.job_role|default:"-" }}
+- Email: {{ case.requester.email|default:"-" }}
+- Company Unit: {{ case.requester.unit.name|default:"-" }}
+
+Below is a summary of the resolution for your ticket:
+- Root Cause Analysis: {{ case.root_cause_analysis }}
+- Solving Steps: {{ case.solving_steps }}
+
+Thank you for reaching out to us. If you encounter any further issues, please do not hesitate to contact us again.
+
+Best regards,
+RoC Support Desk Team{% if user.initials %} - {{ user.initials }}{% endif %}</textarea>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" @click="open = false; document.getElementById('htmx-modal').innerHTML=''" class="jk-btn jk-btn-secondary px-5">Cancel</button>
+                <button type="submit" class="jk-btn jk-btn-success px-5 font-semibold" onclick="document.getElementById('rca-spinner').style.display='block'">
+                    Send & Close Ticket
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

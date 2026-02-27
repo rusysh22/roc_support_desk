@@ -55,6 +55,12 @@
                 <span class="font-medium text-slate-500">Category:</span>
                 {{ case.category.name }}
             </div>
+            {% if case.requester_unit_name or case.requester.company_unit.name %}
+            <div>
+                <span class="font-medium text-slate-500">Company Unit:</span>
+                <span class="text-indigo-600 font-medium">{% if case.requester_unit_name %}{{ case.requester_unit_name }}{% else %}{{ case.requester.company_unit.name }}{% endif %}</span>
+            </div>
+            {% endif %}
             <div>
                 <span class="font-medium text-slate-500">Created:</span>
                 {{ case.created_at|date:"d M Y H:i" }}
@@ -82,14 +88,56 @@
 </div>
 
 <!-- ============================================================= -->
+<!-- LOG CHAT HISTORY (Collapsed)                                   -->
+<!-- ============================================================= -->
+<div class="jk-card mb-6">
+    <details class="group">
+        <summary class="jk-card-body py-3 cursor-pointer flex justify-between items-center font-medium text-slate-700 hover:text-indigo-600 list-none" style="list-style: none;">
+            <div class="flex items-center gap-2">
+                <span>📜</span> Show Log Chat History
+            </div>
+            <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="border-t border-slate-100 bg-slate-50 p-4 text-xs font-mono text-slate-600 max-h-64 overflow-y-auto">
+            {% for msg in chat_messages %}
+            <div class="flex items-start gap-3 py-1.5 border-b border-slate-200 last:border-0 hover:bg-slate-100 px-2 rounded transition-colors">
+                <div class="whitespace-nowrap text-slate-400">[{{ msg.sent_at|date:"Y-m-d H:i:s" }}]</div>
+                <div class="whitespace-nowrap font-bold {% if msg.direction == 'IN' %}text-blue-500{% else %}text-emerald-500{% endif %}">[{{ msg.direction }}]</div>
+                <div class="flex-1 truncate" title="{{ msg.body }}">{{ msg.body }}</div>
+                {% if msg.delivery_status == 'Failed' %}
+                <div class="whitespace-nowrap text-rose-600 font-semibold flex items-center gap-1 cursor-help" title="{{ msg.delivery_error|default:'Message failed to send' }}">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Failed
+                </div>
+                {% elif msg.delivery_status == 'Pending' %}
+                <div class="whitespace-nowrap text-amber-500 font-semibold flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    Pending
+                </div>
+                {% else %}
+                <div class="whitespace-nowrap text-emerald-600 font-semibold flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Success
+                </div>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="text-slate-400 italic py-2">No chat history available.</div>
+            {% endfor %}
+        </div>
+    </details>
+</div>
+
+<!-- ============================================================= -->
 <!-- SPLIT PANEL: Chat Thread (Left) + RCA Form (Right)             -->
 <!-- ============================================================= -->
 <div class="jk-split">
 
-    <!-- ========== LEFT PANEL — Conversation Thread ========== -->
-    <div class="jk-chat-panel">
-        <!-- Chat Header -->
-        <div class="jk-chat-panel__header">
+    <!-- ========== LEFT PANEL — Conversation Thread & Internal Notes ========== -->
+    <div class="flex flex-col gap-4 min-w-0">
+        <div class="jk-chat-panel">
+            <!-- Chat Header -->
+            <div class="jk-chat-panel__header">
             <div class="jk-chat-panel__header-info">
                 <div class="jk-chat-panel__header-avatar">
                     {{ case.requester.full_name|slice:":1"|upper }}
@@ -103,20 +151,6 @@
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-                <!-- Show/Hide Log Toggle -->
-                <button type="button" id="toggle-log-btn"
-                        class="jk-btn jk-btn-sm jk-btn-secondary"
-                        title="Show message log"
-                        style="font-size:11px;padding:4px 10px;border-radius:6px;display:flex;align-items:center;gap:4px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10 9 9 9 8 9"/>
-                    </svg>
-                    <span>Log</span>
-                </button>
                 <div class="jk-spinner htmx-indicator" id="thread-spinner"></div>
             </div>
         </div>
@@ -137,6 +171,14 @@
                 x-data="{ replyText: '', fileName: '' }" @htmx:after-request="replyText = ''; fileName = ''; $refs.replyInput.value = ''; $refs.fileInput.value = ''">
                 {% csrf_token %}
 
+                {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
+                <div class="mb-2 px-2 flex justify-end">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-500 hover:text-indigo-600 select-none transition-colors">
+                        <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" checked>
+                        <span>Send Reply via Email</span>
+                    </label>
+                </div>
+                {% endif %}
                 <div class="jk-reply-bar">
                     <!-- Attach button -->
                     <label class="jk-reply-bar__attach" title="Attach file">
@@ -170,7 +212,133 @@
                 </div>
             </form>
         </div>
+    </div> <!-- /jk-chat-panel -->
+
+    <!-- Internal Comments Section (Moved outside jk-chat-panel so chat doesn't squash) -->
+    <div id="internal-comments" class="bg-slate-50 border border-slate-200 rounded-xl shadow-sm overflow-hidden h-96 mb-4">
+        {% include "partials/case_comments.html" with comments=case.internal_comments.all %}
     </div>
+
+    <!-- Attachments Gallery -->
+    <div class="jk-card mb-4">
+        <div class="jk-card-header">
+            <span>📎 Attachments</span>
+        </div>
+        <div class="jk-card-body max-h-64 overflow-y-auto p-4">
+            <div class="flex flex-wrap gap-3">
+                {% for message in case.messages.all %}
+                    {% for file in message.attachments.all %}
+                        <a href="{{ file.file.url }}" target="_blank" rel="noopener noreferrer" 
+                           class="flex items-center gap-2 p-2 px-3 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm rounded-lg transition-all group max-w-full">
+                            
+                            <div class="w-8 h-8 rounded shrink-0 bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500 flex items-center justify-center">
+                                <!-- Generic File Icon -->
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                            </div>
+                            
+                            <div class="flex flex-col min-w-0">
+                                <span class="text-xs font-semibold text-slate-700 truncate max-w-[150px]" title="{{ file.original_filename }}">
+                                    {{ file.original_filename|default:"Attachment" }}
+                                </span>
+                                <span class="text-[10px] text-slate-400">
+                                    {{ message.created_at|date:"d M Y, H:i" }}
+                                </span>
+                            </div>
+                        </a>
+                    {% endfor %}
+                {% empty %}
+                    <div class="w-full text-sm text-slate-400 text-center py-4">No attachments uploaded yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Log -->
+    <div class="jk-card" x-data="{ showModal: false, modalTitle: '', modalContent: '' }">
+        <div class="jk-card-header">
+            <span>🕒 Audit Log</span>
+        </div>
+        <div class="jk-card-body max-h-64 overflow-y-auto p-0">
+            {% if case.audit_logs.all %}
+            <table class="w-full text-xs text-left text-slate-500">
+                <thead class="text-[10px] uppercase bg-slate-50 text-slate-700 sticky top-0 shadow-sm">
+                    <tr>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">Date/Time</th>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">User</th>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">Action</th>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">Field</th>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">Old Value</th>
+                        <th class="px-4 py-3 font-bold border-b border-slate-200">New Value</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for log in case.audit_logs.all %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-3 whitespace-nowrap">{{ log.created_at|date:"d M Y H:i" }}</td>
+                        <td class="px-4 py-3 font-medium text-slate-700">{{ log.created_by.username|default:"System" }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600 font-medium">
+                                {{ log.action }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-slate-700">{{ log.field_name|title|default:"-" }}</td>
+                        <td class="px-4 py-3 max-w-[120px]">
+                            <div class="truncate cursor-pointer hover:text-indigo-600 transition-colors" 
+                                 title="Click to view full text"
+                                 @click="if('{{ log.old_value|escapejs }}'.length > 0) { modalTitle='Old Value: ' + '{{ log.field_name|title|escapejs }}'; modalContent='{{ log.old_value|escapejs }}'; showModal=true; }">
+                                {{ log.old_value|default:"-" }}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 max-w-[120px] text-indigo-700">
+                            <div class="truncate cursor-pointer hover:text-indigo-800 transition-colors" 
+                                 title="Click to view full text"
+                                 @click="if('{{ log.new_value|escapejs }}'.length > 0) { modalTitle='New Value: ' + '{{ log.field_name|title|escapejs }}'; modalContent='{{ log.new_value|escapejs }}'; showModal=true; }">
+                                {{ log.new_value|default:"-" }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-sm text-slate-400 text-center py-8">No changes recorded yet. Update the ticket to see audit logs.</div>
+            {% endif %}
+        </div>
+
+        <!-- Audit Log Modal Pop-up -->
+        <div x-show="showModal" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" @click.outside="showModal = false">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                    <h3 class="text-base font-semibold text-slate-800" x-text="modalTitle"></h3>
+                    <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-6 overflow-y-auto bg-white flex-1 relative">
+                    <pre class="text-[13px] text-slate-700 whitespace-pre-wrap font-mono bg-slate-50/80 p-5 rounded-lg border border-slate-200" x-text="modalContent" style="tab-size: 4;"></pre>
+                </div>
+                <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+                    <button @click="showModal = false" class="px-5 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div> <!-- /Left Panel Column -->
 
     <!-- ========== RIGHT PANEL — Problem & Solving Docs ========== -->
     <div class="space-y-4">
@@ -180,8 +348,17 @@
             <div class="jk-card-header">
                 <span>📄 Problem Description</span>
             </div>
-            <div class="jk-card-body">
+            <div class="jk-card-body max-h-96 overflow-y-auto">
                 <p class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{{ case.problem_description }}</p>
+                
+                {% if case.link %}
+                <div class="mt-4 pt-3 border-t border-slate-100 text-sm">
+                    <span class="font-semibold text-slate-600">Link:</span> 
+                    <a href="{{ case.link }}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 underline break-all">
+                        {{ case.link }}
+                    </a>
+                </div>
+                {% endif %}
 
                 {% if case.form_data %}
                 <details class="mt-4">
@@ -204,36 +381,84 @@
 
 {% endblock %}
 
-{% block extra_head %}
-<style>
-    /* Hide message log info by default */
-    .jk-msg-log-info {
-        display: none !important;
-    }
-    /* Show when parent #chat-thread has .show-log class */
-    #chat-thread.show-log .jk-msg-log-info {
-        display: flex !important;
-    }
-</style>
-{% endblock %}
+
 
 {% block extra_scripts %}
-<script>
-    // ── Log Toggle ──
-    (function () {
-        const btn = document.getElementById('toggle-log-btn');
-        const thread = document.getElementById('chat-thread');
-        if (!btn || !thread) return;
+<!-- Tribute.js for @mentions in internal notes -->
+<link rel="stylesheet" href="https://unpkg.com/tributejs@5.1.3/dist/tribute.css">
+<style>
+    /* Tailwind overrides for Tribute popup */
+    .tribute-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: auto;
+        max-height: 300px;
+        max-width: 500px;
+        overflow: auto;
+        display: block;
+        z-index: 999999;
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        border: 1px solid #e2e8f0;
+    }
+    .tribute-container ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+    .tribute-container li {
+        padding: 0;
+        cursor: pointer;
+    }
+    .tribute-container li.highlight {
+        background: #f1f5f9;
+    }
+</style>
+<script src="https://unpkg.com/tributejs@5.1.3/dist/tribute.min.js"></script>
 
-        btn.addEventListener('click', function () {
-            thread.classList.toggle('show-log');
-            const isOn = thread.classList.contains('show-log');
-            btn.querySelector('span').textContent = isOn ? 'Hide Log' : 'Log';
-            btn.classList.toggle('jk-btn-primary', isOn);
-            btn.classList.toggle('jk-btn-secondary', !isOn);
-            btn.title = isOn ? 'Hide message log' : 'Show message log';
-        });
-    })();
+<script>
+    let tributeInstance = null;
+    let cachedUsers = null;
+
+    function initTribute() {
+        const attachTribute = (data) => {
+            if (tributeInstance) {
+                // detatch existing to prevent duplicates
+                tributeInstance.detach(document.querySelectorAll('#internal-comment-textarea'));
+            }
+            
+            tributeInstance = new Tribute({
+                values: data,
+                trigger: '@',
+                selectTemplate: function(item) {
+                    return '@' + item.original.value;
+                },
+                requireLeadingSpace: true,
+                menuItemTemplate: function(item) {
+                    return '<div class="px-3 py-2 text-sm border-b border-slate-50 last:border-0"><span class="font-semibold text-slate-700">' + item.original.key + '</span> <span class="text-slate-400 text-xs ml-1">@' + item.original.value + '</span></div>';
+                }
+            });
+            
+            const textarea = document.getElementById('internal-comment-textarea');
+            if (textarea) {
+                tributeInstance.attach(textarea);
+            }
+        };
+
+        if (cachedUsers) {
+            attachTribute(cachedUsers);
+        } else {
+            fetch("{% url 'desk:api_users_list' %}")
+                .then(res => res.json())
+                .then(data => {
+                    cachedUsers = data;
+                    attachTribute(data);
+                })
+                .catch(err => console.error("Failed to fetch users for mentions", err));
+        }
+    }
 
     // Auto-scroll chat to bottom on HTMX swap
     document.addEventListener('htmx:afterSwap', function (e) {
@@ -243,14 +468,20 @@
                 container.scrollTop = container.scrollHeight;
             }
         }
+        
+        if (e.detail.target.id === 'internal-comments') {
+            initTribute();
+        }
     });
 
-    // Initial scroll to bottom
+    // Initial load
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.querySelector('.jk-chat-messages');
         if (container) {
             container.scrollTop = container.scrollHeight;
         }
+        
+        initTribute();
     });
 </script>
 {% endblock %}

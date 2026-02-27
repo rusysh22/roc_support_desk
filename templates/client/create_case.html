@@ -3,6 +3,11 @@
 {% block title %}Submit a Case — RoC Desk{% endblock %}
 {% block page_title %}Submit a Case{% endblock %}
 
+{% block extra_head %}
+<!-- Mailcheck.js for email typo detection -->
+<script src="https://cdn.jsdelivr.net/npm/mailcheck@1.1.1/src/mailcheck.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-2xl mx-auto">
 
@@ -48,11 +53,48 @@
                         </div>
 
                         <!-- Email -->
-                        <div class="jk-form-group mb-0">
+                        <div class="jk-form-group mb-0" 
+                             x-data="{
+                                suggestion: '',
+                                initMailcheck() {
+                                    const input = this.$refs.emailInput;
+                                    const that = this;
+                                    
+                                    input.addEventListener('blur', function() {
+                                        that.suggestion = ''; // reset
+                                        Mailcheck.run({
+                                            email: input.value,
+                                            suggested: function(suggestion) {
+                                                that.suggestion = suggestion.full;
+                                            },
+                                            empty: function() {
+                                                that.suggestion = '';
+                                            }
+                                        });
+                                    });
+                                },
+                                acceptSuggestion() {
+                                    this.$refs.emailInput.value = this.suggestion;
+                                    this.suggestion = '';
+                                }
+                             }"
+                             x-init="initMailcheck()">
                             <label for="id_requester_email" class="jk-label">Work Email *</label>
-                            {{ form.requester_email }}
+                            <!-- Render the input normally, but attach x-ref -->
+                            <div x-ref="emailWrapper">
+                                <input type="email" name="requester_email" id="id_requester_email" class="jk-input" placeholder="e.g. john.doe@company.com" autocomplete="email" required x-ref="emailInput" value="{{ form.requester_email.value|default:'' }}">
+                            </div>
+                            
+                            <!-- Typo Suggestion -->
+                            <div x-show="suggestion" x-transition style="display: none;" class="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-800 flex items-start gap-2">
+                                <span class="mt-0.5">💡</span>
+                                <div>
+                                    Did you mean <strong class="cursor-pointer text-indigo-600 hover:underline" @click="acceptSuggestion()" x-text="suggestion"></strong>?
+                                </div>
+                            </div>
+
                             {% if form.requester_email.errors %}
-                            <div class="jk-form-error">{{ form.requester_email.errors.0 }}</div>
+                            <div class="jk-form-error mt-1">{{ form.requester_email.errors.0 }}</div>
                             {% endif %}
                         </div>
 

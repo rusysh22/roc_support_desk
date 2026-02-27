@@ -1156,4 +1156,11 @@
     .jk-category-grid {
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
+
+    .jk-table-wrapper {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }

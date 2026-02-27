@@ -40,13 +40,13 @@
     <div class="jk-card-body py-3">
         <form method="get" class="flex flex-wrap items-center gap-3">
             <!-- Search -->
-            <div class="flex-1 min-w-[200px]">
+            <div class="flex-1 w-full md:w-auto min-w-[200px]">
                 <input type="text" name="q" value="{{ current_filters.q }}" placeholder="Search cases..."
-                    class="jk-input">
+                    class="jk-input w-full">
             </div>
 
             <!-- Status Filter -->
-            <select name="status" class="jk-select" style="width: auto; min-width: 150px;">
+            <select name="status" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
                 <option value="">All Statuses</option>
                 {% for value, label in statuses %}
                 <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}
@@ -55,7 +55,7 @@
             </select>
 
             <!-- Source Filter -->
-            <select name="source" class="jk-select" style="width: auto; min-width: 150px;">
+            <select name="source" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
                 <option value="">All Sources</option>
                 {% for value, label in sources %}
                 <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}
@@ -64,16 +64,27 @@
             </select>
 
             <!-- Category Filter -->
-            <select name="category" class="jk-select" style="width: auto; min-width: 150px;">
+            <select name="category" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
                 <option value="">All Categories</option>
                 {% for cat in categories %}
-                <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{
-                    cat.name }}</option>
+                <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
                 {% endfor %}
             </select>
 
-            <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Filter</button>
-            <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
+            <!-- Date Range Filters -->
+            <div class="flex items-center gap-2">
+                <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm" title="From Date">
+                <span class="text-slate-400">-</span>
+                <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm" title="To Date">
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Filter</button>
+                <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
+                <button type="button" onclick="window.location.reload()" class="jk-btn jk-btn-secondary jk-btn-sm" title="Refresh Data">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+            </div>
         </form>
     </div>
 </div>
@@ -104,7 +115,7 @@
         </thead>
         <tbody>
             {% for case in cases %}
-            <tr>
+            <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors">
                 <td>
                     <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link">
                         {{ case.case_number }}
@@ -112,7 +123,10 @@
                 </td>
                 <td>
                     <a href="{% url 'desk:case_detail' case_id=case.id %}"
-                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[250px]">
+                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[250px] flex items-center gap-2">
+                        {% if case.has_unread_messages %}
+                            <span class="flex w-2 h-2 rounded-full bg-red-500 flex-shrink-0 shadow-sm" title="Unread messages"></span>
+                        {% endif %}
                         {{ case.subject }}
                     </a>
                 </td>
@@ -138,7 +152,12 @@
                     <span class="jk-badge jk-badge-web">🌐 Web</span>
                     {% endif %}
                 </td>
-                <td class="text-sm">{{ case.requester.full_name }}</td>
+                <td class="text-sm">
+                    <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
+                    {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
+                    {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
+                    {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
+                </td>
                 <td class="text-sm text-slate-500">{{ case.category.name }}</td>
                 <td class="text-sm">
                     {% if case.assigned_to %}

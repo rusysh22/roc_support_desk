@@ -4,6 +4,8 @@ Cases App — Forms
 Forms for public case submission and internal staff RCA updates.
 """
 from django import forms
+from django.core.exceptions import ValidationError
+import dns.resolver
 
 from core.models import CompanyUnit
 from .models import CaseCategory, CaseRecord
@@ -51,9 +53,12 @@ class CaseCreateForm(forms.Form):
         }),
     )
     category = forms.ModelChoiceField(
-        queryset=CaseCategory.objects.all(),
+        queryset=CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"]),
         label="Category",
-        widget=forms.Select(attrs={"class": "jk-select"}),
+        widget=forms.Select(attrs={
+            "class": "jk-select pointer-events-none bg-slate-50 opacity-90",
+            "tabindex": "-1"
+        }),
     )
     subject = forms.CharField(
         max_length=500,
@@ -86,6 +91,35 @@ class CaseCreateForm(forms.Form):
     # Max file size: 10 MB
     MAX_FILE_SIZE = 10 * 1024 * 1024
 
+    def clean_requester_email(self):
+        """
+        Validate that the email domain has valid MX records.
+        Prevents typos or fake domains from passing through.
+        """
+        email = self.cleaned_data.get("requester_email")
+        if not email:
+            return email
+            
+        domain = email.split('@')[-1]
+        try:
+            # Query MX records with a short timeout to prevent hanging the server
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 3.0
+            resolver.lifetime = 3.0
+            answers = resolver.resolve(domain, 'MX')
+            if not answers:
+                raise ValidationError(f"The domain '{domain}' does not appear to be set up to receive emails.")
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
+            raise ValidationError(f"The domain '{domain}' does not exist or cannot receive emails. Please check for typos.")
+        except dns.exception.Timeout:
+            # If the DNS server times out, log it but don't strictly block the user 
+            # to be safe, or you can block it. Here we raise a validation error for strictness.
+            raise ValidationError(f"Could not verify the email domain '{domain}' at this time. Please try again.")
+        except Exception:
+            raise ValidationError("Invalid email address format or domain.")
+            
+        return email
+
     def validate_attachments(self, files):
         """Validate each uploaded file is ≤ 10 MB. Called from the view."""
         errors = []
@@ -114,24 +148,46 @@ class CaseRCAForm(forms.ModelForm):
     class Meta:
         model = CaseRecord
         fields = [
+            "priority",
+            "case_type",
+            "tags",
+            "followers",
             "status",
             "root_cause_analysis",
             "solving_steps",
+            "quick_notes",
             "assigned_to",
             "response_due_at",
             "resolution_due_at",
         ]
         widgets = {
+            "priority": forms.Select(attrs={"class": "jk-select"}),
+            "case_type": forms.Select(attrs={"class": "jk-select"}),
+            "tags": forms.TextInput(attrs={
+                "class": "jk-input",
+                "placeholder": "e.g. login, network, bug",
+            }),
+            "followers": forms.SelectMultiple(attrs={
+                "class": "jk-select",
+                "size": "3",
+            }),
+            "quick_notes": forms.Textarea(attrs={
+                "class": "jk-textarea",
+                "rows": 3,
+                "placeholder": "Quick internal notes regarding this case...",
+            }),
             "status": forms.Select(attrs={"class": "jk-select"}),
             "root_cause_analysis": forms.Textarea(attrs={
                 "class": "jk-textarea",
                 "rows": 6,
                 "placeholder": "Document the root cause of the problem...",
+                "maxlength": "1500",
             }),
             "solving_steps": forms.Textarea(attrs={
                 "class": "jk-textarea",
                 "rows": 6,
                 "placeholder": "Step-by-step solution applied...",
+                "maxlength": "1500",
             }),
             "assigned_to": forms.Select(attrs={"class": "jk-select"}),
             "response_due_at": forms.DateTimeInput(attrs={

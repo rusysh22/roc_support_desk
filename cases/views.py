@@ -18,13 +18,14 @@ Staff views (login + role_access required):
 from functools import wraps
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from core.models import CompanyUnit, Employee, User
 from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
-from .models import Attachment, CaseCategory, CaseRecord, Message
+from .models import Attachment, CaseCategory, CaseRecord, Message, CaseComment, CaseAuditLog
 
 
 # =====================================================================
@@ -73,7 +74,7 @@ def client_dashboard(request):
     Display the service catalogue as a responsive grid of CaseCategory cards.
     Completely public — no authentication required.
     """
-    categories = CaseCategory.objects.all()
+    categories = CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"])
     return render(request, "client/dashboard.html", {"categories": categories})
 
 
@@ -107,8 +108,30 @@ def create_case(request, slug=None):
             email = form.cleaned_data["requester_email"]
             company_unit = form.cleaned_data["company_unit"]
 
-            # Try to auto-link Employee if email matches (optional)
-            employee = Employee.objects.filter(email=email).first()
+            # Auto-link or auto-create Employee safely
+            employee, created = Employee.objects.get_or_create(
+                email=email,
+                defaults={
+                    "full_name": form.cleaned_data["requester_name"],
+                    "job_role": form.cleaned_data["job_role"],
+                    "unit": company_unit,
+                }
+            )
+
+            # Update existing employee details if they changed
+            if not created:
+                updated = False
+                if form.cleaned_data["requester_name"] and employee.full_name != form.cleaned_data["requester_name"]:
+                    employee.full_name = form.cleaned_data["requester_name"]
+                    updated = True
+                if company_unit and employee.unit != company_unit:
+                    employee.unit = company_unit
+                    updated = True
+                if form.cleaned_data["job_role"] and employee.job_role != form.cleaned_data["job_role"]:
+                    employee.job_role = form.cleaned_data["job_role"]
+                    updated = True
+                if updated:
+                    employee.save(update_fields=["full_name", "unit", "job_role"])
 
             case = CaseRecord.objects.create(
                 requester=employee,  # None if no matching Employee
@@ -122,6 +145,7 @@ def create_case(request, slug=None):
                 link=form.cleaned_data.get("link", ""),
                 source=CaseRecord.Source.WEBFORM,
                 status=CaseRecord.Status.OPEN,
+                has_unread_messages=True,
             )
 
             # Create the initial message from the problem description
@@ -150,7 +174,7 @@ def create_case(request, slug=None):
     return render(request, "client/create_case.html", {
         "form": form,
         "selected_category": selected_category,
-        "categories": CaseCategory.objects.all(),
+        "categories": CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"]),
         "company_units": CompanyUnit.objects.all(),
     })
 
@@ -180,6 +204,8 @@ def case_list(request):
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
 
     if status_filter:
         cases = cases.filter(status=status_filter)
@@ -188,7 +214,21 @@ def case_list(request):
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
     if search_query:
-        cases = cases.filter(subject__icontains=search_query)
+        cases = cases.filter(
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query)
+        )
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
 
     return render(request, "admin/case_list.html", {
         "cases": cases,
@@ -200,6 +240,8 @@ def case_list(request):
             "source": source_filter or "",
             "category": category_filter or "",
             "q": search_query,
+            "date_from": date_from or "",
+            "date_to": date_to or "",
         },
     })
 
@@ -215,17 +257,33 @@ def case_detail(request, case_id):
         CaseRecord.objects.select_related("requester", "category", "assigned_to"),
         id=case_id,
     )
+    
+    unread_msg_ids = []
+    if case.has_unread_messages:
+        unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+        case.has_unread_messages = False
+        case.save(update_fields=["has_unread_messages"])
+        case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments").all()
     rca_form = CaseRCAForm(instance=case)
     reply_form = StaffReplyForm()
 
+    # Capture the referring URL (the dashboard/list with filters)
+    back_url = request.GET.get("back") or request.META.get("HTTP_REFERER", "/desk/cases/")
+    # If the referer is just the current page itself, fallback to the list
+    if f"/desk/cases/{case_id}" in back_url:
+        back_url = "/desk/cases/"
+
     return render(request, "admin/case_detail.html", {
         "case": case,
-        "messages": messages,
+        "chat_messages": messages,
+        "unread_msg_ids": unread_msg_ids,
         "rca_form": rca_form,
         "reply_form": reply_form,
+        "back_url": back_url,
     })
 
 
@@ -238,23 +296,115 @@ def case_update_rca(request, case_id):
     case = get_object_or_404(CaseRecord, id=case_id)
 
     if request.method == "POST":
+        original_status = case.status
         form = CaseRCAForm(request.POST, instance=case)
         if form.is_valid():
+            desired_status = form.cleaned_data.get("status")
+            
+            # SLA validation if attempting to Close
+            if desired_status == CaseRecord.Status.CLOSED:
+                if not form.cleaned_data.get("root_cause_analysis") or not form.cleaned_data.get("solving_steps"):
+                    return render(request, "partials/rca_form.html", {
+                        "case": case,
+                        "rca_form": form,
+                        "error_message": "SLA Details (Root Cause Analysis & Solving Steps) are required to close the ticket.",
+                    })
+                    
+                # Save changes but revert status until confirmed in the modal
+                case = form.save(commit=False)
+                case.status = original_status
+                case.updated_by = request.user
+                
+                # Check what changed before saving to create audit logs
+                if form.changed_data:
+                    for field in form.changed_data:
+                        if field == 'status': 
+                            continue # we reverted status above
+                        old_val = form.initial.get(field)
+                        new_val = form.cleaned_data.get(field)
+                        
+                        # Followers is M2M, handled after save typically, but we log the attempt
+                        if field == 'followers':
+                            old_val = ", ".join([u.username for u in case.followers.all()])
+                            new_val = ", ".join([u.username for u in new_val]) if new_val else ""
+
+                        CaseAuditLog.objects.create(
+                            case=case,
+                            action=CaseAuditLog.ActionText.UPDATED,
+                            field_name=field,
+                            old_value=str(old_val) if old_val else "",
+                            new_value=str(new_val) if new_val else "",
+                            created_by=request.user,
+                        )
+
+                case.save()
+                form.save_m2m() # Important for followers
+                
+                from django.template.loader import render_to_string
+                form_response = render(request, "partials/rca_form.html", {
+                    "case": case,
+                    "rca_form": CaseRCAForm(instance=case),
+                    "success_message": "Details saved. Please confirm ticket closure below.",
+                })
+                
+                modal_html = render_to_string("partials/closure_modal.html", {"case": case}, request=request)
+                oob_modal = f'<div id="htmx-modal" hx-swap-oob="innerHTML">{modal_html}</div>'
+                
+                return HttpResponse(form_response.content.decode() + oob_modal)
+
+            # Normal save for non-closing updates
             case = form.save(commit=False)
             case.updated_by = request.user
-            case.save()
+            
+            # Check what changed before saving to create audit logs
+            if form.changed_data:
+                for field in form.changed_data:
+                    old_val = form.initial.get(field)
+                    new_val = form.cleaned_data.get(field)
+                    
+                    action_type = CaseAuditLog.ActionText.UPDATED
+                    if field == 'status':
+                        action_type = CaseAuditLog.ActionText.STATUS_CHANGE
+                    elif field in ['assigned_to', 'followers']:
+                        action_type = CaseAuditLog.ActionText.ASSIGNED
+                    
+                    if field == 'followers':
+                        old_val = ", ".join([u.username for u in case.followers.all()])
+                        new_val = ", ".join([u.username for u in new_val]) if new_val else ""
+                    elif field == 'assigned_to':
+                        old_val = str(old_val) if old_val else "Unassigned"
+                        new_val = str(new_val) if new_val else "Unassigned"
 
-            # Return updated form partial for HTMX swap
-            return render(request, "partials/rca_form.html", {
-                "case": case,
-                "rca_form": CaseRCAForm(instance=case),
-                "success_message": "Case updated successfully.",
-            })
+                    CaseAuditLog.objects.create(
+                        case=case,
+                        action=action_type,
+                        field_name=field,
+                        old_value=str(old_val) if old_val is not None else "",
+                        new_value=str(new_val) if new_val is not None else "",
+                        created_by=request.user,
+                    )
+
+            case.save()
+            form.save_m2m() # Important for followers
+
+            # Redirect to the previous page (likely the filtered table list)
+            # using the back_url passed through the form
+            redirect_url = request.POST.get("back_url", "/desk/cases/")
+            
+            # safeguard against infinite reloads on the same detail page
+            if f"/desk/cases/{case_id}" in redirect_url:
+                redirect_url = "/desk/cases/"
+                
+            return HttpResponse(
+                f'<script>window.location.href = "{redirect_url}";</script>',
+                content_type="text/html"
+            )
         else:
             return render(request, "partials/rca_form.html", {
                 "case": case,
                 "rca_form": form,
                 "error_message": "Please fix the errors below.",
+                "back_url": request.POST.get("back_url", "/desk/cases/"),
             })
 
     return HttpResponse(status=405)
@@ -272,7 +422,11 @@ def case_send_reply(request, case_id):
         if form.is_valid():
             # Determine the channel based on the original case source
             reply_channel = Message.Channel.WEB
-            if case.source == CaseRecord.Source.EMAIL:
+            
+            send_as_email = request.POST.get("send_as_email") == "true"
+            if case.source == CaseRecord.Source.WEBFORM and send_as_email:
+                reply_channel = Message.Channel.EMAIL
+            elif case.source == CaseRecord.Source.EMAIL:
                 reply_channel = Message.Channel.EMAIL
             elif case.source == CaseRecord.Source.EVOLUTION_WA:
                 reply_channel = Message.Channel.WHATSAPP  # Prep for future WA outbound support
@@ -320,6 +474,10 @@ def case_send_reply(request, case_id):
                             "Failed to send WA reply for case %s: %s",
                             case.case_number, exc,
                         )
+                        # Update message status to FAILED
+                        msg.delivery_status = Message.DeliveryStatus.FAILED
+                        msg.delivery_error = str(exc)
+                        msg.save(update_fields=["delivery_status", "delivery_error"])
 
             # Return the refreshed chat thread partial
             messages = case.messages.select_related(
@@ -327,7 +485,7 @@ def case_send_reply(request, case_id):
             ).prefetch_related("attachments").all()
             return render(request, "partials/chat_thread.html", {
                 "case": case,
-                "messages": messages,
+                "chat_messages": messages,
             })
 
     return HttpResponse(status=405)
@@ -339,13 +497,22 @@ def chat_thread(request, case_id):
     HTMX endpoint — returns the chat thread partial for polling refresh.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    
+    unread_msg_ids = []
+    if case.has_unread_messages:
+        unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+        case.has_unread_messages = False
+        case.save(update_fields=["has_unread_messages"])
+        case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments").all()
 
     return render(request, "partials/chat_thread.html", {
         "case": case,
-        "messages": messages,
+        "chat_messages": messages,
+        "unread_msg_ids": unread_msg_ids,
     })
 
 
@@ -367,13 +534,29 @@ def case_kanban(request):
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
 
     if source_filter:
         cases = cases.filter(source=source_filter)
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
     if search_query:
-        cases = cases.filter(subject__icontains=search_query)
+        cases = cases.filter(
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query)
+        )
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
 
     # Group by status
     status_columns = [
@@ -404,6 +587,8 @@ def case_kanban(request):
             "source": source_filter or "",
             "category": category_filter or "",
             "q": search_query,
+            "date_from": date_from or "",
+            "date_to": date_to or "",
         },
     })
 
@@ -423,6 +608,14 @@ def case_update_status(request, case_id):
     if new_status not in valid_statuses:
         return HttpResponse("Invalid status", status=400)
 
+    # Prevent direct closing without SLA details from Kanban
+    if new_status == CaseRecord.Status.CLOSED:
+        if not case.root_cause_analysis or not case.solving_steps:
+            return HttpResponse("SLA details (Root Cause Analysis & Solving Steps) are required before closing. Please click the case to open the detail panel and fill them out.", status=400)
+            
+        # Generate and return the modal directly
+        return render(request, "partials/closure_modal.html", {"case": case})
+
     case.status = new_status
     case.updated_by = request.user
     case.save(update_fields=["status", "updated_at", "updated_by"])
@@ -430,6 +623,72 @@ def case_update_status(request, case_id):
     return HttpResponse(status=204)
 
 
+@staff_required
+def case_close_and_notify(request, case_id):
+    """
+    HTMX endpoint — processes the final SLA closure message from the preview modal,
+    closes the ticket, and sends the OUTBOUND message via WA/Email.
+    """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+        
+    case = get_object_or_404(CaseRecord, id=case_id)
+    closure_msg_body = request.POST.get("closure_message_body", "").strip()
+    
+    if not closure_msg_body:
+        return HttpResponse("Message body cannot be empty.", status=400)
+        
+    # Mark the case as closed
+    case.status = CaseRecord.Status.CLOSED
+    case.updated_by = request.user
+    case.save(update_fields=["status", "updated_at", "updated_by"])
+    
+    # Determine the reply channel based on the source
+    reply_channel = Message.Channel.WEB
+    if case.source in [CaseRecord.Source.WEBFORM, CaseRecord.Source.EMAIL]:
+        reply_channel = Message.Channel.EMAIL
+    elif case.source == CaseRecord.Source.EVOLUTION_WA:
+        reply_channel = Message.Channel.WHATSAPP
+        
+    # Create the Outbound Message containing the closure payload
+    msg = Message.objects.create(
+        case=case,
+        sender_staff=request.user,
+        body=closure_msg_body,
+        direction=Message.Direction.OUTBOUND,
+        channel=reply_channel,
+    )
+    
+    # Trigger appropriate sending mechanisms
+    if reply_channel == Message.Channel.EMAIL:
+        from gateways.tasks import send_outbound_email_task
+        send_outbound_email_task.delay(str(msg.id))
+    elif reply_channel == Message.Channel.WHATSAPP:
+        if case.requester and case.requester.phone_number:
+            try:
+                from gateways.services import EvolutionAPIService
+                svc = EvolutionAPIService()
+                svc.send_whatsapp_message(
+                    case.requester.phone_number,
+                    closure_msg_body,
+                )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Failed to send WA closure for case %s: %s",
+                    case.case_number, exc,
+                )
+                msg.delivery_status = Message.DeliveryStatus.FAILED
+                msg.delivery_error = str(exc)
+                msg.save(update_fields=["delivery_status", "delivery_error"])
+                
+    # Return a success script to trigger a reload or update
+    return HttpResponse(
+        '<script>window.location.reload();</script>',
+        content_type="text/html"
+    )
+
+    
 # =====================================================================
 # Calendar View
 # =====================================================================
@@ -449,6 +708,9 @@ def case_calendar(request):
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     status_filter = request.GET.get("status")
+    search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
 
     if source_filter:
         cases = cases.filter(source=source_filter)
@@ -456,6 +718,22 @@ def case_calendar(request):
         cases = cases.filter(category__slug=category_filter)
     if status_filter:
         cases = cases.filter(status=status_filter)
+    if search_query:
+        cases = cases.filter(
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query)
+        )
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
 
     # Build JSON events for the calendar
     status_colors = {
@@ -487,6 +765,8 @@ def case_calendar(request):
             "status": status_filter or "",
             "source": source_filter or "",
             "category": category_filter or "",
+            "date_from": date_from or "",
+            "date_to": date_to or "",
         },
     })
 
@@ -515,6 +795,8 @@ def case_export_excel(request):
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
 
     if status_filter:
         cases = cases.filter(status=status_filter)
@@ -524,6 +806,10 @@ def case_export_excel(request):
         cases = cases.filter(category__slug=category_filter)
     if search_query:
         cases = cases.filter(subject__icontains=search_query)
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -615,3 +901,146 @@ def case_export_excel(request):
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
+
+@staff_required
+def notification_bell(request):
+    """
+    HTMX endpoint — returns a dropdown of recent cases and unread incoming messages (last 24 hours).
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    
+    time_threshold = timezone.now() - timedelta(hours=24)
+    
+    # Get previously clicked notifications from the session
+    read_notifs = request.session.get("read_notifications", [])
+    read_case_ids = [n.replace("case_", "") for n in read_notifs if n.startswith("case_")]
+    read_msg_ids = [n.replace("msg_", "") for n in read_notifs if n.startswith("msg_")]
+    read_mention_ids = [n.replace("mention_", "") for n in read_notifs if n.startswith("mention_")]
+    
+    # 1. New Cases in the last 24h
+    recent_cases = CaseRecord.objects.select_related("requester").filter(
+        created_at__gte=time_threshold
+    ).exclude(id__in=read_case_ids).order_by("-created_at")[:10]
+    
+    # 2. Unread Incoming Messages in the last 24h
+    recent_unread_messages = Message.objects.select_related(
+        "case", "sender_employee"
+    ).filter(
+        direction=Message.Direction.INBOUND,
+        is_read=False,
+        created_at__gte=time_threshold
+    ).exclude(id__in=read_msg_ids).order_by("-created_at")[:10]
+    
+    # 3. Recent Mentions in Internal Notes
+    recent_mentions = CaseComment.objects.select_related("case", "author").filter(
+        mentions=request.user,
+        created_at__gte=time_threshold
+    ).exclude(id__in=read_mention_ids).order_by("-created_at")[:10]
+    
+    total_notifications = recent_cases.count() + recent_unread_messages.count() + recent_mentions.count()
+    
+    return render(request, "partials/notification_bell.html", {
+        "recent_cases": recent_cases,
+        "recent_unread_messages": recent_unread_messages,
+        "recent_mentions": recent_mentions,
+        "total_notifications": total_notifications,
+    })
+
+
+@staff_required
+def mark_notification_read(request, notif_type, notif_id):
+    """
+    Marks a specific notification as 'read' in the user's session 
+    so it no longer appears in the bell dropdown, then redirects
+    to the target case detail URL.
+    """
+    notif_key = f"{notif_type}_{notif_id}"
+    read_notifs = request.session.get("read_notifications", [])
+    if notif_key not in read_notifs:
+        read_notifs.append(notif_key)
+        request.session["read_notifications"] = read_notifs
+    
+    # Both types ultimately lead to the Case Detail page
+    target_case_id = notif_id
+    if notif_type == "msg":
+        try:
+            msg = Message.objects.get(id=notif_id)
+            target_case_id = msg.case.id
+        except Message.DoesNotExist:
+            target_case_id = None
+    elif notif_type == "mention":
+        try:
+            comment = CaseComment.objects.get(id=notif_id)
+            target_case_id = comment.case.id
+        except CaseComment.DoesNotExist:
+            target_case_id = None
+            
+    if target_case_id:
+        return redirect("desk:case_detail", case_id=target_case_id)
+    return redirect("desk:case_list")
+
+
+# =====================================================================
+# Internal Case Comments
+# =====================================================================
+
+@staff_required
+def case_add_comment(request, case_id):
+    """
+    HTMX endpoint for saving and retrieving internal staff comments on a case.
+    Also parses @username mentions.
+    """
+    import re
+    from core.models import User
+    
+    case = get_object_or_404(CaseRecord, id=case_id)
+    
+    if request.method == "POST":
+        body = request.POST.get("comment_body", "").strip()
+        if body:
+            comment = CaseComment.objects.create(
+                case=case,
+                author=request.user,
+                body=body
+            )
+            
+            # Parse @usernames
+            usernames = set(re.findall(r"@([a-zA-Z0-9_]+)", body))
+            if usernames:
+                mentioned_users = User.objects.filter(username__in=usernames)
+                if mentioned_users.exists():
+                    comment.mentions.add(*mentioned_users)
+
+    # Return the refreshed comments partial
+    return render(request, "partials/case_comments.html", {
+        "case": case,
+        "comments": case.internal_comments.all(),
+    })
+
+# =====================================================================
+# API Endpoints
+# =====================================================================
+
+@login_required
+def api_users_list(request):
+    """
+    Returns a JSON list of active users to power the @mention autocomplete.
+    """
+    from django.http import JsonResponse
+    from core.models import User
+    
+    users = User.objects.filter(is_active=True).values("username", "first_name", "last_name")
+    
+    data = []
+    for u in users:
+        # Prefer full name if exists, otherwise fallback to username
+        name = f"{u['first_name']} {u['last_name']}".strip()
+        display = name if name else u['username']
+        
+        data.append({
+            "key": display,
+            "value": u['username']
+        })
+        
+    return JsonResponse(data, safe=False)

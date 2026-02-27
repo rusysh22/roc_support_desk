@@ -81,6 +81,7 @@ class User(AbstractUser):
         login_username  — unique credential used for logging in.
         NIK             — Nomor Induk Karyawan (employee ID), unique.
         role_access     — determines permission tier.
+        initials        — user initials used as a signature.
     """
 
     class RoleAccess(models.TextChoices):
@@ -91,9 +92,13 @@ class User(AbstractUser):
     # Override: username is kept for display only, NOT for login
     username = models.CharField(
         max_length=150,
-        blank=True,
         verbose_name="Display Name",
         help_text="Human-readable display name (not used for login).",
+    )
+
+    email = models.EmailField(
+        unique=True,
+        verbose_name="Email address",
     )
 
     login_username = models.CharField(
@@ -106,7 +111,6 @@ class User(AbstractUser):
     nik = models.CharField(
         max_length=50,
         unique=True,
-        blank=True,
         null=True,
         verbose_name="NIK",
         help_text="Nomor Induk Karyawan — unique employee identifier.",
@@ -117,6 +121,12 @@ class User(AbstractUser):
         choices=RoleAccess.choices,
         default=RoleAccess.SUPPORTDESK,
         verbose_name="Role Access",
+    )
+
+    initials = models.CharField(
+        max_length=5,
+        verbose_name="Initials",
+        help_text="User initials used as a signature (e.g., 'mrs').",
     )
 
     # --- Auth configuration ---
@@ -179,10 +189,12 @@ class Employee(AuditableModel):
     """
 
     full_name = models.CharField(max_length=255, verbose_name="Full Name")
-    email = models.EmailField(unique=True, verbose_name="Email")
+    email = models.EmailField(unique=True, null=True, blank=True, verbose_name="Email")
     phone_number = models.CharField(
         max_length=20,
         unique=True,
+        null=True,
+        blank=True,
         validators=[phone_regex],
         verbose_name="Phone Number",
         help_text="E.164 format, e.g. +6281234567890",

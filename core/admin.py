@@ -4,6 +4,8 @@ Core App — Django Admin Registration
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from unfold.admin import ModelAdmin
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .models import CompanyUnit, Employee, User
 
@@ -13,8 +15,12 @@ from .models import CompanyUnit, Employee, User
 # =====================================================================
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(BaseUserAdmin, ModelAdmin):
     """Admin configuration for the custom User model."""
+    
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
 
     list_display = (
         "login_username",
@@ -22,18 +28,19 @@ class UserAdmin(BaseUserAdmin):
         "email",
         "nik",
         "role_access",
+        "initials",
         "is_staff",
         "is_active",
     )
     list_filter = ("role_access", "is_staff", "is_active")
-    search_fields = ("login_username", "username", "email", "nik")
+    search_fields = ("login_username", "username", "email", "nik", "initials")
     ordering = ("login_username",)
 
     fieldsets = (
         (None, {"fields": ("login_username", "password")}),
         (
             "Personal Info",
-            {"fields": ("username", "email", "nik", "role_access")},
+            {"fields": ("username", "email", "nik", "role_access", "initials")},
         ),
         (
             "Permissions",
@@ -61,6 +68,7 @@ class UserAdmin(BaseUserAdmin):
                     "email",
                     "nik",
                     "role_access",
+                    "initials",
                     "password1",
                     "password2",
                 ),
@@ -74,7 +82,7 @@ class UserAdmin(BaseUserAdmin):
 # =====================================================================
 
 @admin.register(CompanyUnit)
-class CompanyUnitAdmin(admin.ModelAdmin):
+class CompanyUnitAdmin(ModelAdmin):
     """Admin configuration for CompanyUnit."""
 
     list_display = ("code", "name", "created_at", "updated_at")
@@ -95,7 +103,7 @@ class CompanyUnitAdmin(admin.ModelAdmin):
 # =====================================================================
 
 @admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
+class EmployeeAdmin(ModelAdmin):
     """Admin configuration for Employee."""
 
     list_display = (

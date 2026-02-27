@@ -85,12 +85,14 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         try:
             employee: Employee = Employee.objects.get(phone_number=sender_phone)
         except Employee.DoesNotExist:
-            logger.warning(
-                "No registered Employee for phone %s. "
-                "Message discarded.  Consider auto-registration.",
-                sender_phone,
+            default_unit = _get_or_create_external_unit()
+            employee = Employee.objects.create(
+                phone_number=sender_phone,
+                full_name=f"WA User {sender_phone}",
+                unit=default_unit,
+                job_role="WhatsApp User"
             )
-            return f"discarded:unknown_employee:{sender_phone}"
+            logger.info("Auto-registered new Employee from WA: %s", sender_phone)
 
         # ---------------------------------------------------------
         # 4. Session threading — only thread into a RECENT WhatsApp
@@ -165,6 +167,9 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 external_id,
             )
             return f"skipped:integrity_error:{external_id}"
+            
+        case.has_unread_messages = True
+        case.save(update_fields=["has_unread_messages"])
 
         # ---------------------------------------------------------
         # 6. Download and save media attachment
@@ -178,14 +183,14 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         if is_new_case and sender_phone:
             try:
                 ack_text = (
-                    f"✅ *Tiket Anda Telah Diterima*\n\n"
-                    f"Halo *{employee.full_name}*,\n"
-                    f"Terima kasih telah menghubungi *RoC Support Desk*.\n\n"
-                    f"📋 *Nomor Tiket:* `{case.case_number}`\n"
-                    f"📝 *Subjek:* {case.subject[:80]}\n\n"
-                    f"Tim kami akan segera meninjau permintaan Anda.\n"
-                    f"Anda dapat membalas pesan ini untuk menambahkan informasi terkait tiket.\n\n"
-                    f"_Pesan otomatis — RoC Support Desk_"
+                    f"✅ *Request Received*\n\n"
+                    f"Hello *{employee.full_name}*,\n"
+                    f"Thank you for contacting the *RoC Support Desk*.\n\n"
+                    f"📋 *Ticket Number:* `{case.case_number}`\n"
+                    f"📝 *Subject:* {case.subject[:80]}\n\n"
+                    f"Our team will review your request shortly.\n"
+                    f"You may reply to this message to add any additional information regarding your ticket.\n\n"
+                    f"_Automated Message — RoC Support Desk_"
                 )
                 svc.send_whatsapp_message(sender_phone, ack_text)
                 logger.info(
@@ -241,6 +246,18 @@ def _get_or_create_default_category():
     if created:
         logger.info("Created default WhatsApp CaseCategory: %s", category.name)
     return category
+
+def _get_or_create_external_unit():
+    from core.models import CompanyUnit
+    unit, created = CompanyUnit.objects.get_or_create(
+        code="NON-ID",
+        defaults={
+            "name": "Not Identified Unit Company",
+        },
+    )
+    if created:
+        logger.info("Created default CompanyUnit: %s", unit.name)
+    return unit
 
 
 def _download_and_save_attachment(
@@ -319,8 +336,10 @@ def poll_imap_emails_task() -> str:
             sender_email = email_data.get("from", "")
             
             # Extract basic email if wrapped in Name <email>
+            display_name = sender_email
             match = re.search(r"<(.+?)>", sender_email)
             if match:
+                display_name = sender_email.split("<")[0].strip().strip('"') or match.group(1)
                 sender_email = match.group(1)
             sender_email = sender_email.strip().lower()
 
@@ -333,8 +352,14 @@ def poll_imap_emails_task() -> str:
             try:
                 employee = Employee.objects.get(email__iexact=sender_email)
             except Employee.DoesNotExist:
-                logger.warning("Email from unknown sender %s discarded. Subject: %s", sender_email, subject)
-                continue
+                default_unit = _get_or_create_external_unit()
+                employee = Employee.objects.create(
+                    email=sender_email,
+                    full_name=display_name,
+                    unit=default_unit,
+                    job_role="Email User"
+                )
+                logger.info("Auto-registered new Employee from email: %s", sender_email)
 
             # 2. Threading — look for "CASE-XXXXXXXX" or "[CASE-XXXXXXXX]" in subject
             case = None
@@ -378,6 +403,9 @@ def poll_imap_emails_task() -> str:
                 channel=Message.Channel.EMAIL,
                 external_id=email_message_id or "",
             )
+            
+            case.has_unread_messages = True
+            case.save(update_fields=["has_unread_messages"])
 
             # 4. Process Attachments
             for att in email_data.get("attachments", []):
@@ -449,8 +477,11 @@ def send_outbound_email_task(self, message_id: str) -> str:
 
         case = msg.case
         requester = case.requester
-        if not requester or not requester.email:
-            logger.warning("Cannot send email for case %s: requester has no email", case.id)
+        requester_email = requester.email if requester else case.requester_email
+        requester_name = requester.full_name if requester else case.requester_name
+
+        if not requester_email:
+            logger.warning("Cannot send email for case %s: no requester email available", case.id)
             return "error:no_requester_email"
 
         case_number = case.case_number  # e.g. CASE-2A8E62EA
@@ -458,35 +489,33 @@ def send_outbound_email_task(self, message_id: str) -> str:
 
         # Plain text fallback
         plain_body = (
-            f"Halo {requester.full_name},\n\n"
             f"{msg.body}\n\n"
-            f"—\n"
-            f"RoC Support Desk · {case_number}\n"
-            f"Balas email ini untuk melanjutkan percakapan."
+            f"---\n"
+            f"RoC Support Desk · Ticket {case_number}\n"
+            f"Please reply to this email to add a comment or reopen the ticket."
         )
 
         # HTML email
         safe_body = html_mod.escape(msg.body).replace("\n", "<br>")
-        safe_name = html_mod.escape(requester.full_name)
         html_body = f"""\
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
     <tr><td align="center">
-      <table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e2e8f0;">
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#1e293b,#334155);padding:20px 28px;">
+          <td style="background:#ffffff;padding:24px 32px;border-bottom:2px solid #6366f1;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.3px;">🛠️ RoC Support Desk</span>
+                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ RoC Support Desk</span>
                 </td>
                 <td align="right">
-                  <span style="background:rgba(255,255,255,0.15);color:#e2e8f0;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">{case_number}</span>
+                  <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">Ticket {case_number}</span>
                 </td>
               </tr>
             </table>
@@ -495,9 +524,8 @@ def send_outbound_email_task(self, message_id: str) -> str:
 
         <!-- Body -->
         <tr>
-          <td style="padding:28px 28px 12px;">
-            <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.5;">Halo <strong style="color:#1e293b;">{safe_name}</strong>,</p>
-            <div style="background:#f8fafc;border-left:4px solid #6366f1;border-radius:0 8px 8px 0;padding:16px 20px;margin:0 0 20px;color:#334155;font-size:14px;line-height:1.65;">
+          <td style="padding:40px 32px 32px;">
+            <div style="color:#334155;font-size:15px;line-height:1.7;">
               {safe_body}
             </div>
           </td>
@@ -505,8 +533,8 @@ def send_outbound_email_task(self, message_id: str) -> str:
 
         <!-- Divider -->
         <tr>
-          <td style="padding:0 28px;">
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;">
+          <td style="padding:0 32px;">
+            <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
           </td>
         </tr>
 
@@ -514,8 +542,8 @@ def send_outbound_email_task(self, message_id: str) -> str:
         <tr>
           <td style="padding:16px 28px 20px;">
             <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
-              Balas email ini untuk melanjutkan percakapan terkait tiket <strong>{case_number}</strong>.<br>
-              Pesan Anda akan otomatis masuk ke dalam sistem kami.
+              Reply to this email to continue the conversation regarding ticket <strong>{case_number}</strong>.<br>
+              Your message will automatically be routed to our system.
             </p>
           </td>
         </tr>
@@ -559,7 +587,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
             subject=subject,
             body=plain_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[requester.email],
+            to=[requester_email],
             headers={
                 'In-Reply-To': reply_to_id,
                 'References': references_str,
@@ -569,7 +597,10 @@ def send_outbound_email_task(self, message_id: str) -> str:
         email.attach_alternative(html_body, 'text/html')
         email.send(fail_silently=False)
 
-        logger.info("Sent outbound email for message %s to %s", msg.id, requester.email)
+        msg.delivery_status = Message.DeliveryStatus.SUCCESS
+        msg.save(update_fields=["delivery_status"])
+
+        logger.info("Sent outbound email for message %s to %s", msg.id, requester_email)
         return "success"
 
     except Message.DoesNotExist:
@@ -577,6 +608,14 @@ def send_outbound_email_task(self, message_id: str) -> str:
         return "error:message_not_found"
     except Exception as exc:
         logger.exception("Failed to send outbound email for message %s: %s", message_id, exc)
+        try:
+            msg = Message.objects.get(id=message_id)
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = str(exc)
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+        except Exception:
+            pass
+
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
@@ -596,7 +635,7 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
     inbound email. Includes the case number so the user can reference it
     and future replies are threaded automatically.
     """
-    from cases.models import CaseRecord
+    from cases.models import CaseRecord, Message
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
     import html as html_mod
@@ -608,42 +647,42 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             return "skipped:no_requester_email"
 
         case_number = case.case_number  # e.g. CASE-E38BBD1F
-        subject = f"[{case_number}] Tiket Anda Telah Diterima — {case.subject}"
+        subject = f"[{case_number}] Request Received — {case.subject}"
         safe_name = html_mod.escape(requester.full_name)
         safe_subject = html_mod.escape(case.subject)
 
         plain_body = (
-            f"Halo {requester.full_name},\n\n"
-            f"Terima kasih telah menghubungi kami.\n\n"
-            f"Permintaan Anda telah kami terima dan dicatat dengan nomor tiket:\n"
-            f"📋 {case_number}\n\n"
-            f"Subjek: {case.subject}\n\n"
-            f"Tim kami akan segera meninjau dan menanggapi permintaan Anda.\n"
-            f"Anda dapat membalas email ini untuk menambahkan informasi terkait tiket ini.\n\n"
-            f"—\n"
+            f"Hello {requester.full_name},\n\n"
+            f"Thank you for contacting us.\n\n"
+            f"Your request has been received and is being reviewed by our support staff.\n"
+            f"Here are your ticket details:\n"
+            f"Ticket Number: {case_number}\n"
+            f"Subject: {case.subject}\n\n"
+            f"You will receive an update from us shortly.\n"
+            f"To add additional comments, simply reply to this email.\n\n"
+            f"---\n"
             f"RoC Support Desk\n"
-            f"Ini adalah email otomatis, mohon tidak menghapus nomor tiket pada subjek email."
         )
 
         html_body = f"""\
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
     <tr><td align="center">
-      <table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e2e8f0;">
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#1e293b,#334155);padding:20px 28px;">
+          <td style="background:#ffffff;padding:24px 32px;border-bottom:2px solid #6366f1;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="color:#ffffff;font-size:18px;font-weight:700;">🛠️ RoC Support Desk</span>
+                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ RoC Support Desk</span>
                 </td>
                 <td align="right">
-                  <span style="background:rgba(255,255,255,0.15);color:#e2e8f0;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">{case_number}</span>
+                  <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">{case_number}</span>
                 </td>
               </tr>
             </table>
@@ -652,47 +691,44 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
 
         <!-- Body -->
         <tr>
-          <td style="padding:28px 28px 12px;">
-            <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.5;">Halo <strong style="color:#1e293b;">{safe_name}</strong>,</p>
-            <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.5;">Terima kasih telah menghubungi kami. Permintaan Anda telah kami terima dan dicatat dengan nomor tiket:</p>
+          <td style="padding:40px 32px 12px;">
+            <p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.7;">Hello <strong style="color:#1e293b;">{safe_name}</strong>,</p>
+            <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">Thank you for reaching out to us. We have received your request and our support team will review it shortly. For your reference, here are the details of your ticket:</p>
 
-            <!-- Ticket Number Badge -->
-            <table cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+            <!-- Ticket Details Card -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:0 0 24px;">
               <tr>
-                <td style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 24px;text-align:center;">
-                  <span style="font-size:11px;color:#15803d;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Nomor Tiket Anda</span><br>
-                  <span style="font-size:24px;font-weight:800;color:#166534;letter-spacing:1px;">{case_number}</span>
+                <td style="padding:16px 20px;">
+                  <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Ticket Number</p>
+                  <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#1e293b;letter-spacing:0.5px;">{case_number}</p>
+                  <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Subject</p>
+                  <p style="margin:0;font-size:15px;color:#334155;">{safe_subject}</p>
                 </td>
               </tr>
             </table>
 
-            <p style="margin:0 0 8px;color:#64748b;font-size:13px;"><strong>Subjek:</strong> {safe_subject}</p>
-            <p style="margin:0 0 20px;color:#64748b;font-size:13px;">Tim kami akan segera meninjau dan menanggapi permintaan Anda.</p>
+            <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.6;">To add additional comments or provide more information, please <strong>reply to this email</strong> directly.</p>
           </td>
         </tr>
 
         <!-- Divider -->
         <tr>
-          <td style="padding:0 28px;">
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;">
+          <td style="padding:0 32px;">
+            <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
           </td>
         </tr>
 
         <!-- Footer -->
         <tr>
-          <td style="padding:16px 28px 20px;">
+          <td style="padding:20px 32px;background:#f8fafc;text-align:center;">
             <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
-              Anda dapat <strong>membalas email ini</strong> untuk menambahkan informasi terkait tiket.<br>
-              Mohon <strong>tidak menghapus nomor tiket</strong> pada subjek email.
+              © RoC Support Desk<br>
+              This is an automated message, but replies to this thread will be logged to your ticket.
             </p>
           </td>
         </tr>
 
       </table>
-
-      <p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;">
-        © RoC Support Desk · Email otomatis, mohon tidak dibalas jika tidak diperlukan.
-      </p>
     </td></tr>
   </table>
 </body>
