@@ -341,6 +341,12 @@ class Message(AuditableModel):
         blank=True,
         verbose_name="Delivery Error",
     )
+    cc_emails = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="CC Emails",
+        help_text="Comma-separated secondary recipients for email channels.",
+    )
 
     class Meta:
         verbose_name = "Message"

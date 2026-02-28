@@ -76,6 +76,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.site_config",
             ],
         },
     },
@@ -157,7 +158,10 @@ IMAP_APP_PASSWORD = env("IMAP_APP_PASSWORD", default="")
 # -----------------------------------------------------------------
 # SMTP (Outbound Email)
 # -----------------------------------------------------------------
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# Switched to the DynamicEmailBackend that pulls credentials from the database at runtime.
+EMAIL_BACKEND = "gateways.email_backend.DynamicEmailBackend"
+
+# Keep these as default fallbacks just in case the DB is empty
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)

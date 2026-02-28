@@ -53,7 +53,7 @@ Below is a summary of the resolution for your ticket:
 Thank you for reaching out to us. If you encounter any further issues, please do not hesitate to contact us again.
 
 Best regards,
-RoC Support Desk Team{% if user.initials %} - {{ user.initials }}{% endif %}</textarea>
+{{ site_config.site_name|default:"Support Desk" }} Team{% if user.initials %} - {{ user.initials }}{% endif %}</textarea>
 
             <div class="flex items-center justify-end gap-3 pt-2">
                 <button type="button" @click="open = false; document.getElementById('htmx-modal').innerHTML=''" class="jk-btn jk-btn-secondary px-5">Cancel</button>

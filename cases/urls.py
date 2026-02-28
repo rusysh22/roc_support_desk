@@ -18,4 +18,7 @@ urlpatterns = [
 
     # Confirmation page
     path("submitted/<uuid:case_id>/", views.case_submitted, name="case_submitted"),
+
+    # Dynamic Form Public Renderer
+    path("f/<slug:slug>/", views.public_form_view, name="public_form"),
 ]

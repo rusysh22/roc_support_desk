@@ -1,0 +1,322 @@
+<div id="field-list-container" class="space-y-6" >
+    {% if fields %}
+        {% for field in fields %}
+        <div x-data="{ 
+            editing: false,
+            editLabel: '{{ field.label|escapejs }}',
+            editHelp: '{{ field.help_text|escapejs }}',
+            editRequired: {{ field.is_required|yesno:'true,false' }},
+            editType: '{{ field.field_type }}',
+            editChoices: {{ field.choices|safe|default:'[]' }},
+            addEditChoice() { this.editChoices.push('Option ' + (this.editChoices.length + 1)); },
+            removeEditChoice(i) { if(this.editChoices.length > 1) this.editChoices.splice(i, 1); }
+        }" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}">
+            
+            <!-- Drag Handle (Left) -->
+            <div x-show="!editing" class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-12 bg-white border border-slate-200 shadow-sm rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-move transition-all duration-300 z-10 text-slate-400 hover:text-indigo-500 hover:border-indigo-300 hover:shadow-md">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
+            </div>
+
+            <!-- ===== VIEW MODE ===== -->
+            <div x-show="!editing">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 pr-8">
+                        <div class="flex items-center gap-2 flex-wrap mb-3">
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-slate-50 border border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                {{ field.get_field_type_display }}
+                            </span>
+                            {% if field.is_required %}
+                                <span class="text-[10px] font-bold text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded uppercase tracking-widest flex items-center gap-1">
+                                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                                    Required
+                                </span>
+                            {% endif %}
+                        </div>
+                        
+                        <h4 class="text-lg sm:text-xl font-bold text-slate-800 mb-1 leading-tight">{{ field.label }}</h4>
+                        {% if field.help_text %}
+                            <p class="text-xs font-medium text-slate-500 mb-2 leading-relaxed">{{ field.help_text }}</p>
+                        {% endif %}
+                        
+                        <!-- Visual Mockup of the Field Input -->
+                        <div class="mt-4 opacity-70 pointer-events-none">
+                            {% if field.field_type == 'text' or field.field_type == 'email' %}
+                                <div class="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl relative">
+                                    <div class="absolute left-4 top-1/2 -translate-y-1/2 w-32 h-2 bg-slate-200 rounded-full"></div>
+                                </div>
+                            {% elif field.field_type == 'textarea' %}
+                                <div class="w-full h-24 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                    <div class="space-y-2">
+                                        <div class="w-full h-2 bg-slate-200 rounded-full"></div>
+                                        <div class="w-5/6 h-2 bg-slate-200 rounded-full"></div>
+                                        <div class="w-4/6 h-2 bg-slate-200 rounded-full"></div>
+                                    </div>
+                                </div>
+                            {% elif field.field_type == 'dropdown' %}
+                                <div class="w-full sm:w-1/2 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-4">
+                                    <div class="w-24 h-2 bg-slate-200 rounded-full"></div>
+                                    <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                                {% if field.choices %}
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    {% for choice in field.choices %}
+                                        <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-600 shadow-sm">
+                                            {{ choice }}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            {% elif field.field_type in 'radio,checkbox' %}
+                                <div class="space-y-3">
+                                    {% for choice in field.choices %}
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-5 h-5 border-2 border-slate-300 {% if field.field_type == 'radio' %}rounded-full{% else %}rounded-md{% endif %}"></div>
+                                            <span class="text-sm font-semibold text-slate-700">{{ choice }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% elif field.field_type == 'date' %}
+                                <div class="w-full sm:w-48 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-4">
+                                    <div class="w-20 h-2 bg-slate-200 rounded-full"></div>
+                                    <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                </div>
+                            {% elif field.field_type == 'datetime' %}
+                                <div class="w-full sm:w-64 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-4">
+                                    <div class="w-32 h-2 bg-slate-200 rounded-full"></div>
+                                    <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                            {% elif field.field_type == 'survey' %}
+                                <div class="flex justify-between items-center w-full max-w-lg mt-2 relative">
+                                    <div class="absolute top-2.5 left-0 w-full h-[2px] bg-slate-200 -z-10"></div>
+                                    {% for choice in field.choices %}
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2">
+                                            <div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div>
+                                            <span class="text-xs font-semibold text-slate-500">{{ choice }}</span>
+                                        </div>
+                                    {% empty %}
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2"><div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div><span class="text-xs font-semibold text-slate-500">1</span></div>
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2"><div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div><span class="text-xs font-semibold text-slate-500">2</span></div>
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2"><div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div><span class="text-xs font-semibold text-slate-500">3</span></div>
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2"><div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div><span class="text-xs font-semibold text-slate-500">4</span></div>
+                                        <div class="flex flex-col items-center gap-2 bg-white px-2"><div class="w-5 h-5 rounded-full border-2 border-slate-300 bg-white"></div><span class="text-xs font-semibold text-slate-500">5</span></div>
+                                    {% endfor %}
+                                </div>
+                            {% elif 'attachment' in field.field_type %}
+                                <div class="w-full h-24 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400">
+                                    <svg class="h-6 w-6 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    <span class="text-sm font-semibold">{% if field.field_type == 'attachment_multiple' %}Upload multiple files{% else %}Upload a file{% endif %}</span>
+                                </div>
+                            {% elif field.field_type == 'title_desc' %}
+                                <!-- Title & Description: no input mockup, just the label/help is enough -->
+                            {% elif field.field_type == 'page_break' %}
+                                <div class="flex items-center gap-3 text-indigo-500">
+                                    <div class="flex-1 h-px bg-indigo-300"></div>
+                                    <div class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        New Section Starts Here
+                                    </div>
+                                    <div class="flex-1 h-px bg-indigo-300"></div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons (Right) -->
+                    <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                        <!-- Edit Button -->
+                        <button type="button" @click="editing = true"
+                                class="text-slate-300 hover:text-indigo-500 transition-all p-2 rounded-xl hover:bg-indigo-50 flex items-center justify-center" title="Edit field">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        </button>
+                        <!-- Delete Button -->
+                        <button type="button" 
+                                hx-post="{% url 'desk:form_edit' dynamic_form.pk %}"
+                                hx-vals='{"action": "delete_field", "field_id": "{{ field.id }}"}'
+                                hx-target="#field-list-container"
+                                hx-swap="outerHTML"
+                                hx-confirm="Delete this question?"
+                                class="text-slate-300 hover:text-red-500 transition-all p-2 rounded-xl hover:bg-red-50 flex items-center justify-center" title="Delete field">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== EDIT MODE ===== -->
+            <div x-show="editing" x-transition style="display:none;" class="space-y-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-sm font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Edit Question
+                    </h4>
+                    <button type="button" @click="editing = false" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Field Type -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Field Type</label>
+                    <select x-model="editType" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer">
+                        <optgroup label="Input Fields">
+                            <option value="text">Short Text</option>
+                            <option value="textarea">Long Text</option>
+                            <option value="email">Email</option>
+                            <option value="dropdown">Dropdown</option>
+                            <option value="radio">Multiple Choice</option>
+                            <option value="checkbox">Checkboxes</option>
+                            <option value="date">Date</option>
+                            <option value="datetime">Date & Time</option>
+                            <option value="survey">Survey Scale</option>
+                            <option value="attachment">File Upload</option>
+                            <option value="attachment_multiple">File Upload (Multiple)</option>
+                        </optgroup>
+                        <optgroup label="Layout">
+                            <option value="title_desc">📝 Title & Description</option>
+                            <option value="page_break">📄 Section / Page Break</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Label -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Question</label>
+                    <input type="text" x-model="editLabel" placeholder="Your question" class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <!-- Help Text -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Description (Optional)</label>
+                    <input type="text" x-model="editHelp" placeholder="Add instructions..." class="w-full bg-white border border-slate-300 text-slate-600 text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <!-- Required -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="editRequired" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2.5 text-sm font-bold text-slate-700">Required field</span>
+                    </label>
+                </div>
+
+                <!-- Choices (dynamic) -->
+                <div x-show="['dropdown', 'radio', 'checkbox', 'survey'].includes(editType)" x-transition class="pt-3 border-t border-slate-100">
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Choices</label>
+                    <div class="space-y-2">
+                        <template x-for="(choice, idx) in editChoices" :key="idx">
+                            <div class="flex items-center gap-2 group/choice">
+                                <input type="text" x-model="editChoices[idx]" placeholder="Option" class="jk-input flex-1 bg-white text-sm py-2">
+                                <button type="button" @click="removeEditChoice(idx)" class="text-slate-300 hover:text-red-500 p-1.5 opacity-0 group-hover/choice:opacity-100 transition-all bg-red-50 hover:bg-red-100 rounded-lg">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    <button type="button" @click="addEditChoice()" class="mt-2 w-full py-2 border border-dashed border-indigo-300 rounded-xl text-indigo-600 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-400 transition-colors flex justify-center items-center gap-1.5">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Add option
+                    </button>
+                </div>
+
+                <!-- Save / Cancel -->
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" @click="editing = false" class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors text-sm">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            @click="
+                                let fd = new FormData();
+                                fd.append('action', 'edit_field');
+                                fd.append('field_id', '{{ field.id }}');
+                                fd.append('label', editLabel);
+                                fd.append('help_text', editHelp);
+                                fd.append('is_required', editRequired ? 'true' : 'false');
+                                fd.append('field_type', editType);
+                                editChoices.forEach(c => fd.append('choices[]', c));
+                                fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                                fetch('{% url 'desk:form_edit' dynamic_form.pk %}', {
+                                    method: 'POST',
+                                    headers: { 'HX-Request': 'true' },
+                                    body: fd
+                                }).then(r => r.text()).then(html => {
+                                    document.getElementById('field-list-container').outerHTML = html;
+                                    if(typeof htmx !== 'undefined') htmx.process(document.getElementById('field-list-container'));
+                                    if(typeof Sortable !== 'undefined') {
+                                        var el = document.getElementById('field-list-container');
+                                        if(el) Sortable.create(el, {
+                                            animation: 200,
+                                            ghostClass: 'ring-2',
+                                            dragClass: 'ring-indigo-500',
+                                            onEnd: function(evt) {
+                                                let orderData = [];
+                                                el.querySelectorAll('.field-item').forEach((item, index) => {
+                                                    orderData.push({ id: item.getAttribute('data-id'), order: index + 1 });
+                                                });
+                                                let fd2 = new FormData();
+                                                fd2.append('action', 'reorder');
+                                                fd2.append('order_data', JSON.stringify(orderData));
+                                                fd2.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                                                fetch(window.location.href, { method: 'POST', headers: { 'HX-Request': 'true' }, body: fd2 });
+                                            }
+                                        });
+                                    }
+                                });
+                            "
+                            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-500/20 transition-all text-sm flex items-center gap-2">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+        {% endfor %}
+    {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-20">
+            <div class="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-slate-100">
+                <svg class="h-10 w-10 text-slate-300 transform -rotate-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Pristine Canvas</h3>
+            <p class="text-base text-slate-500 max-w-sm mx-auto">This form is currently empty. Click "Add First Question" below to start designing.</p>
+        </div>
+    {% endif %}
+
+    <!-- SortableJS Reorder Script Initialization for this container -->
+    <script>
+        if (typeof Sortable !== 'undefined') {
+            var el = document.getElementById('field-list-container');
+            if(el) {
+                Sortable.create(el, {
+                    animation: 200,
+                    ghostClass: 'ring-2',
+                    dragClass: 'ring-indigo-500',
+                    onEnd: function (evt) {
+                        // Gather order
+                        let orderData = [];
+                        let items = el.querySelectorAll('.field-item');
+                        items.forEach((item, index) => {
+                            orderData.push({
+                                id: item.getAttribute('data-id'),
+                                order: index + 1
+                            });
+                        });
+                        
+                        // Send HTMX / AJAX request to save order
+                        let formData = new FormData();
+                        formData.append('action', 'reorder');
+                        formData.append('order_data', JSON.stringify(orderData));
+                        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                        
+                        fetch(window.location.href, {
+                            method: 'POST',
+                            headers: { 'HX-Request': 'true' },
+                            body: formData
+                        });
+                    }
+                });
+            }
+        }
+    </script>
+</div>

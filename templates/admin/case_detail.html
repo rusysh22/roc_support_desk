@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ case.case_number }} — RoC Desk{% endblock %}
+{% block title %}{{ case.case_number }} — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}{{ case.case_number }}{% endblock %}
 {% block nav_cases %}active{% endblock %}
 
@@ -168,17 +168,25 @@
         <div class="jk-chat-panel__footer">
             <form hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
                 hx-swap="innerHTML" hx-indicator="#reply-spinner" enctype="multipart/form-data"
-                x-data="{ replyText: '', fileName: '' }" @htmx:after-request="replyText = ''; fileName = ''; $refs.replyInput.value = ''; $refs.fileInput.value = ''">
+                x-data="{ replyText: '', fileName: '', showCc: false, ccText: '' }" @htmx:after-request="replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''">
                 {% csrf_token %}
 
-                {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
-                <div class="mb-2 px-2 flex justify-end">
+                <div class="mb-2 px-2 flex justify-end items-center gap-4">
+                    {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
                     <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-500 hover:text-indigo-600 select-none transition-colors">
                         <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" checked>
                         <span>Send Reply via Email</span>
                     </label>
+                    {% endif %}
+                    
+                    <button type="button" @click="showCc = !showCc; if(showCc) $nextTick(() => $refs.ccInput.focus())" class="text-[11px] font-medium text-slate-500 hover:text-indigo-600 transition-colors">
+                        <span x-text="showCc ? '- Remove CC' : '+ Add CC'"></span>
+                    </button>
                 </div>
-                {% endif %}
+
+                <div x-show="showCc" x-collapse x-cloak class="mb-3 px-2">
+                    <input type="text" name="cc_emails" x-ref="ccInput" x-model="ccText" class="jk-input text-xs py-1.5" placeholder="CC (comma-separated valid emails)">
+                </div>
                 <div class="jk-reply-bar">
                     <!-- Attach button -->
                     <label class="jk-reply-bar__attach" title="Attach file">

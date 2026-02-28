@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Calendar — RoC Desk{% endblock %}
+{% block title %}Calendar — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Support Desk — Calendar{% endblock %}
 {% block nav_cases %}active{% endblock %}
 

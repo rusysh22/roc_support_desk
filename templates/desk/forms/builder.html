@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Form | {{ dynamic_form.title }}{% endblock %}
+
+{% block page_title %}Form Workspace{% endblock %}
+
+{% block extra_head %}
+<!-- SortableJS for drag-and-drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<!-- HTMX for dynamic field updates -->
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<style>
+    .inspector-scroll::-webkit-scrollbar { width: 5px; }
+    .inspector-scroll::-webkit-scrollbar-track { background: transparent; }
+    .inspector-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+
+    /* Sidebar Transitions */
+    .sidebar-panel {
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, transform 0.3s ease;
+    }
+    .sidebar-panel.collapsed {
+        width: 0 !important;
+        opacity: 0;
+        overflow: hidden;
+        padding: 0;
+        border: none;
+    }
+
+    /* Mobile Drawer */
+    @media (max-width: 1023px) {
+        .sidebar-panel {
+            position: fixed;
+            top: 0; left: 0;
+            width: 85vw !important;
+            max-width: 380px;
+            height: 100dvh;
+            z-index: 50;
+            border-radius: 0;
+            transform: translateX(-100%);
+            opacity: 1;
+        }
+        .sidebar-panel.mobile-open {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* Field card hover */
+    .field-card:hover { box-shadow: 0 4px 24px -8px rgba(99,102,241,0.12); }
+
+    /* Toggle animation */
+    .toggle-icon { transition: transform 0.3s ease; }
+    .toggle-icon.rotated { transform: rotate(180deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="{ 
+    showAddFieldModal: false,
+    showInviteModal: false,
+    inviteEmails: '',
+    inviteSending: false,
+    inviteSent: false,
+    linkCopied: false,
+    newFieldType: 'text',
+    newFieldChoices: ['Option 1'],
+    sidebarVisible: true,
+    mobileSidebarOpen: false,
+    bgColor: '{{ form.instance.background_color|default:'' }}',
+    bgImageUrl: '{% if form.instance.background_image %}{{ form.instance.background_image.url }}{% endif %}',
+    headerImgUrl: '{% if form.instance.header_image %}{{ form.instance.header_image.url }}{% endif %}',
+    
+    copyFormLink() {
+        const url = window.location.origin + '/f/{{ dynamic_form.slug }}/';
+        navigator.clipboard.writeText(url).then(() => {
+            this.linkCopied = true;
+            setTimeout(() => this.linkCopied = false, 2500);
+        });
+    },
+    sendInvitation() {
+        this.inviteSending = true;
+        let fd = new FormData();
+        fd.append('action', 'send_invitation');
+        fd.append('emails', this.inviteEmails);
+        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: { 'HX-Request': 'true' },
+            body: fd
+        }).then(r => r.json()).then(d => {
+            this.inviteSending = false;
+            this.inviteSent = true;
+            this.inviteEmails = '';
+            setTimeout(() => { this.inviteSent = false; this.showInviteModal = false; }, 2000);
+        }).catch(() => { this.inviteSending = false; });
+    },
+    addChoice() {
+        this.newFieldChoices.push(`Option ${this.newFieldChoices.length + 1}`);
+    },
+    removeChoice(index) {
+        if(this.newFieldChoices.length > 1) {
+            this.newFieldChoices.splice(index, 1);
+        }
+    },
+    resetModal() {
+        this.newFieldType = 'text';
+        this.newFieldChoices = ['Option 1'];
+        this.showAddFieldModal = false;
+        document.getElementById('add-field-form').reset();
+    },
+    toggleSidebar() {
+        if (window.innerWidth < 1024) {
+            this.mobileSidebarOpen = !this.mobileSidebarOpen;
+        } else {
+            this.sidebarVisible = !this.sidebarVisible;
+        }
+    },
+    closeMobileSidebar() {
+        this.mobileSidebarOpen = false;
+    }
+}" class="max-w-[1600px] mx-auto flex flex-col h-[calc(100vh-100px)]">
+
+    <!-- ===== TOP TOOLBAR ===== -->
+    <div class="flex items-center justify-between pb-4 border-b border-slate-200 mb-4 shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+            <a href="{% url 'desk:form_list' %}" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 hover:text-slate-900 transition-all shadow-sm shrink-0">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </a>
+            <div class="min-w-0">
+                <h1 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight truncate">{{ dynamic_form.title }}</h1>
+                <div class="flex items-center gap-2 mt-0.5">
+                    {% if dynamic_form.is_published %}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>Live
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Draft</span>
+                    {% endif %}
+                    <a href="{% url 'cases:public_form' dynamic_form.slug %}" target="_blank" class="hidden sm:flex text-[11px] font-mono text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md items-center gap-1 transition-colors">
+                        /f/{{ dynamic_form.slug }}
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex gap-2 items-center shrink-0">
+            <!-- Toggle Sidebar -->
+            <button @click="toggleSidebar()" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 hover:text-slate-900 transition-all shadow-sm" title="Toggle Properties">
+                <svg class="h-4 w-4 toggle-icon" :class="{ 'rotated': !sidebarVisible && !mobileSidebarOpen }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+            </button>
+
+            <!-- Copy Link -->
+            <button @click="copyFormLink()" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 hover:text-emerald-600 transition-all shadow-sm relative" title="Copy Form Link">
+                <svg x-show="!linkCopied" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                <svg x-show="linkCopied" class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <span x-show="linkCopied" x-transition class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg whitespace-nowrap">Copied!</span>
+            </button>
+
+            <!-- Send Invitation -->
+            <button @click="showInviteModal = true" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition-all shadow-sm" title="Send Invitation">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+            </button>
+
+            <!-- Preview -->
+            <a href="{% url 'cases:public_form' dynamic_form.slug %}?preview=1" target="_blank" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 hover:text-purple-600 transition-all shadow-sm" title="Preview Form">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            </a>
+            
+            <a href="{% url 'desk:form_responses' dynamic_form.pk %}" class="hidden sm:flex group items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-xl shadow-sm hover:shadow-md transition-all text-sm">
+                <svg class="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <span class="hidden md:inline">Responses</span>
+                <span class="bg-indigo-100 text-indigo-700 py-0.5 px-2 rounded-lg text-xs font-bold">{{ dynamic_form.submissions.count }}</span>
+            </a>
+            
+            <button @click="showAddFieldModal = true" class="jk-btn-primary flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl shadow-indigo-500/20 shadow-lg hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-0.5 text-sm">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span class="hidden sm:inline">Add Field</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Django Messages -->
+    {% if messages %}
+    <div class="space-y-3 mb-4 shrink-0">
+        {% for message in messages %}
+        <div class="p-3 rounded-xl {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %} border text-sm font-medium shadow-sm flex items-center gap-3">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ===== MOBILE SIDEBAR OVERLAY ===== -->
+    <div x-show="mobileSidebarOpen" x-transition.opacity @click="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden" style="display:none;"></div>
+
+    <!-- ===== MAIN WORKSPACE ===== -->
+    <div class="flex gap-0 lg:gap-6 flex-1 min-h-0 relative">
+        
+        <!-- ===== LEFT: PROPERTIES SIDEBAR ===== -->
+        <div class="sidebar-panel bg-white border border-slate-200 rounded-none lg:rounded-2xl overflow-hidden shadow-sm flex flex-col shrink-0"
+             :class="{
+                'collapsed': !sidebarVisible && !mobileSidebarOpen,
+                'mobile-open': mobileSidebarOpen,
+                'lg:w-[320px]': sidebarVisible
+             }">
+            
+            <!-- Sidebar Header -->
+            <div class="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-5 py-3 flex items-center justify-between shrink-0">
+                <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <svg class="h-3.5 w-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Properties
+                </h3>
+                <button @click="closeMobileSidebar()" class="lg:hidden w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto inspector-scroll p-5">
+                <form method="post" enctype="multipart/form-data" class="space-y-5">
+                    {% csrf_token %}
+                    
+                    <!-- Details -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.title.label }}</label>
+                            {{ form.title }}
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.slug.label }}</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-mono text-sm">/</span>
+                                <input type="text" name="slug" value="{{ form.slug.value }}" class="jk-input pl-7 font-mono text-sm bg-slate-50 focus:bg-white" required id="id_slug">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>
+                            {{ form.description }}
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.success_message.label }}</label>
+                            {{ form.success_message }}
+                        </div>
+                    </div>
+
+                    <div class="w-full h-px bg-slate-100 my-6"></div>
+
+                    <!-- Appearance -->
+                    <div class="space-y-4">
+                        <h4 class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Appearance</h4>
+                        
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1.5">Background Color</label>
+                            <div class="flex items-center gap-2.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                <input type="color" name="background_color" id="id_background_color" x-model="bgColor" class="w-9 h-9 p-0 border-0 rounded-lg shadow-sm cursor-pointer" value="{{ form.instance.background_color|default:'#ffffff' }}">
+                                <span class="text-xs font-mono text-slate-500 flex-1" x-text="bgColor || 'Default'"></span>
+                                <button type="button" @click="bgColor = ''; document.getElementById('id_background_color').value = '#ffffff'" class="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">Clear</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1.5">Background Image</label>
+                            <div class="space-y-2">
+                                <input type="file" name="background_image" accept="image/*" class="jk-file-input text-xs" @change="
+                                    if ($event.target.files.length > 0) {
+                                        bgImageUrl = URL.createObjectURL($event.target.files[0]);
+                                    }
+                                ">
+                                {% if form.instance.background_image %}
+                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs flex items-center justify-between">
+                                        <span class="text-slate-600 truncate">Current: <a href="{{ form.instance.background_image.url }}" target="_blank" class="text-indigo-600 font-semibold underline">Image</a></span>
+                                        <label class="flex items-center gap-1 text-red-500 hover:text-red-700 font-bold cursor-pointer border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg text-[10px]">
+                                            <input type="checkbox" name="background_image-clear" id="background_image-clear_id" @change="
+                                                if($event.target.checked) { bgImageUrl = ''; } else { bgImageUrl = '{{ form.instance.background_image.url }}'; }
+                                            ">
+                                            Clear
+                                        </label>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1.5">Header Image</label>
+                            <div class="space-y-2">
+                                <input type="file" name="header_image" accept="image/*" class="jk-file-input text-xs" @change="
+                                    if ($event.target.files.length > 0) {
+                                        headerImgUrl = URL.createObjectURL($event.target.files[0]);
+                                    }
+                                ">
+                                {% if form.instance.header_image %}
+                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs flex items-center justify-between">
+                                        <span class="text-slate-600 truncate">Current: <a href="{{ form.instance.header_image.url }}" target="_blank" class="text-indigo-600 font-semibold underline">Image</a></span>
+                                        <label class="flex items-center gap-1 text-red-500 hover:text-red-700 font-bold cursor-pointer border border-red-200 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg text-[10px]">
+                                            <input type="checkbox" name="header_image-clear" @change="
+                                                if($event.target.checked) { headerImgUrl = ''; } else { headerImgUrl = '{{ form.instance.header_image.url }}'; }
+                                            ">
+                                            Clear
+                                        </label>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full h-px bg-slate-100 my-6"></div>
+
+                    <!-- Rules -->
+                    <div class="space-y-3">
+                        <h4 class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Form Rules</h4>
+                        
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800">Require Login</div>
+                                <div class="text-[11px] text-slate-500">Restrict to authenticated users</div>
+                            </div>
+                            {{ form.requires_login }}
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-green-300 hover:bg-green-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800">Publish Live</div>
+                                <div class="text-[11px] text-slate-500">Make form public on the web</div>
+                            </div>
+                            {{ form.is_published }}
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800">Show on Portal</div>
+                                <div class="text-[11px] text-slate-500">Display card on Client Portal</div>
+                            </div>
+                            {{ form.show_on_portal }}
+                        </label>
+                    </div>
+
+                    <!-- Save -->
+                    <div class="pt-6 sticky bottom-0 bg-white pb-2">
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                            Save Properties
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ===== RIGHT: CANVAS ===== -->
+        <div class="flex-1 rounded-2xl shadow-[inset_0_2px_15px_rgba(0,0,0,0.04)] border border-slate-200 overflow-y-auto relative flex flex-col items-center transition-all duration-300"
+             :class="(bgColor === '' && bgImageUrl === '') ? 'bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200' : ''"
+             :style="`background-color: ${bgColor || 'transparent'}; ${bgImageUrl ? 'background-image: url(' + bgImageUrl + '); background-size: cover; background-position: center;' : ''}`">
+            
+            <!-- Subtle Watermark -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-20 select-none">
+                <span class="text-5xl md:text-6xl font-black text-slate-300/50 transform -rotate-12 italic">WORKSPACE</span>
+            </div>
+
+            <!-- Canvas Padding Container -->
+            <div class="w-full max-w-2xl mx-auto px-4 py-8 lg:px-0 lg:py-12 relative z-10">
+
+                <!-- The Form "Paper" Card -->
+                <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl overflow-hidden">
+                    
+                    <!-- Canvas Header -->
+                    <div class="px-6 sm:px-10 py-6 sm:py-8 border-b border-slate-100 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                        <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{{ dynamic_form.title }}</h2>
+                        {% if dynamic_form.description %}
+                            <p class="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed">{{ dynamic_form.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Field List Canvas -->
+                    <div class="p-4 sm:p-8">
+                        {% include "desk/forms/partials/field_list.html" with fields=fields %}
+                    </div>
+                    
+                    <!-- Footer: Add Field -->
+                    <div class="px-6 sm:px-10 py-5 bg-slate-50/80 border-t border-slate-100">
+                        <button @click="showAddFieldModal = true" type="button" class="group flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all">
+                            <svg class="h-5 w-5 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            <span class="font-bold">Add Question</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mobile Quick Actions -->
+                <div class="flex sm:hidden gap-2 mt-4">
+                    <a href="{% url 'desk:form_responses' dynamic_form.pk %}" class="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+                        <svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        Responses ({{ dynamic_form.submissions.count }})
+                    </a>
+                    <a href="{% url 'cases:public_form' dynamic_form.slug %}" target="_blank" class="flex-1 flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl py-2.5 text-sm font-semibold text-indigo-600 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        Preview
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- ===== ADD FIELD MODAL ===== -->
+    <div x-show="showAddFieldModal" style="display: none;" class="relative z-50">
+        <div x-show="showAddFieldModal" x-transition.opacity class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"></div>
+        
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div x-show="showAddFieldModal" @click.away="resetModal()" x-transition class="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-slate-100">
+                    
+                    <div class="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4 flex items-center justify-between text-white">
+                        <h3 class="text-base font-bold flex items-center gap-2">
+                            <svg class="h-5 w-5 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            Design New Field
+                        </h3>
+                        <button type="button" @click="resetModal()" class="text-indigo-200 hover:text-white transition-colors bg-indigo-700/50 hover:bg-indigo-800 p-1 rounded-lg">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <!-- HTMX Form -->
+                    <form id="add-field-form" 
+                          hx-post="{% url 'desk:form_edit' dynamic_form.pk %}" 
+                          hx-target="#field-list-container" 
+                          hx-swap="outerHTML" 
+                          @htmx:after-request="resetModal()"
+                          class="p-6 space-y-5">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_field">
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">1. Select Input Type</label>
+                            <div class="relative">
+                                <select name="field_type" x-model="newFieldType" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none transition-shadow pl-9 cursor-pointer">
+                                    <optgroup label="Input Fields">
+                                        <option value="text">Short Text (Single Line)</option>
+                                        <option value="textarea">Long Text (Paragraph)</option>
+                                        <option value="email">Email Address</option>
+                                        <option value="dropdown">Dropdown Select</option>
+                                        <option value="radio">Multiple Choice (Radio)</option>
+                                        <option value="checkbox">Checkboxes (Multiple Answers)</option>
+                                        <option value="date">Date Picker</option>
+                                        <option value="datetime">Date &amp; Time Picker</option>
+                                        <option value="survey">Survey Scale (Linear)</option>
+                                        <option value="attachment">File Upload (Single)</option>
+                                        <option value="attachment_multiple">File Upload (Multiple)</option>
+                                    </optgroup>
+                                    <optgroup label="Layout">
+                                        <option value="title_desc">📝 Title &amp; Description</option>
+                                        <option value="page_break">📄 Section / Page Break</option>
+                                    </optgroup>
+                                </select>
+                                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">2. What is your question?</label>
+                            <input type="text" name="label" required placeholder="Type your question here..." class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Description (Optional)</label>
+                            <input type="text" name="help_text" placeholder="Add context or instructions..." class="w-full bg-white border border-slate-300 text-slate-600 text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                        </div>
+
+                        <div x-show="!['title_desc', 'page_break'].includes(newFieldType)" class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" name="is_required" value="true" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                <span class="ml-2.5 text-sm font-bold text-slate-700">Make this field mandatory</span>
+                            </label>
+                        </div>
+
+                        <!-- Dynamic Options -->
+                        <div x-show="['dropdown', 'radio', 'checkbox', 'survey'].includes(newFieldType)" x-transition class="pt-4 border-t border-slate-100">
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">3. Configure Choices</label>
+                            <div class="space-y-2">
+                                <template x-for="(choice, index) in newFieldChoices" :key="index">
+                                    <div class="flex items-center gap-2 group">
+                                        <div class="w-5 flex justify-center opacity-30">
+                                            <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z"></path></svg>
+                                        </div>
+                                        <input type="text" name="choices[]" x-model="newFieldChoices[index]" required placeholder="Option text" class="jk-input bg-white flex-1 text-sm py-2">
+                                        <button type="button" @click="removeChoice(index)" class="text-slate-300 hover:text-red-500 p-1.5 opacity-0 group-hover:opacity-100 transition-all bg-red-50 hover:bg-red-100 rounded-lg">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            
+                            <button type="button" @click="addChoice()" class="mt-3 w-full py-2 border border-dashed border-indigo-300 rounded-xl text-indigo-600 font-bold text-sm hover:bg-indigo-50 hover:border-indigo-400 transition-colors flex justify-center items-center gap-2">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Add another option
+                            </button>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                            <button type="button" @click="resetModal()" class="px-5 py-2 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors text-sm">Cancel</button>
+                            <button type="submit" class="jk-btn-primary px-6 py-2 shadow-md shadow-indigo-500/20 text-sm">Create Field</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== SEND INVITATION MODAL ===== -->
+    <div x-show="showInviteModal" style="display:none;" class="relative z-50">
+        <div x-show="showInviteModal" x-transition.opacity class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div x-show="showInviteModal" @click.away="showInviteModal = false" x-transition class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 flex items-center justify-between text-white">
+                        <h3 class="text-base font-bold flex items-center gap-2">
+                            <svg class="h-5 w-5 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            Send Form Invitation
+                        </h3>
+                        <button type="button" @click="showInviteModal = false" class="text-indigo-200 hover:text-white transition-colors bg-indigo-700/50 hover:bg-indigo-800 p-1 rounded-lg">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <!-- Copy Link Section -->
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Form Link</label>
+                            <div class="flex gap-2">
+                                <input type="text" readonly :value="window.location.origin + '/f/{{ dynamic_form.slug }}/'"
+                                    class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-600 truncate">
+                                <button type="button" @click="copyFormLink()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 transition-colors flex items-center gap-1.5">
+                                    <svg x-show="!linkCopied" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                    <span x-text="linkCopied ? '✓ Copied' : 'Copy'"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="w-full h-px bg-slate-100"></div>
+
+                        <!-- Email Invitation -->
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Send via Email</label>
+                            <textarea x-model="inviteEmails" rows="3" placeholder="Enter email addresses, separated by commas..." class="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"></textarea>
+                            <p class="text-[11px] text-slate-400 mt-1">Separate multiple emails with commas</p>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" @click="showInviteModal = false" class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors text-sm">Cancel</button>
+                            <button type="button" @click="sendInvitation()" :disabled="inviteSending || !inviteEmails.trim()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all text-sm flex items-center gap-2 disabled:opacity-50">
+                                <template x-if="inviteSent">
+                                    <span class="flex items-center gap-1.5"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Sent!</span>
+                                </template>
+                                <template x-if="inviteSending && !inviteSent">
+                                    <span>Sending...</span>
+                                </template>
+                                <template x-if="!inviteSending && !inviteSent">
+                                    <span class="flex items-center gap-1.5"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg> Send Invitations</span>
+                                </template>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import CompanyUnit, Employee, User
+from .models import CompanyUnit, Employee, User, SiteConfig, OTPToken
 
 
 # =====================================================================
@@ -126,3 +126,49 @@ class EmployeeAdmin(ModelAdmin):
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# Configuration Admin
+# =====================================================================
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(ModelAdmin):
+    """Admin configuration for SiteConfig (Singleton)."""
+    
+    list_display = ("site_name", "updated_at")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def has_add_permission(self, request):
+        # Prevent adding new instances if one already exists
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deleting the single instance
+        return False
+
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# OTP Token Admin
+# =====================================================================
+
+@admin.register(OTPToken)
+class OTPTokenAdmin(ModelAdmin):
+    """Admin configuration for OTPToken."""
+    
+    list_display = ("user", "token", "created_at", "is_used", "is_valid_token")
+    list_filter = ("is_used", "created_at")
+    search_fields = ("user__username", "user__email", "token")
+    readonly_fields = ("created_at",)
+    
+    def is_valid_token(self, obj):
+        return obj.is_valid()
+    is_valid_token.boolean = True
+    is_valid_token.short_description = "Is Valid"

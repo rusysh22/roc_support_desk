@@ -236,6 +236,14 @@ class StaffReplyForm(forms.Form):
             "placeholder": "Type your reply...",
         }),
     )
+    cc_emails = forms.CharField(
+        required=False,
+        label="CC",
+        widget=forms.TextInput(attrs={
+            "class": "jk-input",
+            "placeholder": "e.g. manager@domain.com, lead@domain.com",
+        }),
+    )
     attachment = forms.FileField(
         required=False,
         label="Attachment",

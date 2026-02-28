@@ -83,7 +83,9 @@ erDiagram
 | Model | Deskripsi |
 |-------|-----------|
 | **AuditableModel** | Abstract base. UUID PK, `created_at`, `updated_at`, `created_by`, `updated_by`. |
-| **User** | Custom user. Login via `login_username` (bukan `username`). Fields: `nik`, `role_access` (SuperAdmin / Manager / SupportDesk). |
+| **SiteConfig** | Singleton model untuk konfigurasi global via DB (cth: `site_name`). |
+| **OTPToken** | Token 6-digit untuk flow *Forgot Password* (valid 15 menit). |
+| **User** | Custom user. Login via `login_username` (bukan `username`). Fields: `nik`, `role_access`, `initials`. |
 | **CompanyUnit** | Unit organisasi (IT, FIN, HR). Fields: `name`, `code`. |
 | **Employee** | Karyawan / end-user. Fields: `full_name`, `email` (unique), `phone_number` (E.164, unique), `job_role`, `unit` (FK → CompanyUnit). |
 
@@ -92,8 +94,8 @@ erDiagram
 | Model | Deskripsi |
 |-------|-----------|
 | **CaseCategory** | Katalog layanan. Tampil sebagai kartu di client portal. Fields: `name`, `slug`, `icon`, `description`. |
-| **CaseRecord** | Tiket utama. Status: `Open → Investigating → PendingInfo → Resolved → Closed`. Source: `EvolutionAPI_WA / Email / WebForm`. SLA: `response_due_at`, `resolution_due_at`. Problem & Solving: `problem_description`, `root_cause_analysis`, `solving_steps`. |
-| **Message** | Pesan dalam thread tiket. Direction: `IN / OUT`. Channel: `WhatsApp / Email / Web`. `external_id` untuk deduplikasi webhook dan threading email (menyimpan `Message-ID` header). |
+| **CaseRecord** | Tiket utama. Status: `Open → Investigating → PendingInfo → Resolved → Closed`. Source: `EvolutionAPI_WA / Email / WebForm`. SLA: `response_due_at`, `resolution_due_at`, `first_response_at`, `resolved_at`, `closed_at`. Problem & Solving: `problem_description`, `root_cause_analysis`, `solving_steps`. Wajib isi RCA/Solving sebelum bisa di-Close. |
+| **Message** | Pesan dalam thread tiket. Direction: `IN / OUT`. Channel: `WhatsApp / Email / Web`. `external_id` (Deduplikasi/Threading), `cc_emails` (Opsional Email CC). |
 | **Attachment** | File lampiran per Message. Upload ke `media/attachments/<case_uuid>/`. |
 
 ### 4.3. Knowledge Base (`knowledge_base/models.py`)
@@ -101,6 +103,18 @@ erDiagram
 | Model | Deskripsi |
 |-------|-----------|
 | **Article** | Artikel solusi. Dibuat dari case yang resolved. Fields: `title`, `problem_summary`, `root_cause`, `solution`, `is_published`. FK ke `CaseCategory` dan `CaseRecord`. |
+
+### 4.4. Internal Notes & Notifications
+
+| Model | Deskripsi |
+|-------|-----------|
+| **CaseComment** | Catatan internal staff (tidak terlihat oleh klien). Fields: `case`, `author`, `body`.<br>Memiliki **M2M `mentions`** ke `User` untuk fitur _@mention_. |
+
+> **Logika Notifikasi Lonceng (Bell):**
+> Dropdown notifikasi mengambil data 24 jam terakhir secara _real-time_ untuk:
+> 1. **New Cases**: Kasus baru (Tampil untuk SEMUA staff).
+> 2. **Unread Messages**: Pesan klien yang belum dibaca pada kasus yang di-_assign_ ke staff tersebut (Tampil HANYA untuk pemilik tiket).
+> 3. **Mentions**: Internal Note yang men-tag `@username` staff (Tampil HANYA untuk staff yang di-tag).
 
 ---
 
@@ -116,12 +130,16 @@ erDiagram
 | `/desk/cases/<uuid>/thread/` | cases (desk) | HTMX partial — chat thread |
 | `/desk/cases/<uuid>/reply/` | cases (desk) | HTMX POST — kirim balasan |
 | `/desk/cases/<uuid>/rca/` | cases (desk) | HTMX POST — update RCA |
+| `/desk/cases/<uuid>/comment/` | cases (desk) | HTMX POST — tambah internal note (@mentions) |
 | `/api/gateways/evolution/webhook/` | gateways | Webhook Evolution API (POST) |
 | `/api/gateways/evolution/webhook/<event>` | gateways | Webhook Evolution API v2 (POST, event suffix) |
 | `/auth/login/` | django.auth | Login staff |
 | `/auth/logout/` | django.auth | Logout |
 | `/admin/` | django.admin | Django Admin panel (menggunakan tema Django Unfold) |
 | `/kb/` | knowledge_base | Knowledge base (future) |
+| `/api/users/` | cases (desk) | Endpoint JSON daftar staff untuk autocomplete Tribute.js |
+| `/notifications/` | cases (desk) | HTMX partial — dropdown bell notifikasi |
+| `/notifications/<type>/<id>/read/` | cases (desk) | Endpoint untuk menandai notifikasi telah dibaca |
 
 ---
 
@@ -184,9 +202,9 @@ curl -X PUT "http://localhost:8080/webhook/set/<INSTANCE_NAME>" \
 
 Evolution API v2 mengirimkan *instance token* (bukan webhook token yang dikonfigurasi) melalui header `X-Evolution-Token`. Karena perilaku ini, validasi token bersifat **lenient** — jika token tidak cocok, request tetap diteruskan dengan catatan warning di log.
 
-**Session Threading WA (30 menit):**
+**Session Threading WA (10 menit):**
 
-Setiap pesan WA baru akan membuat case baru, **kecuali** jika employee sudah memiliki case WA aktif yang dibuat dalam 30 menit terakhir. Dalam hal ini, pesan akan di-thread ke case tersebut.
+Setiap pesan WA baru akan membuat case baru, **kecuali** jika employee sudah memiliki case WA aktif yang di-update dalam **10 menit terakhir**. Dalam hal ini, pesan akan di-thread ke case tersebut. Sistem juga akan otomatis mengirim pesan "Sesi Berakhir" jika lewat dari 10 menit tanpa interaksi.
 
 ### 6.2. Email (IMAP + SMTP)
 
@@ -251,8 +269,11 @@ Karyawan isi form di /create/<category-slug>/
 |-----------|------|---------|--------|
 | `gateways.process_evolution_webhook_task` | `gateways/tasks.py` | Webhook POST | Proses pesan WhatsApp masuk + auto-reply WA |
 | `gateways.poll_imap_emails_task` | `gateways/tasks.py` | Celery Beat (60s) | Poll email IMAP, buat case, dispatch auto-acknowledgment |
-| `gateways.send_outbound_email_task` | `gateways/tasks.py` | Reply dari staff | Kirim email balasan via SMTP (dengan threading headers) |
+| `gateways.send_outbound_whatsapp_task` | `gateways/tasks.py` | Reply dari staff | Mengkonversi file upload (max 10MB/10 file) menjadi Base64 dan mengirimkannya + pesan teks ke Klien via Evolution API |
+| `gateways.send_outbound_email_task` | `gateways/tasks.py` | Reply dari staff | Kirim email balasan via SMTP (dengan threading headers, attach actual files, formating rapi) |
 | `gateways.send_case_acknowledgment_task` | `gateways/tasks.py` | Case baru dari email | Kirim email konfirmasi otomatis dengan nomor tiket |
+| `gateways.check_wa_session_timeout_task` | `gateways/tasks.py` | 10 Menit stlh pesan WA | Mengecek apakah sesi sudah usang (10m) lalu mengirimkan WA penutup klien |
+| `core.send_password_reset_otp_task` | `core/tasks.py` | Forgot Password Form | Mengirimkan kode rahasia OTP 6-Digit ke Email Admin saat lupa sandi |
 
 **Celery Beat Schedule** (di `roc_desk/celery.py`):
 ```python
@@ -440,7 +461,7 @@ python manage.py runserver
 
 **Terminal 2 — Celery Worker:**
 ```bash
-celery -A roc_desk worker --loglevel=info --pool=solo
+celery -A rocRoC Support Desk_desk worker --loglevel=info --pool=solo
 ```
 > `--pool=solo` wajib digunakan di Windows. Di Linux, bisa menggunakan `--pool=prefork`.
 

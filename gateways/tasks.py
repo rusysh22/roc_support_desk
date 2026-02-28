@@ -57,6 +57,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # 1. Parse the payload
         # ---------------------------------------------------------
         sender_phone: Optional[str] = svc.extract_sender_phone(payload)
+        sender_name: Optional[str] = getattr(svc, 'extract_sender_name', lambda p: None)(payload)
         message_body: str = svc.extract_message_body(payload)
         external_id: str = svc.extract_message_id(payload)
         media_info: Optional[dict] = svc.extract_media_info(payload)
@@ -86,22 +87,24 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             employee: Employee = Employee.objects.get(phone_number=sender_phone)
         except Employee.DoesNotExist:
             default_unit = _get_or_create_external_unit()
+            # If we know their WhatsApp PushName, use it. Otherwise "WA User +62..."
+            display_name = sender_name if sender_name else f"WA User {sender_phone}"
             employee = Employee.objects.create(
                 phone_number=sender_phone,
-                full_name=f"WA User {sender_phone}",
+                full_name=display_name,
                 unit=default_unit,
                 job_role="WhatsApp User"
             )
-            logger.info("Auto-registered new Employee from WA: %s", sender_phone)
+            logger.info("Auto-registered new Employee from WA: %s (%s)", sender_phone, display_name)
 
         # ---------------------------------------------------------
         # 4. Session threading — only thread into a RECENT WhatsApp
-        #    case from the same employee (within 30 min window).
+        #    case from the same employee (within 10 min window).
         #    Each new WA message outside the window creates a new case.
         # ---------------------------------------------------------
         from datetime import timedelta
 
-        session_window = timezone.now() - timedelta(minutes=30)
+        session_window = timezone.now() - timedelta(minutes=10)
         active_case: Optional[CaseRecord] = (
             CaseRecord.objects.filter(
                 requester=employee,
@@ -111,9 +114,9 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                     CaseRecord.Status.INVESTIGATING,
                     CaseRecord.Status.PENDING_INFO,
                 ],
-                created_at__gte=session_window,
+                updated_at__gte=session_window,
             )
-            .order_by("-created_at")
+            .order_by("-updated_at")
             .first()
         )
 
@@ -181,16 +184,20 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # 7. Auto-reply via WhatsApp when a NEW case is created
         # ---------------------------------------------------------
         if is_new_case and sender_phone:
+            from core.models import SiteConfig
+            site_config = SiteConfig.get_solo()
+            site_name = getattr(site_config, 'site_name', 'Support Desk')
+            
             try:
                 ack_text = (
                     f"✅ *Request Received*\n\n"
                     f"Hello *{employee.full_name}*,\n"
-                    f"Thank you for contacting the *RoC Support Desk*.\n\n"
+                    f"Thank you for contacting the *{site_name}*.\n\n"
                     f"📋 *Ticket Number:* `{case.case_number}`\n"
                     f"📝 *Subject:* {case.subject[:80]}\n\n"
                     f"Our team will review your request shortly.\n"
                     f"You may reply to this message to add any additional information regarding your ticket.\n\n"
-                    f"_Automated Message — RoC Support Desk_"
+                    f"_Automated Message — {site_name}_"
                 )
                 svc.send_whatsapp_message(sender_phone, ack_text)
                 logger.info(
@@ -271,15 +278,14 @@ def _download_and_save_attachment(
     Args:
         svc: EvolutionAPIService instance.
         msg: The parent Message object.
-        media_info: Dict with keys ``media_url``, ``base64``,
+        media_info: Dict with keys ``message_id``,
                     ``mime_type``, ``filename``.
     """
     from cases.models import Attachment
 
     try:
         content_file = svc.download_media(
-            media_url=media_info.get("media_url"),
-            base64_data=media_info.get("base64"),
+            message_id=media_info.get("message_id"),
             mime_type=media_info.get("mime_type", "application/octet-stream"),
             filename=media_info.get("filename", "attachment"),
         )
@@ -468,7 +474,10 @@ def send_outbound_email_task(self, message_id: str) -> str:
     from cases.models import Message
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
+    from core.models import SiteConfig
     import html as html_mod
+
+    site_name = SiteConfig.get_solo().site_name
 
     try:
         msg = Message.objects.select_related("case", "case__requester").get(id=message_id)
@@ -491,7 +500,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
         plain_body = (
             f"{msg.body}\n\n"
             f"---\n"
-            f"RoC Support Desk · Ticket {case_number}\n"
+            f"{site_name} · Ticket {case_number}\n"
             f"Please reply to this email to add a comment or reopen the ticket."
         )
 
@@ -512,7 +521,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ RoC Support Desk</span>
+                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ {html_mod.escape(site_name)}</span>
                 </td>
                 <td align="right">
                   <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">Ticket {case_number}</span>
@@ -552,16 +561,20 @@ def send_outbound_email_task(self, message_id: str) -> str:
 
       <!-- Sub-footer -->
       <p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;">
-        © RoC Support Desk · Powered by JokoUI
+        © {html_mod.escape(site_name)} · Powered by JokoUI
       </p>
     </td></tr>
   </table>
 </body>
 </html>"""
 
+        from core.models import EmailConfig
+        email_config = EmailConfig.get_solo()
+        from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
+        
         # Build a deterministic Message-ID for this case so all
         # emails about the same case form a thread.
-        from_domain = settings.DEFAULT_FROM_EMAIL.split('@')[-1] if '@' in settings.DEFAULT_FROM_EMAIL else 'rocdesk.local'
+        from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
         case_thread_id = f'<case-{case.id}@{from_domain}>'
 
         # Find the original inbound Message-ID (if stored)
@@ -583,11 +596,17 @@ def send_outbound_email_task(self, message_id: str) -> str:
         references_str = ' '.join(ref_ids)
         reply_to_id = ref_ids[0]  # Reply to the first (original) message
 
+        # Parse CC emails if provided
+        cc_list = []
+        if msg.cc_emails:
+            cc_list = [email.strip() for email in msg.cc_emails.split(',') if email.strip()]
+
         email = EmailMultiAlternatives(
             subject=subject,
             body=plain_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=from_email_addr,
             to=[requester_email],
+            cc=cc_list if cc_list else None,
             headers={
                 'In-Reply-To': reply_to_id,
                 'References': references_str,
@@ -595,6 +614,27 @@ def send_outbound_email_task(self, message_id: str) -> str:
             },
         )
         email.attach_alternative(html_body, 'text/html')
+
+        # Handle Attachments
+        attachments = msg.attachments.all()[:10]  # Max 10 files
+        total_size = 0
+        limit_exceeded = False
+        
+        for att in attachments:
+            total_size += att.file_size
+            if total_size > 10 * 1024 * 1024:  # 10MB limit
+                limit_exceeded = True
+                break
+                
+            try:
+                with att.file.open('rb') as f:
+                    email.attach(att.original_filename, f.read(), att.mime_type)
+            except Exception as e:
+                logger.error("Failed to attach file %s to email: %s", att.original_filename, e)
+                
+        if limit_exceeded:
+            email.body += "\n\n[Warning: Some attachments were not included because the total size exceeded the 10MB limit.]"
+
         email.send(fail_silently=False)
 
         msg.delivery_status = Message.DeliveryStatus.SUCCESS
@@ -608,6 +648,111 @@ def send_outbound_email_task(self, message_id: str) -> str:
         return "error:message_not_found"
     except Exception as exc:
         logger.exception("Failed to send outbound email for message %s: %s", message_id, exc)
+        try:
+            msg = Message.objects.get(id=message_id)
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = str(exc)
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+        except Exception:
+            pass
+
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.send_outbound_whatsapp_task",
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_outbound_whatsapp_task(self, message_id: str) -> str:
+    """
+    Asynchronously send an outbound WhatsApp reply to the Case requester.
+    Handles encoding attachments to base64 and hitting the Evolution API.
+    """
+    from cases.models import Message
+    from gateways.services import EvolutionAPIService
+    import base64
+
+    try:
+        msg = Message.objects.select_related("case__requester").get(id=message_id)
+        case = msg.case
+        requester = case.requester
+
+        if not requester or not requester.phone_number:
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = "Requester lacks phone number"
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            return "skipped:no_phone_number"
+
+        svc = EvolutionAPIService()
+        attachments = msg.attachments.all()[:10]  # Max 10 files
+
+        response_data = None
+        
+        # If there are attachments, we send the FIRST attachment as the main media message with the text as caption
+        # Additional attachments will be sent as separate media messages without captions
+        if attachments:
+            first = True
+            for att in attachments:
+                try:
+                    # Limit file size check (10MB) before base64 encoding to prevent memory issues
+                    if att.file_size > 10 * 1024 * 1024:
+                        logger.warning("Skipping attachment %s: exceeds 10MB limit.", att.original_filename)
+                        continue
+                        
+                    with att.file.open('rb') as f:
+                        file_data = f.read()
+                        
+                    base64_data = base64.b64encode(file_data).decode('utf-8')
+                    caption = msg.body if first else ""
+                    
+                    resp = svc.send_whatsapp_media(
+                        phone_number=requester.phone_number,
+                        base64_data=base64_data,
+                        mime_type=att.mime_type or "application/octet-stream",
+                        filename=att.original_filename,
+                        caption=caption,
+                    )
+                    if first:
+                        response_data = resp
+                    first = False
+                except Exception as e:
+                    logger.error("Error attaching file %s to WA payload: %s", att.original_filename, e)
+            
+            # If all attachments failed (e.g. all >10MB) but we have text, fallback to text
+            if first and msg.body:
+                 response_data = svc.send_whatsapp_message(
+                    phone_number=requester.phone_number,
+                    text=f"{msg.body}\n\n[Warning: Attachments exceeded 10MB limit]",
+                )
+        else:
+            # Just send text
+            response_data = svc.send_whatsapp_message(
+                phone_number=requester.phone_number,
+                text=msg.body,
+            )
+
+        if response_data:
+            msg.delivery_status = Message.DeliveryStatus.SUCCESS
+            msg.external_id = response_data.get("key", {}).get("id", "")
+            msg.save(update_fields=["delivery_status", "external_id"])
+            return "success"
+        else:
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = "Evolution API returned None / Request Failed"
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            return "error:api_failure"
+
+    except Message.DoesNotExist:
+        logger.error("Message %s not found for outbound WA", message_id)
+        return "error:message_not_found"
+    except Exception as exc:
+        logger.exception("Failed to send outbound WA for message %s: %s", message_id, exc)
         try:
             msg = Message.objects.get(id=message_id)
             msg.delivery_status = Message.DeliveryStatus.FAILED
@@ -638,7 +783,10 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
     from cases.models import CaseRecord, Message
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
+    from core.models import SiteConfig
     import html as html_mod
+
+    site_name = SiteConfig.get_solo().site_name
 
     try:
         case = CaseRecord.objects.select_related("requester").get(id=case_id)
@@ -661,7 +809,7 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             f"You will receive an update from us shortly.\n"
             f"To add additional comments, simply reply to this email.\n\n"
             f"---\n"
-            f"RoC Support Desk\n"
+            f"{site_name}\n"
         )
 
         html_body = f"""\
@@ -679,7 +827,7 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ RoC Support Desk</span>
+                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ {html_mod.escape(site_name)}</span>
                 </td>
                 <td align="right">
                   <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">{case_number}</span>
@@ -722,7 +870,7 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
         <tr>
           <td style="padding:20px 32px;background:#f8fafc;text-align:center;">
             <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
-              © RoC Support Desk<br>
+              © {html_mod.escape(site_name)}<br>
               This is an automated message, but replies to this thread will be logged to your ticket.
             </p>
           </td>
@@ -734,8 +882,12 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
 </body>
 </html>"""
 
+        from core.models import EmailConfig
+        email_config = EmailConfig.get_solo()
+        from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
+
         # Deterministic Message-ID for threading
-        from_domain = settings.DEFAULT_FROM_EMAIL.split('@')[-1] if '@' in settings.DEFAULT_FROM_EMAIL else 'rocdesk.local'
+        from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
         case_thread_id = f'<case-{case.id}@{from_domain}>'
 
         # Find the original inbound Message-ID (if stored)
@@ -759,7 +911,7 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
         email = EmailMultiAlternatives(
             subject=subject,
             body=plain_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=from_email_addr,
             to=[requester.email],
             headers={
                 'In-Reply-To': reply_to_id,
@@ -782,3 +934,50 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
+
+@shared_task(bind=True, name="gateways.check_wa_session_timeout_task", max_retries=1)
+def check_wa_session_timeout_task(self, case_id: str) -> str:
+    """
+    Checks if a WhatsApp session has been inactive for 10 minutes. 
+    If yes, sends a session expiry message and keeps the case open or closed
+    """
+    from cases.models import CaseRecord
+    from django.utils import timezone
+    from datetime import timedelta
+    from .services import EvolutionAPIService
+
+    try:
+        case = CaseRecord.objects.get(id=case_id)
+        
+        # If the case is already completed, no need to send timeout
+        if case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
+            return "skipped:case_already_closed"
+
+        # Check if the session is genuinely 10 mins old from last update
+        time_since_update = timezone.now() - case.updated_at
+        if time_since_update >= timedelta(minutes=10):
+            # Session expired. Send warning message.
+            if case.requester and case.requester.phone_number:
+                svc = EvolutionAPIService()
+                expiry_msg = (
+                    "Your support session has ended due to 10 minutes of inactivity.\n"
+                    "If you have any further questions or require additional assistance, "
+                    "please feel free to send a new message, and a new ticket will be created for you."
+                )
+                try:
+                    svc.send_whatsapp_message(case.requester.phone_number, expiry_msg)
+                    logger.info("Sent WA session expiry message for case %s", case.case_number)
+                except Exception as exc:
+                    logger.warning("Failed to send WA expiry message for case %s: %s", case.case_number, str(exc))
+            
+            # Optional: auto-resolve ticket could go here. 
+            # Per user request, we are just sending the message for now.
+
+            return "success:expired"
+        else:
+            # Not yet 30 mins since last update (another message was sent in between)
+            # The newer message would have spawned its own timeout task.
+            return "skipped:session_renewed"
+            
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"

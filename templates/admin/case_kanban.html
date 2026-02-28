@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Kanban — RoC Desk{% endblock %}
+{% block title %}Kanban — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Support Desk — Kanban Board{% endblock %}
 {% block nav_cases %}active{% endblock %}
 
@@ -115,6 +115,22 @@
     .kanban-card__source--wa { background: #dcfce7; color: #16a34a; }
     .kanban-card__source--email { background: #dbeafe; color: #2563eb; }
     .kanban-card__source--web { background: #f1f5f9; color: #64748b; }
+    .kanban-card__priority {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .kanban-card__priority--high { background: #fee2e2; color: #ef4444; }
+    .kanban-card__priority--medium { background: #fef3c7; color: #d97706; }
+    .kanban-card__priority--low { background: #e0f2fe; color: #0284c7; }
+    .kanban-card__date {
+        font-size: 10px;
+        color: #94a3b8;
+        margin-top: 4px;
+    }
     .kanban-empty {
         text-align: center;
         padding: 24px 12px;
@@ -168,6 +184,12 @@
                 <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
                 {% endfor %}
             </select>
+            <select name="priority" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
+                <option value="">All Priorities</option>
+                {% for value, label in priorities %}
+                <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
             
             <div class="flex items-center gap-2">
                 <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm" title="From Date">
@@ -202,16 +224,31 @@
             <div class="kanban-card {% if case.has_unread_messages %}bg-rose-50 border-rose-200 shadow-rose-100{% endif %}" draggable="true" data-case-id="{{ case.id }}"
                  ondragstart="event.dataTransfer.setData('text/plain', '{{ case.id }}'); this.classList.add('dragging')"
                  ondragend="this.classList.remove('dragging')"
-                 onclick="window.location='{% url 'desk:case_detail' case_id=case.id %}'">
-                <div class="kanban-card__id flex items-center gap-1.5">
-                    {% if case.has_unread_messages %}
-                        <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Unread messages"></span>
+                 hx-get="{% url 'desk:case_quick_view' case.id %}"
+                 hx-target="#htmx-modal"
+                 hx-swap="innerHTML"
+                 style="cursor: pointer;">
+                
+                <div class="flex items-center justify-between mb-2">
+                    <div class="kanban-card__id flex items-center gap-1.5">
+                        {% if case.has_unread_messages %}
+                            <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Unread messages"></span>
+                        {% endif %}
+                        {{ case.case_number }}
+                    </div>
+                    {% if case.priority == "High" %}
+                        <span class="kanban-card__priority kanban-card__priority--high">High</span>
+                    {% elif case.priority == "Medium" %}
+                        <span class="kanban-card__priority kanban-card__priority--medium">Med</span>
+                    {% else %}
+                        <span class="kanban-card__priority kanban-card__priority--low">Low</span>
                     {% endif %}
-                    {{ case.case_number }}
                 </div>
+
                 <div class="kanban-card__subject">{{ case.subject }}</div>
+                
                 <div class="kanban-card__meta">
-                    <span>{{ case.requester.full_name|truncatechars:18 }}</span>
+                    <span class="truncate" style="max-width: 130px;">{{ case.requester.full_name }}</span>
                     {% if case.source == "EvolutionAPI_WA" %}
                     <span class="kanban-card__source kanban-card__source--wa">WA</span>
                     {% elif case.source == "Email" %}
@@ -219,6 +256,9 @@
                     {% else %}
                     <span class="kanban-card__source kanban-card__source--web">Web</span>
                     {% endif %}
+                </div>
+                <div class="kanban-card__date">
+                    🗓️ {{ case.created_at|date:"d M Y, H:i" }}
                 </div>
             </div>
             {% empty %}

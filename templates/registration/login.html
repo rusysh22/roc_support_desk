@@ -1,67 +1,102 @@
 {% extends "base.html" %}
 
-{% block title %}Staff Login — RoC Desk{% endblock %}
+{% block title %}Staff Login — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Staff Login{% endblock %}
 {% block main_class %}full-width{% endblock %}
 
 {% block layout %}
-<!-- Login page — no sidebar, full-width centered layout -->
-<div class="jk-page min-h-screen flex items-center justify-center px-4"
-    style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);">
-    <div class="w-full max-w-md">
-
-        <!-- Brand -->
-        <div class="text-center mb-8">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center text-2xl"
-                style="background: linear-gradient(135deg, #6366f1, #0ea5e9);">
-                🛠️
+<!-- Login page — Refined Sidebar Layout Flow -->
+<div class="min-h-screen flex items-center justify-center px-4"
+     style="background-color: #e2e8f0; background-image: radial-gradient(circle at center, #f8fafc 0%, #cbd5e1 100%);">
+    
+    <!-- Main Card Container -->
+    <div class="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[500px]">
+        
+        <!-- Left Side: Login Form (White Base) -->
+        <div class="w-full md:w-1/2 p-10 lg:p-14 flex flex-col justify-center relative">
+            <div class="mb-8 text-center">
+                <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">Sign In</h1>
             </div>
-            <h1 class="text-2xl font-extrabold text-white tracking-tight">RoC Desk</h1>
-            <p class="text-slate-400 text-sm mt-1">Sign in to your support desk account</p>
-        </div>
 
-        <!-- Login Card -->
-        <div class="jk-card">
-            <div class="jk-card-body p-8">
+            {% if form.errors %}
+            <div class="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm mb-6 border border-red-200 text-center">
+                ❌ Invalid login credentials. Please try again.
+            </div>
+            {% endif %}
 
-                {% if form.errors %}
-                <div class="jk-alert jk-alert-error mb-4">
-                    ❌ Invalid login credentials. Please try again.
+            {% if messages %}
+            <div class="mb-6">
+                {% for message in messages %}
+                <div class="px-4 py-3 rounded-xl text-sm text-center {% if message.tags == 'success' %}bg-green-50 text-green-700 border border-green-200{% elif message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+                    {{ message }}
                 </div>
-                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
 
-                <form method="post">
-                    {% csrf_token %}
+            <div class="text-center mb-6">
+                <span class="text-xs text-slate-400 uppercase tracking-widest font-semibold bg-white px-2 relative z-10">or use your Account</span>
+                <div class="border-t border-slate-100 absolute w-full left-0 top-[28%] -z-10"></div>
+            </div>
 
-                    <div class="jk-form-group">
-                        <label for="id_username" class="jk-label">Login Username</label>
-                        <input type="text" name="username" id="id_username" class="jk-input"
-                            placeholder="Enter your login username" autofocus required>
-                    </div>
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+                
+                <div>
+                    <input type="text" name="username" id="id_username" 
+                           class="w-full bg-slate-100 border-none rounded-xl px-5 py-4 text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5b21b6] focus:bg-white transition-all outline-none shadow-inner"
+                           placeholder="Username" autofocus required>
+                </div>
 
-                    <div class="jk-form-group">
-                        <label for="id_password" class="jk-label">Password</label>
-                        <input type="password" name="password" id="id_password" class="jk-input"
-                            placeholder="Enter your password" required>
-                    </div>
+                <div>
+                    <input type="password" name="password" id="id_password" 
+                           class="w-full bg-slate-100 border-none rounded-xl px-5 py-4 text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5b21b6] focus:bg-white transition-all outline-none shadow-inner"
+                           placeholder="Password" required>
+                </div>
 
-                    <button type="submit" class="jk-btn jk-btn-primary jk-btn-lg jk-btn-block mt-2">
-                        Sign In
-                    </button>
-                </form>
-
-                <div class="text-center mt-6">
-                    <a href="{% url 'cases:dashboard' %}"
-                        class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
-                        ← Back to Client Portal
+                <div class="text-center mt-4">
+                    <a href="{% url 'forgot_password' %}" class="text-sm text-slate-500 hover:text-[#5b21b6] transition-colors border-b border-transparent hover:border-[#5b21b6]">
+                        Forget Your Password?
                     </a>
                 </div>
-            </div>
+
+                <div class="pt-4 flex justify-center">
+                    <button type="submit" 
+                            class="bg-[#4c1d95] hover:bg-[#3b0764] text-white font-bold rounded-full px-12 py-3.5 tracking-wider transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full md:w-auto">
+                        SIGN IN
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <p class="text-center text-xs text-slate-500 mt-6">
-            RoC Desk — Internal Service Desk System
-        </p>
+        <!-- Right Side: Dark Purple Welcome Panel (with curved style) -->
+        <div class="w-full md:w-1/2 p-10 lg:p-14 flex flex-col items-center justify-center text-center relative overflow-hidden"
+             style="background: linear-gradient(145deg, #6d28d9 0%, #4c1d95 100%); border-top-left-radius: 120px; border-bottom-left-radius: 10px;">
+             
+             <!-- Decorative elements -->
+             <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full mix-blend-overlay filter blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+             <div class="absolute bottom-0 left-0 w-64 h-64 bg-black opacity-10 rounded-full mix-blend-overlay filter blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+             
+             <div class="relative z-10 space-y-6 max-w-sm">
+                 <h2 class="text-4xl font-extrabold text-white tracking-wide">Welcome Back!</h2>
+                 
+                 <p class="text-purple-200 text-sm leading-relaxed px-4">
+                     Sign in with your staff credentials to access the <strong>{{ site_config.site_name|default:"Support Desk" }}</strong> dashboard, manage client cases, and configure application settings.
+                 </p>
+                 
+                 <div class="pt-8 opacity-80">
+                     <div class="w-20 h-20 mx-auto rounded-full bg-white bg-opacity-10 flex items-center justify-center backdrop-blur-sm border border-white border-opacity-20 shadow-inner">
+                         <span class="text-3xl">🛠️</span>
+                     </div>
+                 </div>
+                 
+                 <div class="mt-auto pt-10 text-xs text-purple-300 opacity-60">
+                     Systems protected. Authorized personnel only.
+                     <br>powered by Rusydani on Cloud | hello@rusydanion.cloud
+                 </div>
+             </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}

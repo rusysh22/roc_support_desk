@@ -71,11 +71,13 @@ def manager_or_admin_required(view_func):
 
 def client_dashboard(request):
     """
-    Display the service catalogue as a responsive grid of CaseCategory cards.
-    Completely public — no authentication required.
+    Display the service catalogue as a responsive grid of CaseCategory cards,
+    plus any DynamicForms configured to appear on the portal.
     """
+    from core.models import DynamicForm
     categories = CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"])
-    return render(request, "client/dashboard.html", {"categories": categories})
+    portal_forms = DynamicForm.objects.filter(is_published=True, show_on_portal=True)
+    return render(request, "client/dashboard.html", {"categories": categories, "portal_forms": portal_forms})
 
 
 def create_case(request, slug=None):
@@ -186,7 +188,112 @@ def case_submitted(request, case_id):
 
 
 # =====================================================================
-# Staff — Admin / Support Desk
+# Dynamic Form Public Renderer
+# =====================================================================
+
+def public_form_view(request, slug):
+    """
+    Renders a published DynamicForm in a beautiful client-facing view.
+    Handles the submission logic and transforms raw POST data into the JSON answers format.
+    """
+    from core.models import DynamicForm, FormSubmission, SiteConfig
+    from django.contrib import messages
+    from django.http import Http404
+    from django.core.files.storage import FileSystemStorage
+    import os
+    from django.conf import settings
+
+    form_obj = get_object_or_404(DynamicForm, slug=slug)
+
+    is_preview = request.GET.get('preview') == '1'
+
+    # Check if form is published (skip check in preview mode for staff)
+    if not form_obj.is_published and not request.user.is_staff:
+        raise Http404("This form is not currently available.")
+
+    # Check if form requires login
+    if form_obj.requires_login and not request.user.is_authenticated:
+        messages.warning(request, "You must be logged in to view and submit this form.")
+        # Assuming you have a 'accounts:login' or using reverse
+        return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+
+    fields = form_obj.fields.all()
+
+    if request.method == "POST":
+        # Build the JSON response dict
+        answers = {}
+        errors = {}
+
+        site_config = SiteConfig.get_solo()
+        max_size_bytes = site_config.max_upload_size_mb * 1024 * 1024
+        fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'form_uploads'), base_url=f"{settings.MEDIA_URL}form_uploads/")
+
+        for field in fields:
+            if 'attachment' in field.field_type:
+                files = request.FILES.getlist(f"field_{field.id}")
+                if field.is_required and not files:
+                    errors[str(field.id)] = "This field is required."
+                    answers[str(field.id)] = None
+                    continue
+
+                saved_files = []
+                for f in files:
+                    if f.size > max_size_bytes:
+                        errors[str(field.id)] = f"File {f.name} exceeds {site_config.max_upload_size_mb}MB limit."
+                        break
+                    
+                    filename = fs.save(f.name, f)
+                    saved_files.append(fs.url(filename))
+                
+                if field.field_type == 'attachment':
+                    answers[str(field.id)] = saved_files[0] if saved_files else None
+                else:
+                    answers[str(field.id)] = saved_files
+
+            elif field.field_type == 'checkbox':
+                # Checkbox fields use getlist because they can have multiple values
+                val = request.POST.getlist(f"field_{field.id}")
+                if field.is_required and not val:
+                    errors[str(field.id)] = "This field is required."
+                answers[str(field.id)] = val
+            else:
+                val = request.POST.get(f"field_{field.id}", "").strip()
+                if field.is_required and not val:
+                    errors[str(field.id)] = "This field is required."
+                answers[str(field.id)] = val
+
+        if errors:
+            messages.error(request, "Please fill out all required fields marked with *")
+            return render(request, "client/public_form.html", {
+                "dynamic_form": form_obj,
+                "fields": fields,
+                "answers": answers,
+                "errors": errors
+            })
+        
+        # Save submission
+        FormSubmission.objects.create(
+            form=form_obj,
+            submitted_by=request.user if request.user.is_authenticated else None,
+            answers=answers
+        )
+
+        messages.success(request, form_obj.success_message)
+        # Using a simple success flag in context or simply rendering directly
+        return render(request, "client/public_form.html", {
+            "dynamic_form": form_obj,
+            "success": True
+        })
+
+    return render(request, "client/public_form.html", {
+        "dynamic_form": form_obj,
+        "fields": fields,
+        "is_preview": is_preview,
+    })
+
+
+# =====================================================================
+# Auth Required Desk (Admin/Staff) Views below
 # =====================================================================
 
 @staff_required
@@ -435,6 +542,7 @@ def case_send_reply(request, case_id):
                 case=case,
                 sender_staff=request.user,
                 body=form.cleaned_data["body"],
+                cc_emails=form.cleaned_data.get("cc_emails", ""),
                 direction=Message.Direction.OUTBOUND,
                 channel=reply_channel,
             )
@@ -459,25 +567,12 @@ def case_send_reply(request, case_id):
                 from gateways.tasks import send_outbound_email_task
                 send_outbound_email_task.delay(str(msg.id))
             elif reply_channel == Message.Channel.WHATSAPP:
-                # Send reply via WhatsApp (Evolution API)
-                if case.requester and case.requester.phone_number:
-                    try:
-                        from gateways.services import EvolutionAPIService
-                        svc = EvolutionAPIService()
-                        svc.send_whatsapp_message(
-                            case.requester.phone_number,
-                            form.cleaned_data["body"],
-                        )
-                    except Exception as exc:
-                        import logging
-                        logging.getLogger(__name__).warning(
-                            "Failed to send WA reply for case %s: %s",
-                            case.case_number, exc,
-                        )
-                        # Update message status to FAILED
-                        msg.delivery_status = Message.DeliveryStatus.FAILED
-                        msg.delivery_error = str(exc)
-                        msg.save(update_fields=["delivery_status", "delivery_error"])
+                from gateways.tasks import send_outbound_whatsapp_task
+                send_outbound_whatsapp_task.delay(str(msg.id))
+                
+                # Reset the 10-minute session countdown for the employee
+                from gateways.tasks import check_wa_session_timeout_task
+                check_wa_session_timeout_task.apply_async((str(case.id),), countdown=600)
 
             # Return the refreshed chat thread partial
             messages = case.messages.select_related(
@@ -521,6 +616,16 @@ def chat_thread(request, case_id):
 # =====================================================================
 
 @staff_required
+def case_quick_view(request, case_id):
+    """
+    HTMX endpoint — returns a quick view modal for a specific case card.
+    """
+    case = get_object_or_404(CaseRecord, id=case_id)
+    return render(request, "partials/quick_view_modal.html", {
+        "case": case,
+    })
+
+@staff_required
 def case_kanban(request):
     """
     Kanban board — cases grouped by status columns.
@@ -533,6 +638,7 @@ def case_kanban(request):
     # --- Filtering ---
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
+    priority_filter = request.GET.get("priority")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -541,6 +647,8 @@ def case_kanban(request):
         cases = cases.filter(source=source_filter)
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
+    if priority_filter:
+        cases = cases.filter(priority=priority_filter)
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -583,9 +691,11 @@ def case_kanban(request):
         "kanban_data": kanban_data,
         "sources": CaseRecord.Source.choices,
         "categories": CaseCategory.objects.all(),
+        "priorities": CaseRecord.Priority.choices,
         "current_filters": {
             "source": source_filter or "",
             "category": category_filter or "",
+            "priority": priority_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
@@ -788,7 +898,7 @@ def case_export_excel(request):
     cases = CaseRecord.objects.select_related(
         "requester", "requester__unit", "category", "assigned_to",
         "created_by", "updated_by"
-    ).order_by("-created_at")
+    ).prefetch_related("followers").order_by("-created_at")
 
     # Apply filters if provided
     status_filter = request.GET.get("status")
@@ -827,10 +937,11 @@ def case_export_excel(request):
     )
 
     headers = [
-        "No", "Case Number", "Subject", "Status", "Source", "Category",
+        "No", "Case Number", "Subject", "Status", "Priority", "Type", "Source", "Category",
         "Requester Name", "Requester Email", "Requester Phone",
         "Requester Unit", "Requester Job Role",
-        "Problem Description", "Root Cause Analysis", "Solving Steps",
+        "Problem Description", "Root Cause Analysis", "Solving Steps", "Quick Notes",
+        "Tags", "Followers", "Reference Link",
         "Assigned To", "Response SLA", "Resolution SLA",
         "Created At", "Updated At",
     ]
@@ -850,6 +961,8 @@ def case_export_excel(request):
             case.case_number,
             case.subject,
             case.get_status_display(),
+            case.get_priority_display(),
+            case.get_case_type_display(),
             case.get_source_display(),
             case.category.name if case.category else "",
             case.requester.full_name if case.requester else case.requester_name,
@@ -860,6 +973,10 @@ def case_export_excel(request):
             case.problem_description or "",
             case.root_cause_analysis or "",
             case.solving_steps or "",
+            case.quick_notes or "",
+            case.tags or "",
+            ", ".join([f.username for f in case.followers.all()]),
+            case.link or "",
             case.assigned_to.username if case.assigned_to else "Unassigned",
             localtime(case.response_due_at).strftime("%d/%m/%Y %H:%M") if case.response_due_at else "",
             localtime(case.resolution_due_at).strftime("%d/%m/%Y %H:%M") if case.resolution_due_at else "",
@@ -1017,6 +1134,267 @@ def case_add_comment(request, case_id):
         "case": case,
         "comments": case.internal_comments.all(),
     })
+
+# =====================================================================
+# WhatsApp Integration Dashboard
+# =====================================================================
+
+@staff_required
+def whatsapp_status_view(request):
+    """
+    Dashboard view for monitoring Evolution API WhatsApp connection.
+    Retrieves instance state and QR code if requested/disconnected.
+    """
+    from gateways.services import EvolutionAPIService
+    from datetime import datetime
+    
+    svc = EvolutionAPIService()
+    state_data = svc.get_instance_state()
+    info_data = svc.get_instance_info()
+    
+    qr_data = None
+    
+    # Check if we are connected; if not, fetch QR code
+    instance_state = state_data.get("instance", {}).get("state", "UNKNOWN") if state_data else "ERROR"
+    
+    last_connected = None
+    if info_data and "updatedAt" in info_data:
+        # e.g. "2026-02-28T06:50:37.380Z" -> Convert to aware datetime
+        dt_str = info_data.get("updatedAt").replace('Z', '+00:00')
+        try:
+            last_connected = datetime.fromisoformat(dt_str)
+        except ValueError:
+            pass
+            
+    if instance_state not in ["open", "connected"]:
+        # Instance is likely disconnected, fetching QR
+        qr_data = svc.get_qr_code()
+        
+    qr_base64 = None
+    if qr_data and "base64" in qr_data:
+        qr_base64 = qr_data.get("base64")
+        
+    # If the user is on HTMX, just return the partial piece to swap
+    if request.headers.get('HX-Request') == 'true':
+        return render(request, "partials/whatsapp_status_card.html", {
+            "instance_state": instance_state,
+            "qr_base64": qr_base64,
+            "last_connected": last_connected,
+        })
+        
+    return render(request, "desk/whatsapp_status.html", {
+        "instance_state": instance_state,
+        "qr_base64": qr_base64,
+        "last_connected": last_connected,
+    })
+
+
+# =====================================================================
+# Email Settings Dashboard
+# =====================================================================
+
+@staff_required
+def email_settings_view(request):
+    """
+    Dashboard view for monitoring and updating global Email Settings.
+    Requires Staff/Admin access.
+    """
+    from core.models import EmailConfig
+    from core.forms import EmailConfigForm
+    from django.contrib import messages
+
+    email_config = EmailConfig.get_solo()
+
+    if request.method == "POST":
+        form = EmailConfigForm(request.POST, instance=email_config)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Email configuration updated successfully! Background services will use the new credentials on their next run.")
+            return redirect("desk:email_settings")
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = EmailConfigForm(instance=email_config)
+
+    return render(request, "desk/email_settings.html", {
+        "form": form,
+    })
+
+
+# =====================================================================
+# Dynamic Form Builder
+# =====================================================================
+
+@staff_required
+def form_list_view(request):
+    """
+    List of all Dynamic Forms.
+    """
+    from core.models import DynamicForm
+    forms = DynamicForm.objects.all()
+    return render(request, "desk/forms/list.html", {"forms": forms})
+
+
+@staff_required
+def form_create_view(request):
+    """
+    Create a new DynamicForm (Settings only).
+    """
+    from core.forms import DynamicFormForm
+    from django.contrib import messages
+    import uuid
+
+    if request.method == "POST":
+        form = DynamicFormForm(request.POST, request.FILES)
+        if form.is_valid():
+            new_form = form.save(commit=False)
+            new_form.created_by = request.user
+            # Ensure slug is truly unique if not explicitly provided or if duplicate
+            if not new_form.slug:
+                new_form.slug = str(uuid.uuid4())[:8]
+            new_form.save()
+            messages.success(request, f"Form '{new_form.title}' created! Now add some fields.")
+            return redirect("desk:form_edit", pk=new_form.pk)
+    else:
+        form = DynamicFormForm()
+
+    return render(request, "desk/forms/create.html", {"form": form})
+
+
+@staff_required
+def form_edit_view(request, pk):
+    """
+    Drag and drop builder to edit form fields and form settings.
+    """
+    from core.models import DynamicForm, FormField
+    from core.forms import DynamicFormForm
+    from django.contrib import messages
+    import json
+
+    instance = get_object_or_404(DynamicForm, pk=pk)
+    
+    # Handle AJAX/HTMX Field updates
+    if request.headers.get('HX-Request') == 'true':
+        action = request.POST.get('action')
+        
+        if action == 'add_field':
+            field_type = request.POST.get('field_type', FormField.FieldTypes.TEXT)
+            label = request.POST.get('label', 'New Question')
+            help_text = request.POST.get('help_text', '')
+            is_required = request.POST.get('is_required') == 'true'
+            
+            choices = []
+            if field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO, FormField.FieldTypes.CHECKBOX, FormField.FieldTypes.SURVEY]:
+                choices = request.POST.getlist('choices[]')
+                
+            # Put at bottom
+            last_order = instance.fields.count()
+            
+            FormField.objects.create(
+                form=instance,
+                field_type=field_type,
+                label=label,
+                help_text=help_text,
+                is_required=is_required,
+                choices=choices,
+                order=last_order + 1,
+                created_by=request.user
+            )
+            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            
+        elif action == 'delete_field':
+            field_id = request.POST.get('field_id')
+            FormField.objects.filter(id=field_id, form=instance).delete()
+            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            
+        elif action == 'reorder':
+            order_data = json.loads(request.POST.get('order_data', '[]'))
+            for item in order_data:
+                FormField.objects.filter(id=item['id'], form=instance).update(order=item['order'])
+            return HttpResponse(status=200)
+
+        elif action == 'edit_field':
+            field_id = request.POST.get('field_id')
+            field = get_object_or_404(FormField, id=field_id, form=instance)
+            
+            field.label = request.POST.get('label', field.label)
+            field.help_text = request.POST.get('help_text', '')
+            field.is_required = request.POST.get('is_required') == 'true'
+            
+            new_type = request.POST.get('field_type')
+            if new_type:
+                field.field_type = new_type
+            
+            if field.field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO, FormField.FieldTypes.CHECKBOX, FormField.FieldTypes.SURVEY]:
+                choices = request.POST.getlist('choices[]')
+                if choices:
+                    field.choices = choices
+            else:
+                field.choices = []
+            
+            field.updated_by = request.user
+            field.save()
+            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+
+        elif action == 'send_invitation':
+            from django.core.mail import send_mail
+            from django.conf import settings
+            import json as _json
+
+            raw_emails = request.POST.get('emails', '')
+            email_list = [e.strip() for e in raw_emails.replace(';', ',').split(',') if e.strip()]
+            form_url = request.build_absolute_uri(f'/f/{instance.slug}/')
+            
+            sent_count = 0
+            for email in email_list:
+                try:
+                    send_mail(
+                        subject=f'You are invited to fill out: {instance.title}',
+                        message=f'Hello,\n\nYou have been invited to fill out the form "{instance.title}".\n\n{instance.description}\n\nPlease click the link below to access the form:\n{form_url}\n\nBest regards,\n{request.user.get_full_name() or request.user.username}',
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[email],
+                        fail_silently=True,
+                    )
+                    sent_count += 1
+                except Exception:
+                    pass
+            
+            return JsonResponse({'status': 'ok', 'sent': sent_count})
+
+    # Standard form updating
+    if request.method == "POST" and not request.headers.get('HX-Request'):
+        form = DynamicFormForm(request.POST, request.FILES, instance=instance)
+        if form.is_valid():
+            f = form.save(commit=False)
+            f.updated_by = request.user
+            f.save()
+            messages.success(request, "Form settings updated successfully.")
+            return redirect("desk:form_edit", pk=instance.pk)
+    else:
+        form = DynamicFormForm(instance=instance)
+
+    return render(request, "desk/forms/builder.html", {
+        "dynamic_form": instance,
+        "form": form,
+        "fields": instance.fields.all()
+    })
+
+
+@staff_required
+def form_responses_view(request, pk):
+    """
+    View all submissions for a specific DynamicForm.
+    """
+    from core.models import DynamicForm
+    instance = get_object_or_404(DynamicForm, pk=pk)
+    submissions = instance.submissions.all()
+    
+    return render(request, "desk/forms/responses.html", {
+        "dynamic_form": instance,
+        "submissions": submissions,
+        "fields": instance.fields.all()
+    })
+
 
 # =====================================================================
 # API Endpoints

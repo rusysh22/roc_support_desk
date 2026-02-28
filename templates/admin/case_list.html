@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Cases — RoC Desk{% endblock %}
+{% block title %}Cases — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Support Desk — All Cases{% endblock %}
 {% block nav_cases %}active{% endblock %}
 

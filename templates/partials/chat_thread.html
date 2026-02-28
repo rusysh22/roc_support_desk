@@ -1,4 +1,5 @@
 <!-- HTMX Partial: Chat Thread Messages -->
+{% load text_filters %}
 <!-- Rendered inside #chat-thread, polled every 5s by case_detail.html -->
 <div class="jk-chat-messages" id="chat-messages-inner" style="scroll-behavior:smooth;">
     {% if chat_messages %}
@@ -45,7 +46,7 @@
             </div>
 
             <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %}">
-                <div class="jk-msg__text">{{ msg.body }}</div>
+                <div class="jk-msg__text whitespace-pre-wrap">{{ msg.body|urlize_target_blank }}</div>
 
                 {% if msg.attachments.all %}
                 <div class="jk-msg__files">
@@ -56,6 +57,12 @@
                         <small>({{ att.file_size|filesizeformat }})</small>
                     </a>
                     {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if msg.cc_emails %}
+                <div class="mt-2 text-[10px] text-slate-400 bg-white/50 rounded px-2 py-1 inline-block border border-slate-100">
+                    <strong>CC:</strong> {{ msg.cc_emails }}
                 </div>
                 {% endif %}
             </div>

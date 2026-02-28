@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Responses | {{ dynamic_form.title }}{% endblock %}
+
+{% block page_title %}Form Responses{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-center gap-4">
+        <a href="{% url 'desk:form_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </a>
+        <div>
+            <h2 class="text-xl font-bold text-slate-900">{{ dynamic_form.title }} - Responses</h2>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm font-semibold text-slate-500">{{ submissions.count }} total submissions</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white border text-left border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        {% if submissions %}
+            <div class="overflow-x-auto min-h-[400px]">
+                <table class="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200">
+                            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date Submitted</th>
+                            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted By</th>
+                            
+                            <!-- Dynamic Columns based on Form Fields -->
+                            {% for field in fields %}
+                                <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider max-w-[200px] truncate" title="{{ field.label }}">
+                                    {{ field.label }}
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        {% for sub in submissions %}
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="py-4 px-6 text-sm text-slate-700">
+                                    {{ sub.submitted_at|date:"M d, Y H:i" }}
+                                </td>
+                                <td class="py-4 px-6 text-sm">
+                                    {% if sub.submitted_by %}
+                                        <div class="flex items-center gap-2">
+                                            <div class="h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                                {{ sub.submitted_by.first_name|default:sub.submitted_by.username|slice:":1"|upper }}
+                                            </div>
+                                            <span class="font-semibold text-slate-800">{{ sub.submitted_by.get_full_name|default:sub.submitted_by.username }}</span>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-slate-400 italic">Guest User</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Dynamic Answers -->
+                                {% for field in fields %}
+                                    <td class="py-4 px-6 text-sm text-slate-700 max-w-[300px] truncate" title="{{ sub.answers|dictsort:field.id }}">
+                                        {% for key, val in sub.answers.items %}
+                                            {% if key|stringformat:"s" == field.id|stringformat:"s" %}
+                                                {% if val|length > 0 %}
+                                                    {% if val|title == val %} <!-- Check for lists implicitly via template tags? Better to handle in view, but dict works stringified -->
+                                                        {{ val }}
+                                                    {% else %}
+                                                        {{ val }}
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-slate-300">-</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% empty %}
+                                            <span class="text-slate-300">-</span>
+                                        {% endfor %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="py-16 px-6 text-center">
+                <div class="mx-auto w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-slate-900">No Responses Yet</h3>
+                <p class="mt-1 text-slate-500 max-w-sm mx-auto">Publish your form and share the link to start collecting submissions!</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

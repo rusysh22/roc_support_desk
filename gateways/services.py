@@ -62,6 +62,52 @@ class EvolutionAPIService:
         return f"{self.base_url}/{path}/{self.instance}"
 
     # ------------------------------------------------------------------
+    # Public API — Instance State & QR Code
+    # ------------------------------------------------------------------    
+
+    def get_instance_state(self) -> dict | None:
+        """Fetch the connection status of the WhatsApp instance."""
+        url = self._build_url("instance/connectionState")
+        try:
+            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            logger.error("Failed to fetch instance state: %s", exc)
+            return None
+
+    def get_instance_info(self) -> dict | None:
+        """Fetch full instance information including timestamps."""
+        url = f"{self.base_url}/instance/fetchInstances"
+        # Optional: ?instanceName=helpdesk-wa to filter
+        params = {"instanceName": self.instance}
+        try:
+            response = requests.get(url, params=params, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            instances = response.json()
+            # If it's a list, find ours
+            if isinstance(instances, list):
+                for inst in instances:
+                    if inst.get("name") == self.instance:
+                        return inst
+                return instances[0] if instances else None
+            return instances
+        except requests.RequestException as exc:
+            logger.error("Failed to fetch instance info: %s", exc)
+            return None
+
+    def get_qr_code(self) -> dict | None:
+        """Fetch the Base64 QR code for pairing the WhatsApp instance."""
+        url = self._build_url("instance/connect")
+        try:
+            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            logger.error("Failed to fetch QR code: %s", exc)
+            return None
+
+    # ------------------------------------------------------------------
     # Public API — Send Messages
     # ------------------------------------------------------------------
 
@@ -113,27 +159,122 @@ class EvolutionAPIService:
             )
             return None
 
+    def send_whatsapp_media(
+        self,
+        phone_number: str,
+        base64_data: str,
+        mime_type: str,
+        filename: str,
+        caption: str = "",
+    ) -> dict | None:
+        """
+        Send a media message (document or image) via WhatsApp through Evolution API.
+
+        Args:
+            phone_number: Recipient phone in E.164 format.
+            base64_data: The base64-encoded string of the file to send.
+            mime_type: The MIME type of the file.
+            filename: The file name.
+            caption: Optional caption to send with the media.
+
+        Returns:
+            API response as dict, or None on failure.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("message/sendMedia")
+        
+        # Determine media type for Evolution API
+        # Options are: image, document, video, audio
+        media_type = "document"
+        if mime_type.startswith("image/"):
+            media_type = "image"
+        elif mime_type.startswith("video/"):
+            media_type = "video"
+        elif mime_type.startswith("audio/"):
+            media_type = "audio"
+
+        payload = {
+            "number": clean_number,
+            "mediatype": media_type,
+            "mimetype": mime_type,
+            "caption": caption,
+            "media": base64_data,
+            "fileName": filename,
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout + 30,  # Media uploads need more time
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info(
+                "WhatsApp media sent to %s — message_id: %s",
+                clean_number,
+                data.get("key", {}).get("id", "unknown"),
+            )
+            return data
+
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to send WhatsApp media to %s: %s",
+                clean_number,
+                exc,
+            )
+            return None
+
     # ------------------------------------------------------------------
     # Public API — Download Media
     # ------------------------------------------------------------------
 
+    def get_base64_from_message(self, message_id: str) -> Optional[str]:
+        """
+        Fetch the decrypted base64 media payload directly from Evolution API
+        using the message's unique `id`. This is required because raw URLs
+        from WhatsApp webhooks are encrypted.
+        """
+        url = self._build_url("chat/getBase64FromMediaMessage")
+        
+        payload = {
+            "message": {
+                "key": {
+                    "id": message_id
+                }
+            }
+        }
+        
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout + 30,  # Decoding might take time
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            
+            # Evolution API returns the base64 string directly in the 'base64' key
+            return data.get("base64")
+            
+        except requests.RequestException as exc:
+            logger.error("Failed to fetch base64 from message %s: %s", message_id, exc)
+            return None
+
     def download_media(
         self,
-        media_url: Optional[str] = None,
-        base64_data: Optional[str] = None,
+        message_id: str,
         mime_type: str = "application/octet-stream",
         filename: str = "attachment",
     ) -> Optional[ContentFile]:
         """
-        Download or decode WhatsApp media into a Django ``ContentFile``.
-
-        Supports two modes:
-        1. **URL mode** — fetches media from a URL provided by Evolution API.
-        2. **Base64 mode** — decodes inline base64 media data.
+        Download or decode WhatsApp media into a Django ``ContentFile``
+        by fetching the decrypted Base64 string from Evolution API.
 
         Args:
-            media_url: URL to fetch media from (Evolution API media endpoint).
-            base64_data: Base64-encoded media content.
+            message_id: The ID of the WhatsApp message to fetch media for.
             mime_type: MIME type of the media.
             filename: Desired filename for the resulting ContentFile.
 
@@ -142,29 +283,15 @@ class EvolutionAPIService:
         """
         content_bytes: Optional[bytes] = None
 
-        # --- Mode 1: URL download ---
-        if media_url:
-            try:
-                response = requests.get(
-                    media_url,
-                    headers={"apikey": self.api_key},
-                    timeout=self.timeout,
-                    stream=True,
-                )
-                response.raise_for_status()
-                content_bytes = response.content
-                logger.info(
-                    "Downloaded media from URL: %s (%d bytes)",
-                    media_url,
-                    len(content_bytes),
-                )
-            except requests.RequestException as exc:
-                logger.error("Failed to download media from %s: %s", media_url, exc)
-                return None
+        logger.info("Fetching base64 media for message_id: %s", message_id)
+        base64_data = self.get_base64_from_message(message_id)
 
-        # --- Mode 2: Base64 decode ---
-        elif base64_data:
+        if base64_data:
             try:
+                # Some APIs prepend "data:image/jpeg;base64,". Strip it if present.
+                if ";base64," in base64_data:
+                    base64_data = base64_data.split(";base64,")[1]
+                    
                 content_bytes = base64.b64decode(base64_data)
                 logger.info(
                     "Decoded base64 media: %s (%d bytes)",
@@ -174,9 +301,8 @@ class EvolutionAPIService:
             except Exception as exc:
                 logger.error("Failed to decode base64 media: %s", exc)
                 return None
-
         else:
-            logger.warning("download_media called with no media_url or base64_data.")
+            logger.warning("download_media: get_base64_from_message returned None for %s", message_id)
             return None
 
         return ContentFile(content_bytes, name=filename)
@@ -200,6 +326,12 @@ class EvolutionAPIService:
             Phone number in E.164 format (e.g. ``+6281234567890``), or None.
         """
         try:
+            # 1. Fast path: check top-level 'sender' string 
+            # (often contains the real number when remoteJid is @lid)
+            sender = payload.get("sender")
+            if isinstance(sender, str) and "@s.whatsapp.net" in sender:
+                return f"+{sender.split('@')[0]}"
+
             data = payload.get("data", payload)
             key = data.get("key", {})
             # Evolution API may send real number in remoteJidAlt when remoteJid is a @lid
@@ -214,6 +346,44 @@ class EvolutionAPIService:
                 return f"+{phone}"
         except Exception as exc:
             logger.error("Error extracting sender phone: %s", exc)
+
+        return None
+
+    @staticmethod
+    def extract_sender_name(payload: dict) -> Optional[str]:
+        """
+        Extract the sender's pushName from an Evolution API webhook payload.
+
+        Args:
+            payload: Raw webhook JSON payload.
+
+        Returns:
+            The sender's name if available, otherwise None.
+        """
+        try:
+            data = payload.get("data", payload)
+            
+            # Check standard pushName
+            name = data.get("pushName")
+            if name and isinstance(name, str) and name.strip():
+                return name.strip()
+                
+            # Fallback 1: 'notify' or 'name' inside 'contact'
+            contact = payload.get("contact", {}) or data.get("contact", {})
+            if isinstance(contact, dict):
+                name = contact.get("notify") or contact.get("name")
+                if name and isinstance(name, str) and name.strip():
+                    return name.strip()
+
+            # Fallback 2: inside 'message' directly
+            message = data.get("message", {})
+            if isinstance(message, dict):
+                name = message.get("pushName")
+                if name and isinstance(name, str) and name.strip():
+                    return name.strip()
+
+        except Exception as exc:
+            logger.error("Error extracting sender name: %s", exc)
 
         return None
 
@@ -274,12 +444,13 @@ class EvolutionAPIService:
         Extract media information from the webhook payload.
 
         Returns:
-            A dict with keys ``media_url``, ``base64``, ``mime_type``,
+            A dict with keys ``message_id``, ``mime_type``,
             ``filename`` if media is present, or None.
         """
         try:
             data = payload.get("data", payload)
             message = data.get("message", {})
+            message_id = data.get("key", {}).get("id")
 
             for media_key in (
                 "imageMessage",
@@ -289,14 +460,13 @@ class EvolutionAPIService:
                 "stickerMessage",
             ):
                 media = message.get(media_key)
-                if media:
+                if media and message_id:
                     mime = media.get("mimetype", "application/octet-stream")
                     ext = mime.split("/")[-1].split(";")[0]
                     fname = media.get("fileName", f"attachment.{ext}")
 
                     return {
-                        "media_url": media.get("url"),
-                        "base64": media.get("base64"),
+                        "message_id": message_id,
                         "mime_type": mime,
                         "filename": fname,
                     }
@@ -318,16 +488,26 @@ class ImapEmailService:
     Client class for fetching emails via IMAP.
     """
     def __init__(self):
-        self.host = getattr(settings, "IMAP_HOST", "imap.gmail.com")
-        self.user = getattr(settings, "IMAP_USER", "")
-        self.password = getattr(settings, "IMAP_APP_PASSWORD", "")
+        from core.models import EmailConfig
+        try:
+            config = EmailConfig.get_solo()
+            self.host = config.imap_host or "imap.gmail.com"
+            self.port = config.imap_port or 993
+            self.user = config.imap_user or ""
+            self.password = config.imap_password or ""
+        except Exception as exc:
+            logger.error("Failed to load EmailConfig: %s", exc)
+            self.host = "imap.gmail.com"
+            self.port = 993
+            self.user = ""
+            self.password = ""
 
     def connect(self) -> Optional[imaplib.IMAP4_SSL]:
         if not self.user or not self.password:
             logger.warning("IMAP credentials are not configured. Cannot fetch emails.")
             return None
         try:
-            mail = imaplib.IMAP4_SSL(self.host)
+            mail = imaplib.IMAP4_SSL(self.host, port=self.port)
             mail.login(self.user, self.password)
             mail.select("inbox")
             return mail

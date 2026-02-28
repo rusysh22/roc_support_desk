@@ -25,6 +25,7 @@ urlpatterns = [
     path("cases/<uuid:case_id>/", views.case_detail, name="case_detail"),
 
     # HTMX partials
+    path("cases/<uuid:case_id>/quick-view/", views.case_quick_view, name="case_quick_view"),
     path("cases/<uuid:case_id>/rca/", views.case_update_rca, name="case_update_rca"),
     path("cases/<uuid:case_id>/reply/", views.case_send_reply, name="case_send_reply"),
     path("cases/<uuid:case_id>/comment/", views.case_add_comment, name="case_add_comment"),
@@ -34,6 +35,18 @@ urlpatterns = [
 
     # API
     path("api/users/", views.api_users_list, name="api_users_list"),
+
+    # WhatsApp Integration Status
+    path("whatsapp/status/", views.whatsapp_status_view, name="whatsapp_status"),
+
+    # Email Settings Dashboard
+    path("email-settings/", views.email_settings_view, name="email_settings"),
+
+    # Dynamic Form Builder
+    path("forms/", views.form_list_view, name="form_list"),
+    path("forms/create/", views.form_create_view, name="form_create"),
+    path("forms/<uuid:pk>/edit/", views.form_edit_view, name="form_edit"),
+    path("forms/<uuid:pk>/responses/", views.form_responses_view, name="form_responses"),
 
     # Notifications Bell
     path("notifications/", views.notification_bell, name="notifications"),
