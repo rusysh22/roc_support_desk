@@ -11,6 +11,7 @@ app_name = "desk"
 urlpatterns = [
     # Case list — Table view
     path("cases/", views.case_list, name="case_list"),
+    path("cases/bulk-action/", views.case_bulk_action, name="case_bulk_action"),
 
     # Case Kanban board
     path("cases/kanban/", views.case_kanban, name="case_kanban"),
@@ -32,6 +33,8 @@ urlpatterns = [
     path("cases/<uuid:case_id>/thread/", views.chat_thread, name="chat_thread"),
     path("cases/<uuid:case_id>/status/", views.case_update_status, name="case_update_status"),
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
+    path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
+    path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
 
     # API
     path("api/users/", views.api_users_list, name="api_users_list"),
@@ -47,6 +50,7 @@ urlpatterns = [
     path("forms/create/", views.form_create_view, name="form_create"),
     path("forms/<uuid:pk>/edit/", views.form_edit_view, name="form_edit"),
     path("forms/<uuid:pk>/responses/", views.form_responses_view, name="form_responses"),
+    path("forms/<uuid:pk>/responses/export/", views.form_responses_export, name="form_responses_export"),
 
     # Notifications Bell
     path("notifications/", views.notification_bell, name="notifications"),

@@ -307,12 +307,21 @@ def case_list(request):
     ).all()
 
     # --- Filtering ---
+    folder = request.GET.get("folder", "inbox")
     status_filter = request.GET.get("status")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
+
+    # Folder specific base filtering
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:  # inbox
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
 
     if status_filter:
         cases = cases.filter(status=status_filter)
@@ -337,12 +346,18 @@ def case_list(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    from django.core.paginator import Paginator
+    paginator = Paginator(cases, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, "admin/case_list.html", {
-        "cases": cases,
+        "cases": page_obj,
         "statuses": CaseRecord.Status.choices,
         "sources": CaseRecord.Source.choices,
         "categories": CaseCategory.objects.all(),
         "current_filters": {
+            "folder": folder,
             "status": status_filter or "",
             "source": source_filter or "",
             "category": category_filter or "",
@@ -351,6 +366,40 @@ def case_list(request):
             "date_to": date_to or "",
         },
     })
+
+@staff_required
+def case_bulk_action(request):
+    """
+    Handles bulk actions applied to multiple cases: Merge, Archive, or Spam.
+    """
+    if request.method == "POST":
+        action = request.POST.get("action")
+        case_ids = request.POST.getlist("case_ids")
+        master_id = request.POST.get("master_id")
+
+        if not action or not case_ids:
+            return redirect("desk:case_list")
+
+        cases_qs = CaseRecord.objects.filter(id__in=case_ids)
+
+        if action == "spam":
+            cases_qs.update(is_spam=True, is_archived=False)
+        elif action == "archive":
+            cases_qs.update(is_archived=True, is_spam=False)
+        elif action == "unspam":
+            cases_qs.update(is_spam=False)
+        elif action == "unarchive":
+            cases_qs.update(is_archived=False)
+        elif action == "merge" and master_id:
+            try:
+                master = CaseRecord.objects.get(id=master_id)
+                # Exclude the master itself from being set as its own sub-ticket
+                sub_tickets = cases_qs.exclude(id=master_id)
+                sub_tickets.update(master_ticket=master)
+            except CaseRecord.DoesNotExist:
+                pass
+
+    return redirect(request.META.get("HTTP_REFERER", "desk:case_list"))
 
 
 @staff_required
@@ -384,6 +433,10 @@ def case_detail(request, case_id):
     if f"/desk/cases/{case_id}" in back_url:
         back_url = "/desk/cases/"
 
+    # Sub-ticket / Master-ticket contextual tabs
+    master = case.master_ticket if case.master_ticket else case
+    related_cases = [master] + list(master.sub_tickets.exclude(id=master.id).all())
+
     return render(request, "admin/case_detail.html", {
         "case": case,
         "chat_messages": messages,
@@ -391,7 +444,81 @@ def case_detail(request, case_id):
         "rca_form": rca_form,
         "reply_form": reply_form,
         "back_url": back_url,
+        "related_cases": related_cases,
+        "master_case": master,
+        "company_units": CompanyUnit.objects.all(),
     })
+
+
+@staff_required
+def case_update_requester(request, case_id):
+    """
+    HTMX endpoint / Standard POST to update the Requester (Employee) information.
+    Used mainly to fix typos for tickets incoming from WhatsApp / Email.
+    """
+    if request.method == "POST":
+        case = get_object_or_404(CaseRecord, id=case_id)
+        if case.requester:
+            full_name = request.POST.get("full_name")
+            email = request.POST.get("email")
+            phone_number = request.POST.get("phone_number")
+            job_role = request.POST.get("job_role")
+            unit_id = request.POST.get("unit_id")
+
+            if full_name:
+                case.requester.full_name = full_name
+            if email:
+                case.requester.email = email
+            if phone_number:
+                case.requester.phone_number = phone_number
+            if job_role:
+                case.requester.job_role = job_role
+            if unit_id:
+                try:
+                    new_unit = CompanyUnit.objects.get(id=unit_id)
+                    case.requester.unit = new_unit
+                    # Sync the denormalized field on CaseRecord
+                    case.requester_unit_name = new_unit.name
+                    case.save(update_fields=["requester_unit_name"])
+                except CompanyUnit.DoesNotExist:
+                    pass
+
+            case.requester.save()
+
+    return redirect("desk:case_detail", case_id=case_id)
+
+
+@staff_required
+def case_forward_escalation(request, case_id):
+    """
+    POST endpoint to Forward or Escalate a case to an external Email or WhatsApp number.
+    Triggers gateways.tasks.escalate_case_task.
+    """
+    if request.method == "POST":
+        case = get_object_or_404(CaseRecord, id=case_id)
+        forward_to = request.POST.get("forward_to", "").strip()
+        channel = request.POST.get("channel", "EMAIL").upper()
+        custom_message = request.POST.get("custom_message", "").strip()
+
+        if forward_to and channel in ["EMAIL", "WHATSAPP"]:
+            from gateways.tasks import escalate_case_task
+            escalate_case_task.delay(str(case.id), forward_to, channel, custom_message)
+
+            # Log this as an internal comment so the staff knows it was forwarded
+            from cases.models import Message
+            Message.objects.create(
+                case=case,
+                sender_staff=request.user,
+                body=f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}",
+                is_internal=True,
+                direction=Message.Direction.OUTBOUND,
+                channel=Message.Channel.WEB,
+            )
+
+            from django.contrib import messages
+            messages.success(request, f"Tiket berhasil diekskalasi ke {forward_to} via {channel}.")
+
+    return redirect("desk:case_detail", case_id=case_id)
 
 
 @staff_required
@@ -1231,8 +1358,27 @@ def form_list_view(request):
     List of all Dynamic Forms.
     """
     from core.models import DynamicForm
-    forms = DynamicForm.objects.all()
-    return render(request, "desk/forms/list.html", {"forms": forms})
+    from django.db.models import Q
+    from django.core.paginator import Paginator
+
+    query = request.GET.get('q', '').strip()
+    
+    forms_qs = DynamicForm.objects.all().order_by('-created_at')
+    
+    if query:
+        forms_qs = forms_qs.filter(
+            Q(title__icontains=query) | 
+            Q(slug__icontains=query)
+        )
+
+    paginator = Paginator(forms_qs, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, "desk/forms/list.html", {
+        "forms": page_obj,
+        "search_query": query
+    })
 
 
 @staff_required
@@ -1384,17 +1530,145 @@ def form_edit_view(request, pk):
 def form_responses_view(request, pk):
     """
     View all submissions for a specific DynamicForm.
+    Also calculates aggregated metrics for choice-based fields to power the dashboard.
     """
     from core.models import DynamicForm
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+    import collections
+    
     instance = get_object_or_404(DynamicForm, pk=pk)
-    submissions = instance.submissions.all()
+    
+    query = request.GET.get('q', '').strip()
+    
+    submissions_qs = instance.submissions.all().order_by('-submitted_at')
+    
+    if query:
+        submissions_qs = submissions_qs.filter(
+            Q(submitted_by__email__icontains=query) |
+            Q(submitted_by__first_name__icontains=query) |
+            Q(submitted_by__last_name__icontains=query) |
+            Q(submitted_by__username__icontains=query)
+        )
+        
+    paginator = Paginator(submissions_qs, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    fields = instance.fields.all()
+    
+    # Calculate metrics for chart/progress bar visualization
+    metrics = {}
+    
+    # Pre-filter fields that are choice-based
+    choice_fields = [f for f in fields if f.field_type in ['dropdown', 'radio', 'checkbox', 'survey']]
+    
+    if choice_fields and submissions_qs.exists():
+        # Iterate over all submissions recursively for metrics instead of just the page
+        for field in choice_fields:
+            field_id_str = str(field.id)
+            counter = collections.Counter()
+            
+            for sub in submissions_qs:
+                ans = sub.answers.get(field_id_str)
+                if ans:
+                    if isinstance(ans, list):
+                        for a in ans:
+                            counter[a] += 1
+                    else:
+                        counter[ans] += 1
+            
+            total_responses = sum(counter.values())
+            
+            if total_responses > 0:
+                # Get Top 5 most frequent
+                top_5 = counter.most_common(5)
+                top_5_count = sum(count for _, count in top_5)
+                
+                # If there are more than 5 distinct answers, group remaining as "Others"
+                others_count = total_responses - top_5_count
+                
+                chart_data = []
+                for label, count in top_5:
+                    pct = int(round((count / total_responses) * 100)) if total_responses else 0
+                    chart_data.append({'label': label, 'count': count, 'percent': pct})
+                
+                if others_count > 0:
+                    pct = int(round((others_count / total_responses) * 100)) if total_responses else 0
+                    chart_data.append({'label': 'Others', 'count': others_count, 'percent': pct, 'is_other': True})
+                
+                metrics[field.id] = {
+                    'total': total_responses,
+                    'chart_data': chart_data
+                }
     
     return render(request, "desk/forms/responses.html", {
         "dynamic_form": instance,
-        "submissions": submissions,
-        "fields": instance.fields.all()
+        "submissions": page_obj,
+        "search_query": query,
+        "fields": fields,
+        "metrics": metrics
     })
 
+
+@staff_required
+def form_responses_export(request, pk):
+    """
+    Export all submissions for a DynamicForm to a CSV file.
+    """
+    from core.models import DynamicForm
+    import csv
+    from django.http import HttpResponse
+    
+    instance = get_object_or_404(DynamicForm, pk=pk)
+    submissions = instance.submissions.all()
+    fields = instance.fields.all()
+    
+    
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    filename = f"{instance.title}_responses_{instance.pk}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    writer = csv.writer(response)
+    
+    # Header Row
+    header = ['Date Submitted', 'Submitted By']
+    field_ids = []
+    
+    for f in fields:
+        # We export all fields except structural ones
+        if f.field_type not in ['title_desc', 'page_break']:
+            header.append(f.label)
+            field_ids.append(str(f.id))
+            
+    writer.writerow(header)
+    
+    # Data Rows
+    for sub in submissions:
+        username = "Guest User"
+        if sub.submitted_by:
+            username = f"{sub.submitted_by.first_name} {sub.submitted_by.last_name}".strip()
+            if not username:
+                username = sub.submitted_by.username
+                
+        row = [
+            sub.submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
+            username
+        ]
+        
+        for fid in field_ids:
+            ans = sub.answers.get(fid, "")
+            
+            # Format lists (e.g checkboxes, multiple attachments) safely
+            if isinstance(ans, list):
+                # If the list consists of dicts or complicated strings, try to flatten it
+                row.append(" | ".join([str(a) for a in ans]))
+            else:
+                row.append(str(ans))
+                
+        writer.writerow(row)
+        
+    return response
 
 # =====================================================================
 # API Endpoints

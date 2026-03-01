@@ -267,8 +267,13 @@
                         <div>
                             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>
                             <div class="hidden">{{ form.description }}</div>
-                            <div x-data="{ quillFormDesc: null }" x-init="
-                                quillFormDesc = new Quill($refs.quillFormDescEditor, {
+                        <div x-data="{ quillFormDesc: null }" x-init="
+                                let qContainer = $el.querySelector('.quill-target');
+                                let initialDesc = document.getElementById('id_description').value;
+                                if (initialDesc) {
+                                    qContainer.innerHTML = initialDesc;
+                                }
+                                quillFormDesc = new Quill(qContainer, {
                                     theme: 'snow',
                                     placeholder: 'Type form description...',
                                     modules: {
@@ -280,19 +285,14 @@
                                         ]
                                     }
                                 });
-                                // Load initial data from the hidden textarea
-                                let initialDesc = document.getElementById('id_description').value;
-                                if (initialDesc) {
-                                    quillFormDesc.clipboard.dangerouslyPasteHTML(initialDesc);
-                                }
                                 
                                 quillFormDesc.on('text-change', () => {
                                     document.getElementById('id_description').value = quillFormDesc.root.innerHTML === '<p><br></p>' ? '' : quillFormDesc.root.innerHTML;
                                 });
                             ">
-                                <div x-ignore>
-                                    <div x-ref="quillFormDescEditor" class="bg-white"></div>
-                                </div>
+                            <div x-ignore>
+                                <div class="quill-target bg-white"></div>
+                            </div>
                             </div>
                         </div>
                         <div>

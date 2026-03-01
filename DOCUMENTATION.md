@@ -468,7 +468,7 @@ python manage.py runserver
 
 **Terminal 2 — Celery Worker:**
 ```bash
-celery -A rocRoC Support Desk_desk worker --loglevel=info --pool=solo
+celery -A roc_desk worker --loglevel=info --pool=solo
 ```
 > `--pool=solo` wajib digunakan di Windows. Di Linux, bisa menggunakan `--pool=prefork`.
 

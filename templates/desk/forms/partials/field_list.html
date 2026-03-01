@@ -6,9 +6,19 @@
             editLabel: '{{ field.label|escapejs }}',
             editHelp: '{{ field.help_text|escapejs }}',
             editRequired: {{ field.is_required|yesno:'true,false' }},
-            editType: '{{ field.field_type }}',
+            editType: ['text_short', 'short_text'].includes('{{ field.field_type }}') ? 'text' : (['text_long', 'long_text'].includes('{{ field.field_type }}') ? 'textarea' : '{{ field.field_type }}'),
             editChoices: {{ field.choices|safe|default:'[]' }},
-            addEditChoice() { this.editChoices.push('Option ' + (this.editChoices.length + 1)); },
+            addEditChoice() { 
+                let max = 50; 
+                if(this.editType === 'survey') max = 7;
+                else if(this.editType === 'dropdown') max = 500;
+                
+                if (this.editChoices.length < max) {
+                    this.editChoices.push('Option ' + (this.editChoices.length + 1)); 
+                } else {
+                    alert('Maximum allowed options for this field type is ' + max);
+                }
+            },
             removeEditChoice(i) { if(this.editChoices.length > 1) this.editChoices.splice(i, 1); }
         }" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}">
             
@@ -42,11 +52,11 @@
                         
                         <!-- Visual Mockup of the Field Input -->
                         <div class="mt-4 opacity-70 pointer-events-none">
-                            {% if field.field_type == 'text' or field.field_type == 'email' %}
+                            {% if field.field_type == 'text' or field.field_type == 'text_short' or field.field_type == 'email' or field.field_type == 'number' %}
                                 <div class="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl relative">
                                     <div class="absolute left-4 top-1/2 -translate-y-1/2 w-32 h-2 bg-slate-200 rounded-full"></div>
                                 </div>
-                            {% elif field.field_type == 'textarea' %}
+                            {% elif field.field_type == 'textarea' or field.field_type == 'text_long' %}
                                 <div class="w-full h-24 bg-slate-50 border border-slate-200 rounded-xl p-4">
                                     <div class="space-y-2">
                                         <div class="w-full h-2 bg-slate-200 rounded-full"></div>
@@ -163,6 +173,7 @@
                         <optgroup label="Input Fields">
                             <option value="text">Short Text</option>
                             <option value="textarea">Long Text</option>
+                            <option value="number">Number</option>
                             <option value="email">Email</option>
                             <option value="dropdown">Dropdown</option>
                             <option value="radio">Multiple Choice</option>
@@ -183,14 +194,20 @@
                 <!-- Label -->
                 <div>
                     <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Question</label>
-                    <input type="text" x-model="editLabel" placeholder="Your question" class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <input type="text" x-model="editLabel" maxlength="255" placeholder="Your question" class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
 
                 <!-- Help Text -->
                 <div class="field-description-wrapper">
                     <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Description / Content (Optional)</label>
                     <div x-data="{ quillEdit: null }" x-init="
-                        quillEdit = new Quill($refs.quillEditorInstance, {
+                        let qContainer = $el.querySelector('.quill-target');
+                        // Ensure any HTML styling triggers properly
+                        if (editHelp) {
+                            qContainer.innerHTML = editHelp;
+                        }
+                        
+                        quillEdit = new Quill(qContainer, {
                             theme: 'snow',
                             placeholder: 'Add context, instructions, or detailed description...',
                             modules: {
@@ -202,15 +219,13 @@
                                 ]
                             }
                         });
-                        // Ensure any HTML styling triggers properly
-                        quillEdit.clipboard.dangerouslyPasteHTML(editHelp);
                         
                         quillEdit.on('text-change', () => {
                             editHelp = quillEdit.root.innerHTML === '<p><br></p>' ? '' : quillEdit.root.innerHTML;
                         });
                     ">
                         <div x-ignore>
-                            <div x-ref="quillEditorInstance" class="bg-white"></div>
+                            <div class="quill-target bg-white"></div>
                         </div>
                     </div>
                 </div>
@@ -229,17 +244,23 @@
                     <div class="space-y-2">
                         <template x-for="(choice, idx) in editChoices" :key="idx">
                             <div class="flex items-center gap-2 group/choice">
-                                <input type="text" x-model="editChoices[idx]" placeholder="Option" class="jk-input flex-1 bg-white text-sm py-2">
+                                <input type="text" x-model="editChoices[idx]" maxlength="255" placeholder="Option" class="jk-input flex-1 bg-white text-sm py-2">
                                 <button type="button" @click="removeEditChoice(idx)" class="text-slate-300 hover:text-red-500 p-1.5 opacity-0 group-hover/choice:opacity-100 transition-all bg-red-50 hover:bg-red-100 rounded-lg">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
                             </div>
                         </template>
                     </div>
-                    <button type="button" @click="addEditChoice()" class="mt-2 w-full py-2 border border-dashed border-indigo-300 rounded-xl text-indigo-600 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-400 transition-colors flex justify-center items-center gap-1.5">
+                    <button type="button" @click="addEditChoice()" 
+                            x-show="(editType === 'survey' && editChoices.length < 7) || (editType === 'dropdown' && editChoices.length < 500) || (['radio', 'checkbox'].includes(editType) && editChoices.length < 50)"
+                            class="mt-2 w-full py-2 border border-dashed border-indigo-300 rounded-xl text-indigo-600 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-400 transition-colors flex justify-center items-center gap-1.5">
                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                         Add option
                     </button>
+                    <div x-show="!((editType === 'survey' && editChoices.length < 7) || (editType === 'dropdown' && editChoices.length < 500) || (['radio', 'checkbox'].includes(editType) && editChoices.length < 50))" 
+                         class="mt-2 text-center text-[10px] font-bold text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                        <span x-text="'Maximum limit reached (' + editChoices.length + ' options)'"></span>
+                    </div>
                 </div>
 
                 <!-- Save / Cancel -->

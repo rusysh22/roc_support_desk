@@ -3,6 +3,17 @@ from django import template
 register = template.Library()
 
 
+@register.filter(name='get_item')
+def get_item(dictionary, key):
+    """
+    Template filter to allow dict key lookup by variable.
+    Usage: {{ mydict|get_item:item.name }}
+    """
+    if isinstance(dictionary, dict):
+        return dictionary.get(str(key))
+    return None
+
+
 @register.tag('split_by_page_break')
 def split_by_page_break(parser, token):
     """

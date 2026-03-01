@@ -193,7 +193,7 @@
 
                 <!-- Preview Mode Banner -->
                 {% if is_preview %}
-                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 flex items-center justify-center gap-2 text-white text-sm font-bold">
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 flex items-center justify-center gap-2 text-white text-sm font-bold {% if not dynamic_form.header_image %}rounded-t-3xl{% endif %}">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                     Preview Mode — This form is not submittable
                 </div>
@@ -248,33 +248,52 @@
                     <!-- Build page structure from Django template -->
                     <div x-data="{
                         currentPage: 0,
-                        totalPages: document.querySelectorAll('[data-page-section]').length || 1,
+                        totalPages: 1,
                         init() {
                             this.$nextTick(() => {
-                                this.totalPages = this.$el.querySelectorAll('[data-page-section]').length || 1;
+                                this.totalPages = this.$refs.formContainer.querySelectorAll('[data-page-section]').length || 1;
                                 this.showPage(0);
                             });
                         },
                         showPage(n) {
-                            this.$el.querySelectorAll('[data-page-section]').forEach((s, i) => {
+                            this.$refs.formContainer.querySelectorAll('[data-page-section]').forEach((s, i) => {
                                 s.style.display = (i === n) ? '' : 'none';
                             });
                         },
                         nextPage() {
+                            let currentSection = this.$refs.formContainer.querySelectorAll('[data-page-section]')[this.currentPage];
+                            let isValid = true;
+                            let firstInvalid = null;
+                            
+                            let elements = currentSection.querySelectorAll('input, textarea, select');
+                            for (let el of elements) {
+                                if (!el.checkValidity()) {
+                                    isValid = false;
+                                    if (!firstInvalid) firstInvalid = el;
+                                }
+                            }
+                            
+                            if (!isValid) {
+                                if (firstInvalid) {
+                                    firstInvalid.reportValidity();
+                                }
+                                return;
+                            }
+
                             if (this.currentPage < this.totalPages - 1) {
                                 this.currentPage++;
                                 this.showPage(this.currentPage);
-                                this.$el.closest('.overflow-hidden')?.scrollIntoView({behavior:'smooth', block:'start'});
+                                this.$refs.formContainer.closest('.bg-white')?.scrollIntoView({behavior:'smooth', block:'start'});
                             }
                         },
                         prevPage() {
                             if (this.currentPage > 0) {
                                 this.currentPage--;
                                 this.showPage(this.currentPage);
-                                this.$el.closest('.overflow-hidden')?.scrollIntoView({behavior:'smooth', block:'start'});
+                                this.$refs.formContainer.closest('.bg-white')?.scrollIntoView({behavior:'smooth', block:'start'});
                             }
                         }
-                    }">
+                    }" x-ref="formContainer">
 
                     <!-- Progress Bar (only if multi-page) -->
                     {% has_page_break fields as is_multipage %}
@@ -311,7 +330,7 @@
 
                             {% else %}
                             <!-- Regular Field -->
-                            <div class="field-group rounded-2xl p-4 sm:p-5 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 animate-fade-in {% if errors|dictsort:field.id %}!border-red-200 !bg-red-50/50{% endif %}"
+                            <div class="field-group rounded-2xl p-4 sm:p-5 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 animate-fade-in {% if errors|get_item:field.id %}!border-red-200 !bg-red-50/50{% endif %}"
                                  style="animation-delay: {{ forloop.counter0 }}00ms; z-index: calc(100 - {{ forloop.counter }});">
                                 
                                 <!-- Label -->
@@ -330,18 +349,20 @@
                                 {% endif %}
                             
                             <div class="mt-2 pl-0 sm:pl-5">
-                                {% if field.field_type == 'text' %}
+                                {% if field.field_type == 'text' or field.field_type == 'text_short' %}
                                     <input type="text" name="field_{{ field.id }}" 
                                         class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
                                         placeholder="Your answer"
+                                        maxlength="255"
                                         {% if field.is_required %}required{% endif %}
-                                        value="{{ answers|dictsort:field.id|default:'' }}">
+                                        value="{{ answers|get_item:field.id|default:'' }}">
                                         
-                                {% elif field.field_type == 'textarea' %}
+                                {% elif field.field_type == 'textarea' or field.field_type == 'text_long' %}
                                     <textarea name="field_{{ field.id }}" rows="4" 
                                         class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400 resize-none"
                                         placeholder="Type your answer here..."
-                                        {% if field.is_required %}required{% endif %}>{{ answers|dictsort:field.id|default:'' }}</textarea>
+                                        maxlength="5000"
+                                        {% if field.is_required %}required{% endif %}>{{ answers|get_item:field.id|default:'' }}</textarea>
                                         
                                 {% elif field.field_type == 'email' %}
                                     <div class="relative">
@@ -351,21 +372,29 @@
                                         <input type="email" name="field_{{ field.id }}" 
                                             class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
                                             placeholder="email@example.com"
+                                            maxlength="254"
                                             {% if field.is_required %}required{% endif %}
-                                            value="{{ answers|dictsort:field.id|default:'' }}">
+                                            value="{{ answers|get_item:field.id|default:'' }}">
                                     </div>
+                                        
+                                {% elif field.field_type == 'number' %}
+                                    <input type="number" name="field_{{ field.id }}" 
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
+                                        placeholder="0"
+                                        {% if field.is_required %}required{% endif %}
+                                        value="{{ answers|get_item:field.id|default:'' }}">
                                         
                                 {% elif field.field_type == 'date' %}
                                     <input type="date" name="field_{{ field.id }}" 
                                         class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base"
                                         {% if field.is_required %}required{% endif %}
-                                        value="{{ answers|dictsort:field.id|default:'' }}">
+                                        value="{{ answers|get_item:field.id|default:'' }}">
                                         
                                 {% elif field.field_type == 'datetime' %}
                                     <input type="datetime-local" name="field_{{ field.id }}" 
                                         class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base"
                                         {% if field.is_required %}required{% endif %}
-                                        value="{{ answers|dictsort:field.id|default:'' }}">
+                                        value="{{ answers|get_item:field.id|default:'' }}">
                                         
                                 {% elif field.field_type == 'survey' %}
                                     <div class="w-full mt-3">
@@ -378,7 +407,7 @@
                                                 <input type="radio" name="field_{{ field.id }}" value="{{ choice }}" 
                                                     class="sr-only peer"
                                                     {% if field.is_required %}required{% endif %}
-                                                    {% if answers|dictsort:field.id == choice %}checked{% endif %}>
+                                                    {% if answers|get_item:field.id == choice %}checked{% endif %}>
                                                 <!-- Circle -->
                                                 <div class="w-9 h-9 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center transition-all duration-200 group-hover:border-indigo-400 group-hover:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-500 peer-checked:shadow-lg peer-checked:shadow-indigo-500/30 peer-checked:scale-110">
                                                     <svg class="h-4 w-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
@@ -393,9 +422,33 @@
                                     </div>
                                     
                                 {% elif 'attachment' in field.field_type %}
-                                    <div x-data="{ files: [] }" class="w-full">
+                                    <div x-data="{ 
+                                        files: [],
+                                        addFiles(newFiles) {
+                                            if ('{{ field.field_type }}' === 'attachment_multiple') {
+                                                const existingNames = this.files.map(f => f.name);
+                                                for (let f of Object.values(newFiles)) {
+                                                    if (!existingNames.includes(f.name)) {
+                                                        this.files.push(f);
+                                                    }
+                                                }
+                                            } else {
+                                                this.files = Object.values(newFiles);
+                                            }
+                                            this.syncInput();
+                                        },
+                                        removeFile(index) {
+                                            this.files.splice(index, 1);
+                                            this.syncInput();
+                                        },
+                                        syncInput() {
+                                            const dt = new DataTransfer();
+                                            this.files.forEach(f => dt.items.add(f));
+                                            document.getElementById('file-upload-{{ field.id }}').files = dt.files;
+                                        }
+                                    }" class="w-full">
                                         <input id="file-upload-{{ field.id }}" name="field_{{ field.id }}" type="file" class="sr-only" 
-                                               @change="files = Object.values($event.target.files)" 
+                                               @change="addFiles($event.target.files)" 
                                                {% if field.is_required %}required{% endif %} 
                                                {% if field.field_type == 'attachment_multiple' %}multiple{% endif %}>
 
@@ -430,18 +483,30 @@
                                                                 <p class="text-sm font-semibold text-slate-800 truncate" x-text="file.name"></p>
                                                                 <p class="text-[11px] text-slate-400" x-text="(file.size / 1024 / 1024).toFixed(2) + ' MB'"></p>
                                                             </div>
+                                                            <button type="button" @click="removeFile(index)" class="text-slate-300 hover:text-red-500 transition-colors ml-2" title="Remove file">
+                                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                            </button>
                                                         </li>
                                                     </template>
                                                 </ul>
                                                 <div class="mt-3 flex justify-between items-center pt-3 border-t border-slate-200">
-                                                    <button type="button" @click="files = []; document.getElementById('file-upload-{{ field.id }}').value = ''" class="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1">
+                                                    <button type="button" @click="files = []; syncInput()" class="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1">
                                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                        Remove
+                                                        Remove All
                                                     </button>
-                                                    <label for="file-upload-{{ field.id }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer flex items-center gap-1">
-                                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                                        {% if field.field_type == 'attachment_multiple' %}Change{% else %}Replace{% endif %}
-                                                    </label>
+                                                    <div class="flex gap-2">
+                                                        {% if field.field_type == 'attachment_multiple' %}
+                                                        <label for="file-upload-{{ field.id }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer flex items-center gap-1 border border-indigo-200 bg-indigo-50/50">
+                                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                                            Add More
+                                                        </label>
+                                                        {% else %}
+                                                        <label for="file-upload-{{ field.id }}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer flex items-center gap-1 border border-indigo-200 bg-indigo-50/50">
+                                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                            Replace
+                                                        </label>
+                                                        {% endif %}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </template>
@@ -544,7 +609,7 @@
                                 {% endif %}
                             </div>
                             
-                            {% if errors|dictsort:field.id %}
+                            {% if errors|get_item:field.id %}
                                 <p class="text-xs font-bold text-red-500 mt-2 pl-5 flex items-center gap-1">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                     This field is required

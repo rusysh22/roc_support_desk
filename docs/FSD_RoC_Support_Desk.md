@@ -57,6 +57,10 @@ Fitur utama yang mirip Google Forms.
   - Drag & Drop pengurutan antar *field* (`SortableJS`).
   - Laci penyunting properti (Edit Drawer) per field menggunakan HTMX.
   - **Fitur Khusus: HTML Rich Text Editor (Quill.js)** teraplikasi terpusat pada *Form Description* utama dan *Field Description* (`help_text`). Ini memungkinkan admin membuat uraian narasi form yang rapi dengan tebal, miring, poin (*bullet/numbering list*), dan deteksi *link*. Output form publik sepenuhnya *safe-rendered* terhindar dari suntikan tag berbahaya.
+  - **Optimasi Resource & Keamanan (Text Length Limits):** Membatasi alokasi memori berlebih akibat payload data besar, seluruh *field* di ranah builder (Title, Label, Option) dan public interface dibatasi ketat (`maxlength="255"` untuk input pendek, Max 5000 chars untuk Input Textarea/Descriptions). Selain itu, opsi pilihan berantai dibatasi secara dinamis pada level UI (Alpine.js) untuk menjamin kestabilan *render* DOM:
+    - *Survey Scale*: Maksimal 7 opsi.
+    - *Dropdown List*: Maksimal 500 opsi.
+    - *Checkbox & Multiple Choice (Radio)*: Maksimal 50 opsi.
 - **Eksekusi Form Publik (`/f/slug/`):**
   - Dukungan multi-halaman jika terdapat `page_break` type. Alpine mengamankan state nomor halaman `currentPage`.
   - Searchable dropdown diaplikasikan secara kustom dengan input hidden.
@@ -65,7 +69,16 @@ Fitur utama yang mirip Google Forms.
 
 ---
 
-## 3. Struktur Database (Entity Relationship Poin Inti)
+## 3. Case Management: Bulk Actions & Organization
+Memungkinkan agen IT untuk mengatur daftar kasus (Inbox) secara massal agar tetap bersih dan relevan.
+- **Merge Tickets (Penggabungan Kasus):** Agen dapat memilih beberapa tiket (misalnya yang memiliki masalah serupa dari user yang sama) dan menunjuk salah satu sebagai *Master Ticket*. Tiket lainnya akan menjadi *Sub-Ticket* dan disembunyikan dari Inbox utama. Saat membuka Master Ticket, agen dapat melihat sub-tiket dalam bentuk representasi *Tab* horizontal (seperti browser web) untuk berpindah konteks dengan cepat tanpa kehilangan riwayat *chat*.
+- **Archive:** Menyembunyikan tiket yang sudah lama atau selesai dari tabel *Inbox* utama. Tiket ini dapat diakses kembali melalui tab folder "Archive".
+- **Spam:** Menandai tiket yang tidak valid atau sampah. Tiket dipindahkan ke folder "Spam" dan tidak akan men-trigger notifikasi SLA lebih lanjut.
+- **Bulk Selection UI:** Menggunakan Alpine.js untuk *Floating Action Bar* yang bereaksi ketika kotak centang tabel dicentang. Penggabungan tiket menggunakan interaksi pop-up (Modal) untuk validasi *Master Ticket*.
+
+---
+
+## 4. Struktur Database (Entity Relationship Poin Inti)
 - `User`: Extend `AbstractBaseUser`.
 - `Case (Ticket)`: ID unik (`CASE-0001`), Subject, Deskripsi, Status, Priority, SLA Timeout, Assignee, Requester.
 - `Message`: Berisi balasan / komen per tiket. Kolom `is_internal`, `channel_source` (WEB, EMAIL, WHATSAPP).

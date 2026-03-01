@@ -127,9 +127,9 @@ class DynamicFormForm(forms.ModelForm):
         model = DynamicForm
         exclude = ["id", "created_at", "updated_at", "created_by", "updated_by"]
         widgets = {
-            "title": forms.TextInput(attrs={"class": "jk-input"}),
-            "description": forms.Textarea(attrs={"class": "jk-textarea", "rows": 3}),
-            "success_message": forms.Textarea(attrs={"class": "jk-textarea", "rows": 3}),
+            "title": forms.TextInput(attrs={"class": "jk-input", "maxlength": "255"}),
+            "description": forms.Textarea(attrs={"class": "jk-textarea", "rows": 3, "maxlength": "10000"}),
+            "success_message": forms.Textarea(attrs={"class": "jk-textarea", "rows": 3, "maxlength": "5000"}),
             "background_color": forms.TextInput(attrs={"class": "w-10 h-10 p-0 border-0 rounded shadow-sm cursor-pointer", "type": "color"}),
             "background_image": forms.ClearableFileInput(attrs={"class": "jk-file-input"}),
             "header_image": forms.ClearableFileInput(attrs={"class": "jk-file-input"}),

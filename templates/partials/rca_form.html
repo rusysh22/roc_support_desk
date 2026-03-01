@@ -22,7 +22,7 @@
         <form hx-post="{% url 'desk:case_update_rca' case_id=case.id %}" hx-target="#rca-panel" hx-swap="innerHTML"
             hx-indicator="#rca-spinner">
             {% csrf_token %}
-            <input type="hidden" name="back_url" value="{{ back_url|default:request.META.HTTP_REFERER|default:'/desk/cases/' }}">
+            <input type="hidden" name="back_url" value="{{ back_url|default:'/desk/cases/' }}">
 
             <!-- Assigned To -->
             <div class="jk-form-group">
@@ -170,7 +170,7 @@
             </div>
 
             <!-- Fixed Bottom Action Bar (Tab Bar) -->
-            <div class="fixed bottom-0 left-0 md:left-64 w-full md:w-[calc(100%-16rem)] bg-white/95 backdrop-blur-md border-t border-slate-200 md:rounded-tl-2xl flex flex-col sm:flex-row items-center justify-start gap-4 sm:gap-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] z-[100] px-6 py-4 pb-safe">
+            <div class="fixed bottom-0 left-0 md:left-64 w-full md:w-[calc(100%-16rem)] bg-white/95 backdrop-blur-md border-t border-slate-200 md:rounded-tl-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-start gap-3 sm:gap-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] z-[100] px-4 sm:px-6 py-3 sm:py-4 pb-safe">
                 
                 <div class="flex items-center gap-3">
                     <label for="id_status" class="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Change Status:</label>
@@ -182,7 +182,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="jk-btn bg-[#0f172a] hover:bg-[#1e293b] text-white min-w-[200px] shadow-md hover:shadow-lg transition-all scale-100 hover:scale-105 active:scale-95">
+                <button type="submit" class="jk-btn bg-[#0f172a] hover:bg-[#1e293b] text-white w-full sm:w-auto sm:min-w-[200px] shadow-md hover:shadow-lg transition-all scale-100 hover:scale-105 active:scale-95">
                     Submit
                 </button>
             </div>

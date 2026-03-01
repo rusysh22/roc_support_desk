@@ -981,3 +981,89 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
             
     except CaseRecord.DoesNotExist:
         return "error:case_not_found"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.escalate_case_task",
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom_message: str) -> str:
+    """
+    Escalate or Forward a ticket to a third party (Email/WhatsApp).
+    Formats a comprehensive message containing the agent's notes and the original problem.
+    """
+    from cases.models import CaseRecord
+    from gateways.services import EvolutionAPIService
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings
+    from core.models import SiteConfig
+    from django.utils import timezone
+
+    site_name = SiteConfig.get_solo().site_name
+
+    try:
+        case = CaseRecord.objects.get(id=case_id)
+        case_number = case.case_number
+
+        # Build context
+        requester_name = case.requester.full_name if case.requester else case.requester_name
+        req_unit = case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name
+
+        if channel == 'WHATSAPP':
+            svc = EvolutionAPIService()
+            wa_text = (
+                f"🚨 *Ticket Escalation: {case_number}*\n\n"
+                f"_*Subject:*_ {case.subject}\n"
+                f"_*Requester:*_ {requester_name} ({req_unit})\n\n"
+                f"*Notes from Support:*\n{custom_message}\n\n"
+                f"*Original Problem:*\n{case.problem_description}\n\n"
+                f"Reply to this message to add your response to the ticket (Requires linking)."
+            )
+            svc.send_whatsapp_message(forward_to, wa_text)
+            return "success:wa"
+        
+        elif channel == 'EMAIL':
+            from core.models import EmailConfig
+            email_config = EmailConfig.get_solo()
+            from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
+            from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
+
+            # Critical: The subject MUST contain CS-<prefix> for our IMAP poller to thread replies back
+            subject = f"[CS-{str(case.id)[:8].upper()}] Fwd: {case.subject}"
+            
+            case_thread_id = f'<case-{case.id}@{from_domain}>'
+
+            plain_body = (
+                f"Ticket Escalation: {case_number}\n\n"
+                f"Notes from Support:\n{custom_message}\n\n"
+                f"---\n"
+                f"Original Subject: {case.subject}\n"
+                f"Requester: {requester_name} ({req_unit})\n\n"
+                f"Problem Description:\n{case.problem_description}\n\n"
+                f"---\n"
+                f"Reply to this email to add your response directly to ticket {case_number}."
+            )
+
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=plain_body,
+                from_email=from_email_addr,
+                to=[forward_to],
+                headers={
+                    'References': case_thread_id,
+                    'Message-ID': f'<case-{case.id}-escalate-{timezone.now().timestamp()}@{from_domain}>',
+                },
+            )
+            email.send(fail_silently=False)
+            return "success:email"
+        
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"

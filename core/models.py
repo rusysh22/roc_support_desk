@@ -370,6 +370,7 @@ class FormField(AuditableModel):
     class FieldTypes(models.TextChoices):
         TEXT = 'text', 'Short Text'
         TEXTAREA = 'textarea', 'Long Text'
+        NUMBER = 'number', 'Number'
         EMAIL = 'email', 'Email Address'
         DROPDOWN = 'dropdown', 'Dropdown Select'
         RADIO = 'radio', 'Multiple Choice (Single Answer)'

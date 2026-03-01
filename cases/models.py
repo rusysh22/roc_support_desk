@@ -215,6 +215,27 @@ class CaseRecord(AuditableModel):
         help_text="Stores category-specific form inputs as JSON.",
     )
 
+    # --- Bulk Action Fields ---
+    is_archived = models.BooleanField(
+        default=False,
+        verbose_name="Is Archived",
+        help_text="Archived tickets are hidden from the main inbox view."
+    )
+    is_spam = models.BooleanField(
+        default=False,
+        verbose_name="Is Spam",
+        help_text="Tickets marked as spam."
+    )
+    master_ticket = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sub_tickets",
+        verbose_name="Master Ticket",
+        help_text="If merged, this links to the primary ticket. Sub-tickets are hidden from the main list."
+    )
+
     # --- SLA Tracking ---
     response_due_at = models.DateTimeField(
         null=True,

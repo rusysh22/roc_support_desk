@@ -8,19 +8,79 @@
 {% block content %}
 <div class="space-y-6">
 
-    <div class="flex items-center gap-4">
+    <!-- Chart.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <div class="flex items-center gap-4 flex-wrap">
         <a href="{% url 'desk:form_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
         </a>
         <div>
             <h2 class="text-xl font-bold text-slate-900">{{ dynamic_form.title }} - Responses</h2>
             <div class="flex items-center gap-2 mt-1">
-                <span class="text-sm font-semibold text-slate-500">{{ submissions.count }} total submissions</span>
+                <span class="text-sm font-semibold text-slate-500">{{ submissions.paginator.count|default:submissions.count }} total submissions</span>
             </div>
+        </div>
+        <div class="ml-auto flex items-center gap-3">
+            <form method="get" class="relative">
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Search responses..." class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64 bg-slate-50 transition-all shadow-sm">
+                <svg class="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </form>
+            <a href="{% url 'desk:form_responses_export' dynamic_form.pk %}" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-sm transition-colors whitespace-nowrap">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export CSV
+            </a>
         </div>
     </div>
 
-    <div class="bg-white border text-left border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <!-- Dashboard Analytics -->
+    {% if metrics %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        {% for field_id, data in metrics.items %}
+            {% for field in fields %}
+                {% if field.id|stringformat:"s" == field_id|stringformat:"s" %}
+                <div class="bg-white p-5 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-start justify-between mb-4 gap-2">
+                        <h3 class="font-bold text-slate-800 text-sm leading-tight line-clamp-2" title="{{ field.label }}">{{ field.label }}</h3>
+                        <span class="shrink-0 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">{{ field.get_field_type_display }}</span>
+                    </div>
+                    <div class="text-xs text-slate-400 mb-4">{{ data.total }} responses</div>
+                    
+                    <!-- We'll store the chart data in a data attribute to parsed by JS later -->
+                    <div class="w-full h-48 relative flex justify-center chart-container"
+                         data-field-type="{{ field.field_type }}"
+                         data-labels='[{% for row in data.chart_data %}"{{ row.label|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}]'
+                         data-counts='[{% for row in data.chart_data %}{{ row.count }}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                    >
+                        <!-- For the 'List Chart' fallback (e.g if it's not Pie/Doughnut) we keep the native bars -->
+                        {% if field.field_type == 'survey' or field.field_type == 'checkbox' %}
+                            <canvas class="metric-chart" width="200" height="200"></canvas>
+                        {% elif field.field_type == 'dropdown' or field.field_type == 'radio' %}
+                            <canvas class="metric-chart" width="200" height="200"></canvas>
+                        {% else %}
+                            <div class="space-y-3 w-full self-start">
+                                {% for row in data.chart_data %}
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="font-medium text-slate-600 truncate pr-2 {% if row.is_other %}italic{% endif %}" title="{{ row.label }}">{{ row.label }}</span>
+                                        <span class="font-bold text-slate-800">{{ row.count }} <span class="text-slate-400 font-normal ml-1">({{ row.percent }}%)</span></span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                        <div class="h-1.5 rounded-full {% if row.is_other %}bg-slate-300{% else %}bg-indigo-500{% endif %}" style="width: {{ row.percent }}%"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white border text-left border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         {% if submissions %}
             <div class="overflow-x-auto min-h-[400px]">
                 <table class="w-full text-left border-collapse whitespace-nowrap">
@@ -31,9 +91,11 @@
                             
                             <!-- Dynamic Columns based on Form Fields -->
                             {% for field in fields %}
+                                {% if field.field_type != 'title_desc' and field.field_type != 'page_break' %}
                                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider max-w-[200px] truncate" title="{{ field.label }}">
                                     {{ field.label }}
                                 </th>
+                                {% endif %}
                             {% endfor %}
                         </tr>
                     </thead>
@@ -58,11 +120,12 @@
                                 
                                 <!-- Dynamic Answers -->
                                 {% for field in fields %}
-                                    <td class="py-4 px-6 text-sm text-slate-700 max-w-[300px] truncate" title="{{ sub.answers|dictsort:field.id }}">
+                                    {% if field.field_type != 'title_desc' and field.field_type != 'page_break' %}
+                                    <td class="py-4 px-6 text-sm text-slate-700 max-w-[300px] truncate" title="{{ sub.answers|dictsort:field.id|default:'' }}">
                                         {% for key, val in sub.answers.items %}
                                             {% if key|stringformat:"s" == field.id|stringformat:"s" %}
                                                 {% if val|length > 0 %}
-                                                    {% if val|title == val %} <!-- Check for lists implicitly via template tags? Better to handle in view, but dict works stringified -->
+                                                    {% if val|title == val %} <!-- Check for lists explicitly using a simpler method in views is better, but here we can join arrays -->
                                                         {{ val }}
                                                     {% else %}
                                                         {{ val }}
@@ -75,12 +138,43 @@
                                             <span class="text-slate-300">-</span>
                                         {% endfor %}
                                     </td>
+                                    {% endif %}
                                 {% endfor %}
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Pagination block -->
+            {% if submissions.has_other_pages %}
+            <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-4">
+                <div class="text-sm text-slate-500">
+                    Showing <span class="font-medium text-slate-900">{{ submissions.start_index }}</span> to <span class="font-medium text-slate-900">{{ submissions.end_index }}</span> of <span class="font-medium text-slate-900">{{ submissions.paginator.count }}</span> responses
+                </div>
+                <div class="flex items-center gap-1">
+                    {% if submissions.has_previous %}
+                    <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ submissions.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
+                    {% else %}
+                    <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Prev</button>
+                    {% endif %}
+        
+                    {% for i in submissions.paginator.page_range %}
+                        {% if submissions.number == i %}
+                        <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20">{{ i }}</span>
+                        {% elif i > submissions.number|add:'-3' and i < submissions.number|add:'3' %}
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
+                        {% endif %}
+                    {% endfor %}
+        
+                    {% if submissions.has_next %}
+                    <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ submissions.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
+                    {% else %}
+                    <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Next</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         {% else %}
             <div class="py-16 px-6 text-center">
                 <div class="mx-auto w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
@@ -95,4 +189,85 @@
     </div>
 
 </div>
+
+<!-- Initialize Charts -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const containers = document.querySelectorAll('.chart-container');
+    
+    // Preset colors
+    const colors = [
+        '#6366f1', // indigo
+        '#ec4899', // pink
+        '#14b8a6', // teal
+        '#f59e0b', // amber
+        '#8b5cf6', // purple
+        '#cbd5e1'  // slate (for others)
+    ];
+
+    containers.forEach(container => {
+        const canvas = container.querySelector('canvas');
+        if (!canvas) return; // Means it fell back to the HTML list chart
+        
+        const fieldType = container.dataset.fieldType;
+        const labels = JSON.parse(container.dataset.labels);
+        const data = JSON.parse(container.dataset.counts);
+        
+        let chartType = 'pie';
+        if (fieldType === 'dropdown' || fieldType === 'survey') {
+            chartType = 'doughnut';
+        } else if (fieldType === 'checkbox') {
+            // we use bar/list for checkboxes maybe? Or pie. Let's use bar for checkbox
+            chartType = 'bar';
+        }
+
+        new Chart(canvas, {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors.slice(0, data.length),
+                    borderWidth: chartType === 'bar' ? 0 : 2,
+                    borderColor: '#ffffff',
+                    borderRadius: chartType === 'bar' ? 4 : 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: chartType === 'bar' ? 'y' : 'x', // horizontal bar chart
+                plugins: {
+                    legend: {
+                        position: chartType === 'bar' ? 'none' : 'right',
+                        labels: {
+                            boxWidth: 10,
+                            font: { size: 10, family: 'Inter, sans-serif' }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed !== null) {
+                                    // Handle bar chart 'x' axis or pie chart numeric
+                                    let val = chartType === 'bar' ? context.parsed.x : context.parsed;
+                                    label += val + ' responses';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: chartType === 'bar' ? {
+                    x: { ticks: { stepSize: 1, font: {size: 10} }, grid: {display: false} },
+                    y: { ticks: { font: {size: 10} }, grid: {display: false} }
+                } : {}
+            }
+        });
+    });
+});
+</script>
+
 {% endblock %}

@@ -1,89 +1,117 @@
 {% extends "base.html" %}
 
 {% block title %}Cases — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block page_title %}Support Desk — All Cases{% endblock %}
+{% block page_title %}<span class="hidden sm:inline">Support Desk — </span>All Cases{% endblock %}
 {% block nav_cases %}active{% endblock %}
 
 {% block topbar_actions %}
 <div style="display:flex;align-items:center;gap:6px;">
-    <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm">🌐 Client Portal</a>
+    <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm">
+        🌐 <span class="hidden sm:inline">Client Portal</span>
+    </a>
 </div>
 {% endblock %}
 
 {% block content %}
 
-<!-- View Mode Tabs -->
-<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-    <div class="flex items-center gap-2 bg-white rounded-xl p-1 shadow-sm border border-slate-200">
-        <a href="{% url 'desk:case_list' %}"
-           class="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-indigo-500 text-white shadow-sm">
-            📋 Table
-        </a>
-        <a href="{% url 'desk:case_kanban' %}"
-           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
-            📊 Kanban
-        </a>
-        <a href="{% url 'desk:case_calendar' %}"
-           class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100">
-            📅 Calendar
-        </a>
+<!-- View Mode Tabs & Navigation -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-3">
+    <div class="flex flex-col sm:flex-row gap-3 overflow-x-auto">
+        <!-- View Options -->
+        <div class="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200 shrink-0">
+            <a href="{% url 'desk:case_list' %}?folder={{ current_filters.folder }}"
+            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-indigo-500 text-white shadow-sm whitespace-nowrap">
+                📋 Table
+            </a>
+            <a href="{% url 'desk:case_kanban' %}"
+            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
+                📊 Kanban
+            </a>
+            <a href="{% url 'desk:case_calendar' %}"
+            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
+                📅 Calendar
+            </a>
+        </div>
+        
+        <!-- Folder Navigation -->
+        <div class="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200 shrink-0">
+            <a href="{% url 'desk:case_list' %}?folder=inbox" 
+               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'inbox' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
+                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                Inbox
+            </a>
+            <a href="{% url 'desk:case_list' %}?folder=archive" 
+               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'archive' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
+                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                Archive
+            </a>
+            <a href="{% url 'desk:case_list' %}?folder=spam" 
+               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'spam' %}bg-rose-600 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
+                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Spam
+            </a>
+        </div>
     </div>
+    
     <a href="{% url 'desk:case_export' %}?{{ request.GET.urlencode }}"
-       class="jk-btn jk-btn-sm" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
+       class="jk-btn jk-btn-sm shrink-0 self-start lg:self-auto" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export Excel
     </a>
 </div>
 
 <!-- Filters Bar -->
-<div class="jk-card mb-6">
+<div class="jk-card mb-4" x-data="{ showFilters: false }">
     <div class="jk-card-body py-3">
-        <form method="get" class="flex flex-wrap items-center gap-3">
-            <!-- Search -->
-            <div class="flex-1 w-full md:w-auto min-w-[200px]">
-                <input type="text" name="q" value="{{ current_filters.q }}" placeholder="Search cases..."
-                    class="jk-input w-full">
-            </div>
-
-            <!-- Status Filter -->
-            <select name="status" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
-                <option value="">All Statuses</option>
-                {% for value, label in statuses %}
-                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}
-                </option>
-                {% endfor %}
-            </select>
-
-            <!-- Source Filter -->
-            <select name="source" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
-                <option value="">All Sources</option>
-                {% for value, label in sources %}
-                <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}
-                </option>
-                {% endfor %}
-            </select>
-
-            <!-- Category Filter -->
-            <select name="category" class="jk-select w-full md:w-auto flex-1 min-w-[130px]">
-                <option value="">All Categories</option>
-                {% for cat in categories %}
-                <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
-                {% endfor %}
-            </select>
-
-            <!-- Date Range Filters -->
+        <form method="get">
+            <!-- Always visible: Search + Toggle -->
             <div class="flex items-center gap-2">
-                <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm" title="From Date">
-                <span class="text-slate-400">-</span>
-                <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm" title="To Date">
-            </div>
-
-            <div class="flex items-center gap-2">
-                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Filter</button>
-                <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
-                <button type="button" onclick="window.location.reload()" class="jk-btn jk-btn-secondary jk-btn-sm" title="Refresh Data">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                <div class="flex-1 min-w-0">
+                    <input type="text" name="q" value="{{ current_filters.q }}" placeholder="Search cases..."
+                        class="jk-input w-full text-sm">
+                </div>
+                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm shrink-0">Search</button>
+                <button type="button" @click="showFilters = !showFilters" class="jk-btn jk-btn-secondary jk-btn-sm shrink-0 lg:hidden" title="Toggle Filters">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
                 </button>
+            </div>
+
+            <!-- Collapsible filters (hidden on mobile by default, always visible on desktop) -->
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2" :class="{ 'hidden': !showFilters }" x-bind:class="{ 'hidden': !showFilters && window.innerWidth < 1024 }" x-init="if(window.innerWidth >= 1024) showFilters = true">
+                <select name="status" class="jk-select text-sm">
+                    <option value="">All Statuses</option>
+                    {% for value, label in statuses %}
+                    <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="source" class="jk-select text-sm">
+                    <option value="">All Sources</option>
+                    {% for value, label in sources %}
+                    <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="category" class="jk-select text-sm">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <div class="flex items-center gap-1">
+                    <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm flex-1 min-w-0" title="From">
+                    <span class="text-slate-400 text-xs">–</span>
+                    <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm flex-1 min-w-0" title="To">
+                </div>
+
+                <div class="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
+                    <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">Apply Filters</button>
+                    <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">Clear</a>
+                    <button type="button" onclick="window.location.reload()" class="jk-btn jk-btn-secondary jk-btn-sm" title="Refresh">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -96,26 +124,52 @@
     </p>
 </div>
 
-<!-- Cases Table -->
+<!-- Cases Table with Alpine Data for Bulk Actions -->
 {% if cases %}
-<div class="jk-table-wrapper">
-    <table class="jk-table">
+<div class="jk-table-wrapper select-none" x-data="{
+    selectedIds: [],
+    caseIds: {{ cases|length|default:0 }} ? [{% for c in cases %}'{{ c.id }}'{% if not forloop.last %},{% endif %}{% endfor %}] : [],
+    showMergeModal: false,
+    
+    get allSelected() {
+        return this.caseIds.length > 0 && this.selectedIds.length === this.caseIds.length;
+    },
+    toggleAll() {
+        if (this.allSelected) {
+            this.selectedIds = [];
+        } else {
+            this.selectedIds = [...this.caseIds];
+        }
+    }
+}">
+    <table class="jk-table relative">
         <thead>
             <tr>
+                <th class="w-10 hidden sm:table-cell">
+                    <input type="checkbox" 
+                           class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                           x-bind:checked="allSelected"
+                           @change="toggleAll()">
+                </th>
                 <th>Case #</th>
                 <th>Subject</th>
                 <th>Status</th>
-                <th>Source</th>
-                <th>Requester</th>
-                <th>Category</th>
-                <th>Assigned To</th>
+                <th class="hidden md:table-cell">Source</th>
+                <th class="hidden lg:table-cell">Requester</th>
+                <th class="hidden lg:table-cell">Category</th>
+                <th class="hidden xl:table-cell">Assigned To</th>
                 <th>Created</th>
-                <th>SLA</th>
+                <th class="hidden md:table-cell">SLA</th>
             </tr>
         </thead>
         <tbody>
             {% for case in cases %}
-            <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors">
+            <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
+                :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
+                <td class="hidden sm:table-cell">
+                    <input type="checkbox" value="{{ case.id }}" x-model="selectedIds"
+                           class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                </td>
                 <td>
                     <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link">
                         {{ case.case_number }}
@@ -143,7 +197,7 @@
                     <span class="jk-badge jk-badge-closed">Closed</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="hidden md:table-cell">
                     {% if case.source == "EvolutionAPI_WA" %}
                     <span class="jk-badge jk-badge-wa">💬 WhatsApp</span>
                     {% elif case.source == "Email" %}
@@ -152,14 +206,14 @@
                     <span class="jk-badge jk-badge-web">🌐 Web</span>
                     {% endif %}
                 </td>
-                <td class="text-sm">
+                <td class="text-sm hidden lg:table-cell">
                     <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
                     {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
                     {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
                     {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
                 </td>
-                <td class="text-sm text-slate-500">{{ case.category.name }}</td>
-                <td class="text-sm">
+                <td class="text-sm text-slate-500 hidden lg:table-cell">{{ case.category.name }}</td>
+                <td class="text-sm hidden xl:table-cell">
                     {% if case.assigned_to %}
                     <span class="font-medium">{{ case.assigned_to.username }}</span>
                     {% else %}
@@ -170,7 +224,7 @@
                     {{ case.created_at|date:"d M Y" }}<br>
                     <span class="text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
                 </td>
-                <td>
+                <td class="hidden md:table-cell">
                     {% if case.resolution_due_at %}
                     {% if case.status == "Resolved" or case.status == "Closed" %}
                     <span class="jk-badge jk-badge-sla-ok">✓ Met</span>
@@ -185,6 +239,160 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <!-- Pagination block -->
+    {% if cases.has_other_pages %}
+    <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-4">
+        <div class="text-sm text-slate-500">
+            Showing <span class="font-medium text-slate-900">{{ cases.start_index }}</span> to <span class="font-medium text-slate-900">{{ cases.end_index }}</span> of <span class="font-medium text-slate-900">{{ cases.paginator.count }}</span> cases
+        </div>
+        <div class="flex items-center gap-1">
+            {% if cases.has_previous %}
+            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
+            {% else %}
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Prev</button>
+            {% endif %}
+
+            {% for i in cases.paginator.page_range %}
+                {% if cases.number == i %}
+                <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20">{{ i }}</span>
+                {% elif i > cases.number|add:'-3' and i < cases.number|add:'3' %}
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if cases.has_next %}
+            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
+            {% else %}
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Next</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Floating Bulk Action Bar -->
+    <div x-show="selectedIds.length > 0" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-10"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-10"
+         style="display: none;"
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
+        
+        <div class="px-5 py-3.5 bg-slate-800 flex items-center gap-2 border-r border-slate-700/50 font-medium">
+            <span class="flex items-center justify-center w-6 h-6 bg-indigo-500 rounded-full text-xs font-bold" x-text="selectedIds.length"></span>
+            <span class="text-sm">selected</span>
+        </div>
+
+        <div class="flex items-center px-2">
+            
+            <form action="{% url 'desk:case_bulk_action' %}" method="post" class="flex" id="bulk-action-form">
+                {% csrf_token %}
+                <template x-for="id in selectedIds" :key="id">
+                    <input type="hidden" name="case_ids" :value="id">
+                </template>
+
+                {% if current_filters.folder == "spam" %}
+                <!-- Unspam Route -->
+                <button type="submit" name="action" value="unspam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-emerald-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Not Spam
+                </button>
+                {% else %}
+                <!-- Mark Spam Route -->
+                <button type="submit" name="action" value="spam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-rose-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Spam
+                </button>
+                {% endif %}
+
+                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+
+                {% if current_filters.folder == "archive" %}
+                <!-- Unarchive -->
+                <button type="submit" name="action" value="unarchive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                    Unarchive
+                </button>
+                {% else %}
+                <!-- Archive Route -->
+                <button type="submit" name="action" value="archive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                    Archive
+                </button>
+                {% endif %}
+
+                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+
+                <!-- Merge Route (Opens Modal) -->
+                <button type="button" @click="showMergeModal = true"
+                        :disabled="selectedIds.length < 2"
+                        :class="selectedIds.length < 2 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-800'"
+                        class="px-4 py-3.5 text-sm font-medium transition-colors flex items-center gap-2 text-indigo-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Merge
+                </button>
+            </form>
+
+            <div class="w-px h-8 bg-slate-700/50 self-center mx-1"></div>
+
+            <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-400 hover:bg-slate-800 transition-colors border-l border-slate-700/50 ml-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modals inside x-data -->
+    <!-- Merge Modal -->
+    <div x-show="showMergeModal" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden" @click.outside="showMergeModal = false">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Merge Tickets
+                </h3>
+                <button @click="showMergeModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <p class="text-sm text-slate-600 mb-4">You are about to merge <strong x-text="selectedIds.length"></strong> tickets into a single view. Please select which ticket should be the <strong>Master Ticket</strong>. The others will be listed as sub-tickets inside it.</p>
+                
+                <form action="{% url 'desk:case_bulk_action' %}" method="post" id="merge-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="merge">
+                    <template x-for="id in selectedIds" :key="id">
+                        <input type="hidden" name="case_ids" :value="id">
+                    </template>
+                    
+                    <div class="max-h-60 overflow-y-auto pr-2 space-y-2 mb-6 pointer-events-auto">
+                        {% for case in cases %}
+                        <label class="flex items-start gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-indigo-300 transition-colors"
+                               x-show="selectedIds.includes('{{ case.id }}')">
+                            <div class="pt-0.5">
+                                <input type="radio" name="master_id" value="{{ case.id }}" required class="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium text-slate-800 text-sm truncate">{{ case.case_number }}: {{ case.subject }}</div>
+                                <div class="text-xs text-slate-500 truncate mt-0.5">👤 {{ case.requester.full_name }} • {{ case.created_at|date:"d M Y" }}</div>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                
+                    <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button type="button" @click="showMergeModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                        <button type="submit" class="jk-btn jk-btn-primary">Confirm Merge</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
 </div>
 {% else %}
 <div class="jk-card">
