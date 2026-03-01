@@ -10,7 +10,37 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <!-- HTMX for dynamic field updates -->
 <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<!-- Quill.js for Rich Text Editing -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+
 <style>
+    /* Custom Quill styling to match UI */
+    .ql-toolbar.ql-snow {
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
+        border-color: #e2e8f0;
+        background: #f8fafc;
+        padding: 0.5rem;
+        font-family: 'Inter', sans-serif;
+    }
+    .ql-container.ql-snow {
+        border-bottom-left-radius: 0.75rem;
+        border-bottom-right-radius: 0.75rem;
+        border-color: #e2e8f0;
+        background: #ffffff;
+        min-height: 120px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.875rem;
+    }
+    .ql-editor {
+        min-height: 120px;
+    }
+    .ql-editor.ql-blank::before {
+        color: #94a3b8;
+        font-style: normal;
+    }
+
     .inspector-scroll::-webkit-scrollbar { width: 5px; }
     .inspector-scroll::-webkit-scrollbar-track { background: transparent; }
     .inspector-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
@@ -236,7 +266,34 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>
-                            {{ form.description }}
+                            <div class="hidden">{{ form.description }}</div>
+                            <div x-data="{ quillFormDesc: null }" x-init="
+                                quillFormDesc = new Quill($refs.quillFormDescEditor, {
+                                    theme: 'snow',
+                                    placeholder: 'Type form description...',
+                                    modules: {
+                                        toolbar: [
+                                            ['bold', 'italic'],
+                                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                            ['link'],
+                                            ['clean']
+                                        ]
+                                    }
+                                });
+                                // Load initial data from the hidden textarea
+                                let initialDesc = document.getElementById('id_description').value;
+                                if (initialDesc) {
+                                    quillFormDesc.clipboard.dangerouslyPasteHTML(initialDesc);
+                                }
+                                
+                                quillFormDesc.on('text-change', () => {
+                                    document.getElementById('id_description').value = quillFormDesc.root.innerHTML === '<p><br></p>' ? '' : quillFormDesc.root.innerHTML;
+                                });
+                            ">
+                                <div x-ignore>
+                                    <div x-ref="quillFormDescEditor" class="bg-white"></div>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.success_message.label }}</label>
@@ -460,9 +517,28 @@
                             <input type="text" name="label" required placeholder="Type your question here..." class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
                         </div>
 
-                        <div>
-                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Description (Optional)</label>
-                            <input type="text" name="help_text" placeholder="Add context or instructions..." class="w-full bg-white border border-slate-300 text-slate-600 text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                        <div class="field-description-wrapper">
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Description / Content (Optional)</label>
+                            <div x-data="{ quill: null }" x-init="
+                                quill = new Quill($refs.quillEditor, {
+                                    theme: 'snow',
+                                    placeholder: 'Add context, instructions, or detailed description...',
+                                    modules: {
+                                        toolbar: [
+                                            ['bold', 'italic'],
+                                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                            ['link'],
+                                            ['clean']
+                                        ]
+                                    }
+                                });
+                                quill.on('text-change', () => {
+                                    $refs.helpTextHidden.value = quill.root.innerHTML === '<p><br></p>' ? '' : quill.root.innerHTML;
+                                });
+                            ">
+                                <div x-ref="quillEditor"></div>
+                                <input type="hidden" name="help_text" x-ref="helpTextHidden" value="">
+                            </div>
                         </div>
 
                         <div x-show="!['title_desc', 'page_break'].includes(newFieldType)" class="bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -481,7 +557,7 @@
                                         <div class="w-5 flex justify-center opacity-30">
                                             <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z"></path></svg>
                                         </div>
-                                        <input type="text" name="choices[]" x-model="newFieldChoices[index]" required placeholder="Option text" class="jk-input bg-white flex-1 text-sm py-2">
+                                        <input type="text" name="choices[]" x-model="newFieldChoices[index]" placeholder="Option text" class="jk-input bg-white flex-1 text-sm py-2">
                                         <button type="button" @click="removeChoice(index)" class="text-slate-300 hover:text-red-500 p-1.5 opacity-0 group-hover:opacity-100 transition-all bg-red-50 hover:bg-red-100 rounded-lg">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>

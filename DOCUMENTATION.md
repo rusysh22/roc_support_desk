@@ -29,7 +29,8 @@ Staff Support Desk kemudian mengelola case melalui panel admin dengan fitur spli
 | WhatsApp Gateway | Evolution API v2 (Docker) |
 | Email Inbound | IMAP (Gmail) |
 | Email Outbound | SMTP (Gmail) dengan threading headers |
-| Frontend | Django Templates + HTMX + Alpine.js + Tailwind CDN |
+| Quill.js | HTML Text Editor framework terintegrasi pada Form Builder |
+| Frontend | Django Templates + HTMX + SortableJS + Alpine.js + Tailwind CDN |
 | Design System | JokoUI (custom CSS di `jokoui.css`) |
 | Static Files | WhiteNoise |
 | WSGI Server | Gunicorn (production) |
@@ -88,6 +89,9 @@ erDiagram
 | **User** | Custom user. Login via `login_username` (bukan `username`). Fields: `nik`, `role_access`, `initials`. |
 | **CompanyUnit** | Unit organisasi (IT, FIN, HR). Fields: `name`, `code`. |
 | **Employee** | Karyawan / end-user. Fields: `full_name`, `email` (unique), `phone_number` (E.164, unique), `job_role`, `unit` (FK → CompanyUnit). |
+| **DynamicForm** | Entitas form dinamis utama. Fields: `title`, `slug`, `description`, `background_color`, `background_image`, `header_image`, `is_published`, `requires_login`, `show_on_portal`. |
+| **FormField** | Relasi One-to-Many ke DynamicForm. Tipe input: text, email, text_area, dropdown, checkbox, radio, date, datetime, attachment, attachment_multiple, survey, title_desc, page_break. Mendukung `help_text` berbasis Quill Editor. |
+| **FormSubmission** | Tabel penampung jawaban klien pada DynamicForm. Berisi JSON `answers` dan tracking user session/IP. |
 
 ### 4.2. Cases App (`cases/models.py`)
 
@@ -140,6 +144,9 @@ erDiagram
 | `/api/users/` | cases (desk) | Endpoint JSON daftar staff untuk autocomplete Tribute.js |
 | `/notifications/` | cases (desk) | HTMX partial — dropdown bell notifikasi |
 | `/notifications/<type>/<id>/read/` | cases (desk) | Endpoint untuk menandai notifikasi telah dibaca |
+| `/f/<slug>/` | cases (client) | Halaman antarmuka publik Dynamic Form untuk pengisian oleh Klien |
+| `/desk/forms/` | core (admin) | Tampilan manajemen daftar Dynamic Form untuk Admin |
+| `/desk/forms/<id>/edit/` | core (admin) | Laman Form Builder UI berbasis drag-drop untuk konfigurasi pertanyaanan form |
 
 ---
 
@@ -572,6 +579,25 @@ sequenceDiagram
     D-->>E: Redirect ke halaman konfirmasi
     S->>D: Buka case di /desk/cases/
     S->>D: Proses + balas case
+```
+
+### 11.4. Alur Dynamic Form Builder
+
+```mermaid
+sequenceDiagram
+    participant S as Staff (Admin)
+    participant D as Django (Builder)
+    participant K as Klien (Responden)
+
+    S->>D: Masuk ke /desk/forms/ & Create Form
+    S->>D: Tarik Drop, ubah label/Tipe via Edit Drawer HTMX
+    S->>D: Mengatur Deskripsi Form & Field via Editor HTML (Quill)
+    S->>D: Mencentang "Is Published"
+    S-->>K: Membagikan tautan URL (/f/slug-form/)
+    K->>D: Membuka URL Form (Merespon validasi Alpine.js & Multi-page)
+    K->>D: Mengirim data. Form di-serialize ke JSON.
+    D->>D: Menyimpan ke entitas FormSubmission
+    S->>D: Mengecek tab Responses di Builder untu melihat input masuk
 ```
 
 ---
