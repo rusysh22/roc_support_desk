@@ -326,19 +326,20 @@ class EvolutionAPIService:
             Phone number in E.164 format (e.g. ``+6281234567890``), or None.
         """
         try:
-            # 1. Fast path: check top-level 'sender' string 
-            # (often contains the real number when remoteJid is @lid)
-            sender = payload.get("sender")
-            if isinstance(sender, str) and "@s.whatsapp.net" in sender:
-                return f"+{sender.split('@')[0]}"
-
             data = payload.get("data", payload)
             key = data.get("key", {})
+            
             # Evolution API may send real number in remoteJidAlt when remoteJid is a @lid
             remote_jid = key.get("remoteJidAlt") or key.get("remoteJid", "")
+            
+            # If no remoteJid or it's still a lid, fallback to top-level sender string
+            if not remote_jid or "@lid" in remote_jid:
+                sender = payload.get("sender")
+                if isinstance(sender, str) and "@s.whatsapp.net" in sender:
+                    remote_jid = sender
 
-            if not remote_jid or "@g.us" in remote_jid:
-                # Group messages — skip
+            if not remote_jid or "@g.us" in remote_jid or "@lid" in remote_jid:
+                # Group messages or unresolved @lid — skip
                 return None
 
             phone = remote_jid.split("@")[0]
@@ -437,6 +438,26 @@ class EvolutionAPIService:
             return data.get("key", {}).get("id", "")
         except Exception:
             return ""
+
+    @staticmethod
+    def extract_quoted_message_id(payload: dict) -> Optional[str]:
+        """Extract the ID of the message being replied to, if any."""
+        try:
+            data = payload.get("data", payload)
+            message = data.get("message", {})
+            # Text replies are in extendedTextMessage
+            ext = message.get("extendedTextMessage", {})
+            if ext and "contextInfo" in ext:
+                return ext["contextInfo"].get("stanzaId")
+            
+            # Media replies might have contextInfo directly under the media object
+            for media_key in ("imageMessage", "videoMessage", "documentMessage", "audioMessage"):
+                media = message.get(media_key, {})
+                if media and "contextInfo" in media:
+                    return media["contextInfo"].get("stanzaId")
+        except Exception as exc:
+            logger.error("Error extracting quoted message id: %s", exc)
+        return None
 
     @staticmethod
     def extract_media_info(payload: dict) -> Optional[dict]:

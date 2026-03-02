@@ -98,27 +98,56 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             logger.info("Auto-registered new Employee from WA: %s (%s)", sender_phone, display_name)
 
         # ---------------------------------------------------------
-        # 4. Session threading — only thread into a RECENT WhatsApp
-        #    case from the same employee (within 10 min window).
-        #    Each new WA message outside the window creates a new case.
+        # 4. Session threading
+        #    a) Check if the user is quoting a previous message we sent
+        #    b) Otherwise, thread into a RECENT WhatsApp case
         # ---------------------------------------------------------
         from datetime import timedelta
+        
+        active_case: Optional[CaseRecord] = None
+        quoted_id = svc.extract_quoted_message_id(payload)
+        
+        if quoted_id:
+            orig_msg = Message.objects.filter(external_id=quoted_id).first()
+            if orig_msg:
+                active_case = orig_msg.case
+                logger.info("Threaded WA reply via quoted message %s to case %s.", quoted_id, active_case.case_number)
+        
+        if not active_case:
+            from django.db.models import Q
+            session_window = timezone.now() - timedelta(minutes=30)
+            
+            # Fallback A: Did we recently send an outbound message to this user's phone?
+            # Escalations include the phone number in the body, e.g., "*** ESKALASI TIKET VIA WHATSAPP KE: 628... ***"
+            clean_phone = sender_phone.lstrip('+') if sender_phone else ""
+            if clean_phone:
+                last_outbound = Message.objects.filter(
+                    direction=Message.Direction.OUTBOUND,
+                    channel=Message.Channel.WHATSAPP,
+                    body__contains=clean_phone,
+                    sent_at__gte=session_window
+                ).order_by("-sent_at").first()
+                if last_outbound:
+                    active_case = last_outbound.case
+                    logger.info("Threaded WA reply via recent outbound msg match to case %s.", active_case.case_number)
 
-        session_window = timezone.now() - timedelta(minutes=10)
-        active_case: Optional[CaseRecord] = (
-            CaseRecord.objects.filter(
-                requester=employee,
-                source=CaseRecord.Source.EVOLUTION_WA,
-                status__in=[
-                    CaseRecord.Status.OPEN,
-                    CaseRecord.Status.INVESTIGATING,
-                    CaseRecord.Status.PENDING_INFO,
-                ],
-                updated_at__gte=session_window,
+        if not active_case:
+            # Fallback B: If they are the requester on a recent WA case
+            session_window = timezone.now() - timedelta(minutes=10) # 10 mins for session
+            active_case = (
+                CaseRecord.objects.filter(
+                    requester=employee,
+                    source=CaseRecord.Source.EVOLUTION_WA,
+                    status__in=[
+                        CaseRecord.Status.OPEN,
+                        CaseRecord.Status.INVESTIGATING,
+                        CaseRecord.Status.PENDING_INFO,
+                    ],
+                    updated_at__gte=session_window,
+                )
+                .order_by("-updated_at")
+                .first()
             )
-            .order_by("-updated_at")
-            .first()
-        )
 
         is_new_case = False
         if active_case:
@@ -370,15 +399,11 @@ def poll_imap_emails_task() -> str:
             # 2. Threading — look for "CASE-XXXXXXXX" or "[CASE-XXXXXXXX]" in subject
             case = None
             is_new_case = False
-            case_match = re.search(r"CS-([A-Fa-f0-9]{8})", subject)
+            case_match = re.search(r"CS-([A-Fa-f0-9]{8})", subject, re.IGNORECASE)
             if case_match:
                 case_prefix = case_match.group(1).lower()
-                # Find case whose UUID starts with this prefix
-                candidates = CaseRecord.objects.filter(requester=employee)
-                for c in candidates:
-                    if str(c.id).replace("-", "")[:8].lower() == case_prefix:
-                        case = c
-                        break
+                # Find case whose UUID starts with this 8-character prefix
+                case = CaseRecord.objects.filter(id__istartswith=case_prefix).first()
 
             if case:
                 logger.info("Email threaded into existing case %s.", case.id)
@@ -990,12 +1015,12 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
     default_retry_delay=30,
     acks_late=True,
 )
-def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom_message: str) -> str:
+def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom_message: str, message_id: str = None) -> str:
     """
     Escalate or Forward a ticket to a third party (Email/WhatsApp).
     Formats a comprehensive message containing the agent's notes and the original problem.
     """
-    from cases.models import CaseRecord
+    from cases.models import CaseRecord, Message
     from gateways.services import EvolutionAPIService
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
@@ -1007,12 +1032,26 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
     try:
         case = CaseRecord.objects.get(id=case_id)
         case_number = case.case_number
+        
+        msg_obj = None
+        if message_id:
+            try:
+                msg_obj = Message.objects.get(id=message_id)
+            except Message.DoesNotExist:
+                pass
 
         # Build context
         requester_name = case.requester.full_name if case.requester else case.requester_name
         req_unit = case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name
 
+        # Collect latest attachments from case (max 10)
+        attachments = []
+        for m in case.messages.all().prefetch_related('attachments').order_by('created_at'):
+            attachments.extend(list(m.attachments.all()))
+        attachments = attachments[:10]
+
         if channel == 'WHATSAPP':
+            import base64
             svc = EvolutionAPIService()
             wa_text = (
                 f"🚨 *Ticket Escalation: {case_number}*\n\n"
@@ -1022,7 +1061,48 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 f"*Original Problem:*\n{case.problem_description}\n\n"
                 f"Reply to this message to add your response to the ticket (Requires linking)."
             )
-            svc.send_whatsapp_message(forward_to, wa_text)
+            
+            response_data = None
+            if attachments:
+                first = True
+                for att in attachments:
+                    try:
+                        if att.file_size > 10 * 1024 * 1024:
+                            logger.warning("Skipping escalate attachment %s: exceeds 10MB limit.", att.original_filename)
+                            continue
+                            
+                        with att.file.open('rb') as f:
+                            file_data = f.read()
+                            
+                        base64_data = base64.b64encode(file_data).decode('utf-8')
+                        caption = wa_text if first else ""
+                        
+                        resp = svc.send_whatsapp_media(
+                            phone_number=forward_to,
+                            base64_data=base64_data,
+                            mime_type=att.mime_type or "application/octet-stream",
+                            filename=att.original_filename,
+                            caption=caption,
+                        )
+                        if first:
+                            response_data = resp
+                        first = False
+                    except Exception as e:
+                        logger.error("Error attaching file %s to WA escalate payload: %s", att.original_filename, e)
+                
+                if first and wa_text:
+                    response_data = svc.send_whatsapp_message(forward_to, f"{wa_text}\n\n[Warning: All attachments exceeded limits]")
+            else:
+                response_data = svc.send_whatsapp_message(forward_to, wa_text)
+            
+            if msg_obj:
+                if response_data:
+                    msg_obj.external_id = response_data.get("key", {}).get("id", "")
+                    msg_obj.delivery_status = Message.DeliveryStatus.SUCCESS
+                else:
+                    msg_obj.delivery_status = Message.DeliveryStatus.FAILED
+                msg_obj.save(update_fields=["external_id", "delivery_status"])
+                
             return "success:wa"
         
         elif channel == 'EMAIL':
@@ -1031,9 +1111,7 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
             from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
             from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
 
-            # Critical: The subject MUST contain CS-<prefix> for our IMAP poller to thread replies back
             subject = f"[CS-{str(case.id)[:8].upper()}] Fwd: {case.subject}"
-            
             case_thread_id = f'<case-{case.id}@{from_domain}>'
 
             plain_body = (
@@ -1047,6 +1125,8 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 f"Reply to this email to add your response directly to ticket {case_number}."
             )
 
+            from django.template.loader import render_to_string
+
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=plain_body,
@@ -1057,7 +1137,45 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                     'Message-ID': f'<case-{case.id}-escalate-{timezone.now().timestamp()}@{from_domain}>',
                 },
             )
+            
+            # Embed Attachments
+            total_size = 0
+            limit_exceeded = False
+            for att in attachments:
+                total_size += att.file_size
+                if total_size > 10 * 1024 * 1024:  # 10MB limit
+                    limit_exceeded = True
+                    break
+                try:
+                    with att.file.open('rb') as f:
+                        email.attach(att.original_filename, f.read(), att.mime_type)
+                except Exception as e:
+                    logger.error("Failed to attach file %s to escalate email: %s", att.original_filename, e)
+                    
+            if limit_exceeded:
+                email.body += "\n\n[Warning: Some attachments were not included because the total size exceeded the 10MB limit.]"
+                
+            # Render HTML body with template
+            html_context = {
+                "case_number": case_number,
+                "case_subject": case.subject,
+                "custom_message": custom_message,
+                "requester_name": requester_name,
+                "req_unit": req_unit,
+                "problem_description": case.problem_description,
+                "date_escalated": timezone.now().strftime('%d %b %Y, %H:%M'),
+                "site_name": site_name,
+                "limit_exceeded": limit_exceeded,
+            }
+            html_body = render_to_string("emails/escalate.html", html_context)
+            email.attach_alternative(html_body, "text/html")
+
             email.send(fail_silently=False)
+
+            if msg_obj:
+                msg_obj.delivery_status = Message.DeliveryStatus.SUCCESS
+                msg_obj.save(update_fields=["delivery_status"])
+
             return "success:email"
         
     except CaseRecord.DoesNotExist:

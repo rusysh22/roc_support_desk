@@ -18,6 +18,7 @@ Staff views (login + role_access required):
 from functools import wraps
 
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.db.models import Q
 from django.http import HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -501,19 +502,20 @@ def case_forward_escalation(request, case_id):
         custom_message = request.POST.get("custom_message", "").strip()
 
         if forward_to and channel in ["EMAIL", "WHATSAPP"]:
-            from gateways.tasks import escalate_case_task
-            escalate_case_task.delay(str(case.id), forward_to, channel, custom_message)
-
-            # Log this as an internal comment so the staff knows it was forwarded
             from cases.models import Message
-            Message.objects.create(
+            # Use body prefix "*** ESKALASI TIKET VIA" to identify it as escalation later
+            msg_channel = Message.Channel.EMAIL if channel == 'EMAIL' else Message.Channel.WHATSAPP
+            msg = Message.objects.create(
                 case=case,
                 sender_staff=request.user,
                 body=f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}",
-                is_internal=True,
                 direction=Message.Direction.OUTBOUND,
-                channel=Message.Channel.WEB,
+                channel=msg_channel,
             )
+
+            # Fire celery task to send via API
+            from gateways.tasks import escalate_case_task
+            escalate_case_task.delay(str(case.id), forward_to, channel, custom_message, str(msg.id))
 
             from django.contrib import messages
             messages.success(request, f"Tiket berhasil diekskalasi ke {forward_to} via {channel}.")
@@ -1408,6 +1410,47 @@ def form_create_view(request):
 
 
 @staff_required
+@require_POST
+def form_duplicate_view(request, pk):
+    """
+    Duplicate a DynamicForm and all its fields.
+    Does NOT copy background_image and header_image.
+    Appends '(copy)' to the title and generates a new slug.
+    """
+    from core.models import DynamicForm, FormField
+    from django.contrib import messages
+    import uuid
+
+    original_form = get_object_or_404(DynamicForm, pk=pk)
+
+    # Clone the form instance
+    new_form = DynamicForm.objects.get(pk=pk)
+    new_form.pk = None
+    new_form.id = uuid.uuid4()
+    new_form.title = f"{original_form.title} (copy)"
+    # Ensure slug is unique by generating a new one
+    new_form.slug = str(uuid.uuid4())[:8]
+    new_form.created_by = request.user
+    
+    # Do NOT copy images
+    new_form.background_image = None
+    new_form.header_image = None
+    
+    new_form.save()
+
+    # Clone all fields, maintaining order
+    original_fields = original_form.fields.all()
+    for field in original_fields:
+        field.pk = None
+        field.id = uuid.uuid4()
+        field.form = new_form
+        field.save()
+
+    messages.success(request, f"Form duplicated successfully!")
+    return redirect("desk:form_edit", pk=new_form.pk)
+
+
+@staff_required
 def form_edit_view(request, pk):
     """
     Drag and drop builder to edit form fields and form settings.
@@ -1415,7 +1458,9 @@ def form_edit_view(request, pk):
     from core.models import DynamicForm, FormField
     from core.forms import DynamicFormForm
     from django.contrib import messages
+    from django.db import models
     import json
+    import uuid
 
     instance = get_object_or_404(DynamicForm, pk=pk)
     
@@ -1446,6 +1491,26 @@ def form_edit_view(request, pk):
                 order=last_order + 1,
                 created_by=request.user
             )
+            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            
+        elif action == 'duplicate_field':
+            field_id = request.POST.get('field_id')
+            original_field = get_object_or_404(FormField, id=field_id, form=instance)
+            
+            # Shift order of subsequent fields down by 1
+            FormField.objects.filter(form=instance, order__gt=original_field.order).update(
+                order=models.F('order') + 1
+            )
+            
+            # Clone field
+            new_field = original_field
+            new_field.pk = None
+            new_field.id = uuid.uuid4()
+            new_field.order = original_field.order + 1
+            # Append copy to label so user knows it's the duplicate
+            new_field.label = f"{original_field.label} (copy)"
+            new_field.save()
+            
             return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
             
         elif action == 'delete_field':
@@ -1614,22 +1679,23 @@ def form_responses_view(request, pk):
 @staff_required
 def form_responses_export(request, pk):
     """
-    Export all submissions for a DynamicForm to a CSV file.
+    Export all submissions for a DynamicForm to an Excel (.xlsx) file.
     """
     from core.models import DynamicForm
-    import csv
+    import openpyxl
     from django.http import HttpResponse
     
     instance = get_object_or_404(DynamicForm, pk=pk)
     submissions = instance.submissions.all()
     fields = instance.fields.all()
     
-    
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    filename = f"{instance.title}_responses_{instance.pk}.csv"
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"{instance.title}_responses_{instance.pk}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
-    writer = csv.writer(response)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Responses"
     
     # Header Row
     header = ['Date Submitted', 'Submitted By']
@@ -1641,7 +1707,7 @@ def form_responses_export(request, pk):
             header.append(f.label)
             field_ids.append(str(f.id))
             
-    writer.writerow(header)
+    ws.append(header)
     
     # Data Rows
     for sub in submissions:
@@ -1652,7 +1718,7 @@ def form_responses_export(request, pk):
                 username = sub.submitted_by.username
                 
         row = [
-            sub.submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
+            sub.submitted_at.replace(tzinfo=None) if sub.submitted_at else "", # Excel prefers naive datetimes
             username
         ]
         
@@ -1666,8 +1732,9 @@ def form_responses_export(request, pk):
             else:
                 row.append(str(ans))
                 
-        writer.writerow(row)
+        ws.append(row)
         
+    wb.save(response)
     return response
 
 # =====================================================================

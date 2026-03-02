@@ -1,0 +1,28 @@
+{
+  "key": {
+    "remoteJid": "6282331565773@s.whatsapp.net",
+    "fromMe": true,
+    "id": "3EB0AC163764BCF2AF3F5A"
+  },
+  "pushName": "Voc\u00ea",
+  "status": "PENDING",
+  "message": {
+    "conversation": "Test message for debugging ID extracting"
+  },
+  "contextInfo": {
+    "mentionedJid": [],
+    "groupMentions": [],
+    "ephemeralSettingTimestamp": {
+      "low": 1772255629,
+      "high": 0,
+      "unsigned": false
+    },
+    "disappearingMode": {
+      "initiator": 0
+    }
+  },
+  "messageType": "conversation",
+  "messageTimestamp": 1772428429,
+  "instanceId": "2a8ea9d2-4927-4a11-8f35-38813ba24e23",
+  "source": "web"
+}

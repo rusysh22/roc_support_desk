@@ -680,6 +680,13 @@
     border-top-right-radius: 4px;
 }
 
+.jk-msg__bubble--escalate {
+    background: #bae6fd !important;
+    /* Tailwind sky-200 */
+    color: #0c4a6e !important;
+    /* Tailwind sky-900 */
+}
+
 .jk-msg__text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;

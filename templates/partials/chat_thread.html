@@ -45,7 +45,7 @@
                 {% endif %}
             </div>
 
-            <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %}">
+            <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %} {% if '*** ESKALASI TIKET VIA' in msg.body %}jk-msg__bubble--escalate{% endif %}">
                 <div class="jk-msg__text whitespace-pre-wrap">{{ msg.body|urlize_target_blank }}</div>
 
                 {% if msg.attachments.all %}

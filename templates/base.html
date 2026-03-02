@@ -237,5 +237,43 @@
     </div>
 
     {% block extra_scripts %}{% endblock %}
+
+    <!-- Auto-Format Phone Numbers (08 -> 628) -->
+    <script>
+        document.addEventListener('input', function(e) {
+            const target = e.target;
+            if (target.tagName.toLowerCase() === 'input') {
+                const type = target.type.toLowerCase();
+                const name = (target.name || '').toLowerCase();
+                const id = (target.id || '').toLowerCase();
+                
+                // Identify phone number fields
+                if (type === 'tel' || 
+                    name.includes('phone') || name.includes('whatsapp') || name.includes('wa') || name.includes('no_hp') || name.includes('handphone') ||
+                    id.includes('phone') || id.includes('whatsapp') || id.includes('wa') || id.includes('no_hp') || id.includes('handphone')) {
+                    
+                    let val = target.value;
+                    
+                    // Remove any characters that aren't a digit or a plus sign
+                    val = val.replace(/[^\d+]/g, '');
+                    
+                    // If it starts with 08, change to 628
+                    if (val.startsWith('08')) {
+                        val = '628' + val.substring(2);
+                    }
+                    // Optional: If you want to enforce the plus sign for E.164
+                    // if (val.startsWith('628')) {
+                    //     val = '+' + val;
+                    // }
+                    
+                    if (target.value !== val) {
+                        target.value = val;
+                        // Manually dispatch event so Alpine/HTMX catches the update
+                        target.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>
