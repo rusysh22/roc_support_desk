@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-rocdesk_db}
+      POSTGRES_USER: ${DB_USER:-rocdesk_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-GantiDenganPasswordKuat123!}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-rocdesk_user} -d ${DB_NAME:-rocdesk_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    restart: always
+    volumes:
+      - media_volume:/app/media
+      - static_volume:/app/staticfiles
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build: .
+    restart: always
+    command: celery -A roc_desk worker --loglevel=info
+    volumes:
+      - media_volume:/app/media
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build: .
+    restart: always
+    command: celery -A roc_desk beat -l info
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  evolution_api:
+    image: atende/evolution-api:v2.3.6
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-your_global_api_key_here}
+    volumes:
+      - evolution_store:/evolution/store
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_store:
+  media_volume:
+  static_volume:
