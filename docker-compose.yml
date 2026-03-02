@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-rocdesk_db}
       POSTGRES_USER: ${DB_USER:-rocdesk_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-GantiDenganPasswordKuat123!}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Danidan1922#}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -57,7 +57,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -74,7 +74,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-GantiDenganPasswordKuat123!}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -85,12 +85,20 @@ services:
         condition: service_healthy
 
   evolution_api:
-    image: atende/evolution-api:v2.3.6
+    image: evoapicloud/evolution-api:v2.3.6
+    container_name: evolution_api_rocdesk
     restart: always
     ports:
       - "8080:8080"
     environment:
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-your_global_api_key_here}
+      - SERVER_URL=43.134.163.72:8080
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-rocdesk-evo-key}
+      - DATABASE_ENABLED=false
+      - REDIS_ENABLED=true
+      - REDIS_URI=redis://redis:6379/6
+    depends_on:
+      - redis
     volumes:
       - evolution_store:/evolution/store
 
