@@ -85,21 +85,46 @@ services:
         condition: service_healthy
 
   evolution_api:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: evoapicloud/evolution-api:v2.3.6
     container_name: evolution_api_rocdesk
     restart: always
     ports:
       - "8080:8080"
     environment:
-      - SERVER_URL=43.134.163.72:8080
+      - SERVER_URL=http://43.134.163.72:8080
+      - DOCKER_ENV=true
+      - LOG_LEVEL=DEBUG,ERROR,WARN,INFO,LOG,VERBOSE,DARK,WEBHOOKS
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1025062854
+
+      # --- Authentication ---
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-rocdesk-evo-key}
+      - AUTHENTICATION_API_KEY=rocdesk-evo-key-2026
+
+      # --- PostgreSQL Configuration ---
       - DATABASE_ENABLED=false
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://openpg:openpgpwd@host.docker.internal:5432/evolution_db?schema=public
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution_rocdesk
+
+      # --- Redis Configuration ---
       - REDIS_ENABLED=true
       - REDIS_URI=redis://redis:6379/6
+      - REDIS_PREFIX=evo
+      # --- Redis Configuration ---
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/6
+      - CACHE_REDIS_PREFIX_KEY=evo
+
     depends_on:
       - redis
+
     volumes:
+      - evolution_instances:/evolution/instances
       - evolution_store:/evolution/store
 
 volumes:
