@@ -92,6 +92,11 @@ services:
         condition: service_healthy
 
   evolution_api:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: evoapicloud/evolution-api:v2.3.6
     container_name: evolution_api_rocdesk
     restart: always
@@ -124,9 +129,12 @@ services:
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis:6379/6
       - CACHE_REDIS_PREFIX_KEY=evo
+
     depends_on:
       - redis
+
     volumes:
+      - evolution_instances:/evolution/instances
       - evolution_store:/evolution/store
 
 volumes:
