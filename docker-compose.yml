@@ -12,13 +12,13 @@ services:
           - postgres
     restart: always
     environment:
-      POSTGRES_DB: rocdesk_db
-      POSTGRES_USER: rocdesk_user
-      POSTGRES_PASSWORD: Danidan1922
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-rocdesk_user} -d ${DB_NAME:-rocdesk_db}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,7 +45,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -64,7 +64,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -81,7 +81,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -102,23 +102,25 @@ services:
     restart: always
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       - SERVER_TYPE=http
       - SERVER_PORT=8080
-      - SERVER_URL=http://43.134.163.72:8080
+      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://43.134.163.72:8080}
 
       - DOCKER_ENV=true
       - LOG_LEVEL=DEBUG,ERROR,WARN,INFO,LOG,VERBOSE,DARK,WEBHOOKS
       - CONFIG_SESSION_PHONE_VERSION=2.3000.1025062854
 
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=rocdesk-evo-key
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
 
       - LOG_LEVEL=info
 
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://rocdesk_user:Danidan1922@postgres:5432/evolution_db
+      - DATABASE_CONNECTION_URI=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/evolution_db
       - DATABASE_CONNECTION_CLIENT_NAME=evolution_rocdesk
       - DB_HOST=postgres
 
