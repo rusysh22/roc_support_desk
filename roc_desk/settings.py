@@ -27,7 +27,7 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # -----------------------------------------------------------------
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
-ALLOWED_HOSTS = env("ALLOWED_HOSTS")
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost","127.0.0.1"])
 
 # -----------------------------------------------------------------
 # Custom User Model
@@ -175,3 +175,10 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/desk/cases/"
 LOGOUT_REDIRECT_URL = "/"
+
+# --- Production Security & Proxy Settings ---
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = [
+    'https://rusydani.my.id',
+    'https://*.rusydani.my.id'
+]

@@ -3,18 +3,11 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
-    command: postgres -c password_encryption=md5
-    ports:
-      - "5432:5432"
-    networks:
-      default:
-        aliases:
-          - postgres
     restart: always
     environment:
-      POSTGRES_DB: rocdesk_db
-      POSTGRES_USER: rocdesk_user
-      POSTGRES_PASSWORD: Danidan1922
+      POSTGRES_DB: ${DB_NAME:-rocdesk_db}
+      POSTGRES_USER: ${DB_USER:-rocdesk_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Danidan1922#}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -45,7 +38,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -64,7 +57,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -81,7 +74,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922}@db:5432/${DB_NAME:-rocdesk_db}
+      - DATABASE_URL=postgres://${DB_USER:-rocdesk_user}:${DB_PASSWORD:-Danidan1922#}@db:5432/${DB_NAME:-rocdesk_db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - REDIS_URL=redis://redis:6379/0
@@ -92,11 +85,6 @@ services:
         condition: service_healthy
 
   evolution_api:
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
     image: evoapicloud/evolution-api:v2.3.6
     container_name: evolution_api_rocdesk
     restart: always
@@ -107,34 +95,16 @@ services:
       - SERVER_PORT=8080
       - SERVER_URL=http://43.134.163.72:8080
 
-      - DOCKER_ENV=true
-      - LOG_LEVEL=DEBUG,ERROR,WARN,INFO,LOG,VERBOSE,DARK,WEBHOOKS
-      - CONFIG_SESSION_PHONE_VERSION=2.3000.1025062854
-
       - AUTHENTICATION_TYPE=apikey
       - AUTHENTICATION_API_KEY=rocdesk-evo-key
 
       - LOG_LEVEL=info
 
-      - DATABASE_ENABLED=true
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://rocdesk_user:Danidan1922@postgres:5432/evolution_db
-      - DATABASE_CONNECTION_CLIENT_NAME=evolution_rocdesk
-      - DB_HOST=postgres
-
-      - REDIS_ENABLED=True
-      - REDIS_URI=redis://redis:6379/6
-      - REDIS_PREFIX=evo
-
-      - CACHE_REDIS_ENABLED=true
-      - CACHE_REDIS_URI=redis://redis:6379/6
-      - CACHE_REDIS_PREFIX_KEY=evo
-
+      - DATABASE_PROVIDER=postgres
+      
     depends_on:
       - redis
-
     volumes:
-      - evolution_instances:/evolution/instances
       - evolution_store:/evolution/store
 
 volumes:
