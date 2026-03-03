@@ -89,12 +89,7 @@
                 <span>Task Management</span>
             </a>
             
-            {% if user.is_staff %}
-            <a href="{% url 'desk:whatsapp_status' %}" class="jk-sidebar-link {% block nav_wa_status %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📲</span>
-                <span>WhatsApp Status</span>
-            </a>
-            
+            {% if user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
             <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📝</span>
                 <span>Form Creator</span>
@@ -103,6 +98,11 @@
             <a href="{% url 'desk:email_settings' %}" class="jk-sidebar-link {% block nav_email_settings %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📧</span>
                 <span>Email Settings</span>
+            </a>
+
+            <a href="{% url 'desk:whatsapp_status' %}" class="jk-sidebar-link {% block nav_wa_status %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">📲</span>
+                <span>WhatsApp Status</span>
             </a>
             {% endif %}
 
@@ -159,7 +159,7 @@
                 <h1 class="jk-topbar-title">{% block page_title %}{{ site_config.site_name|default:"RoC Desk" }}{% endblock %}</h1>
             </div>
             <div class="jk-topbar-actions flex items-center gap-2">
-                {% if user.is_authenticated and user.is_staff %}
+                {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
                 <div hx-get="{% url 'desk:notifications' %}" hx-trigger="load, every 60s">
                     <!-- Bell gets loaded here -->
                 </div>

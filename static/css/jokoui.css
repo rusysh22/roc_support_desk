@@ -654,15 +654,14 @@
     color: #94a3b8;
 }
 
-/* --- Bubble --- */
 .jk-msg__bubble {
     padding: 0.625rem 0.875rem;
     border-radius: 12px;
     font-size: 0.875rem;
     line-height: 1.55;
     word-wrap: break-word;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: break-all;
     position: relative;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
     min-width: 0;
@@ -689,8 +688,12 @@
 
 .jk-msg__text {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: break-all;
+}
+
+.jk-msg__text a {
+    word-break: break-all;
 }
 
 /* --- Attachments inside bubble --- */
