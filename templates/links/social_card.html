@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ link.title|default:"URL Shortener" }}</title>
+    
+    <!-- Open Graph for Facebook/WhatsApp/LinkedIn -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
+    <meta property="og:title" content="{{ link.title|default:'Shared Link' }}">
+    <meta property="og:description" content="{{ link.description|default:'Click to view this shared link via RoC Desk.' }}">
+    
+    {% if link.qr_code %}
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ link.qr_code.url }}">
+    {% endif %}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ link.title|default:'Shared Link' }}">
+    <meta name="twitter:description" content="{{ link.description|default:'Click to view this shared link via RoC Desk.' }}">
+    
+    {% if link.qr_code %}
+    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{{ link.qr_code.url }}">
+    {% endif %}
+
+    <!-- Auto redirect if a user stumbles upon this instead of a bot -->
+    <meta http-equiv="refresh" content="0; url={{ link.target_url }}">
+    
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #6366f1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 10px 0; color: #0f172a; }
+        p { margin: 0; color: #64748b; font-size: 0.95rem; }
+        a { color: #6366f1; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="loader"></div>
+        <h1>Redirecting you...</h1>
+        <p>If you are not redirected automatically, <a href="{{ link.target_url }}">click here</a>.</p>
+    </div>
+    
+    <script>
+        // Fallback JavaScript redirect
+        setTimeout(function() {
+            window.location.href = "{{ link.target_url|escapejs }}";
+        }, 1500);
+    </script>
+</body>
+</html>

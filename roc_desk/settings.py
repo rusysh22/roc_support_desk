@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "cases.apps.CasesConfig",
     "gateways.apps.GatewaysConfig",
     "knowledge_base.apps.KnowledgeBaseConfig",
+    "links.apps.LinksConfig",
 ]
 
 MIDDLEWARE = [

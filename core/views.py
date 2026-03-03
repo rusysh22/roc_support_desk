@@ -124,3 +124,11 @@ class ResetPasswordOTPView(View):
             return redirect(reverse("login"))
             
         return render(request, self.template_name, {"form": form, "email": email})
+
+
+def custom_404_view(request, exception=None):
+    """
+    Custom 404 Error Handler to display a branded, modern animated
+    not found page instead of Django's default.
+    """
+    return render(request, "404.html", status=404)

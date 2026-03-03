@@ -95,6 +95,11 @@
                 <span>Form Creator</span>
             </a>
             
+            <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">🔗</span>
+                <span>Shorten Link</span>
+            </a>
+            
             <a href="{% url 'desk:email_settings' %}" class="jk-sidebar-link {% block nav_email_settings %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📧</span>
                 <span>Email Settings</span>

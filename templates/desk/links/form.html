@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if object %}Edit Link{% else %}Create Link{% endif %} | {{ site_config.site_name|default:"RoC Desk" }}
+{% endblock %}
+{% block nav_links %}active{% endblock %}
+
+{% block page_title %}{% if object %}Edit Link{% else %}Create Short Link{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'links_desk:list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </a>
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">{% if object %}Link Configuration{% else %}Create Custom URL{% endif %}</h2>
+                <p class="text-sm text-slate-500 mt-1">Shorten a URL and define how its thumbnail looks when shared.</p>
+            </div>
+        </div>
+        
+        {% if object %}
+        <button type="button" x-data @click="$dispatch('open-card-modal', { slug: '{{ object.slug }}', target: '{{ object.target_url }}', title: '{{ object.title|escapejs }}', desc: '{{ object.description|escapejs }}', qr: '{% if object.qr_code %}{{ object.qr_code.url }}{% else %}{% endif %}'})" class="jk-btn jk-btn-secondary h-9 px-4 flex items-center gap-2">
+            <svg class="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M160 224L224 224L224 160L160 160L160 224zM96 144C96 117.5 117.5 96 144 96L240 96C266.5 96 288 117.5 288 144L288 240C288 266.5 266.5 288 240 288L144 288C117.5 288 96 266.5 96 240L96 144zM160 480L224 480L224 416L160 416L160 480zM96 400C96 373.5 117.5 352 144 352L240 352C266.5 352 288 373.5 288 400L288 496C288 522.5 266.5 544 240 544L144 544C117.5 544 96 522.5 96 496L96 400zM416 160L416 224L480 224L480 160L416 160zM400 96L496 96C522.5 96 544 117.5 544 144L544 240C544 266.5 522.5 288 496 288L400 288C373.5 288 352 266.5 352 240L352 144C352 117.5 373.5 96 400 96zM384 416C366.3 416 352 401.7 352 384C352 366.3 366.3 352 384 352C401.7 352 416 366.3 416 384C416 401.7 401.7 416 384 416zM384 480C401.7 480 416 494.3 416 512C416 529.7 401.7 544 384 544C366.3 544 352 529.7 352 512C352 494.3 366.3 480 384 480zM480 512C480 494.3 494.3 480 512 480C529.7 480 544 494.3 544 512C544 529.7 529.7 544 512 544C494.3 544 480 529.7 480 512zM512 416C494.3 416 480 401.7 480 384C480 366.3 494.3 352 512 352C529.7 352 544 366.3 544 384C544 401.7 529.7 416 512 416zM480 448C480 465.7 465.7 480 448 480C430.3 480 416 465.7 416 448C416 430.3 430.3 416 448 416C465.7 416 480 430.3 480 448z"/></svg>
+            Show Card & QR
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- The alpine state manages the slug checking logic via AJAX -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+         x-data="{
+            slugInput: '{{ form.slug.value|default:'' }}',
+            isAvailable: null,
+            isChecking: false,
+            debounceTimer: null,
+            errMsg: '',
+
+            init() {
+                // If editing an existing object, assume it's valid to start
+                if ('{{ object.pk|default:'' }}' !== '') {
+                    this.isAvailable = true;
+                }
+            },
+
+            checkSlugStatus() {
+                clearTimeout(this.debounceTimer);
+                this.isAvailable = null;
+                this.errMsg = '';
+                
+                if (!this.slugInput) return;
+                
+                // Allow letters, numbers, hyphens, underscores
+                if (!/^[a-zA-Z0-9_-]+$/.test(this.slugInput)) {
+                    this.errMsg = 'Only letters, numbers, hyphens and underscores allowed.';
+                    this.isAvailable = false;
+                    return;
+                }
+
+                this.isChecking = true;
+                this.debounceTimer = setTimeout(() => {
+                    let url = '{% url "links_desk:check_slug" %}?slug=' + encodeURIComponent(this.slugInput);
+                    // Pass current instance id to exclude it from constraints if editing
+                    if ('{{ object.pk|default:"" }}') {
+                        url += '&exclude_id={{ object.pk }}';
+                    }
+
+                    fetch(url)
+                    .then(r => r.json())
+                    .then(data => {
+                        this.isChecking = false;
+                        if(data.available) {
+                            this.isAvailable = true;
+                        } else {
+                            this.isAvailable = false;
+                            this.errMsg = data.error || 'Slug is already taken!';
+                        }
+                    })
+                    .catch(() => {
+                        this.isChecking = false;
+                        this.isAvailable = false;
+                        this.errMsg = 'Failed to check availability.';
+                    });
+                }, 500); 
+            }
+         }">
+         
+        <form method="post" class="p-8">
+            {% csrf_token %}
+            
+            <div class="space-y-6">
+                <!-- Validation Errors -->
+                {% if form.errors %}
+                <div class="p-4 rounded-xl bg-red-50 text-red-800 border-red-200 border text-sm">
+                    <strong class="font-bold">Please correct the errors:</strong>
+                    <ul class="list-disc ml-5 mt-2 space-y-1">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <li><b>{{ field.label }}</b>: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- Target URL -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.target_url.label }} <span class="text-red-500">*</span></label>
+                    {{ form.target_url }}
+                    <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">The long original link where users will be redirected.</p>
+                </div>
+
+                <!-- Custom Slug -->
+                <div class="relative">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.slug.label }} <span class="text-red-500">*</span></label>
+                    
+                    <div class="flex rounded-md shadow-sm relative">
+                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-sm font-medium">
+                            /s/
+                        </span>
+                        
+                        <!-- Attach Alpine binders to input -->
+                        <input type="text" name="slug" 
+                               aria-label="Custom Slug"
+                               x-model="slugInput" 
+                               @input="checkSlugStatus"
+                               placeholder="promo2024"
+                               class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                               :class="{'border-slate-300': isAvailable === null, 'border-green-500 focus:border-green-500 focus:ring-green-500': isAvailable === true, 'border-red-500 focus:border-red-500 focus:ring-red-500': isAvailable === false}" 
+                               required>
+                               
+                        <!-- Real-time checking indicator icons inside input -->
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <svg x-show="isChecking" class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style="display: none;">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <svg x-show="isAvailable === true" class="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <svg x-show="isAvailable === false" class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <p class="text-[13px] mt-1 text-slate-500 flex items-center gap-1" x-show="isAvailable === null && !isChecking">We will automatically check for slug availability.</p>
+                    <p class="text-[13px] mt-1 text-green-600 font-medium flex items-center gap-1" style="display: none;" x-show="isAvailable === true && !isChecking">Great! This slug is available.</p>
+                    <p class="text-[13px] mt-1 text-red-600 font-medium flex items-center gap-1" style="display: none;" x-show="isAvailable === false && !isChecking" x-text="errMsg"></p>
+                </div>
+
+                <!-- Divider -->
+                <div class="border-t border-slate-100 my-8 py-2">
+                    <h3 class="text-base font-semibold text-slate-800 mb-1">Social Card Preview</h3>
+                    <p class="text-sm text-slate-500 mb-4">When someone shares this link in WhatsApp, Twitter, etc. these details will show.</p>
+                    
+                    <div class="grid grid-cols-1 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.title.label }}</label>
+                            {{ form.title }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.description.label }}</label>
+                            {{ form.description }}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm" x-bind:disabled="isAvailable === false || isChecking" :class="{ 'opacity-50 cursor-not-allowed': isAvailable === false || isChecking }">
+                    {% if object %}Save Changes{% else %}Create Link{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alpine.js Modals for Card Viewing -->
+<div x-data="{
+        isOpen: false,
+        linkData: { slug: '', target: '', title: '', desc: '', qr: '' },
+        get fullUrl() {
+            return window.location.origin + '/s/' + this.linkData.slug;
+        },
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Link copied to clipboard!' }}));
+            });
+        }
+    }"
+    @open-card-modal.window="linkData = $event.detail; isOpen = true;"
+    @keydown.escape.window="isOpen = false"
+    class="relative z-50">
+    
+    <!-- Backdrop -->
+    <div x-show="isOpen" 
+         x-transition.opacity 
+         class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"
+         style="display: none;"></div>
+
+    <!-- Modal Panel -->
+    <div x-show="isOpen" 
+         class="fixed inset-0 overflow-y-auto"
+         style="display: none;">
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div x-show="isOpen" 
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 @click.away="isOpen = false"
+                 class="relative transform overflow-hidden rounded-2xl bg-[#eff2f5] text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-[#e2e8f0]">
+                
+                <!-- Twitter/WhatsApp Style Card Preview Container -->
+                <div class="p-6 pb-4">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-lg font-bold text-slate-800">Social Card Preview</h3>
+                        <button type="button" @click="isOpen = false" class="text-slate-400 hover:text-slate-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <!-- The Card Body -->
+                    <div class="bg-white border text-sm border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow">
+                        <!-- QR Code Header Image replacement -->
+                        <div class="bg-indigo-50 flex items-center justify-center p-6 border-b border-slate-100">
+                            <template x-if="linkData.qr">
+                                <img :src="linkData.qr" class="w-48 h-48 rounded-lg shadow-sm bg-white p-2 border border-slate-200" alt="QR Code">
+                            </template>
+                            <template x-if="!linkData.qr">
+                                <div class="w-48 h-48 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
+                                    No QR
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- Metadata area -->
+                        <div class="p-4 bg-[#f8f9fa]">
+                            <h4 class="font-bold text-slate-900 mb-1 line-clamp-1" x-text="linkData.title || '(No Title Set)'"></h4>
+                            <p class="text-slate-600 text-[13px] leading-relaxed line-clamp-2 mb-2" x-text="linkData.desc || '(No Description Set)'"></p>
+                            
+                            <div class="flex items-center text-slate-400 text-xs mt-3 lowercase font-medium">
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                <span>yoursite.com/s/</span><span x-text="linkData.slug" class="max-w-[200px] truncate"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="bg-white border-t border-slate-200 px-6 py-4 flex items-center gap-3">
+                    <button type="button" @click="copyToClipboard(fullUrl)" class="flex-1 jk-btn jk-btn-secondary py-2 justify-center text-sm flex gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Copy URL
+                    </button>
+                    <!-- Download QR implementation simply points strictly to target URL href in anchor with 'download' attribute -->
+                    <a :href="linkData.qr" x-show="linkData.qr" download class="flex-1 jk-btn jk-btn-primary py-2 justify-center text-sm flex gap-2 text-center items-center">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download QR
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
