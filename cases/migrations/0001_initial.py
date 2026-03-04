@@ -31,8 +31,8 @@ class Migration(migrations.Migration):
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_updated', to=settings.AUTH_USER_MODEL, verbose_name='Updated By')),
             ],
             options={
-                'verbose_name': 'Case Category',
-                'verbose_name_plural': 'Case Categories',
+                'verbose_name': 'Ticket Category',
+                'verbose_name_plural': 'Ticket Categories',
                 'ordering': ['name'],
             },
         ),
@@ -58,8 +58,8 @@ class Migration(migrations.Migration):
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_updated', to=settings.AUTH_USER_MODEL, verbose_name='Updated By')),
             ],
             options={
-                'verbose_name': 'Case Record',
-                'verbose_name_plural': 'Case Records',
+                'verbose_name': 'Ticket Record',
+                'verbose_name_plural': 'Ticket Records',
                 'ordering': ['-created_at'],
             },
         ),

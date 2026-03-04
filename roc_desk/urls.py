@@ -6,10 +6,30 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib.auth import views as auth_views
 
 from core import views as core_views
 
+from core.models import SiteConfig
+from django.utils.functional import lazy
+
+def get_admin_site_name():
+    try:
+        from django.db import connection
+        if 'core_siteconfig' in connection.introspection.table_names():
+            name = SiteConfig.get_solo().site_name
+            return name if name else "RoC Desk Admin"
+        return "RoC Desk Admin"
+    except Exception:
+        return "RoC Desk Admin"
+
+admin.site.site_header = lazy(get_admin_site_name, str)()
+admin.site.site_title = lazy(get_admin_site_name, str)()
+admin.site.index_title = "Administration"
+
 urlpatterns = [
+    # Override Admin logout to redirect to public login
+    path("admin/logout/", auth_views.LogoutView.as_view(next_page="/auth/login/")),
     # Django admin
     path("admin/", admin.site.urls),
 

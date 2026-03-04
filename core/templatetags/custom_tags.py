@@ -14,6 +14,48 @@ def get_item(dictionary, key):
     return None
 
 
+@register.filter(name='idle_time')
+def idle_time(value):
+    """
+    Returns human-readable elapsed time since the given datetime.
+    E.g. '2d 5h', '45m', '3h'
+    """
+    if not value:
+        return ""
+    from django.utils import timezone
+    now = timezone.now()
+    delta = now - value
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 0:
+        return "0m"
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    minutes = (total_seconds % 3600) // 60
+    if days > 0:
+        return f"{days}d {hours}h"
+    elif hours > 0:
+        return f"{hours}h {minutes}m"
+    else:
+        return f"{minutes}m"
+
+
+@register.filter(name='idle_level')
+def idle_level(value):
+    """
+    Returns urgency level based on elapsed time: 'danger' (>2d), 'warning' (>12h), 'info'.
+    """
+    if not value:
+        return ""
+    from django.utils import timezone
+    delta = timezone.now() - value
+    hours = delta.total_seconds() / 3600
+    if hours >= 48:
+        return "danger"
+    elif hours >= 12:
+        return "warning"
+    return "info"
+
+
 @register.tag('split_by_page_break')
 def split_by_page_break(parser, token):
     """

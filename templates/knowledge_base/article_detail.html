@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ article.title }} - Knowledge Base{% endblock %}
+
+{% block main_class %}bg-slate-50{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    
+    <!-- Breadcrumbs -->
+    <nav class="flex mb-8 text-sm text-slate-500 font-medium">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center hover:text-indigo-600 transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                    Knowledge Base
+                </a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <a href="{% url 'knowledge_base:category' article.category.slug %}" class="ml-1 md:ml-2 hover:text-indigo-600 transition-colors">{{ article.category.name }}</a>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 md:ml-2 text-slate-800 font-semibold truncate max-w-[150px] sm:max-w-[300px]">{{ article.title }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Article Header -->
+    <div class="bg-white rounded-t-2xl p-8 md:p-10 border border-slate-200 border-b-0 shadow-sm relative overflow-hidden">
+        <!-- Decoration -->
+        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-0 opacity-50"></div>
+        
+        <div class="relative z-10">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 leading-tight">{{ article.title }}</h1>
+            
+            <div class="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
+                <div class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Last updated: {{ article.updated_at|date:"F d, Y" }}
+                </div>
+                
+                <div class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    Author: {% if article.created_by %}{{ article.created_by.get_full_name|default:article.created_by.username }}{% else %}System{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Article Content -->
+    <div class="bg-white rounded-b-2xl p-8 md:p-10 border border-slate-200 shadow-sm prose prose-slate prose-indigo max-w-none">
+        
+        <!-- Summary Section -->
+        <div class="mb-10">
+            <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-indigo-100 flex items-center gap-2">
+                <span class="text-indigo-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </span>
+                Problem Summary
+            </h2>
+            <div class="text-slate-700 leading-relaxed whitespace-pre-wrap">{{ article.problem_summary }}</div>
+        </div>
+
+        <!-- Root Cause Section -->
+        {% if article.root_cause %}
+        <div class="mb-10 bg-rose-50 rounded-xl p-6 border border-rose-100">
+            <h2 class="text-xl font-bold text-rose-900 mb-4 flex items-center gap-2 mt-0">
+                <span class="text-rose-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </span>
+                Root Cause
+            </h2>
+            <div class="text-rose-800 leading-relaxed whitespace-pre-wrap">{{ article.root_cause }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Solution Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-emerald-100 flex items-center gap-2 mt-0">
+                <span class="text-emerald-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </span>
+                Steps to Resolve
+            </h2>
+            <div class="text-slate-700 leading-relaxed whitespace-pre-wrap">{{ article.solution }}</div>
+        </div>
+        
+    </div>
+    
+    <!-- Footer actions -->
+    <div class="mt-8 flex justify-center gap-4">
+        <button onclick="window.print()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Print Guide
+        </button>
+        <button onclick="navigator.clipboard.writeText(window.location.href); alert('Link copied to clipboard!');" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+            Share Link
+        </button>
+    </div>
+
+</div>
+{% endblock %}

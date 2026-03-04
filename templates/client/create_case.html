@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Submit a Case — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block page_title %}Submit a Case{% endblock %}
+{% block title %}Submit a Ticket — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Submit a Ticket{% endblock %}
 
 {% block extra_head %}
 <!-- Mailcheck.js for email typo detection -->
@@ -175,10 +175,10 @@
 
                 <hr class="jk-divider">
 
-                <!-- Case Details Section -->
+                <!-- Ticket Details Section -->
                 <div class="mb-2">
                     <h3 class="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1">
-                        📋 Case Details
+                        📋 Ticket Details
                     </h3>
 
                     <!-- Category -->
@@ -191,8 +191,51 @@
                     </div>
 
                     <!-- Subject -->
-                    <div class="jk-form-group">
-                        <label for="id_subject" class="jk-label">Subject *</label>
+                    <script type="application/json" id="category_templates_data">
+                        {{ category_templates_json|safe|default:'{}' }}
+                    </script>
+                    <script type="application/json" id="category_templates_subject_data">
+                        {{ category_templates_subject_json|safe|default:'{}' }}
+                    </script>
+                    <div class="jk-form-group relative"
+                         x-data="{
+                             templates: JSON.parse(document.getElementById('category_templates_data').textContent || '{}'),
+                             subjectTemplates: JSON.parse(document.getElementById('category_templates_subject_data').textContent || '{}'),
+                             get selectedCategoryId() {
+                                 const catElement = document.getElementById('id_category');
+                                 return catElement ? catElement.value : null;
+                             },
+                             generateTemplate() {
+                                 const catId = this.selectedCategoryId;
+                                 if (catId && (this.templates[catId] || this.subjectTemplates[catId])) {
+                                     const pField = document.getElementById('id_problem_description');
+                                     const sField = document.getElementById('id_subject');
+                                     
+                                     let proceed = true;
+                                     if ((pField && pField.value.trim() !== '') || (sField && sField.value.trim() !== '')) {
+                                         proceed = confirm('This will overwrite your current subject and problem description. Continue?');
+                                     }
+                                     
+                                     if (proceed) {
+                                         if (sField && this.subjectTemplates[catId]) {
+                                             sField.value = this.subjectTemplates[catId];
+                                         }
+                                         if (pField && this.templates[catId]) {
+                                             pField.value = this.templates[catId];
+                                         }
+                                     }
+                                 } else {
+                                     alert('No template available for the selected category. Please set up a template in the admin panel.');
+                                 }
+                             }
+                         }">
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="id_subject" class="jk-label !mb-0">Subject *</label>
+                            <button type="button" @click="generateTemplate()"
+                                    class="text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded border border-indigo-200 transition-colors flex items-center gap-1">
+                                🪄 Generate Template
+                            </button>
+                        </div>
                         {{ form.subject }}
                         {% if form.subject.errors %}
                         <div class="jk-form-error">{{ form.subject.errors.0 }}</div>
@@ -331,7 +374,7 @@
 
                 <!-- Submit -->
                 <button type="submit" class="jk-btn jk-btn-primary jk-btn-lg jk-btn-block">
-                    Submit Case
+                    Submit Ticket
                 </button>
             </form>
         </div>

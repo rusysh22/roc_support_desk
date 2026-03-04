@@ -40,6 +40,28 @@
                 </span>
                 {% endif %}
                 <span class="jk-msg__time">{{ msg.sent_at|date:"d M H:i" }}</span>
+                {% if msg.direction == 'OUT' %}
+                    {% if msg.delivery_status == 'Success' %}
+                    <span class="jk-msg__status jk-msg__status--success" title="Delivered">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12l5 5L17 6"/><path d="M7 12l5 5L23 6"/></svg>
+                    </span>
+                    {% elif msg.delivery_status == 'Pending' %}
+                    <span class="jk-msg__status jk-msg__status--pending" title="Sending...">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </span>
+                    {% elif msg.delivery_status == 'Failed' %}
+                    <span class="jk-msg__status jk-msg__status--failed" x-data="{ showErr: false }" @click.stop="showErr = !showErr" title="Click to see error">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        <div x-show="showErr" x-cloak @click.outside="showErr = false" class="jk-msg__error-popup">
+                            <div class="jk-msg__error-popup-header">
+                                <span>⚠ Delivery Failed</span>
+                                <button type="button" @click.stop="showErr = false" class="jk-msg__error-popup-close">&times;</button>
+                            </div>
+                            <div class="jk-msg__error-popup-body">{{ msg.delivery_error|default:"Unknown error"|truncatechars:120 }}</div>
+                        </div>
+                    </span>
+                    {% endif %}
+                {% endif %}
                 {% if msg.id in unread_msg_ids %}
                 <span class="text-[9px] font-bold text-rose-500 bg-rose-100 px-1 rounded uppercase ml-1">NEW</span>
                 {% endif %}

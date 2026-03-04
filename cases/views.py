@@ -19,10 +19,12 @@ from functools import wraps
 
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from django.db.models import Q
+from django.contrib import messages
+from django.db.models import Q, F
 from django.http import HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.core.cache import cache
 
 from core.models import CompanyUnit, Employee, User
 from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
@@ -87,6 +89,7 @@ def create_case(request, slug=None):
 
     If ``slug`` is provided, the category is pre-selected.
     """
+    import json
     initial = {}
     selected_category = None
 
@@ -94,7 +97,27 @@ def create_case(request, slug=None):
         selected_category = get_object_or_404(CaseCategory, slug=slug)
         initial["category"] = selected_category
 
+    categories_qs = CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"])
+    category_templates_json = json.dumps({
+        str(c.id): c.template_text for c in categories_qs if c.template_text
+    })
+    category_templates_subject_json = json.dumps({
+        str(c.id): c.template_subject for c in categories_qs if c.template_subject
+    })
+
     if request.method == "POST":
+        # Rate Limiting Check
+        client_ip = request.META.get('REMOTE_ADDR', 'unknown_ip')
+        cache_key = f"create_case_rate_limit_{client_ip}"
+        attempts = cache.get(cache_key, 0)
+        
+        if attempts >= 5:
+            messages.error(request, "Too many requests. Please wait 10 minutes before submitting a new ticket.")
+            return render(request, "client/create_case.html", {
+                "categories": categories_qs,
+                "company_units": CompanyUnit.objects.all(),
+            }, status=429)
+
         form = CaseCreateForm(request.POST, request.FILES)
         if form.is_valid():
             # Validate attachment sizes (10 MB limit)
@@ -106,6 +129,10 @@ def create_case(request, slug=None):
                 return render(request, "client/create_case.html", {
                     "form": form,
                     "selected_category": selected_category,
+                    "categories": categories_qs,
+                    "company_units": CompanyUnit.objects.all(),
+                    "category_templates_json": category_templates_json,
+                    "category_templates_subject_json": category_templates_subject_json,
                 })
 
             email = form.cleaned_data["requester_email"]
@@ -170,6 +197,19 @@ def create_case(request, slug=None):
                     file_size=uploaded_file.size,
                 )
 
+            # Create Audit Log entry
+            CaseAuditLog.objects.create(
+                case=case,
+                user=User.objects.filter(is_superuser=True).first() if not request.user.is_authenticated else request.user, # System fallback if public
+                action=CaseAuditLog.Action.CREATE,
+                notes="Case created via Public Portal"
+            )
+
+            messages.success(request, f"Your ticket ({case.case_number}) has been created successfully.")
+            
+            # Increment Rate Limit Counter
+            cache.set(cache_key, attempts + 1, timeout=600)  # 10 minutes timeout
+
             return redirect("cases:case_submitted", case_id=case.id)
     else:
         form = CaseCreateForm(initial=initial)
@@ -177,8 +217,10 @@ def create_case(request, slug=None):
     return render(request, "client/create_case.html", {
         "form": form,
         "selected_category": selected_category,
-        "categories": CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"]),
+        "categories": categories_qs,
         "company_units": CompanyUnit.objects.all(),
+        "category_templates_json": category_templates_json,
+        "category_templates_subject_json": category_templates_subject_json,
     })
 
 
@@ -186,6 +228,22 @@ def case_submitted(request, case_id):
     """Confirmation page after a case has been submitted."""
     case = get_object_or_404(CaseRecord, id=case_id)
     return render(request, "client/case_submitted.html", {"case": case})
+
+def send_case_email(request, case_id):
+    """View to trigger an email to the requester with case details."""
+    from django.contrib import messages
+    from gateways.tasks import send_case_acknowledgment_task
+    
+    case = get_object_or_404(CaseRecord, id=case_id)
+    
+    if request.method == "POST":
+        try:
+            send_case_acknowledgment_task.delay(str(case.id))
+            messages.success(request, f"Ticket information has been successfully sent to {case.requester_email}.")
+        except Exception as e:
+            messages.error(request, f"Failed to send ticket information email. The mail service might be temporarily down. Please take a screenshot of this page for your records. (Error: {e})")
+            
+    return redirect("cases:case_submitted", case_id=case.id)
 
 
 # =====================================================================
@@ -220,7 +278,20 @@ def public_form_view(request, slug):
 
     fields = form_obj.fields.all()
 
+    client_ip = request.META.get('REMOTE_ADDR', 'unknown_ip')
+    cache_key = f"public_form_rate_limit_{client_ip}_{slug}"
+
     if request.method == "POST":
+        # Rate Limiting Check
+        attempts = cache.get(cache_key, 0)
+        if attempts >= 5:
+            messages.error(request, "Too many requests. Please wait 10 minutes before submitting this form again.")
+            return render(request, "client/public_form.html", {
+                "dynamic_form": form_obj,
+                "fields": fields,
+                "is_preview": is_preview,
+            }, status=429)
+
         # Build the JSON response dict
         answers = {}
         errors = {}
@@ -279,6 +350,10 @@ def public_form_view(request, slug):
             answers=answers
         )
 
+        # Increment Rate Limit Counter
+        if not is_preview:
+            cache.set(cache_key, attempts + 1, timeout=600)  # 10 minutes timeout
+
         messages.success(request, form_obj.success_message)
         # Using a simple success flag in context or simply rendering directly
         return render(request, "client/public_form.html", {
@@ -312,6 +387,11 @@ def case_list(request):
     status_filter = request.GET.get("status")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+    
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -325,11 +405,24 @@ def case_list(request):
         cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
 
     if status_filter:
-        cases = cases.filter(status=status_filter)
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        cases = cases.filter(status__in=status_list)
     if source_filter:
         cases = cases.filter(source=source_filter)
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
+    if assigned_to_filter:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+        
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -347,26 +440,83 @@ def case_list(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    # --- Sorting ---
+    sort_field = request.GET.get("sort", "created_at")
+    sort_order = request.GET.get("order", "desc")
+    ALLOWED_SORT_FIELDS = {
+        "case_number": "id",
+        "subject": "subject",
+        "status": "status",
+        "source": "source",
+        "requester": "requester__full_name",
+        "category": "category__name",
+        "assigned_to": "assigned_to__username",
+        "created_at": "created_at",
+        "last_viewed_at": "last_viewed_at",
+    }
+    db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
+    if sort_order == "asc":
+        cases = cases.order_by(F(db_field).asc(nulls_last=True))
+    else:
+        cases = cases.order_by(F(db_field).desc(nulls_last=True))
+
     from django.core.paginator import Paginator
     paginator = Paginator(cases, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
+    # Calculate unread counts
+    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
+    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
+    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
 
     return render(request, "admin/case_list.html", {
         "cases": page_obj,
         "statuses": CaseRecord.Status.choices,
         "sources": CaseRecord.Source.choices,
         "categories": CaseCategory.objects.all(),
+        "types": CaseRecord.Type.choices,
+        "assignees": assignees,
+        "all_followers": all_followers,
         "current_filters": {
             "folder": folder,
             "status": status_filter or "",
             "source": source_filter or "",
             "category": category_filter or "",
+            "assigned_to": assigned_to_filter or "",
+            "type": type_filter or "",
+            "tags": tags_filter or "",
+            "followers": followers_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
         },
+        "current_sort": sort_field,
+        "current_order": sort_order,
+        "unread_inbox": unread_inbox,
+        "unread_archive": unread_archive,
+        "unread_spam": unread_spam,
     })
+
+@staff_required
+@require_POST
+def case_unmerge(request, case_id):
+    """
+    Unmerges a sub-ticket from its master ticket.
+    """
+    case = get_object_or_404(CaseRecord, id=case_id)
+    if case.master_ticket:
+        master_num = case.master_ticket.case_number
+        case.master_ticket = None
+        case.save(update_fields=["master_ticket"])
+        messages.success(request, f"Ticket {case.case_number} has been unmerged from {master_num}.")
+    return redirect("desk:case_detail", case_id=case.id)
 
 @staff_required
 def case_bulk_action(request):
@@ -422,7 +572,12 @@ def case_detail(request, case_id):
         case.save(update_fields=["has_unread_messages"])
         case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
 
-    messages = case.messages.select_related(
+    # Record when staff last viewed this ticket
+    from django.utils import timezone
+    case.last_viewed_at = timezone.now()
+    case.save(update_fields=["last_viewed_at"])
+
+    messages_qs = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments").all()
     rca_form = CaseRCAForm(instance=case)
@@ -440,7 +595,7 @@ def case_detail(request, case_id):
 
     return render(request, "admin/case_detail.html", {
         "case": case,
-        "chat_messages": messages,
+        "chat_messages": messages_qs,
         "unread_msg_ids": unread_msg_ids,
         "rca_form": rca_form,
         "reply_form": reply_form,
@@ -511,14 +666,21 @@ def case_forward_escalation(request, case_id):
                 body=f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}",
                 direction=Message.Direction.OUTBOUND,
                 channel=msg_channel,
+                delivery_status=Message.DeliveryStatus.PENDING,
             )
 
             # Fire celery task to send via API
             from gateways.tasks import escalate_case_task
-            escalate_case_task.delay(str(case.id), forward_to, channel, custom_message, str(msg.id))
-
-            from django.contrib import messages
-            messages.success(request, f"Tiket berhasil diekskalasi ke {forward_to} via {channel}.")
+            try:
+                escalate_case_task.delay(str(case.id), forward_to, channel, custom_message, str(msg.id))
+                from django.contrib import messages
+                messages.success(request, f"Ticket successfully escalated to {forward_to} via {channel}.")
+            except Exception as e:
+                msg.delivery_status = Message.DeliveryStatus.FAILED
+                msg.delivery_error = f"System Error: {str(e)}"
+                msg.save(update_fields=["delivery_status", "delivery_error"])
+                from django.contrib import messages
+                messages.error(request, f"Failed to dispatch escalation task: {str(e)}")
 
     return redirect("desk:case_detail", case_id=case_id)
 
@@ -576,6 +738,11 @@ def case_update_rca(request, case_id):
                 case.save()
                 form.save_m2m() # Important for followers
                 
+                if 'assigned_to' in form.changed_data and case.assigned_to:
+                    from gateways.tasks import send_assignment_email_task
+                    case_url = request.build_absolute_uri(reverse("desk:case_detail", kwargs={"case_id": case.id}))
+                    send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
+                
                 from django.template.loader import render_to_string
                 form_response = render(request, "partials/rca_form.html", {
                     "case": case,
@@ -622,6 +789,11 @@ def case_update_rca(request, case_id):
 
             case.save()
             form.save_m2m() # Important for followers
+
+            if 'assigned_to' in form.changed_data and case.assigned_to:
+                from gateways.tasks import send_assignment_email_task
+                case_url = request.build_absolute_uri(reverse("desk:case_detail", kwargs={"case_id": case.id}))
+                send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
 
             # Redirect to the previous page (likely the filtered table list)
             # using the back_url passed through the form
@@ -674,6 +846,7 @@ def case_send_reply(request, case_id):
                 cc_emails=form.cleaned_data.get("cc_emails", ""),
                 direction=Message.Direction.OUTBOUND,
                 channel=reply_channel,
+                delivery_status=Message.DeliveryStatus.PENDING if reply_channel != Message.Channel.WEB else Message.DeliveryStatus.SUCCESS,
             )
 
             # Handle optional attachment
@@ -692,16 +865,21 @@ def case_send_reply(request, case_id):
             case.save(update_fields=["updated_at", "updated_by"])
 
             # Trigger Outbound Async Tasks based on Channel
-            if reply_channel == Message.Channel.EMAIL:
-                from gateways.tasks import send_outbound_email_task
-                send_outbound_email_task.delay(str(msg.id))
-            elif reply_channel == Message.Channel.WHATSAPP:
-                from gateways.tasks import send_outbound_whatsapp_task
-                send_outbound_whatsapp_task.delay(str(msg.id))
-                
-                # Reset the 10-minute session countdown for the employee
-                from gateways.tasks import check_wa_session_timeout_task
-                check_wa_session_timeout_task.apply_async((str(case.id),), countdown=600)
+            try:
+                if reply_channel == Message.Channel.EMAIL:
+                    from gateways.tasks import send_outbound_email_task
+                    send_outbound_email_task.delay(str(msg.id))
+                elif reply_channel == Message.Channel.WHATSAPP:
+                    from gateways.tasks import send_outbound_whatsapp_task
+                    send_outbound_whatsapp_task.delay(str(msg.id))
+                    
+                    # Reset the 10-minute session countdown for the employee
+                    from gateways.tasks import check_wa_session_timeout_task
+                    check_wa_session_timeout_task.apply_async((str(case.id),), countdown=600)
+            except Exception as e:
+                msg.delivery_status = Message.DeliveryStatus.FAILED
+                msg.delivery_error = f"Celery connection failed: {str(e)}"
+                msg.save(update_fields=["delivery_status", "delivery_error"])
 
             # Return the refreshed chat thread partial
             messages = case.messages.select_related(
@@ -765,12 +943,27 @@ def case_kanban(request):
     ).all()
 
     # --- Filtering ---
+    folder = request.GET.get("folder", "inbox")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     priority_filter = request.GET.get("priority")
+    status_filter = request.GET.get("status")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
+
+    # Folder specific base filtering
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:  # inbox
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
 
     if source_filter:
         cases = cases.filter(source=source_filter)
@@ -778,6 +971,18 @@ def case_kanban(request):
         cases = cases.filter(category__slug=category_filter)
     if priority_filter:
         cases = cases.filter(priority=priority_filter)
+    if assigned_to_filter:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -804,6 +1009,11 @@ def case_kanban(request):
         ("Closed", "🔒", "Closed", "#64748b"),
     ]
 
+    # If a status filter is active, only show matching columns
+    if status_filter:
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        status_columns = [col for col in status_columns if col[0] in status_list]
+
     kanban_data = []
     for status_val, icon, label, color in status_columns:
         column_cases = [c for c in cases if c.status == status_val]
@@ -816,19 +1026,42 @@ def case_kanban(request):
             "count": len(column_cases),
         })
 
+    # Calculate unread counts
+    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
+    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
+    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
+
     return render(request, "admin/case_kanban.html", {
         "kanban_data": kanban_data,
         "sources": CaseRecord.Source.choices,
         "categories": CaseCategory.objects.all(),
         "priorities": CaseRecord.Priority.choices,
+        "types": CaseRecord.Type.choices,
+        "assignees": assignees,
+        "all_followers": all_followers,
         "current_filters": {
+            "folder": folder,
+            "status": status_filter or "",
             "source": source_filter or "",
             "category": category_filter or "",
             "priority": priority_filter or "",
+            "assigned_to": assigned_to_filter or "",
+            "type": type_filter or "",
+            "tags": tags_filter or "",
+            "followers": followers_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
         },
+        "unread_inbox": unread_inbox,
+        "unread_archive": unread_archive,
+        "unread_spam": unread_spam,
     })
 
 
@@ -944,19 +1177,46 @@ def case_calendar(request):
         "requester", "category", "assigned_to"
     ).all()
 
+    folder = request.GET.get("folder", "inbox")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     status_filter = request.GET.get("status")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
+
+    # Folder specific base filtering
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:  # inbox
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
 
     if source_filter:
         cases = cases.filter(source=source_filter)
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
     if status_filter:
-        cases = cases.filter(status=status_filter)
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        cases = cases.filter(status__in=status_list)
+    if assigned_to_filter:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -974,6 +1234,16 @@ def case_calendar(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    # --- Dynamic date source for calendar ---
+    date_source = request.GET.get("date_source", "created_at")
+    DATE_SOURCE_FIELDS = {
+        "created_at": "created_at",
+        "last_viewed_at": "last_viewed_at",
+        "resolution_due_at": "resolution_due_at",
+        "response_due_at": "response_due_at",
+    }
+    date_field = DATE_SOURCE_FIELDS.get(date_source, "created_at")
+
     # Build JSON events for the calendar
     status_colors = {
         "Open": "#6366f1",
@@ -985,28 +1255,55 @@ def case_calendar(request):
 
     events = []
     for c in cases:
+        dt_value = getattr(c, date_field, None)
+        if not dt_value:
+            continue  # Skip cases without the selected date
         events.append({
             "id": str(c.id),
             "title": f"[{c.case_number}] {c.subject[:40]}",
-            "start": localtime(c.created_at).strftime("%Y-%m-%d"),
+            "start": localtime(dt_value).strftime("%Y-%m-%d"),
             "url": f"/desk/cases/{c.id}/",
             "color": status_colors.get(c.status, "#6366f1"),
             "status": c.status,
             "requester": c.requester.full_name if c.requester else "—",
         })
 
+    # Calculate unread counts
+    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
+    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
+    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
+
     return render(request, "admin/case_calendar.html", {
         "events_json": json.dumps(events),
         "statuses": CaseRecord.Status.choices,
         "sources": CaseRecord.Source.choices,
         "categories": CaseCategory.objects.all(),
+        "types": CaseRecord.Type.choices,
+        "assignees": assignees,
+        "all_followers": all_followers,
         "current_filters": {
+            "folder": folder,
             "status": status_filter or "",
             "source": source_filter or "",
             "category": category_filter or "",
+            "assigned_to": assigned_to_filter or "",
+            "type": type_filter or "",
+            "tags": tags_filter or "",
+            "followers": followers_filter or "",
+            "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
         },
+        "unread_inbox": unread_inbox,
+        "unread_archive": unread_archive,
+        "unread_spam": unread_spam,
+        "date_source": date_source,
     })
 
 
@@ -1030,12 +1327,21 @@ def case_export_excel(request):
     ).prefetch_related("followers").order_by("-created_at")
 
     # Apply filters if provided
+    folder = request.GET.get("folder", "inbox")
     status_filter = request.GET.get("status")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
+
+    # Folder specific base filtering
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:  # inbox
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
 
     if status_filter:
         cases = cases.filter(status=status_filter)
@@ -1052,7 +1358,7 @@ def case_export_excel(request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Cases"
+    ws.title = "Tickets"
 
     # Header style
     header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
@@ -1066,7 +1372,7 @@ def case_export_excel(request):
     )
 
     headers = [
-        "No", "Case Number", "Subject", "Status", "Priority", "Type", "Source", "Category",
+        "No", "Ticket Number", "Subject", "Status", "Priority", "Type", "Source", "Category",
         "Requester Name", "Requester Email", "Requester Phone",
         "Requester Unit", "Requester Job Role",
         "Problem Description", "Root Cause Analysis", "Solving Steps", "Quick Notes",
@@ -1164,7 +1470,7 @@ def notification_bell(request):
     read_msg_ids = [n.replace("msg_", "") for n in read_notifs if n.startswith("msg_")]
     read_mention_ids = [n.replace("mention_", "") for n in read_notifs if n.startswith("mention_")]
     
-    # 1. New Cases in the last 24h
+    # 1. New Tickets in the last 24h
     recent_cases = CaseRecord.objects.select_related("requester").filter(
         created_at__gte=time_threshold
     ).exclude(id__in=read_case_ids).order_by("-created_at")[:10]
@@ -1207,7 +1513,7 @@ def mark_notification_read(request, notif_type, notif_id):
         read_notifs.append(notif_key)
         request.session["read_notifications"] = read_notifs
     
-    # Both types ultimately lead to the Case Detail page
+    # Both types ultimately lead to the Ticket Detail page
     target_case_id = notif_id
     if notif_type == "msg":
         try:
@@ -1228,7 +1534,7 @@ def mark_notification_read(request, notif_type, notif_id):
 
 
 # =====================================================================
-# Internal Case Comments
+# Internal Ticket Comments
 # =====================================================================
 
 @staff_required

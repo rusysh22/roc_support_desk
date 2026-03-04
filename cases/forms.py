@@ -12,7 +12,7 @@ from .models import CaseCategory, CaseRecord
 
 
 # =====================================================================
-# Public — Case Submission
+# Public — Ticket Submission
 # =====================================================================
 
 class CaseCreateForm(forms.Form):

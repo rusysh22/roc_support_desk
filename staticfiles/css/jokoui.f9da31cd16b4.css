@@ -21,7 +21,7 @@
     --jk-border: #e2e8f0;
     --jk-text: #1e293b;
     --jk-text-muted: #64748b;
-    --jk-sidebar-bg: #170130;
+    --jk-sidebar-bg: #0f172a;
     --jk-sidebar-text: #cbd5e1;
     --jk-sidebar-active: #6366f1;
     --jk-radius: 12px;
@@ -986,7 +986,7 @@
     background: #fef2f2;
     border-bottom: 1px solid #fecaca;
     font-weight: 700;
-    font-size: 0.8875rem;
+    font-size: 0.6875rem;
     color: #dc2626;
 }
 
@@ -1011,7 +1011,7 @@
     line-height: 1.4;
     word-break: break-word;
     font-family: ui-monospace, monospace;
-    font-size: 0.6235rem;
+    font-size: 0.625rem;
 }
 
 @keyframes jk-status-spin {

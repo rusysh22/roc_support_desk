@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category.name }} - Knowledge Base{% endblock %}
+
+{% block main_class %}bg-slate-50{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    
+    <!-- Breadcrumbs -->
+    <nav class="flex mb-6 text-sm text-slate-500 font-medium">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center hover:text-indigo-600 transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                    Knowledge Base
+                </a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 md:ml-2 text-slate-700">{{ category.name }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="mb-10 border-b border-slate-200 pb-8">
+        <h1 class="text-3xl font-extrabold text-slate-900 mb-3 flex items-center gap-3">
+            <span class="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </span>
+            {{ category.name }}
+        </h1>
+        {% if category.description %}
+            <p class="text-lg text-slate-600 max-w-3xl">{{ category.description }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Article List -->
+    <div class="space-y-4">
+        {% if articles %}
+            {% for article in articles %}
+            <a href="{% url 'knowledge_base:article_detail' article.slug %}" class="block group">
+                <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-200 relative overflow-hidden">
+                    <!-- Hover decoration line -->
+                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 transform scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300"></div>
+                    
+                    <h2 class="text-xl font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title }}</h2>
+                    <p class="text-slate-600 text-sm mb-4 line-clamp-2 md:pr-12">{{ article.problem_summary }}</p>
+                    
+                    <div class="flex items-center text-xs font-medium text-slate-500 gap-4">
+                        <span class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            {{ article.updated_at|date:"M d, Y" }}
+                        </span>
+                        
+                        <span class="flex items-center gap-1.5 text-indigo-600 ml-auto opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-4 group-hover:translate-x-0 duration-300">
+                            Read article <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+        <div class="bg-white rounded-xl p-12 text-center border border-slate-200 border-dashed shadow-sm">
+            <svg class="mx-auto h-12 w-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-slate-900 mb-1">No articles found</h3>
+            <p class="text-slate-500">There are currently no published articles in this category.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

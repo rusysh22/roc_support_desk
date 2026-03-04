@@ -15,7 +15,7 @@ from core.models import AuditableModel
 
 
 # =====================================================================
-# Case Category
+# Ticket Category
 # =====================================================================
 
 class CaseCategory(AuditableModel):
@@ -35,10 +35,27 @@ class CaseCategory(AuditableModel):
         help_text="CSS icon class or emoji, e.g. 'fas fa-laptop-code' or '🖥️'.",
     )
     description = models.TextField(blank=True, verbose_name="Description")
+    template_subject = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Template Subject",
+        help_text="Optional text template for the subject field.",
+    )
+    template_text = models.TextField(
+        blank=True,
+        verbose_name="Template Text",
+        help_text="Optional text template for the problem description field.",
+    )
+    prefix_code = models.CharField(
+        max_length=2,
+        default="RQ",
+        verbose_name="Prefix Code",
+        help_text="2-letter or number prefix for ticket sequence (e.g. RQ, IN, HR).",
+    )
 
     class Meta:
-        verbose_name = "Case Category"
-        verbose_name_plural = "Case Categories"
+        verbose_name = "Ticket Category"
+        verbose_name_plural = "Ticket Categories"
         ordering = ["name"]
 
     def save(self, *args, **kwargs):
@@ -52,7 +69,7 @@ class CaseCategory(AuditableModel):
 
 
 # =====================================================================
-# Case Record
+# Ticket Record
 # =====================================================================
 
 class CaseRecord(AuditableModel):
@@ -186,6 +203,12 @@ class CaseRecord(AuditableModel):
         verbose_name="Has Unread Messages",
         help_text="True if there are new inbound messages that staff hasn't seen.",
     )
+    last_viewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Last Viewed At",
+        help_text="Timestamp when staff last opened this ticket's detail page.",
+    )
 
     # --- Problem & Solving ---
     problem_description = models.TextField(verbose_name="Problem Description")
@@ -251,8 +274,8 @@ class CaseRecord(AuditableModel):
     )
 
     class Meta:
-        verbose_name = "Case Record"
-        verbose_name_plural = "Case Records"
+        verbose_name = "Ticket Record"
+        verbose_name_plural = "Ticket Records"
         ordering = ["-created_at"]
 
     def __str__(self):
@@ -269,8 +292,9 @@ class CaseRecord(AuditableModel):
 
     @property
     def case_number(self) -> str:
-        """Human-readable case identifier derived from UUID prefix."""
-        return f"CS-{str(self.id)[:8].upper()}"
+        """Human-readable case identifier derived from category prefix and UUID."""
+        prefix = self.category.prefix_code if self.category else "RQ"
+        return f"{prefix}-{str(self.id)[:8].upper()}"
 
 
 # =====================================================================
@@ -304,7 +328,7 @@ class Message(AuditableModel):
         CaseRecord,
         on_delete=models.CASCADE,
         related_name="messages",
-        verbose_name="Case",
+        verbose_name="Ticket",
     )
     sender_employee = models.ForeignKey(
         "core.Employee",
@@ -429,7 +453,7 @@ class Attachment(AuditableModel):
 
 
 # =====================================================================
-# Internal Case Comment
+# Internal Ticket Comment
 # =====================================================================
 
 class CaseComment(AuditableModel):
@@ -441,7 +465,7 @@ class CaseComment(AuditableModel):
         CaseRecord,
         on_delete=models.CASCADE,
         related_name="internal_comments",
-        verbose_name="Case",
+        verbose_name="Ticket",
     )
     author = models.ForeignKey(
         "core.User",
@@ -489,7 +513,7 @@ class CaseAuditLog(AuditableModel):
         CaseRecord,
         on_delete=models.CASCADE,
         related_name="audit_logs",
-        verbose_name="Case",
+        verbose_name="Ticket",
     )
     action = models.CharField(
         max_length=50,

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Assigned: {{ case_number }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            line-height: 1.6;
+            color: #334155;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+        .email-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+        }
+        .header {
+            background: linear-gradient(135deg, #170130 0%, #3b0764 100%);
+            color: #ffffff;
+            padding: 32px 32px;
+            text-align: center;
+        }
+        .header-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+        .header .ticket-id {
+            display: inline-block;
+            background-color: rgba(255,255,255,0.15);
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-family: monospace;
+            font-weight: 600;
+            margin-top: 12px;
+            backdrop-filter: blur(4px);
+        }
+        .content {
+            padding: 32px;
+        }
+        .welcome-text {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .details-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .details-table th {
+            text-align: left;
+            padding: 10px 0;
+            color: #64748b;
+            font-weight: 600;
+            width: 140px;
+            vertical-align: top;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .details-table td {
+            padding: 10px 0;
+            color: #0f172a;
+            font-weight: 600;
+            vertical-align: top;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .details-table tr:last-child th,
+        .details-table tr:last-child td {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .priority-high { background-color: #fee2e2; color: #b91c1c; }
+        .priority-medium { background-color: #fef3c7; color: #b45309; }
+        .priority-low { background-color: #e0f2fe; color: #0369a1; }
+        
+        .action-button {
+            display: block;
+            width: max-content;
+            margin: 0 auto;
+            background-color: #6366f1;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+        }
+        .action-button:hover {
+            background-color: #4f46e5;
+        }
+        .footer {
+            background-color: #f1f5f9;
+            padding: 24px 32px;
+            text-align: center;
+            font-size: 13px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="header">
+            <div class="header-icon">🎯</div>
+            <h1>New Ticket Assignment</h1>
+            <div class="ticket-id">{{ case_number }}</div>
+        </div>
+        
+        <div class="content">
+            <div class="welcome-text">
+                Hi <strong>{{ assignee_name }}</strong>,<br>
+                A ticket has been assigned to you by {{ assigned_by }}.
+            </div>
+            
+            <div class="details-card">
+                <table class="details-table">
+                    <tr>
+                        <th>Subject</th>
+                        <td>{{ case_subject }}</td>
+                    </tr>
+                    <tr>
+                        <th>Requester</th>
+                        <td>{{ requester_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Priority</th>
+                        <td>
+                            <span class="priority-badge {% if priority == 'High' %}priority-high{% elif priority == 'Medium' %}priority-medium{% else %}priority-low{% endif %}">
+                                {{ priority }}
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <a href="{{ case_url }}" class="action-button">View Ticket Details</a>
+        </div>
+
+        <div class="footer">
+            <p>This is an automated notification from <strong>{{ site_name }}</strong>.</p>
+        </div>
+    </div>
+</body>
+</html>

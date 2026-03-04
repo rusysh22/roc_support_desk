@@ -9,20 +9,20 @@ from . import views
 app_name = "desk"
 
 urlpatterns = [
-    # Case list — Table view
+    # Ticket list — Table view
     path("cases/", views.case_list, name="case_list"),
     path("cases/bulk-action/", views.case_bulk_action, name="case_bulk_action"),
 
-    # Case Kanban board
+    # Ticket Kanban board
     path("cases/kanban/", views.case_kanban, name="case_kanban"),
 
-    # Case Calendar view
+    # Ticket Calendar view
     path("cases/calendar/", views.case_calendar, name="case_calendar"),
 
     # Export to Excel
     path("cases/export/", views.case_export_excel, name="case_export"),
 
-    # Case detail — split-panel (chat + RCA)
+    # Ticket detail — split-panel (chat + RCA)
     path("cases/<uuid:case_id>/", views.case_detail, name="case_detail"),
 
     # HTMX partials
@@ -35,6 +35,7 @@ urlpatterns = [
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
     path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
+    path("cases/<uuid:case_id>/unmerge/", views.case_unmerge, name="case_unmerge"),
 
     # API
     path("api/users/", views.api_users_list, name="api_users_list"),

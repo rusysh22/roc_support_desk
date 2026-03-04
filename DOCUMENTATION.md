@@ -633,6 +633,10 @@ File: `static/css/jokoui.css`
 4. **App Password** — Gmail menggunakan App Password (16 karakter) untuk autentikasi IMAP/SMTP, bukan password utama.
 5. **UUID Primary Key** — Semua model menggunakan UUID v4 untuk menghindari sequential ID exposure.
 6. **Message Deduplication** — Pesan WA dideduplikasi berdasarkan `external_id` (Evolution API message ID). Pesan duplikat diabaikan.
+7. **Rate Limiting (Anti-Spam)** — Untuk mencegah spam dan serangan Denial of Service (DoS):
+   - **WhatsApp**: Maksimal 3 tiket baru per nomor WA dalam 10 menit. Kasus baru ke-4+ akan ditandai `is_spam=True` secara diam-diam dan auto-reply *tidak* akan dikirim.
+   - **Email**: Maksimal 3 tiket baru per email dalam 10 menit. Kasus baru ke-4+ ditandai `is_spam=True`. Sistem juga sepenuhnya memblokir email masuk yang memuat header *Auto-Submitted* atau *X-Auto-Response-Suppress* (mencegah *auto-reply loop* antar robot/sistem).
+   - **Web Form**: Menggunakan *Django Cache* dengan batas 5 form submissions per IP Address dalam 10 menit. Pengguna akan melihat pesan error HTTP 429 jika melebihi batas.
 
 ---
 

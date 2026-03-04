@@ -430,7 +430,7 @@
                         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                         <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{{ dynamic_form.title }}</h2>
                         {% if dynamic_form.description %}
-                            <p class="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed">{{ dynamic_form.description }}</p>
+                            <div class="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ dynamic_form.description|safe }}</div>
                         {% endif %}
                     </div>
 

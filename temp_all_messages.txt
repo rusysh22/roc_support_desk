@@ -1,0 +1,37 @@
+.\cases/admin.py:61: """Admin for case management — includes inline messages."""
+.\cases/admin.py:124: """Admin for individual messages."""
+.\cases/views.py:16: - ``chat_thread``       — HTMX partial to refresh chat messages.
+.\cases/views.py:215: messages.success(request, f"Ticket information has been successfully sent to {case.requester_email}.")
+.\cases/views.py:217: messages.error(request, f"Failed to send ticket information email. The mail service might be temporarily down. Please take a screenshot of this page for your records. (Error: {e})")
+.\cases/views.py:248: messages.warning(request, "You must be logged in to view and submit this form.")
+.\cases/views.py:298: messages.error(request, "Please fill out all required fields marked with *")
+.\cases/views.py:313: messages.success(request, form_obj.success_message)
+.\cases/views.py:451: unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+.\cases/views.py:454: case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+.\cases/views.py:456: messages = case.messages.select_related(
+.\cases/views.py:552: messages.success(request, f"Tiket berhasil diekskalasi ke {forward_to} via {channel}.")
+.\cases/views.py:738: messages = case.messages.select_related(
+.\cases/views.py:758: unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+.\cases/views.py:761: case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+.\cases/views.py:763: messages = case.messages.select_related(
+.\cases/views.py:1218: total_notifications = recent_cases.count() + recent_unread_messages.count() + recent_mentions.count()
+.\cases/views.py:1372: messages.success(request, "Email configuration updated successfully! Background services will use the new credentials on their next run.")
+.\cases/views.py:1375: messages.error(request, "Please correct the errors below.")
+.\cases/views.py:1435: messages.success(request, f"Form '{new_form.title}' created! Now add some fields.")
+.\cases/views.py:1480: messages.success(request, f"Form duplicated successfully!")
+.\cases/views.py:1613: messages.success(request, "Form settings updated successfully.")
+.\core/views.py:62: messages.success(request, "An OTP has been sent to your email address.")
+.\core/views.py:79: messages.warning(request, "Please enter your email to request a new password.")
+.\core/views.py:91: messages.warning(request, "Session expired. Please start over.")
+.\core/views.py:102: messages.error(request, "Account error. Please start over.")
+.\core/views.py:123: messages.success(request, "Your password has been reset successfully. You can now sign in.")
+.\gateways/tasks.py:279: "description": "Auto-created category for incoming WhatsApp messages.",
+.\gateways/tasks.py:481: "description": "Auto-created category for incoming Email messages.",
+.\gateways/tasks.py:1049: for m in case.messages.all().prefetch_related('attachments').order_by('created_at'):
+.\gateways/views.py:106: # Evolution API v1: "messages.upsert", v2: "MESSAGES_UPSERT"
+.\links/views.py:23: messages.error(self.request, "You do not have permission to access the Shorten Link feature.")
+.\links/views.py:96: messages.success(self.request, "Short link created successfully.")
+.\links/views.py:122: messages.success(self.request, "Short link updated successfully.")
+.\links/views.py:137: messages.success(self.request, "Short link deleted successfully.")
+.\roc_desk/settings.py:63: "django.contrib.messages.middleware.MessageMiddleware",
+.\roc_desk/settings.py:79: "django.contrib.messages.context_processors.messages",

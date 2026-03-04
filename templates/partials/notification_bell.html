@@ -69,10 +69,10 @@
                 {% endfor %}
             {% endif %}
 
-            <!-- New Cases -->
+            <!-- New Tickets -->
             {% if recent_cases %}
                 <div class="px-4 py-2 bg-indigo-50 border-b border-indigo-100 {% if recent_unread_messages %}border-t border-slate-200{% endif %}">
-                    <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-wider">New Cases</h4>
+                    <h4 class="text-xs font-bold text-indigo-700 uppercase tracking-wider">New Tickets</h4>
                 </div>
                 {% for case in recent_cases %}
                 <a href="{% url 'desk:mark_notification_read' notif_type='case' notif_id=case.id %}" class="block px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors">

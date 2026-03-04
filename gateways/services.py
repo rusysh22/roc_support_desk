@@ -634,6 +634,14 @@ class ImapEmailService:
 
                         # Extract Message-ID for email threading
                         message_id_header = msg.get("Message-ID", "")
+                        
+                        # Extract Priority headers
+                        importance_header = self._decode_str(msg.get("Importance", ""))
+                        x_priority_header = self._decode_str(msg.get("X-Priority", ""))
+
+                        # Extract Auto-Response headers to prevent loops
+                        auto_submitted = self._decode_str(msg.get("Auto-Submitted", ""))
+                        x_auto_response_suppress = self._decode_str(msg.get("X-Auto-Response-Suppress", ""))
 
                         yield {
                             "from": from_,
@@ -642,6 +650,10 @@ class ImapEmailService:
                             "html": html_content,
                             "attachments": attachments,
                             "message_id": message_id_header,
+                            "importance": importance_header,
+                            "x_priority": x_priority_header,
+                            "auto_submitted": auto_submitted,
+                            "x_auto_response_suppress": x_auto_response_suppress,
                         }
                         
                 # Mark as read

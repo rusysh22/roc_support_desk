@@ -6,13 +6,13 @@
 
 {% block topbar_actions %}
 <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">
-    ← Back to Cases
+    ← Back to Tickets
 </a>
 {% endblock %}
 
 {% block content %}
 
-<!-- Case Header -->
+<!-- Ticket Header -->
 <div class="jk-card mb-6">
     <div class="jk-card-body py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-3 sm:gap-4">
@@ -129,17 +129,18 @@
 <!-- SUB-TICKETS / MASTER TICKET TABS (Folder/Browser Style)        -->
 <!-- ============================================================= -->
 {% if related_cases|length > 1 %}
-<div class="flex items-end gap-1 px-2 border-b-2 border-slate-200 mb-6 overflow-x-auto no-scrollbar">
+<div class="flex items-end gap-1 px-2 border-b-2 border-slate-200 mb-6 flex-wrap" style="position: relative; z-index: 50;">
     {% for r_case in related_cases %}
-    <a href="{% url 'desk:case_detail' case_id=r_case.id %}" 
-       class="relative px-5 py-2.5 rounded-t-xl text-sm font-medium transition-all group flex items-center gap-2 border border-b-0
+    <div class="relative px-4 py-2 text-sm font-medium transition-all group flex items-center gap-2 border border-b-0 rounded-t-xl
        {% if r_case.id == case.id %}
             bg-white text-indigo-700 border-slate-200 z-10 
             before:absolute before:-bottom-[2px] before:left-0 before:right-0 before:h-[2px] before:bg-white
        {% else %}
             bg-slate-50 text-slate-500 border-slate-200/60 hover:bg-slate-100 hover:text-slate-700
-       {% endif %}">
+       {% endif %}"
+       x-data="{ showMenu: false }">
         
+        <a href="{% url 'desk:case_detail' case_id=r_case.id %}" class="flex items-center gap-2 outline-none">
         {% if r_case.id == master_case.id %}
         <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-500{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
         <span class="truncate max-w-[150px]" title="Master: {{ r_case.subject }}">MSTR: {{ r_case.case_number }}</span>
@@ -147,51 +148,29 @@
         <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-400{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
         <span class="truncate max-w-[150px]" title="Sub: {{ r_case.subject }}">SUB: {{ r_case.case_number }}</span>
         {% endif %}
-    </a>
+        </a>
+
+        {% if r_case.id != master_case.id %}
+        <!-- 3 dots menu -->
+        <button type="button" @click.stop="showMenu = !showMenu" class="text-slate-400 hover:text-slate-600 focus:outline-none p-[2px] rounded hover:bg-slate-200 transition-colors ml-1 relative z-10">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg>
+        </button>
+        <div x-show="showMenu" @click.outside="showMenu = false" x-transition.opacity style="display: none;" class="absolute top-[100%] right-0 mt-1 w-44 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-[100]">
+            <form action="{% url 'desk:case_unmerge' case_id=r_case.id %}" method="post" @submit.prevent="if(confirm('Are you sure you want to unmerge ticket {{ r_case.case_number }}?')) { $el.submit(); }">
+                {% csrf_token %}
+                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-medium transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                    Unmerge Ticket
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- ============================================================= -->
-<!-- LOG CHAT HISTORY (Collapsed)                                   -->
-<!-- ============================================================= -->
-<div class="jk-card mb-6">
-    <details class="group">
-        <summary class="jk-card-body py-3 cursor-pointer flex justify-between items-center font-medium text-slate-700 hover:text-indigo-600 list-none" style="list-style: none;">
-            <div class="flex items-center gap-2">
-                <span>📜</span> Show Log Chat History
-            </div>
-            <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="border-t border-slate-100 bg-slate-50 p-4 text-xs font-mono text-slate-600 max-h-64 overflow-y-auto">
-            {% for msg in chat_messages %}
-            <div class="flex items-start gap-3 py-1.5 border-b border-slate-200 last:border-0 hover:bg-slate-100 px-2 rounded transition-colors">
-                <div class="whitespace-nowrap text-slate-400">[{{ msg.sent_at|date:"Y-m-d H:i:s" }}]</div>
-                <div class="whitespace-nowrap font-bold {% if msg.direction == 'IN' %}text-blue-500{% else %}text-emerald-500{% endif %}">[{{ msg.direction }}]</div>
-                <div class="flex-1 truncate" title="{{ msg.body }}">{{ msg.body }}</div>
-                {% if msg.delivery_status == 'Failed' %}
-                <div class="whitespace-nowrap text-rose-600 font-semibold flex items-center gap-1 cursor-help" title="{{ msg.delivery_error|default:'Message failed to send' }}">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Failed
-                </div>
-                {% elif msg.delivery_status == 'Pending' %}
-                <div class="whitespace-nowrap text-amber-500 font-semibold flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    Pending
-                </div>
-                {% else %}
-                <div class="whitespace-nowrap text-emerald-600 font-semibold flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Success
-                </div>
-                {% endif %}
-            </div>
-            {% empty %}
-            <div class="text-slate-400 italic py-2">No chat history available.</div>
-            {% endfor %}
-        </div>
-    </details>
-</div>
+
 
 <!-- ============================================================= -->
 <!-- SPLIT PANEL: Chat Thread (Left) + RCA Form (Right)             -->
@@ -202,7 +181,7 @@
     <div class="flex flex-col gap-4 min-w-0">
         <div class="jk-chat-panel">
             <!-- Chat Header -->
-        <div class="jk-chat-panel__header" x-data="{ showEscalateModal: false, showEditRequesterModal: false, escalateChannel: 'EMAIL' }">
+        <div class="jk-chat-panel__header" x-data="{ showEscalateModal: false, showEditRequesterModal: false, showLogModal: false, escalateChannel: 'EMAIL' }">
             <div class="jk-chat-panel__header-info group relative">
                 <div class="jk-chat-panel__header-avatar relative">
                     {{ case.requester.full_name|slice:":1"|upper }}
@@ -222,6 +201,9 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                 <div class="jk-spinner htmx-indicator" id="thread-spinner"></div>
+                <button type="button" @click="showLogModal = true" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" title="View delivery log">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                </button>
                 <button type="button" @click="showEscalateModal = true" class="jk-btn jk-btn-sm" style="background:white; border:1px solid #e2e8f0; color:#475569;">
                     <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Escalate / Forward
                 </button>
@@ -417,6 +399,53 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Log Chat History Modal (inside x-data scope) -->
+            <div x-show="showLogModal" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" @click.outside="showLogModal = false">
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Delivery Log
+                        </h3>
+                        <button @click="showLogModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div class="overflow-y-auto flex-1 p-4">
+                        <div class="text-xs font-mono text-slate-600 space-y-0">
+                            {% for msg in chat_messages %}
+                            <div class="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors">
+                                <div class="whitespace-nowrap text-slate-400">[{{ msg.sent_at|date:"Y-m-d H:i:s" }}]</div>
+                                <div class="whitespace-nowrap font-bold {% if msg.direction == 'IN' %}text-blue-500{% else %}text-emerald-500{% endif %}">[{{ msg.direction }}]</div>
+                                <div class="flex-1 truncate" title="{{ msg.body }}">{{ msg.body }}</div>
+                                {% if msg.delivery_status == 'Failed' %}
+                                <div class="whitespace-nowrap text-rose-600 font-semibold flex items-center gap-1 cursor-help" title="{{ msg.delivery_error|default:'Message failed to send' }}">
+                                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                    Failed
+                                </div>
+                                {% elif msg.delivery_status == 'Pending' %}
+                                <div class="whitespace-nowrap text-amber-500 font-semibold flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                                    Pending
+                                </div>
+                                {% else %}
+                                <div class="whitespace-nowrap text-emerald-600 font-semibold flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    Success
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% empty %}
+                            <div class="text-slate-400 italic py-4 text-center">No messages recorded yet.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+                        <button @click="showLogModal = false" class="px-5 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Close</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Chat Messages (HTMX polling every 5s) -->
@@ -430,9 +459,11 @@
 
         <!-- Reply Form -->
         <div class="jk-chat-panel__footer">
-            <form hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
+            <form id="reply-form" hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
                 hx-swap="innerHTML" hx-indicator="#reply-spinner" enctype="multipart/form-data"
-                x-data="{ replyText: '', fileName: '', showCc: false, ccText: '' }" @htmx:after-request="replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''">
+                x-data="{ replyText: '', fileName: '', showCc: false, ccText: '', isSubmitting: false }" 
+                @submit="isSubmitting = true"
+                @htmx:after-request="isSubmitting = false; replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto';">
                 {% csrf_token %}
 
                 <div class="mb-2 px-2 flex justify-end items-center gap-4">
@@ -453,8 +484,8 @@
                 </div>
                 <div class="jk-reply-bar">
                     <!-- Attach button -->
-                    <label class="jk-reply-bar__attach" title="Attach file">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <label class="jk-reply-bar__attach" title="Attach file" aria-label="Attach file">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                         </svg>
                         <input type="file" name="attachment" class="hidden" x-ref="fileInput"
@@ -467,19 +498,23 @@
                                   class="jk-reply-bar__input" rows="1"
                                   placeholder="Type a message..." required
                                   @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
-                                  @keydown.enter.prevent="if(!event.shiftKey && replyText.trim()) $el.closest('form').requestSubmit()"></textarea>
+                                  @keydown.enter.prevent="if(!event.shiftKey && replyText.trim()) { $el.closest('form').requestSubmit(); } else if (event.shiftKey) { replyText += '\n'; $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'; }"></textarea>
                         <div class="jk-reply-bar__file-tag" x-show="fileName" x-cloak>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             <span x-text="fileName"></span>
                             <button type="button" @click="fileName = ''; $refs.fileInput.value = ''" class="jk-reply-bar__file-remove">×</button>
                         </div>
                     </div>
 
                     <!-- Send button -->
-                    <button type="submit" class="jk-reply-bar__send" :disabled="!replyText.trim()" title="Send">
-                        <div class="jk-spinner htmx-indicator" id="reply-spinner" style="width:18px;height:18px;"></div>
-                        <svg class="htmx-settle" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <button type="submit" 
+                            class="jk-reply-bar__send" 
+                            :disabled="!replyText.trim() || isSubmitting" 
+                            title="Send Reply" aria-label="Send message">
+                        <svg x-show="!isSubmitting" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                         </svg>
+                        <svg x-show="isSubmitting" x-cloak class="animate-spin" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                     </button>
                 </div>
             </form>

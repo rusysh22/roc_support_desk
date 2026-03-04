@@ -158,6 +158,15 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 employee.full_name,
             )
         else:
+            # Check for Spam (Rate Limiting)
+            # e.g., > 3 new cases in the last 10 minutes from this employee
+            recent_cases_count = CaseRecord.objects.filter(
+                requester=employee,
+                source=CaseRecord.Source.EVOLUTION_WA,
+                created_at__gte=timezone.now() - timedelta(minutes=10)
+            ).count()
+            is_spam = recent_cases_count >= 3
+
             # Auto-assign a default category — use first available or create one
             default_category = _get_or_create_default_category()
 
@@ -172,6 +181,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 requester_email=employee.email or "",
                 requester_unit_name=employee.unit.name if employee.unit else "",
                 requester_job_role=employee.job_role or "",
+                is_spam=is_spam,
             )
             is_new_case = True
             logger.info(
@@ -210,9 +220,9 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             _download_and_save_attachment(svc, msg, media_info)
 
         # ---------------------------------------------------------
-        # 7. Auto-reply via WhatsApp when a NEW case is created
+        # 7. Auto-reply via WhatsApp when a NEW case is created (Skip if SPAM)
         # ---------------------------------------------------------
-        if is_new_case and sender_phone:
+        if is_new_case and sender_phone and not case.is_spam:
             from core.models import SiteConfig
             site_config = SiteConfig.get_solo()
             site_name = getattr(site_config, 'site_name', 'Support Desk')
@@ -360,6 +370,8 @@ def poll_imap_emails_task() -> str:
     from core.models import Employee
     from gateways.services import ImapEmailService
     from django.core.files.base import ContentFile
+    from django.utils import timezone
+    from datetime import timedelta
     import re
 
     svc = ImapEmailService()
@@ -382,6 +394,19 @@ def poll_imap_emails_task() -> str:
             body_text = email_data.get("text", "").strip()
             if not body_text:
                 body_text = email_data.get("html", "").strip() or "[Empty Email]"
+
+            # -----------------------------------------------------------------
+            # 0. Anti-Spam (Loop Prevention)
+            # Check for Auto-Submitted headers to prevent auto-responder loops
+            # -----------------------------------------------------------------
+            auto_submitted = email_data.get("auto_submitted", "").lower()
+            x_auto_response = email_data.get("x_auto_response_suppress", "").lower()
+            
+            # If it's an auto-reply or bounce message from another system, skip entirely
+            if ("auto-generated" in auto_submitted or "auto-replied" in auto_submitted or 
+                x_auto_response == "all" or x_auto_response == "rn"):
+                logger.info("Skipped email from %s due to auto-responder header.", sender_email)
+                continue
 
             # 1. Lookup Employee
             try:
@@ -408,7 +433,27 @@ def poll_imap_emails_task() -> str:
             if case:
                 logger.info("Email threaded into existing case %s.", case.id)
             else:
+                # Check for Spam (Rate Limiting)
+                # e.g., > 3 new cases in the last 10 minutes from this email
+                recent_cases_count = CaseRecord.objects.filter(
+                    requester=employee,
+                    source=CaseRecord.Source.EMAIL,
+                    created_at__gte=timezone.now() - timedelta(minutes=10)
+                ).count()
+                is_spam = recent_cases_count >= 3
+
                 default_category = _get_or_create_default_email_category()
+                
+                # Determine Priority from email headers
+                importance = str(email_data.get("importance", "")).lower()
+                x_priority = str(email_data.get("x_priority", "")).lower()
+                
+                priority = CaseRecord.Priority.MEDIUM
+                if "high" in importance or "urgent" in importance or "1" in x_priority or "2" in x_priority:
+                    priority = CaseRecord.Priority.HIGH
+                elif "low" in importance or "4" in x_priority or "5" in x_priority:
+                    priority = CaseRecord.Priority.LOW
+                
                 case = CaseRecord.objects.create(
                     requester=employee,
                     category=default_category,
@@ -416,13 +461,15 @@ def poll_imap_emails_task() -> str:
                     problem_description=body_text,
                     status=CaseRecord.Status.OPEN,
                     source=CaseRecord.Source.EMAIL,
+                    priority=priority,
                     requester_email=employee.email,
                     requester_name=employee.full_name,
                     requester_unit_name=employee.unit.name if employee.unit else "",
                     requester_job_role=employee.job_role,
+                    is_spam=is_spam,
                 )
                 is_new_case = True
-                logger.info("Created new case %s from Email for %s.", case.id, employee.full_name)
+                logger.info("Created new case %s from Email for %s with Priority %s.", case.id, employee.full_name, priority)
 
             # 3. Create Message (store email Message-ID for threading)
             email_message_id = email_data.get("message_id", "")
@@ -456,8 +503,8 @@ def poll_imap_emails_task() -> str:
 
             processed_count += 1
 
-            # 5. Send auto-acknowledgment for new cases
-            if is_new_case:
+            # 5. Send auto-acknowledgment for new cases (Skip if SPAM)
+            if is_new_case and not case.is_spam:
                 try:
                     send_case_acknowledgment_task.delay(str(case.id))
                     logger.info("Dispatched acknowledgment email for case %s", case.id)
@@ -696,7 +743,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
 )
 def send_outbound_whatsapp_task(self, message_id: str) -> str:
     """
-    Asynchronously send an outbound WhatsApp reply to the Case requester.
+    Asynchronously send an outbound WhatsApp reply to the Ticket requester.
     Handles encoding attachments to base64 and hitting the Evolution API.
     """
     from cases.models import Message
@@ -802,7 +849,7 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 def send_case_acknowledgment_task(self, case_id: str) -> str:
     """
     Sends an auto-acknowledgment email when a new case is created from an
-    inbound email. Includes the case number so the user can reference it
+    inbound email. Includes the ticket number so the user can reference it
     and future replies are threaded automatically.
     """
     from cases.models import CaseRecord, Message
@@ -959,6 +1006,69 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
+@shared_task(
+    bind=True,
+    name="gateways.send_assignment_email_task",
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url: str) -> str:
+    """
+    Sends a modern card-designed email notification to the newly assigned user.
+    """
+    from cases.models import CaseRecord
+    from core.models import SiteConfig
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    import logging
+
+    try:
+        case = CaseRecord.objects.get(id=case_id)
+        if not case.assigned_to or not case.assigned_to.email:
+            return "skipped:no_assignee_email"
+            
+        site_name = SiteConfig.get_solo().site_name
+
+        req_name = case.requester.full_name if case.requester else case.requester_name
+        if case.requester and case.requester.unit:
+            req_name += f" ({case.requester.unit.name})"
+        elif case.requester_unit_name:
+            req_name += f" ({case.requester_unit_name})"
+
+        context = {
+            "case_number": case.case_number,
+            "case_subject": case.subject,
+            "requester_name": req_name,
+            "priority": case.get_priority_display(),
+            "assignee_name": case.assigned_to.get_full_name() or case.assigned_to.username,
+            "assigned_by": assigner_name,
+            "site_name": site_name,
+            "case_url": case_url,
+        }
+
+        html_body = render_to_string("emails/ticket_assigned.html", context)
+        
+        subject = f"[{site_name}] Ticket Assigned: {case.case_number} - {case.subject}"
+        
+        email_msg = EmailMultiAlternatives(
+            subject=subject,
+            body=f"Ticket {case.case_number} has been assigned to you by {assigner_name}. View here: {case_url}",
+            to=[case.assigned_to.email],
+        )
+        email_msg.attach_alternative(html_body, "text/html")
+        email_msg.send(fail_silently=False)
+        
+        return "success:email_sent"
+        
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
 
 @shared_task(bind=True, name="gateways.check_wa_session_timeout_task", max_retries=1)
 def check_wa_session_timeout_task(self, case_id: str) -> str:

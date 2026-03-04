@@ -78,7 +78,7 @@
              <div class="absolute bottom-0 left-0 w-64 h-64 bg-black opacity-10 rounded-full mix-blend-overlay filter blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
              
              <div class="relative z-10 space-y-6 max-w-sm">
-                 <h2 class="text-4xl font-extrabold text-white tracking-wide">Hello!</h2>
+                 <h2 class="text-4xl font-extrabold text-white tracking-wide"><strong>{{ site_config.site_name|default:"Support Desk" }}</strong></h2>
                  
                  <p class="text-purple-200 text-sm leading-relaxed px-4">
                      Sign in with your staff credentials to access the <strong>{{ site_config.site_name|default:"Support Desk" }}</strong> dashboard, manage client cases, and configure application settings.

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Search Results for "{{ query }}" - Knowledge Base{% endblock %}
+
+{% block main_class %}bg-slate-50{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    
+    <!-- Hero / Small Search Section -->
+    <div class="bg-indigo-900 rounded-3xl p-8 mb-8 shadow-md relative overflow-hidden">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNykiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)] z-0"></div>
+        <div class="relative z-10">
+            <h1 class="text-2xl font-bold text-white mb-6">Search Knowledge Base</h1>
+            <form action="{% url 'knowledge_base:search' %}" method="get" class="max-w-3xl relative group">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <input type="text" name="q" value="{{ query }}" placeholder="Search articles..." 
+                    class="w-full pl-11 pr-24 py-3 rounded-lg text-base text-slate-900 bg-white border-2 border-transparent focus:border-indigo-400 focus:ring-0 transition-all outline-none shadow-sm" required>
+                <button type="submit" class="absolute inset-y-1.5 right-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition-colors shadow-sm">
+                    Search
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Header -->
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-slate-900">
+            {% if query %}
+                Results for "<span class="text-indigo-600">{{ query }}</span>"
+            {% else %}
+                Search Results
+            {% endif %}
+        </h2>
+        <span class="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{{ results|length }} found</span>
+    </div>
+
+    <!-- Search Results List -->
+    <div class="space-y-4">
+        {% if results %}
+            {% for article in results %}
+            <a href="{% url 'knowledge_base:article_detail' article.slug %}" class="block group">
+                <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-200">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">{{ article.category.name }}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title }}</h3>
+                    <p class="text-slate-600 text-sm mb-4 line-clamp-2 md:pr-12">
+                        <!-- Give precedence to problem summary if it contains query, otherwise show root cause -->
+                        {{ article.problem_summary }}
+                    </p>
+                    <div class="flex items-center text-xs font-medium text-slate-400 gap-4">
+                        <span>Updated: {{ article.updated_at|date:"M d, Y" }}</span>
+                        <!-- Visual indicator that it's clickable -->
+                        <span class="text-indigo-600 ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            Read full article <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            {% if query %}
+            <div class="bg-white rounded-xl p-12 text-center border border-slate-200 shadow-sm">
+                <div class="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-2">No matching articles</h3>
+                <p class="text-slate-500 max-w-md mx-auto">We couldn't find anything matching "{{ query }}". Try using different keywords, checking your spelling, or browsing by category.</p>
+                
+                <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 mt-6 px-6 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Categories
+                </a>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

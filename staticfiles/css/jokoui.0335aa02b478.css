@@ -21,7 +21,7 @@
     --jk-border: #e2e8f0;
     --jk-text: #1e293b;
     --jk-text-muted: #64748b;
-    --jk-sidebar-bg: #170130;
+    --jk-sidebar-bg: #0f172a;
     --jk-sidebar-text: #cbd5e1;
     --jk-sidebar-active: #6366f1;
     --jk-radius: 12px;
@@ -950,68 +950,40 @@
 
 .jk-msg__status--failed {
     color: #ef4444;
-    cursor: pointer;
+    cursor: help;
     position: relative;
 }
 
-.jk-msg__error-popup {
+.jk-msg__status--failed .jk-msg__error-tooltip {
+    display: none;
     position: absolute;
-    bottom: calc(100% + 8px);
-    right: -4px;
-    background: #ffffff;
-    border: 1px solid #fecaca;
-    border-radius: 10px;
+    bottom: calc(100% + 6px);
+    right: 0;
+    background: #1e293b;
+    color: #f1f5f9;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
     font-size: 0.6875rem;
-    font-weight: 400;
-    width: 240px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-    z-index: 60;
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: 280px;
     overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 50;
 }
 
-.jk-msg__error-popup::after {
+.jk-msg__status--failed .jk-msg__error-tooltip::after {
     content: '';
     position: absolute;
     top: 100%;
-    right: 10px;
-    border: 6px solid transparent;
-    border-top-color: #fecaca;
+    right: 8px;
+    border: 5px solid transparent;
+    border-top-color: #1e293b;
 }
 
-.jk-msg__error-popup-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.375rem 0.625rem;
-    background: #fef2f2;
-    border-bottom: 1px solid #fecaca;
-    font-weight: 700;
-    font-size: 0.8875rem;
-    color: #dc2626;
-}
-
-.jk-msg__error-popup-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1rem;
-    color: #dc2626;
-    opacity: 0.6;
-    line-height: 1;
-    padding: 0;
-}
-
-.jk-msg__error-popup-close:hover {
-    opacity: 1;
-}
-
-.jk-msg__error-popup-body {
-    padding: 0.5rem 0.625rem;
-    color: #64748b;
-    line-height: 1.4;
-    word-break: break-word;
-    font-family: ui-monospace, monospace;
-    font-size: 0.6235rem;
+.jk-msg__status--failed:hover .jk-msg__error-tooltip {
+    display: block;
 }
 
 @keyframes jk-status-spin {

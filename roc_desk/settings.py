@@ -38,6 +38,7 @@ AUTH_USER_MODEL = "core.User"
 INSTALLED_APPS = [
     # Admin Theme
     "unfold",
+
     # Django built-in
     "django.contrib.admin",
     "django.contrib.auth",
@@ -52,6 +53,24 @@ INSTALLED_APPS = [
     "knowledge_base.apps.KnowledgeBaseConfig",
     "links.apps.LinksConfig",
 ]
+
+from django.utils.functional import lazy
+def get_admin_site_name_for_unfold():
+    try:
+        from django.db import connection
+        if 'core_siteconfig' in connection.introspection.table_names():
+            from core.models import SiteConfig
+            name = SiteConfig.get_solo().site_name
+            return name if name else "RoC Desk Admin"
+        return "RoC Desk Admin"
+    except Exception:
+        return "RoC Desk Admin"
+
+UNFOLD = {
+    "SITE_TITLE": lazy(get_admin_site_name_for_unfold, str)(),
+    "SITE_HEADER": lazy(get_admin_site_name_for_unfold, str)(),
+}
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

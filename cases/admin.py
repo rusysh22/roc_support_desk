@@ -33,15 +33,15 @@ class MessageInline(StackedInline):
 
 
 # =====================================================================
-# Case Category
+# Ticket Category
 # =====================================================================
 
 @admin.register(CaseCategory)
 class CaseCategoryAdmin(ModelAdmin):
     """Admin for service catalogue categories."""
 
-    list_display = ("name", "slug", "icon", "created_at")
-    search_fields = ("name", "slug")
+    list_display = ("name", "prefix_code", "slug", "icon", "created_at")
+    search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
@@ -53,7 +53,7 @@ class CaseCategoryAdmin(ModelAdmin):
 
 
 # =====================================================================
-# Case Record
+# Ticket Record
 # =====================================================================
 
 @admin.register(CaseRecord)
@@ -66,13 +66,13 @@ class CaseRecordAdmin(ModelAdmin):
         "status",
         "source",
         "requester",
-        "category",
         "assigned_to",
         "created_at",
         "response_due_at",
         "resolution_due_at",
+        "is_spam",
     )
-    list_filter = ("status", "source", "category", "assigned_to")
+    list_filter = ("is_spam", "status", "source", "category", "assigned_to")
     search_fields = ("subject", "requester__full_name", "requester__email")
     ordering = ("-created_at",)
     readonly_fields = (
@@ -82,9 +82,9 @@ class CaseRecordAdmin(ModelAdmin):
     inlines = [MessageInline]
 
     fieldsets = (
-        ("Case Overview", {
+        ("Ticket Overview", {
             "fields": (
-                "id", "case_number", "requester", "category",
+                "id", "case_number", "is_spam", "requester", "category",
                 "subject", "status", "source", "assigned_to",
             ),
         }),
