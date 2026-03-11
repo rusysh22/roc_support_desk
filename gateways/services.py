@@ -96,6 +96,48 @@ class EvolutionAPIService:
             logger.error("Failed to fetch instance info: %s", exc)
             return None
 
+    def find_latest_chat(self, remote_jid: str) -> dict | None:
+        """
+        Fetch the exact chat history data from the Evolution Database
+        using the unresolved LID remote_jid.
+        
+        Args:
+            remote_jid: The Linked Device ID (e.g., "217188...482@lid")
+            
+        Returns:
+            A dictionary containing the chat metadata (which includes the real WhatsApp number)
+            or None if the query fails/returns empty.
+        """
+        url = f"{self.base_url}/chat/find/{self.instance}"
+        payload = {
+            "where": {
+                "id": remote_jid
+            }
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            
+            data = response.json()
+            if data and isinstance(data, list) and len(data) > 0:
+                # Evolution returns an array of matched chat records
+                return data[0]
+            
+            # Additional fallback: Evolution API might nest the result
+            if isinstance(data, dict) and "records" in data and data["records"]:
+                return data["records"][0]
+                
+            return None
+            
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to find fallback chat using LID %s: %s",
+                remote_jid,
+                exc,
+            )
+            return None
+
     def get_qr_code(self) -> dict | None:
         """Fetch the Base64 QR code for pairing the WhatsApp instance."""
         url = self._build_url("instance/connect")

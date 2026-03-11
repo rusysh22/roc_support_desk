@@ -141,7 +141,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
 
         if not active_case:
             # Fallback B: If they are the requester on a recent WA case
-            session_window = timezone.now() - timedelta(minutes=10) # 10 mins for session
+            session_window = timezone.now() - timedelta(minutes=60) # 30 mins for session
             active_case = (
                 CaseRecord.objects.filter(
                     requester=employee,
@@ -167,11 +167,11 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             )
         else:
             # Check for Spam (Rate Limiting)
-            # e.g., > 3 new cases in the last 10 minutes from this employee
+            # e.g., > 3 new cases in the last 30 minutes from this employee
             recent_cases_count = CaseRecord.objects.filter(
                 requester=employee,
                 source=CaseRecord.Source.EVOLUTION_WA,
-                created_at__gte=timezone.now() - timedelta(minutes=10)
+                created_at__gte=timezone.now() - timedelta(minutes=30)
             ).count()
             is_spam = recent_cases_count >= 3
 
@@ -232,20 +232,43 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # ---------------------------------------------------------
         if is_new_case and sender_phone and not case.is_spam:
             from core.models import SiteConfig
+            import random
+            import time
+            
             site_config = SiteConfig.get_solo()
             site_name = getattr(site_config, 'site_name', 'Support Desk')
             
             try:
+                # Spintax for greetings to avoid exact identical messages that trigger spam filters
+                greetings = ["Hello", "Hi", "Greetings", "Welcome", "Dear"]
+                random_greeting = random.choice(greetings)
+                
+                # Spintax for closings to replace "Automated Message"
+                closings = [
+                    f"_{site_name} Support Team_",
+                    f"_{site_name} Site_",
+                    f"_- {site_name}_",
+                    f"_Best regards, {site_name}_",
+                    f"_Thanks, {site_name}_"
+                ]
+                random_closing = random.choice(closings)
+                
                 ack_text = (
                     f"✅ *Request Received*\n\n"
-                    f"Hello *{employee.full_name}*,\n"
-                    f"Thank you for contacting the *{site_name}*.\n\n"
+                    f"{random_greeting} *{employee.full_name}*,\n"
+                    f"Thank you for contacting *{site_name}*.\n\n"
                     f"📋 *Ticket Number:* `{case.case_number}`\n"
                     f"📝 *Subject:* {case.subject[:80]}\n\n"
                     f"Our team will review your request shortly.\n"
                     f"You may reply to this message to add any additional information regarding your ticket.\n\n"
-                    f"_Automated Message — {site_name}_"
+                    f"{random_closing}"
                 )
+                
+                # Human-like delay: Random pause between 3 - 8 seconds before sending
+                sleep_duration = random.randint(3, 8)
+                logger.info("Applying human-like auto-reply delay of %s seconds for %s", sleep_duration, sender_phone)
+                time.sleep(sleep_duration)
+                
                 svc.send_whatsapp_message(sender_phone, ack_text)
                 logger.info(
                     "Sent WA acknowledgment for case %s to %s",

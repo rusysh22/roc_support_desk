@@ -663,7 +663,7 @@ def case_forward_escalation(request, case_id):
             
             # Append Initials for Escalate
             staff_initials = getattr(request.user, "initials", "sys")
-            full_body = f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}\n\n-{staff_initials}"
+            full_body = f"*** TICKET ESCALATED VIA {channel} TO: {forward_to} ***\n\nInternal Agent Note:\n{custom_message}\n\n-{staff_initials}"
             
             msg = Message.objects.create(
                 case=case,
@@ -676,8 +676,15 @@ def case_forward_escalation(request, case_id):
 
             # Fire celery task to send via API
             from gateways.tasks import escalate_case_task
+            import random
+            
             try:
-                escalate_case_task.delay(str(case.id), forward_to, channel, custom_message, str(msg.id))
+                # Use apply_async with countdown to simulate human delay (2-6 seconds)
+                delay_secs = random.randint(2, 6)
+                escalate_case_task.apply_async(
+                    args=[str(case.id), forward_to, channel, custom_message, str(msg.id)],
+                    countdown=delay_secs
+                )
                 from django.contrib import messages
                 messages.success(request, f"Ticket successfully escalated to {forward_to} via {channel}.")
             except Exception as e:
@@ -747,7 +754,7 @@ def case_update_rca(request, case_id):
                 if case.source == CaseRecord.Source.WHATSAPP:
                     from cases.models import Message
                     staff_initials = getattr(request.user, "initials", "sys")
-                    full_close_msg = f"Sesi ini telah berakhir. Tiket Anda ({case.case_number}) telah ditutup dengan status Selesai. Terima kasih atas kerja samanya.\n\n-{staff_initials}"
+                    full_close_msg = f"This session has ended. Your ticket ({case.case_number}) has been closed with a status of Resolved. Thank you for reaching out to us.\n\n-{staff_initials}"
                     
                     # Create an auto outbound message so the gateways pick it up and send to WhatsApp user
                     close_msg_obj = Message.objects.create(
@@ -760,7 +767,14 @@ def case_update_rca(request, case_id):
                     )
                     
                     from gateways.tasks import send_outbound_whatsapp_task
-                    send_outbound_whatsapp_task.delay(str(close_msg_obj.id))
+                    import random
+                    
+                    # Human-like delay of 2-6 seconds before dispatching the close message
+                    delay_secs = random.randint(2, 6)
+                    send_outbound_whatsapp_task.apply_async(
+                        args=[str(close_msg_obj.id)],
+                        countdown=delay_secs
+                    )
                 
                 if 'assigned_to' in form.changed_data and case.assigned_to:
                     from gateways.tasks import send_assignment_email_task

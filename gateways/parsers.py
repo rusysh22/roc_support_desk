@@ -42,11 +42,34 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
         if remote_jid == "status@broadcast":
             logger.info(f"Ignored Evolution webhook {message_id}: status broadcast.")
             return None
+            
+        # Ignore unresolved LID identifiers or attempt Database Fallback
+        if remote_jid.endswith("@lid") and not remote_jid_alt:
+            logger.info(f"Unresolved LID address detected ({remote_jid}). Attempting Database Fallback...")
+            
+            from gateways.services import EvolutionAPIService
+            svc = EvolutionAPIService()
+            fallback_chat_data = svc.find_latest_chat(remote_jid)
+            
+            if fallback_chat_data and "remoteJid" in fallback_chat_data:
+                # Evolution's chat response usually stores the real JID in the top level remoteJid string
+                remote_jid = fallback_chat_data["remoteJid"]
+                logger.info(f"Fallback successful. Reassigned LID {key.get('remoteJid')} -> {remote_jid}")
+            else:
+                logger.warning(f"Ignored Evolution webhook {message_id}: Fallback failed. Unable to resolve LID address ({remote_jid}).")
+                return None
 
         # 1. Correct Sender Extraction
-        # Strip specific suffixes and prepend "+"
-        raw_number = remote_jid.replace("@s.whatsapp.net", "").replace("@c.us", "")
-        sender_number = f"+{raw_number}" if not raw_number.startswith("+") else raw_number
+        # Safely split at "@" instead of chaining replaces
+        raw_number = remote_jid.split("@")[0]
+        
+        # Ensure it's a valid numeric phone number before proceeding
+        # e.g. prevents saving "+217188090806482"
+        if not raw_number.isdigit():
+            logger.warning(f"Ignored Evolution webhook {message_id}: non-numeric sender ID ({raw_number}).")
+            return None
+            
+        sender_number = f"+{raw_number}"
 
         # Also ignore when sender number equals configured instance number
         instance_number_setting = getattr(settings, "EVOLUTION_INSTANCE_NUMBER", None)
