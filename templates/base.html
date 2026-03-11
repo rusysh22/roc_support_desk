@@ -105,6 +105,7 @@
                 <span>Shorten Link</span>
             </a>
             
+            {% if user.role_access in 'SuperAdmin,Manager' %}
             <a href="{% url 'desk:email_settings' %}" class="jk-sidebar-link {% block nav_email_settings %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📧</span>
                 <span>Email Settings</span>
@@ -115,11 +116,14 @@
                 <span>WhatsApp Settings</span>
             </a>
             {% endif %}
-
+            {% endif %}
+            
+            {% if user.is_superuser or user.role_access in 'SuperAdmin,Manager' %}
             <a href="{% url 'admin:index' %}" class="jk-sidebar-link">
                 <span class="jk-sidebar-link-icon">⚙️</span>
                 <span>Admin Master</span>
             </a>
+            {% endif %}
 
             <div class="jk-sidebar-section">Account</div>
             <form method="post" action="{% url 'logout' %}">

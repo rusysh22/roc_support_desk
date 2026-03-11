@@ -200,6 +200,20 @@ class CaseRCAForm(forms.ModelForm):
             }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # If the case is already Closed, make all fields read-only
+        # UNLESS the edit permission status is 'Approved'
+        if (self.instance and 
+            self.instance.pk and 
+            self.instance.status == CaseRecord.Status.CLOSED and
+            self.instance.edit_permission_status != CaseRecord.EditPermissionStatus.APPROVED):
+            
+            for field_name, field in self.fields.items():
+                field.disabled = True
+                field.widget.attrs["readonly"] = True
+                field.widget.attrs["class"] += " bg-slate-100 opacity-80 cursor-not-allowed"
+
     def clean(self):
         """Enforce RCA completion before Resolved status."""
         cleaned = super().clean()

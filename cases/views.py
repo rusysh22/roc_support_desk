@@ -200,9 +200,9 @@ def create_case(request, slug=None):
             # Create Audit Log entry
             CaseAuditLog.objects.create(
                 case=case,
-                user=User.objects.filter(is_superuser=True).first() if not request.user.is_authenticated else request.user, # System fallback if public
-                action=CaseAuditLog.Action.CREATE,
-                notes="Case created via Public Portal"
+                created_by=User.objects.filter(is_superuser=True).first() if not request.user.is_authenticated else request.user,
+                action=CaseAuditLog.ActionText.CREATED,
+                new_value="Case created via Public Portal"
             )
 
             messages.success(request, f"Your ticket ({case.case_number}) has been created successfully.")
@@ -898,8 +898,8 @@ def case_update_rca(request, case_id):
         if form.is_valid():
             desired_status = form.cleaned_data.get("status")
             
-            # SLA validation if attempting to Close
-            if desired_status == CaseRecord.Status.CLOSED:
+            # SLA validation if attempting to Close for the first time
+            if desired_status == CaseRecord.Status.CLOSED and original_status != CaseRecord.Status.CLOSED:
                 if not form.cleaned_data.get("root_cause_analysis") or not form.cleaned_data.get("solving_steps"):
                     return render(request, "partials/rca_form.html", {
                         "case": case,
@@ -936,32 +936,8 @@ def case_update_rca(request, case_id):
 
                 case.save()
                 form.save_m2m() # Important for followers
-                
-                # Check if this closing action should trigger an "End of session" message
-                if case.source == "EvolutionAPI_WA":
-                    from cases.models import Message
-                    staff_initials = getattr(request.user, "initials", "sys")
-                    full_close_msg = f"This session has ended. Your ticket ({case.case_number}) has been closed with a status of Resolved. Thank you for reaching out to us.\n\n-{staff_initials}"
-                    
-                    # Create an auto outbound message so the gateways pick it up and send to WhatsApp user
-                    close_msg_obj = Message.objects.create(
-                        case=case,
-                        sender_staff=request.user,
-                        body=full_close_msg,
-                        direction=Message.Direction.OUTBOUND,
-                        channel=Message.Channel.WHATSAPP,
-                        delivery_status=Message.DeliveryStatus.PENDING,
-                    )
-                    
-                    from gateways.tasks import send_outbound_whatsapp_task
-                    import random
-                    
-                    # Human-like delay of 2-6 seconds before dispatching the close message
-                    delay_secs = random.randint(2, 6)
-                    send_outbound_whatsapp_task.apply_async(
-                        args=[str(close_msg_obj.id)],
-                        countdown=delay_secs
-                    )
+                # Check if we should notify about assignment change during RCA save
+
                 
                 if 'assigned_to' in form.changed_data and case.assigned_to:
                     from gateways.tasks import send_assignment_email_task
@@ -980,9 +956,16 @@ def case_update_rca(request, case_id):
                 
                 return HttpResponse(form_response.content.decode() + oob_modal)
 
-            # Normal save for non-closing updates
+            # Normal save for non-closing updates OR amending an already closed ticket
             case = form.save(commit=False)
             case.updated_by = request.user
+            
+            # --- Amendment Logic ---
+            if original_status == CaseRecord.Status.CLOSED and case.edit_permission_status == CaseRecord.EditPermissionStatus.APPROVED:
+                if form.changed_data:
+                    case.amendment_count += 1
+                case.edit_permission_status = CaseRecord.EditPermissionStatus.NONE
+            # -----------------------
             
             # Check what changed before saving to create audit logs
             if form.changed_data:
@@ -1361,29 +1344,100 @@ def case_close_and_notify(request, case_id):
         from gateways.tasks import send_outbound_email_task
         send_outbound_email_task.delay(str(msg.id))
     elif reply_channel == Message.Channel.WHATSAPP:
-        if case.requester and case.requester.phone_number:
-            try:
-                from gateways.services import EvolutionAPIService
-                svc = EvolutionAPIService()
-                svc.send_whatsapp_message(
-                    case.requester.phone_number,
-                    closure_msg_body,
-                )
-            except Exception as exc:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "Failed to send WA closure for case %s: %s",
-                    case.case_number, exc,
-                )
-                msg.delivery_status = Message.DeliveryStatus.FAILED
-                msg.delivery_error = str(exc)
-                msg.save(update_fields=["delivery_status", "delivery_error"])
+        from gateways.tasks import send_outbound_whatsapp_task
+        msg.delivery_status = Message.DeliveryStatus.PENDING
+        msg.save(update_fields=["delivery_status"])
+        send_outbound_whatsapp_task.delay(str(msg.id))
                 
     # Return a success script to trigger a reload or update
     return HttpResponse(
         '<script>window.location.reload();</script>',
         content_type="text/html"
     )
+
+@staff_required
+def case_request_edit(request, case_id):
+    """
+    HTMX endpoint — Staff requests permission to edit a closed ticket.
+    """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+        
+    case = get_object_or_404(CaseRecord, id=case_id)
+    reason = request.POST.get("reason", "").strip()
+    
+    if case.status != CaseRecord.Status.CLOSED:
+        return HttpResponse("Ticket is not closed.", status=400)
+        
+    case.edit_permission_status = CaseRecord.EditPermissionStatus.REQUESTED
+    case.edit_requested_by = request.user
+    case.edit_request_reason = reason
+    case.save(update_fields=["edit_permission_status", "edit_requested_by", "edit_request_reason"])
+    
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="edit_permission_status",
+        old_value="None",
+        new_value="Requested",
+        created_by=request.user,
+    )
+    
+    return HttpResponse('<script>window.location.reload();</script>')
+
+@staff_required
+def case_approve_edit(request, case_id):
+    """
+    HTMX endpoint — SuperAdmin/Manager approves an edit request.
+    """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+        
+    if not (request.user.is_superuser or request.user.role_access == "Manager"):
+        return HttpResponse("Unauthorized", status=403)
+        
+    case = get_object_or_404(CaseRecord, id=case_id)
+    
+    case.edit_permission_status = CaseRecord.EditPermissionStatus.APPROVED
+    case.save(update_fields=["edit_permission_status"])
+    
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="edit_permission_status",
+        old_value="Requested",
+        new_value="Approved",
+        created_by=request.user,
+    )
+    
+    return HttpResponse('<script>window.location.reload();</script>')
+
+@staff_required
+def case_reject_edit(request, case_id):
+    """
+    HTMX endpoint — SuperAdmin/Manager rejects an edit request.
+    """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+        
+    if not (request.user.is_superuser or request.user.role_access == "Manager"):
+        return HttpResponse("Unauthorized", status=403)
+        
+    case = get_object_or_404(CaseRecord, id=case_id)
+    
+    case.edit_permission_status = CaseRecord.EditPermissionStatus.REJECTED
+    case.save(update_fields=["edit_permission_status"])
+    
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="edit_permission_status",
+        old_value="Requested",
+        new_value="Rejected",
+        created_by=request.user,
+    )
+    
+    return HttpResponse('<script>window.location.reload();</script>')
 
     
 # =====================================================================

@@ -267,6 +267,10 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 # Human-like delay: Random pause between 3 - 8 seconds before sending
                 sleep_duration = random.randint(3, 8)
                 logger.info("Applying human-like auto-reply delay of %s seconds for %s", sleep_duration, sender_phone)
+                
+                # Send 'composing' presence to simulate human typing
+                svc.send_presence(sender_phone, presence="composing", delay=sleep_duration * 1000)
+                
                 time.sleep(sleep_duration)
                 
                 svc.send_whatsapp_message(sender_phone, ack_text)
@@ -452,18 +456,48 @@ def poll_imap_emails_task() -> str:
                 )
                 logger.info("Auto-registered new Employee from email: %s", sender_email)
 
-            # 2. Threading — look for "CASE-XXXXXXXX" or "[CASE-XXXXXXXX]" in subject
+            # 2. Threading — match existing case from reply email
+            # Strategy A: Match [XX-XXXXXXXX] ticket number in subject line
+            #   Outbound emails include the case_number in the subject, e.g.:
+            #   "[AV-DF938403] Minta Testing" → Re: [AV-DF938403] Minta Testing
             case = None
             is_new_case = False
-            case_match = re.search(r"CS-([A-Fa-f0-9]{8})", subject, re.IGNORECASE)
-            if case_match:
-                case_prefix = case_match.group(1).lower()
-                # Find case whose UUID starts with this 8-character prefix
-                case = CaseRecord.objects.filter(id__istartswith=case_prefix).first()
 
-            if case:
-                logger.info("Email threaded into existing case %s.", case.id)
-            else:
+            case_match = re.search(
+                r"\[([A-Z]{2}-[A-Fa-f0-9]{8})\]",  # e.g. [AV-DF938403]
+                subject,
+                re.IGNORECASE
+            )
+            if case_match:
+                # Extract the 8-hex UUID prefix that follows the dash
+                uuid_prefix = case_match.group(1).split("-")[1].lower()
+                case = CaseRecord.objects.filter(id__istartswith=uuid_prefix).first()
+                if case:
+                    logger.info(
+                        "Email threaded into case %s via subject ticket ID '%s'.",
+                        case.id, case_match.group(1)
+                    )
+
+            # Strategy B: Match via In-Reply-To / References email header
+            # If the original outbound email's Message-ID was stored in Message.external_id,
+            # we can find the case via that ID.
+            if not case:
+                in_reply_to = email_data.get("in_reply_to", "").strip()
+                references = email_data.get("references", "").strip()
+                reply_ids = [mid.strip("<>") for mid in (in_reply_to + " " + references).split() if mid]
+                if reply_ids:
+                    from cases.models import Message as CaseMessage
+                    matched_msg = CaseMessage.objects.filter(
+                        external_id__in=reply_ids
+                    ).select_related("case").first()
+                    if matched_msg:
+                        case = matched_msg.case
+                        logger.info(
+                            "Email threaded into case %s via In-Reply-To header.",
+                            case.id
+                        )
+
+            if not case:
                 # Check for Spam (Rate Limiting)
                 # e.g., > 3 new cases in the last 10 minutes from this email
                 recent_cases_count = CaseRecord.objects.filter(
@@ -791,6 +825,31 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
             msg.delivery_error = "Requester lacks phone number"
             msg.save(update_fields=["delivery_status", "delivery_error"])
             return "skipped:no_phone_number"
+
+        # --- Validate phone number format ---
+        # Strip the leading '+' if present and ensure the rest is purely numeric.
+        # LID identifiers (e.g. 217188090806482 derived from @lid) are too long (≥15 digits)
+        # and/or don't look like a real E.164 phone number.
+        raw_digits = requester.phone_number.lstrip("+")
+        is_valid_number = (
+            raw_digits.isdigit()          # must be all digits
+            and 7 <= len(raw_digits) <= 15 # E.164 length range
+        )
+        if not is_valid_number:
+            error_msg = (
+                f"⚠️ Invalid WhatsApp number: '{requester.phone_number}'. "
+                "This may be a Linked Device ID (LID) stored in the database from before the LID fix. "
+                "Please update the requester's phone number manually in the Employee profile."
+            )
+            logger.warning(
+                "Blocked WA send to invalid number '%s' (case %s). %s",
+                requester.phone_number, case.id, error_msg
+            )
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = error_msg
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            return "skipped:invalid_phone_number"
+
 
         svc = EvolutionAPIService()
         attachments = msg.attachments.all()[:10]  # Max 10 files

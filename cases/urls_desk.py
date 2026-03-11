@@ -39,6 +39,9 @@ urlpatterns = [
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
     path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
+    path("cases/<uuid:case_id>/request-edit/", views.case_request_edit, name="case_request_edit"),
+    path("cases/<uuid:case_id>/approve-edit/", views.case_approve_edit, name="case_approve_edit"),
+    path("cases/<uuid:case_id>/reject-edit/", views.case_reject_edit, name="case_reject_edit"),
     path("cases/<uuid:case_id>/unmerge/", views.case_unmerge, name="case_unmerge"),
 
     # API

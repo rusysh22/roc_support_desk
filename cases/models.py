@@ -106,6 +106,12 @@ class CaseRecord(AuditableModel):
         INCIDENT = "Incident", "Incident"
         REQUEST = "Request", "Request"
 
+    class EditPermissionStatus(models.TextChoices):
+        NONE = "None", "None"
+        REQUESTED = "Requested", "Requested"
+        APPROVED = "Approved", "Approved"
+        REJECTED = "Rejected", "Rejected"
+
     # --- Relationships ---
     requester = models.ForeignKey(
         "core.Employee",
@@ -161,6 +167,30 @@ class CaseRecord(AuditableModel):
         default=Status.OPEN,
         db_index=True,
         verbose_name="Status",
+    )
+    edit_permission_status = models.CharField(
+        max_length=20,
+        choices=EditPermissionStatus.choices,
+        default=EditPermissionStatus.NONE,
+        verbose_name="Edit Permission Status",
+        help_text="Tracks approval workflow for editing closed tickets.",
+    )
+    edit_requested_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="edit_requests",
+        verbose_name="Edit Requested By",
+    )
+    edit_request_reason = models.TextField(
+        blank=True,
+        verbose_name="Edit Request Reason",
+    )
+    amendment_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Amendment Count",
+        help_text="Tracks how many times a closed ticket was edited.",
     )
     source = models.CharField(
         max_length=20,

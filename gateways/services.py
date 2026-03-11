@@ -150,8 +150,33 @@ class EvolutionAPIService:
             return None
 
     # ------------------------------------------------------------------
-    # Public API — Send Messages
+    # Public API — Send Messages & Presence
     # ------------------------------------------------------------------
+
+    def send_presence(self, phone_number: str, presence: str = "composing", delay: int = 5000) -> dict | None:
+        """
+        Send a presence update (e.g., 'composing', 'recording') to simulate a human typing.
+        
+        Args:
+            phone_number: Recipient phone in E.164 format.
+            presence: The presence state ('composing', 'recording', 'available', 'unavailable').
+            delay: Duration in milliseconds for how long the presence is shown.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("chat/sendPresence")
+        payload = {
+            "number": clean_number,
+            "presence": presence,
+            "delay": delay
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            logger.error("Failed to send presence '%s' to %s: %s", presence, clean_number, exc)
+            return None
 
     def send_whatsapp_message(
         self,

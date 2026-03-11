@@ -130,7 +130,8 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
                 media_info = {
                     "type": media_key,
                     "mime_type": mime_type,
-                    "file_name": file_name,
+                    "filename": file_name,
+                    "message_id": message_id,
                 }
                 if "contextInfo" in media:
                     quoted_id = media["contextInfo"].get("stanzaId")
