@@ -358,7 +358,7 @@
 </div>
 
 <!-- Kanban Board -->
-<div class="kanban-container">
+<div class="kanban-container" id="kanban-board">
     {% for col in kanban_data %}
     <div class="kanban-column" data-status="{{ col.status }}"
          ondragover="event.preventDefault(); this.classList.add('drag-over')"
@@ -427,7 +427,6 @@
         const caseId = event.dataTransfer.getData('text/plain');
         if (!caseId) return;
 
-        // Get CSRF token
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
             || document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1];
 
@@ -436,17 +435,13 @@
 
         fetch(`/desk/cases/${caseId}/status/`, {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken || '{{ csrf_token }}',
-            },
+            headers: { 'X-CSRFToken': csrfToken || '{{ csrf_token }}' },
             body: formData,
         }).then(async res => {
             if (res.ok) {
                 if (res.status === 204) {
-                    // Normal status update, reload board
                     window.location.reload();
                 } else {
-                    // Returned HTML (e.g., Closure Modal)
                     const html = await res.text();
                     document.getElementById('htmx-modal').innerHTML = html;
                 }
@@ -458,5 +453,42 @@
             window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Network error occurred while updating status.' } }));
         });
     }
+
+    // --- Smart Auto-Refresh ---
+    (function() {
+        const REFRESH_INTERVAL = 5000;
+        const PARTIAL_URL = '{% url "desk:case_kanban_partial" %}';
+        let countdown = REFRESH_INTERVAL / 1000;
+
+        const indicator = document.createElement('div');
+        indicator.id = 'live-indicator';
+        indicator.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:white;border:1px solid #e2e8f0;border-radius:12px;padding:6px 14px;font-size:12px;color:#64748b;box-shadow:0 4px 16px rgba(0,0,0,0.08);';
+        indicator.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;animation:livePulse 2s infinite;"></span><span id="live-label">Refreshing in <strong id="live-countdown">5</strong>s</span>`;
+        document.body.appendChild(indicator);
+
+        const s = document.createElement('style');
+        s.textContent = '@keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }';
+        document.head.appendChild(s);
+
+        function refresh() {
+            fetch(PARTIAL_URL + window.location.search, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.text())
+            .then(html => {
+                const board = document.getElementById('kanban-board');
+                if (board) board.innerHTML = html;
+                if (window.htmx) htmx.process(board);
+            })
+            .catch(() => {});
+        }
+
+        function tick() {
+            countdown--;
+            const el = document.getElementById('live-countdown');
+            if (el) el.textContent = countdown;
+            if (countdown <= 0) { countdown = REFRESH_INTERVAL / 1000; refresh(); }
+        }
+
+        setInterval(tick, 1000);
+    })();
 </script>
 {% endblock %}

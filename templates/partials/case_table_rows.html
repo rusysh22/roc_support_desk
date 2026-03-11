@@ -1,0 +1,112 @@
+{% load custom_tags %}
+{% for case in cases %}
+<tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
+    :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
+    <td class="hidden sm:table-cell">
+        <input type="checkbox" value="{{ case.id }}" x-model="selectedIds"
+               class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+    </td>
+    <td>
+        <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link">
+            {{ case.case_number }}
+        </a>
+    </td>
+    <td>
+        <a href="{% url 'desk:case_detail' case_id=case.id %}"
+            class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[250px] flex items-center gap-2">
+            {% if case.has_unread_messages %}
+                <span class="flex w-2 h-2 rounded-full bg-red-500 flex-shrink-0 shadow-sm" title="Unread messages"></span>
+            {% endif %}
+            {{ case.subject }}
+        </a>
+    </td>
+    <td>
+        {% if case.status == "Open" %}
+        <span class="jk-badge jk-badge-open">Open</span>
+        {% elif case.status == "Investigating" %}
+        <span class="jk-badge jk-badge-investigating">Investigating</span>
+        {% elif case.status == "PendingInfo" %}
+        <span class="jk-badge jk-badge-pending">Pending Info</span>
+        {% elif case.status == "Resolved" %}
+        <span class="jk-badge jk-badge-resolved">Resolved</span>
+        {% elif case.status == "Closed" %}
+        <span class="jk-badge jk-badge-closed">Closed</span>
+        {% endif %}
+    </td>
+    <td class="hidden md:table-cell">
+        {% if case.source == "EvolutionAPI_WA" %}
+        <span class="jk-badge jk-badge-wa">💬 WhatsApp</span>
+        {% elif case.source == "Email" %}
+        <span class="jk-badge jk-badge-email">📧 Email</span>
+        {% else %}
+        <span class="jk-badge jk-badge-web">🌐 Web</span>
+        {% endif %}
+    </td>
+    <td class="text-sm hidden lg:table-cell">
+        <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
+        {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
+        {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
+        {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
+    </td>
+    <td class="text-sm text-slate-500 hidden lg:table-cell">{{ case.category.name }}</td>
+    <td class="text-sm hidden xl:table-cell">
+        {% if case.assigned_to %}
+        <span class="font-medium">{{ case.assigned_to.username }}</span>
+        {% else %}
+        <span class="text-slate-400">Unassigned</span>
+        {% endif %}
+    </td>
+    <td class="text-sm text-slate-500 whitespace-nowrap">
+        {{ case.created_at|date:"d M Y" }}<br>
+        <span class="text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
+    </td>
+    <td class="text-sm text-slate-500 whitespace-nowrap hidden md:table-cell">
+        {% if case.last_viewed_at %}
+        {{ case.last_viewed_at|date:"d M Y" }}<br>
+        <span class="text-xs text-slate-400">{{ case.last_viewed_at|time:"H:i" }}</span>
+        {% else %}
+        <span class="text-xs text-slate-400 italic">Never</span>
+        {% endif %}
+    </td>
+    <td class="hidden md:table-cell">
+        {% if case.status == "Open" or case.status == "Investigating" or case.status == "PendingInfo" %}
+            {% with level=case.last_viewed_at|idle_level %}
+            {% if level == "danger" %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                🔴 {{ case.last_viewed_at|idle_time }}
+            </span>
+            {% elif level == "warning" %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                🟡 {{ case.last_viewed_at|idle_time }}
+            </span>
+            {% elif level == "info" %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                🟢 {{ case.last_viewed_at|idle_time }}
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                Please Open
+            </span>
+            {% endif %}
+            {% endwith %}
+        {% else %}
+        <span class="text-xs text-slate-400">—</span>
+        {% endif %}
+    </td>
+    <td class="hidden md:table-cell">
+        {% if case.resolution_due_at %}
+        {% if case.status == "Resolved" or case.status == "Closed" %}
+        <span class="jk-badge jk-badge-sla-ok">✓ Met</span>
+        {% else %}
+        <span class="jk-badge jk-badge-sla-warn">{{ case.resolution_due_at|date:"d M H:i" }}</span>
+        {% endif %}
+        {% else %}
+        <span class="text-xs text-slate-400">—</span>
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="12" class="py-16 text-center text-slate-400 text-sm italic">No tickets match your current filters.</td>
+</tr>
+{% endfor %}

@@ -504,6 +504,193 @@ def case_list(request):
         "unread_spam": unread_spam,
     })
 
+
+# ---------------------------------------------------------------
+# Auto-Refresh Partial Views
+# ---------------------------------------------------------------
+
+@staff_required
+def case_list_partial(request):
+    """
+    Returns only the table rows HTML fragment for the auto-refresh mechanism
+    on the case list page. Accepts the same GET params as case_list.
+    """
+    cases = CaseRecord.objects.select_related(
+        "requester", "category", "assigned_to"
+    ).all()
+
+    folder = request.GET.get("folder", "inbox")
+    status_filter = request.GET.get("status")
+    source_filter = request.GET.get("source")
+    category_filter = request.GET.get("category")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+    search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
+
+    if status_filter:
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        cases = cases.filter(status__in=status_list)
+    if source_filter:
+        cases = cases.filter(source=source_filter)
+    if category_filter:
+        cases = cases.filter(category__slug=category_filter)
+    if assigned_to_filter:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+    if search_query:
+        cases = cases.filter(
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query)
+        )
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
+
+    sort_field = request.GET.get("sort", "created_at")
+    sort_order = request.GET.get("order", "desc")
+    ALLOWED_SORT_FIELDS = {
+        "case_number": "id", "subject": "subject", "status": "status",
+        "source": "source", "requester": "requester__full_name",
+        "category": "category__name", "assigned_to": "assigned_to__username",
+        "created_at": "created_at", "last_viewed_at": "last_viewed_at",
+    }
+    db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
+    if sort_order == "asc":
+        cases = cases.order_by(F(db_field).asc(nulls_last=True))
+    else:
+        cases = cases.order_by(F(db_field).desc(nulls_last=True))
+
+    from django.core.paginator import Paginator
+    paginator = Paginator(cases, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
+    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
+    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+
+    return render(request, "partials/case_table_rows.html", {
+        "cases": page_obj,
+        "unread_inbox": unread_inbox,
+        "unread_archive": unread_archive,
+        "unread_spam": unread_spam,
+    })
+
+
+@staff_required
+def case_kanban_partial(request):
+    """
+    Returns only the kanban columns HTML fragment for the auto-refresh mechanism.
+    """
+    cases = CaseRecord.objects.select_related(
+        "requester", "category", "assigned_to"
+    ).all()
+
+    folder = request.GET.get("folder", "inbox")
+    source_filter = request.GET.get("source")
+    category_filter = request.GET.get("category")
+    priority_filter = request.GET.get("priority")
+    status_filter = request.GET.get("status")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+    search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
+
+    if source_filter:
+        cases = cases.filter(source=source_filter)
+    if category_filter:
+        cases = cases.filter(category__slug=category_filter)
+    if priority_filter:
+        cases = cases.filter(priority=priority_filter)
+    if assigned_to_filter:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+    if search_query:
+        cases = cases.filter(
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query)
+        )
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
+
+    status_columns = [
+        ("Open", "⏳", "Open", "#6366f1"),
+        ("Investigating", "🔍", "Investigating", "#f59e0b"),
+        ("PendingInfo", "⏸️", "Pending Info", "#0ea5e9"),
+        ("Resolved", "✅", "Resolved", "#10b981"),
+        ("Closed", "🔒", "Closed", "#64748b"),
+    ]
+    if status_filter:
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        status_columns = [col for col in status_columns if col[0] in status_list]
+
+    kanban_data = []
+    for status_val, icon, label, color in status_columns:
+        column_cases = [c for c in cases if c.status == status_val]
+        kanban_data.append({
+            "status": status_val, "icon": icon, "label": label,
+            "color": color, "cases": column_cases, "count": len(column_cases),
+        })
+
+    return render(request, "partials/case_kanban_columns.html", {
+        "kanban_data": kanban_data,
+    })
+
+
 @staff_required
 @require_POST
 def case_unmerge(request, case_id):
@@ -751,7 +938,7 @@ def case_update_rca(request, case_id):
                 form.save_m2m() # Important for followers
                 
                 # Check if this closing action should trigger an "End of session" message
-                if case.source == CaseRecord.Source.WHATSAPP:
+                if case.source == "EvolutionAPI_WA":
                     from cases.models import Message
                     staff_initials = getattr(request.user, "initials", "sys")
                     full_close_msg = f"This session has ended. Your ticket ({case.case_number}) has been closed with a status of Resolved. Thank you for reaching out to us.\n\n-{staff_initials}"

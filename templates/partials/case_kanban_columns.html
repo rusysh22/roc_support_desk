@@ -1,0 +1,57 @@
+{% for col in kanban_data %}
+<div class="kanban-column" data-status="{{ col.status }}"
+     ondragover="event.preventDefault(); this.classList.add('drag-over')"
+     ondragleave="this.classList.remove('drag-over')"
+     ondrop="handleDrop(event, '{{ col.status }}'); this.classList.remove('drag-over')">
+    <div class="kanban-column-header" style="--col-color: {{ col.color }}">
+        <span>{{ col.icon }} {{ col.label }}</span>
+        <span class="count">{{ col.count }}</span>
+    </div>
+    <div class="kanban-body">
+        {% for case in col.cases %}
+        <div class="kanban-card {% if case.has_unread_messages %}bg-rose-50 border-rose-200 shadow-rose-100{% endif %}" draggable="true" data-case-id="{{ case.id }}"
+             ondragstart="event.dataTransfer.setData('text/plain', '{{ case.id }}'); this.classList.add('dragging')"
+             ondragend="this.classList.remove('dragging')"
+             hx-get="{% url 'desk:case_quick_view' case.id %}"
+             hx-target="#htmx-modal"
+             hx-swap="innerHTML"
+             style="cursor: pointer;">
+            
+            <div class="flex items-center justify-between mb-2">
+                <div class="kanban-card__id flex items-center gap-1.5">
+                    {% if case.has_unread_messages %}
+                        <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Unread messages"></span>
+                    {% endif %}
+                    {{ case.case_number }}
+                </div>
+                {% if case.priority == "High" %}
+                    <span class="kanban-card__priority kanban-card__priority--high">High</span>
+                {% elif case.priority == "Medium" %}
+                    <span class="kanban-card__priority kanban-card__priority--medium">Med</span>
+                {% else %}
+                    <span class="kanban-card__priority kanban-card__priority--low">Low</span>
+                {% endif %}
+            </div>
+
+            <div class="kanban-card__subject">{{ case.subject }}</div>
+            
+            <div class="kanban-card__meta">
+                <span class="truncate" style="max-width: 130px;">{{ case.requester.full_name }}</span>
+                {% if case.source == "EvolutionAPI_WA" %}
+                <span class="kanban-card__source kanban-card__source--wa">WA</span>
+                {% elif case.source == "Email" %}
+                <span class="kanban-card__source kanban-card__source--email">Email</span>
+                {% else %}
+                <span class="kanban-card__source kanban-card__source--web">Web</span>
+                {% endif %}
+            </div>
+            <div class="kanban-card__date">
+                🗓️ {{ case.created_at|date:"d M Y, H:i" }}
+            </div>
+        </div>
+        {% empty %}
+        <div class="kanban-empty">No cases</div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}

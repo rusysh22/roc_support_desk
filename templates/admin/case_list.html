@@ -307,7 +307,7 @@
                 <th class="hidden md:table-cell">SLA</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="case-tbody">
             {% for case in cases %}
             <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
                 :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
@@ -582,4 +582,80 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const REFRESH_INTERVAL = 5000; // 5 seconds
+    const PARTIAL_URL = '{% url "desk:case_list_partial" %}';
+    let countdown = REFRESH_INTERVAL / 1000;
+    let timer = null;
+    let countdownTimer = null;
+    let isPaused = false;
+
+    const indicator = document.createElement('div');
+    indicator.id = 'live-indicator';
+    indicator.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:white;border:1px solid #e2e8f0;border-radius:12px;padding:6px 14px;font-size:12px;color:#64748b;box-shadow:0 4px 16px rgba(0,0,0,0.08);transition:opacity 0.3s;';
+    indicator.innerHTML = `
+        <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;animation:livePulse 2s infinite;"></span>
+        <span id="live-label">Refreshing in <strong id="live-countdown">5</strong>s</span>
+    `;
+    document.body.appendChild(indicator);
+
+    const style = document.createElement('style');
+    style.textContent = '@keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }';
+    document.head.appendChild(style);
+
+    function getCurrentParams() {
+        return window.location.search;
+    }
+
+    function refresh() {
+        // Check if user is doing bulk actions — pause if any selected
+        const anyChecked = document.querySelector('input[type=checkbox][x-model]:checked');
+        if (anyChecked) {
+            isPaused = true;
+            document.getElementById('live-label').innerHTML = '⏸️ Paused (items selected)';
+            return;
+        }
+        isPaused = false;
+
+        fetch(PARTIAL_URL + getCurrentParams(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.text())
+        .then(html => {
+            const tbody = document.getElementById('case-tbody');
+            if (tbody) tbody.innerHTML = html;
+            // Re-init Alpine for the new rows
+            if (window.Alpine) Alpine.initTree(tbody);
+        })
+        .catch(() => {}); // Silently fail — don't interrupt the user
+    }
+
+    function tick() {
+        countdown--;
+        const el = document.getElementById('live-countdown');
+        if (el) el.textContent = countdown;
+        if (countdown <= 0) {
+            countdown = REFRESH_INTERVAL / 1000;
+            refresh();
+        }
+    }
+
+    timer = setInterval(tick, 1000);
+
+    // Pause when user focuses on searchbox or any input in the filter form
+    document.getElementById('filterForm')?.addEventListener('focusin', () => {
+        document.getElementById('live-label').innerHTML = '⏸️ Paused (editing filters)';
+        isPaused = true;
+    });
+    document.getElementById('filterForm')?.addEventListener('focusout', () => {
+        if (!isPaused) return;
+        isPaused = false;
+        document.getElementById('live-label').innerHTML = 'Refreshing in <strong id="live-countdown">' + countdown + '</strong>s';
+    });
+})();
+</script>
 {% endblock %}

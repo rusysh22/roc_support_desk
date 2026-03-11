@@ -19,6 +19,10 @@ urlpatterns = [
     # Ticket Calendar view
     path("cases/calendar/", views.case_calendar, name="case_calendar"),
 
+    # Auto-Refresh Partial Endpoints (returns HTML fragments only)
+    path("cases/partials/table/", views.case_list_partial, name="case_list_partial"),
+    path("cases/partials/kanban/", views.case_kanban_partial, name="case_kanban_partial"),
+
     # Export to Excel
     path("cases/export/", views.case_export_excel, name="case_export"),
 
