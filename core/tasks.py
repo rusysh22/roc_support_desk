@@ -55,7 +55,12 @@ def send_password_reset_otp_task(user_email: str, otp_code: str, username: str) 
                     <div class="otp-code">{otp_code}</div>
                 </div>
                 
-                <p><em>Note: This code will expire in 15 minutes. If you did not request a password reset, please ignore this email or contact your administrator immediately.</em></p>
+                <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0; color: #b91c1c; font-size: 14px;"><strong>⚠️ Security Warning:</strong></p>
+                    <p style="margin: 5px 0 0 0; color: #7f1d1d; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. Do not share this OTP with anyone, including our support team. We will never ask for your password or OTP.</p>
+                </div>
+                
+                <p><em>If you did not request a password reset, please ignore this email and your password will remain unchanged.</em></p>
                 
                 <p>Best regards,<br>The {site_name} Team</p>
             </div>

@@ -49,12 +49,24 @@ class ForgotPasswordView(View):
             # Dispatch the email task
             try:
                 from .tasks import send_password_reset_otp_task
-                send_password_reset_otp_task.delay(user.email, otp_code, user.username)
+                
+                # We attempt to run it synchronously so we can catch authentication errors immediately
+                # and display them to the user instead of letting it fail silently in the background
+                try:
+                    result = send_password_reset_otp_task(user.email, otp_code, user.username)
+                    if result.startswith("error:"):
+                        raise Exception("Failed to dispatch email due to SMTP/IMAP error.")
+                except Exception as sync_exc:
+                    import logging
+                    logging.getLogger(__name__).error("Synchronous OTP dispatch failed: %s", sync_exc)
+                    form.add_error("email", "Failed to send OTP email. Please contact the administrator to check the email configuration.")
+                    return render(request, self.template_name, {"form": form})
+                    
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error("Could not send OTP task: %s", e)
-                # Fallback to sync execution if Celery throws an immediate error
-                send_password_reset_otp_task(user.email, otp_code, user.username)
+                form.add_error("email", "System error while dispatching OTP email. Please contact support.")
+                return render(request, self.template_name, {"form": form})
                 
             # Store the email in session for the next step so the user doesn't have to re-enter it internally
             request.session['reset_email'] = user.email

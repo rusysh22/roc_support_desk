@@ -71,7 +71,9 @@
                 <div class="min-w-0 flex-1">
                     <h4 class="text-sm font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">{{ form.title }}</h4>
                     {% if form.description %}
-                        <p class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ form.description }}</p>
+                        <p class="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                            {{ form.description|striptags }}
+                        </p>
                     {% endif %}
                 </div>
             </div>

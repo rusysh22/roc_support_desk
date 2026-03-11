@@ -6,6 +6,8 @@
 {% block extra_head %}
 <!-- Mailcheck.js for email typo detection -->
 <script src="https://cdn.jsdelivr.net/npm/mailcheck@1.1.1/src/mailcheck.min.js"></script>
+<!-- QRCode.js for generating QR code of the link -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -21,7 +23,122 @@
 
     <!-- Form Card -->
     <div class="jk-card">
-        <div class="jk-card-header">
+        <div class="jk-card-header flex justify-between items-center" x-data="{
+            qrOpen: false,
+            qrImageURL: null,
+            isGenerating: false,
+            categoryName: '{{ selected_category.name|default:"New Support Request"|escapejs }}',
+            siteName: '{{ site_config.site_name|default:"RoC Desk"|escapejs }}',
+            
+            openModal() {
+                this.qrOpen = true;
+                this.isGenerating = true;
+                this.qrImageURL = null;
+                
+                this.$nextTick(() => {
+                    const container = document.getElementById('qrcode-container-hidden');
+                    container.innerHTML = '';
+                    
+                    new QRCode(container, {
+                        text: window.location.href,
+                        width: 200,
+                        height: 200,
+                        colorDark : '#0f172a',
+                        colorLight : '#ffffff',
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                    
+                    setTimeout(() => {
+                        this.generateCompositeImage(container);
+                    }, 300);
+                });
+            },
+            
+            generateCompositeImage(container) {
+                let qrCanvas = container.querySelector('canvas');
+                if (!qrCanvas) {
+                    const img = container.querySelector('img');
+                    if (img) {
+                       qrCanvas = document.createElement('canvas');
+                       qrCanvas.width = img.width;
+                       qrCanvas.height = img.height;
+                       qrCanvas.getContext('2d').drawImage(img, 0, 0);
+                    }
+                }
+                if (!qrCanvas) { this.isGenerating = false; return; }
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 400; canvas.height = 500;
+                
+                // Background
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Gradient header
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                gradient.addColorStop(0, '#6366f1'); gradient.addColorStop(1, '#a855f7');
+                ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, 10);
+                
+                // Site Name
+                ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(this.siteName, canvas.width / 2, 45);
+                
+                // Category Title
+                ctx.fillStyle = '#0f172a'; ctx.font = 'bold 24px sans-serif';
+                ctx.fillText(this.categoryName, canvas.width / 2, 85);
+                
+                // Call to action
+                ctx.fillStyle = '#475569'; ctx.font = '16px sans-serif';
+                ctx.fillText('Scan to submit a ticket', canvas.width / 2, 120);
+                
+                // QR Box Shadow & QR Code
+                const qrSize = 250; const qrX = (canvas.width - qrSize) / 2; const qrY = 150;
+                ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 16); ctx.fill();
+                
+                ctx.shadowColor = 'transparent';
+                ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+                
+                // URL
+                ctx.fillStyle = '#6366f1'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+                let displayUrl = window.location.href; if (displayUrl.length > 45) displayUrl = displayUrl.substring(0, 42) + '...';
+                ctx.fillText(displayUrl, canvas.width / 2, 440);
+                
+                // Footer text
+                ctx.fillStyle = '#94a3b8'; ctx.font = '12px sans-serif';
+                ctx.fillText('Powered by ' + this.siteName, canvas.width / 2, 475);
+                
+                this.qrImageURL = canvas.toDataURL('image/png');
+                this.isGenerating = false;
+            },
+            
+            async shareQR() {
+                const shareText = `Halo, mohon bantuannya untuk mengisi form ${this.categoryName} melalui link berikut:\n\n${window.location.href}\n\nTerima kasih.`;
+                if (navigator.share) {
+                    try {
+                        let filesArray = [];
+                        if (this.qrImageURL && navigator.canShare) {
+                            try {
+                                const res = await fetch(this.qrImageURL);
+                                const blob = await res.blob();
+                                const file = new File([blob], 'QR_Form.png', { type: 'image/png' });
+                                if (navigator.canShare({ files: [file] })) filesArray = [file];
+                            } catch (e) {
+                                console.warn('Could not attach image', e);
+                            }
+                        }
+                        const shareData = { title: `${this.categoryName} Form`, text: shareText, url: window.location.href };
+                        if (filesArray.length > 0) shareData.files = filesArray;
+                        await navigator.share(shareData);
+                    } catch (error) {
+                        console.error('Error sharing', error);
+                    }
+                } else {
+                    navigator.clipboard.writeText(shareText);
+                    alert('Copied to clipboard!\n\n' + shareText);
+                }
+            }
+        }">
             <div class="flex items-center gap-2">
                 {% if selected_category %}
                 <span class="text-lg">{{ selected_category.icon|default:"📝" }}</span>
@@ -30,6 +147,53 @@
                 <span class="text-lg">📝</span>
                 <span>New Support Request</span>
                 {% endif %}
+            </div>
+            
+            <!-- QR Code Button & Modal -->
+            <button type="button" @click="openModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                QR Code Link
+            </button>
+            
+            <!-- QR Modal -->
+            <div x-show="qrOpen" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" x-transition.opacity>
+                <div @click.away="qrOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden" x-transition.scale.origin.bottom>
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                            <span class="text-lg">📱</span> Form Scan Link
+                        </h3>
+                        <button type="button" @click="qrOpen = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200 transition-colors">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="p-6 flex flex-col items-center justify-center">
+                        <div id="qrcode-container-hidden" style="display:none;"></div>
+                        
+                        <div class="relative w-full aspect-[4/5] bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner mb-4 flex items-center justify-center">
+                            <div x-show="isGenerating" class="flex flex-col items-center text-slate-400">
+                                <svg class="animate-spin h-6 w-6 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <span class="text-sm font-medium">Generating image...</span>
+                            </div>
+                            <img x-show="!isGenerating && qrImageURL" :src="qrImageURL" class="w-full h-full object-contain" alt="QR Code Image">
+                        </div>
+                        
+                        <p class="text-sm text-slate-500 text-center mb-4">Scan this QR code or share it with others.</p>
+                        
+                        <div class="grid grid-cols-2 gap-3 w-full">
+                            <!-- Download Button -->
+                            <a :href="qrImageURL" :download="'QR_' + categoryName + '.png'" class="w-full bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold py-2.5 rounded-lg transition-colors text-sm flex items-center justify-center gap-2" :class="isGenerating ? 'opacity-50 pointer-events-none' : ''">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Download
+                            </a>
+                        
+                            <!-- Share Button -->
+                            <button type="button" @click="shareQR()" class="w-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 font-semibold py-2.5 rounded-lg transition-colors text-sm flex items-center justify-center gap-2" :class="isGenerating ? 'opacity-50 pointer-events-none' : ''">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

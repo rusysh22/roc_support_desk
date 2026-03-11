@@ -56,11 +56,19 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # ---------------------------------------------------------
         # 1. Parse the payload
         # ---------------------------------------------------------
-        sender_phone: Optional[str] = svc.extract_sender_phone(payload)
-        sender_name: Optional[str] = getattr(svc, 'extract_sender_name', lambda p: None)(payload)
-        message_body: str = svc.extract_message_body(payload)
-        external_id: str = svc.extract_message_id(payload)
-        media_info: Optional[dict] = svc.extract_media_info(payload)
+        from gateways.parsers import parse_evolution_webhook
+        
+        parsed_data = parse_evolution_webhook(payload)
+        if not parsed_data:
+            # The parser already logs the specific ignore reason
+            return "ignored:parsed_none"
+
+        sender_phone: str = parsed_data["sender_number"]
+        sender_name: Optional[str] = parsed_data["sender_name"]
+        message_body: str = parsed_data["message_text"] or ""
+        external_id: str = parsed_data["message_id"]
+        media_info: Optional[dict] = parsed_data["media"]
+        quoted_id: Optional[str] = parsed_data.get("quoted_id")
 
         if not sender_phone:
             logger.info("Webhook ignored — no valid sender phone (group msg or status).")
@@ -105,7 +113,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         from datetime import timedelta
         
         active_case: Optional[CaseRecord] = None
-        quoted_id = svc.extract_quoted_message_id(payload)
+        # quoted_id is already extracted via the parser
         
         if quoted_id:
             orig_msg = Message.objects.filter(external_id=quoted_id).first()

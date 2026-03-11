@@ -9,6 +9,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 
 from core import views as core_views
+from core.auth_forms import CustomAuthenticationForm
 
 from core.models import SiteConfig
 from django.utils.functional import lazy
@@ -36,6 +37,7 @@ urlpatterns = [
     # Authentication
     path("auth/forgot-password/", core_views.ForgotPasswordView.as_view(), name="forgot_password"),
     path("auth/reset-password/", core_views.ResetPasswordOTPView.as_view(), name="reset_password_otp"),
+    path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
 
     # Client portal (public)
