@@ -660,10 +660,15 @@ def case_forward_escalation(request, case_id):
             from cases.models import Message
             # Use body prefix "*** ESKALASI TIKET VIA" to identify it as escalation later
             msg_channel = Message.Channel.EMAIL if channel == 'EMAIL' else Message.Channel.WHATSAPP
+            
+            # Append Initials for Escalate
+            staff_initials = getattr(request.user, "initials", "sys")
+            full_body = f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}\n\n-{staff_initials}"
+            
             msg = Message.objects.create(
                 case=case,
                 sender_staff=request.user,
-                body=f"*** ESKALASI TIKET VIA {channel} KE: {forward_to} ***\n\nCatatan Internal Agjen:\n{custom_message}",
+                body=full_body,
                 direction=Message.Direction.OUTBOUND,
                 channel=msg_channel,
                 delivery_status=Message.DeliveryStatus.PENDING,
@@ -737,6 +742,25 @@ def case_update_rca(request, case_id):
 
                 case.save()
                 form.save_m2m() # Important for followers
+                
+                # Check if this closing action should trigger an "End of session" message
+                if case.source == CaseRecord.Source.WHATSAPP:
+                    from cases.models import Message
+                    staff_initials = getattr(request.user, "initials", "sys")
+                    full_close_msg = f"Sesi ini telah berakhir. Tiket Anda ({case.case_number}) telah ditutup dengan status Selesai. Terima kasih atas kerja samanya.\n\n-{staff_initials}"
+                    
+                    # Create an auto outbound message so the gateways pick it up and send to WhatsApp user
+                    close_msg_obj = Message.objects.create(
+                        case=case,
+                        sender_staff=request.user,
+                        body=full_close_msg,
+                        direction=Message.Direction.OUTBOUND,
+                        channel=Message.Channel.WHATSAPP,
+                        delivery_status=Message.DeliveryStatus.PENDING,
+                    )
+                    
+                    from gateways.tasks import send_outbound_whatsapp_task
+                    send_outbound_whatsapp_task.delay(str(close_msg_obj.id))
                 
                 if 'assigned_to' in form.changed_data and case.assigned_to:
                     from gateways.tasks import send_assignment_email_task

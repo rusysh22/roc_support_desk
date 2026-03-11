@@ -202,3 +202,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://rusydani.my.id',
     'https://*.rusydani.my.id'
 ]
+
+# --- Session Expiry ---
+# Automatically logs out the user after 24 hours (86400 seconds) of inactivity
+SESSION_COOKIE_AGE = 86400
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
