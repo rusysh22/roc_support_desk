@@ -62,13 +62,39 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
         # 1. Correct Sender Extraction
         # Safely split at "@" instead of chaining replaces
         raw_number = remote_jid.split("@")[0]
-        
+
         # Ensure it's a valid numeric phone number before proceeding
-        # e.g. prevents saving "+217188090806482"
         if not raw_number.isdigit():
             logger.warning(f"Ignored Evolution webhook {message_id}: non-numeric sender ID ({raw_number}).")
             return None
-            
+
+        # Validate E.164 length (7-15 digits). Numbers longer than 15 digits
+        # are likely LID identifiers that slipped through the @lid check
+        # (e.g. remoteJidAlt returned a LID instead of a real number).
+        if not (7 <= len(raw_number) <= 15):
+            logger.info(
+                f"Suspected LID number detected ({raw_number}, {len(raw_number)} digits). "
+                f"Attempting to resolve real phone number via Evolution API..."
+            )
+            from gateways.services import EvolutionAPIService
+            svc = EvolutionAPIService()
+            fallback_chat_data = svc.find_latest_chat(f"{raw_number}@s.whatsapp.net")
+            if not fallback_chat_data:
+                fallback_chat_data = svc.find_latest_chat(f"{raw_number}@lid")
+
+            if fallback_chat_data:
+                resolved_jid = fallback_chat_data.get("remoteJid", "")
+                resolved_number = resolved_jid.split("@")[0]
+                if resolved_number.isdigit() and 7 <= len(resolved_number) <= 15:
+                    logger.info(f"Resolved LID {raw_number} -> {resolved_number}")
+                    raw_number = resolved_number
+                else:
+                    logger.warning(f"Ignored Evolution webhook {message_id}: could not resolve LID number ({raw_number}).")
+                    return None
+            else:
+                logger.warning(f"Ignored Evolution webhook {message_id}: invalid phone number length ({raw_number}, {len(raw_number)} digits).")
+                return None
+
         sender_number = f"+{raw_number}"
 
         # Also ignore when sender number equals configured instance number

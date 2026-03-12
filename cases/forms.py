@@ -215,23 +215,37 @@ class CaseRCAForm(forms.ModelForm):
                 field.widget.attrs["class"] += " bg-slate-100 opacity-80 cursor-not-allowed"
 
     def clean(self):
-        """Enforce RCA completion before Resolved status."""
+        """Enforce SLA details completion before Resolved or Closed status."""
         cleaned = super().clean()
         status = cleaned.get("status")
 
-        if status == CaseRecord.Status.RESOLVED:
-            rca = cleaned.get("root_cause_analysis", "").strip()
-            steps = cleaned.get("solving_steps", "").strip()
-            if not rca:
-                self.add_error(
-                    "root_cause_analysis",
-                    "Root Cause Analysis is required before marking as Resolved.",
-                )
-            if not steps:
-                self.add_error(
-                    "solving_steps",
-                    "Solving Steps are required before marking as Resolved.",
-                )
+        if status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
+            required_fields = {
+                "assigned_to": "Assigned To",
+                "response_due_at": "Response SLA",
+                "resolution_due_at": "Resolution SLA",
+                "root_cause_analysis": "Root Cause Analysis",
+                "solving_steps": "Solving Steps",
+            }
+            
+            for field, label in required_fields.items():
+                if not cleaned.get(field):
+                    self.add_error(
+                        field,
+                        f"This field is required before marking as {status}."
+                    )
+        elif status == CaseRecord.Status.INVESTIGATING:
+            required_fields = {
+                "assigned_to": "Assigned To",
+                "response_due_at": "Response SLA",
+            }
+            
+            for field, label in required_fields.items():
+                if not cleaned.get(field):
+                    self.add_error(
+                        field,
+                        f"This field is required before marking as {status}."
+                    )
         return cleaned
 
 

@@ -91,8 +91,11 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # ---------------------------------------------------------
         # 3. Employee lookup
         # ---------------------------------------------------------
+        is_invalid_phone = False
         try:
             employee: Employee = Employee.objects.get(phone_number=sender_phone)
+            if not employee.has_valid_phone():
+                is_invalid_phone = True
         except Employee.DoesNotExist:
             default_unit = _get_or_create_external_unit()
             # If we know their WhatsApp PushName, use it. Otherwise "WA User +62..."
@@ -104,6 +107,9 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 job_role="WhatsApp User"
             )
             logger.info("Auto-registered new Employee from WA: %s (%s)", sender_phone, display_name)
+            if not employee.has_valid_phone():
+                is_invalid_phone = True
+                logger.warning("Employee %s has invalid phone number (likely LID): %s — case will be marked as spam.", display_name, sender_phone)
 
         # ---------------------------------------------------------
         # 4. Session threading
@@ -174,6 +180,11 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 created_at__gte=timezone.now() - timedelta(minutes=30)
             ).count()
             is_spam = recent_cases_count >= 3
+
+            # Also mark as spam if the phone number is invalid (likely LID)
+            if is_invalid_phone:
+                is_spam = True
+                logger.warning("Marking case as spam: invalid phone number '%s' (likely LID).", sender_phone)
 
             # Auto-assign a default category — use first available or create one
             default_category = _get_or_create_default_category()
@@ -837,9 +848,9 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
         )
         if not is_valid_number:
             error_msg = (
-                f"⚠️ Invalid WhatsApp number: '{requester.phone_number}'. "
-                "This may be a Linked Device ID (LID) stored in the database from before the LID fix. "
-                "Please update the requester's phone number manually in the Employee profile."
+                f"⚠️ '{requester.phone_number}' is not a valid WhatsApp phone number. "
+                "This is likely a Linked Device ID (LID), not a real phone number. "
+                "Please update the requester's phone number via Edit Requester Info before sending messages."
             )
             logger.warning(
                 "Blocked WA send to invalid number '%s' (case %s). %s",
@@ -852,10 +863,19 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 
 
         svc = EvolutionAPIService()
+
+        # Human-like delay: simulate typing before sending staff reply
+        import random
+        import time
+        sleep_duration = random.randint(2, 5)
+        logger.info("Applying human-like staff reply delay of %s seconds for %s", sleep_duration, requester.phone_number)
+        svc.send_presence(requester.phone_number, presence="composing", delay=sleep_duration * 1000)
+        time.sleep(sleep_duration)
+
         attachments = msg.attachments.all()[:10]  # Max 10 files
 
         response_data = None
-        
+
         # If there are attachments, we send the FIRST attachment as the main media message with the text as caption
         # Additional attachments will be sent as separate media messages without captions
         if attachments:
@@ -1163,7 +1183,7 @@ def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url:
 @shared_task(bind=True, name="gateways.check_wa_session_timeout_task", max_retries=1)
 def check_wa_session_timeout_task(self, case_id: str) -> str:
     """
-    Checks if a WhatsApp session has been inactive for 10 minutes. 
+    Checks if a WhatsApp session has been inactive for 30 minutes.
     If yes, sends a session expiry message and keeps the case open or closed
     """
     from cases.models import CaseRecord
@@ -1178,18 +1198,31 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
         if case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
             return "skipped:case_already_closed"
 
-        # Check if the session is genuinely 10 mins old from last update
+        # If the session is held by staff, do not expire
+        if case.hold_wa_session:
+            return "skipped:session_on_hold"
+
+        # Check if the session is genuinely 30 mins old from last update
         time_since_update = timezone.now() - case.updated_at
-        if time_since_update >= timedelta(minutes=10):
+        if time_since_update >= timedelta(minutes=30):
             # Session expired. Send warning message.
             if case.requester and case.requester.phone_number:
+                import random
+                import time
+
                 svc = EvolutionAPIService()
                 expiry_msg = (
-                    "Your support session has ended due to 10 minutes of inactivity.\n"
+                    "Your support session has ended due to 30 minutes of inactivity.\n"
                     "If you have any further questions or require additional assistance, "
                     "please feel free to send a new message, and a new ticket will be created for you."
                 )
                 try:
+                    # Human-like delay: simulate typing before sending session expiry
+                    sleep_duration = random.randint(5, 15)
+                    logger.info("Applying human-like session expiry delay of %s seconds for case %s", sleep_duration, case.case_number)
+                    svc.send_presence(case.requester.phone_number, presence="composing", delay=sleep_duration * 1000)
+                    time.sleep(sleep_duration)
+
                     svc.send_whatsapp_message(case.requester.phone_number, expiry_msg)
                     logger.info("Sent WA session expiry message for case %s", case.case_number)
                 except Exception as exc:

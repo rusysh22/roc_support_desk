@@ -40,6 +40,11 @@
     <!-- JokoUI Design System -->
     <link rel="stylesheet" href="{% static 'css/jokoui.css' %}?v=4">
 
+    <!-- Global Styles for Alpine.js -->
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -299,6 +304,11 @@
                     }
                 }
             }
+        });
+    </script>
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
         });
     </script>
 </body>

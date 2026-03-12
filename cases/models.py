@@ -279,6 +279,11 @@ class CaseRecord(AuditableModel):
         verbose_name="Is Spam",
         help_text="Tickets marked as spam."
     )
+    hold_wa_session = models.BooleanField(
+        default=False,
+        verbose_name="Hold WA Session",
+        help_text="If true, bypasses the 30-minute auto end-session for WhatsApp conversations."
+    )
     master_ticket = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,

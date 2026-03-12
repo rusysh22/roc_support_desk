@@ -120,7 +120,18 @@ class DynamicFormForm(forms.ModelForm):
     """
     Form for creating/editing the main settings of a DynamicForm.
     """
-    slug = forms.CharField(required=False, widget=forms.TextInput(attrs={"class": "jk-input"}))
+    slug = forms.SlugField(required=False, widget=forms.TextInput(attrs={"class": "jk-input"}))
+
+    def clean_slug(self):
+        slug = self.cleaned_data.get("slug")
+        if slug:
+            from .models import DynamicForm
+            qs = DynamicForm.objects.filter(slug=slug)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError("A form with this slug already exists. Please choose a different one.")
+        return slug
 
     class Meta:
         from .models import DynamicForm

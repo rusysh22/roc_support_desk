@@ -1,4 +1,8 @@
+import io
 import uuid
+
+import qrcode
+from django.core.files.base import ContentFile
 from django.db import models
 from django.conf import settings
 
@@ -47,4 +51,35 @@ class ShortLink(models.Model):
     def get_short_url(self):
         from django.conf import settings
         base = getattr(settings, "SITE_URL", "")
-        return f"{base}/l/{self.slug}/"
+        return f"{base}/s/{self.slug}/"
+
+    def save(self, *args, **kwargs):
+        generate_qr = not self.qr_code
+        super().save(*args, **kwargs)
+        if generate_qr:
+            self._generate_qr_code()
+
+    def _generate_qr_code(self):
+        """Generate and save a QR code image for this short link."""
+        short_url = self.get_short_url()
+        if not short_url or short_url.startswith("/"):
+            short_url = f"/s/{self.slug}/"
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(short_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#1e293b", back_color="#ffffff")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        filename = f"qr-{self.slug}.png"
+        # Use update_fields to avoid triggering save() recursion
+        self.qr_code.save(filename, ContentFile(buffer.read()), save=False)
+        ShortLink.objects.filter(pk=self.pk).update(qr_code=self.qr_code.name)

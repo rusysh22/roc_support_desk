@@ -56,6 +56,18 @@ def idle_level(value):
     return "info"
 
 
+@register.filter(name='is_valid_phone')
+def is_valid_phone(value):
+    """
+    Returns True if the phone number looks like a valid E.164 WhatsApp number.
+    Invalid examples: LID numbers (too long), non-numeric strings.
+    """
+    if not value:
+        return False
+    raw = str(value).lstrip("+")
+    return raw.isdigit() and 7 <= len(raw) <= 15
+
+
 @register.tag('split_by_page_break')
 def split_by_page_break(parser, token):
     """

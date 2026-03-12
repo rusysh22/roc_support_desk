@@ -1,5 +1,15 @@
 <!-- HTMX Partial: Root Cause Analysis & Solving Steps Form -->
 <!-- Rendered inside #rca-panel in case_detail.html -->
+<style>
+    /* Styling for fields that fail validation */
+    .has-error input, .has-error select, .has-error textarea {
+        border-color: #ef4444 !important; /* Tailwind red-500 */
+        --tw-ring-color: #ef4444 !important;
+        --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color) !important;
+        box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000) !important;
+        background-color: #fef2f2 !important; /* Tailwind red-50 */
+    }
+</style>
 <div class="jk-card" x-data="{ showRequestModal: false }">
     <div class="jk-card-header">
         <span>🔍 Root Cause Analysis & Solution</span>
@@ -7,17 +17,7 @@
     </div>
     <div class="jk-card-body">
 
-        {% if success_message %}
-        <div class="jk-alert jk-alert-success">
-            ✅ {{ success_message }}
-        </div>
-        {% endif %}
-
-        {% if error_message %}
-        <div class="jk-alert jk-alert-error">
-            ❌ {{ error_message }}
-        </div>
-        {% endif %}
+        <!-- Alerts moved to the bottom floating action bar -->
 
         <form hx-post="{% url 'desk:case_update_rca' case_id=case.id %}" hx-target="#rca-panel" hx-swap="innerHTML"
             hx-indicator="#rca-spinner">
@@ -25,7 +25,7 @@
             <input type="hidden" name="back_url" value="{{ back_url|default:'/desk/cases/' }}">
 
             <!-- Assigned To -->
-            <div class="jk-form-group">
+            <div class="jk-form-group {% if rca_form.assigned_to.errors %}has-error{% endif %}">
                 <label for="id_assigned_to" class="jk-label">Assigned To</label>
                 {{ rca_form.assigned_to }}
                 {% if rca_form.assigned_to.errors %}
@@ -35,14 +35,14 @@
 
             <!-- SLA Fields -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                <div class="jk-form-group">
+                <div class="jk-form-group {% if rca_form.response_due_at.errors %}has-error{% endif %}">
                     <label for="id_response_due_at" class="jk-label">Response SLA</label>
                     {{ rca_form.response_due_at }}
                     {% if rca_form.response_due_at.errors %}
                     <div class="jk-form-error">{{ rca_form.response_due_at.errors.0 }}</div>
                     {% endif %}
                 </div>
-                <div class="jk-form-group">
+                <div class="jk-form-group {% if rca_form.resolution_due_at.errors %}has-error{% endif %}">
                     <label for="id_resolution_due_at" class="jk-label">Resolution SLA</label>
                     {{ rca_form.resolution_due_at }}
                     {% if rca_form.resolution_due_at.errors %}
@@ -236,10 +236,10 @@
             <hr class="jk-divider mb-8">
 
             <!-- Root Cause Analysis -->
-            <div class="jk-form-group">
+            <div class="jk-form-group {% if rca_form.root_cause_analysis.errors %}has-error{% endif %}">
                 <label for="id_root_cause_analysis" class="jk-label">
                     Root Cause Analysis
-                    <span class="text-xs font-normal text-slate-400 ml-1">Required before Resolved</span>
+                    <span class="text-xs font-normal text-slate-400 ml-1">Required for Resolved/Closed</span>
                 </label>
                 {{ rca_form.root_cause_analysis }}
                 {% if rca_form.root_cause_analysis.errors %}
@@ -248,10 +248,10 @@
             </div>
 
             <!-- Solving Steps -->
-            <div class="jk-form-group">
+            <div class="jk-form-group {% if rca_form.solving_steps.errors %}has-error{% endif %}">
                 <label for="id_solving_steps" class="jk-label">
                     Solving Steps
-                    <span class="text-xs font-normal text-slate-400 ml-1">Required before Resolved</span>
+                    <span class="text-xs font-normal text-slate-400 ml-1">Required for Resolved/Closed</span>
                 </label>
                 {{ rca_form.solving_steps }}
                 {% if rca_form.solving_steps.errors %}
@@ -272,9 +272,26 @@
                     </div>
                 </div>
 
-                <button type="submit" class="jk-btn bg-[#0f172a] hover:bg-[#1e293b] text-white w-full sm:w-auto sm:min-w-[200px] shadow-md hover:shadow-lg transition-all scale-100 hover:scale-105 active:scale-95">
+                <button type="submit" class="jk-btn bg-[#0f172a] hover:bg-[#1e293b] text-white w-full sm:w-auto sm:min-w-[200px] shadow-md hover:shadow-lg transition-all scale-100 hover:scale-105 active:scale-95 shrink-0">
                     {% if case.status == 'Closed' and case.edit_permission_status == 'Approved' %}Submit Amendment{% else %}Submit{% endif %}
                 </button>
+                
+                <!-- Notification Area Next to Submit Button -->
+                <div class="flex-1 w-full animate-[fade-in_0.3s_ease-out]">
+                    {% if success_message %}
+                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>{{ success_message }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if error_message %}
+                    <div class="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm animate-[pulse_2s_ease-in-out_3]">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>{{ error_message }}</span>
+                    </div>
+                    {% endif %}
+                </div>
                 
                 {% elif case.edit_permission_status == 'Requested' %}
                 <div class="w-full flex items-center justify-between">

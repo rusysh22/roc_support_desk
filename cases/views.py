@@ -23,6 +23,7 @@ from django.contrib import messages
 from django.db.models import Q, F
 from django.http import HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -790,6 +791,7 @@ def case_detail(request, case_id):
         "related_cases": related_cases,
         "master_case": master,
         "company_units": CompanyUnit.objects.all(),
+        "all_employees": Employee.objects.select_related("unit").all(),
     })
 
 
@@ -808,19 +810,27 @@ def case_update_requester(request, case_id):
             job_role = request.POST.get("job_role")
             unit_id = request.POST.get("unit_id")
 
-            if full_name:
+            # Track changes for audit log
+            changes = []
+            if full_name and full_name != case.requester.full_name:
+                changes.append(("full_name", case.requester.full_name, full_name))
                 case.requester.full_name = full_name
-            if email:
+            if email and email != (case.requester.email or ""):
+                changes.append(("email", case.requester.email or "", email))
                 case.requester.email = email
-            if phone_number:
+            if phone_number and phone_number != (case.requester.phone_number or ""):
+                changes.append(("phone_number", case.requester.phone_number or "", phone_number))
                 case.requester.phone_number = phone_number
-            if job_role:
+            if job_role and job_role != (case.requester.job_role or ""):
+                changes.append(("job_role", case.requester.job_role or "", job_role))
                 case.requester.job_role = job_role
             if unit_id:
                 try:
                     new_unit = CompanyUnit.objects.get(id=unit_id)
+                    old_unit_name = case.requester.unit.name if case.requester.unit else ""
+                    if new_unit.name != old_unit_name:
+                        changes.append(("unit", old_unit_name, new_unit.name))
                     case.requester.unit = new_unit
-                    # Sync the denormalized field on CaseRecord
                     case.requester_unit_name = new_unit.name
                     case.save(update_fields=["requester_unit_name"])
                 except CompanyUnit.DoesNotExist:
@@ -828,6 +838,53 @@ def case_update_requester(request, case_id):
 
             case.requester.save()
 
+            # Write audit logs for each changed field
+            for field_name, old_val, new_val in changes:
+                CaseAuditLog.objects.create(
+                    case=case,
+                    action=CaseAuditLog.ActionText.UPDATED,
+                    field_name=f"requester_{field_name}",
+                    old_value=old_val,
+                    new_value=new_val,
+                    created_by=request.user,
+                )
+
+    return redirect("desk:case_detail", case_id=case_id)
+
+
+@staff_required
+def case_change_requester(request, case_id):
+    """
+    POST endpoint to change (replace) the Requester on a CaseRecord.
+    Swaps the linked Employee and syncs denormalized fields.
+    """
+    if request.method == "POST":
+        case = get_object_or_404(CaseRecord, id=case_id)
+        new_employee_id = request.POST.get("new_employee_id")
+        if new_employee_id:
+            try:
+                new_employee = Employee.objects.select_related("unit").get(id=new_employee_id)
+                old_requester_name = case.requester.full_name if case.requester else "N/A"
+                case.requester = new_employee
+                case.requester_name = new_employee.full_name
+                case.requester_email = new_employee.email or ""
+                case.requester_job_role = new_employee.job_role or ""
+                case.requester_unit_name = new_employee.unit.name if new_employee.unit else ""
+                case.save(update_fields=[
+                    "requester", "requester_name", "requester_email",
+                    "requester_job_role", "requester_unit_name",
+                ])
+
+                CaseAuditLog.objects.create(
+                    case=case,
+                    action=CaseAuditLog.ActionText.UPDATED,
+                    field_name="requester",
+                    old_value=old_requester_name,
+                    new_value=new_employee.full_name,
+                    created_by=request.user,
+                )
+            except Employee.DoesNotExist:
+                pass
     return redirect("desk:case_detail", case_id=case_id)
 
 
@@ -901,6 +958,8 @@ def case_update_rca(request, case_id):
             # SLA validation if attempting to Close for the first time
             if desired_status == CaseRecord.Status.CLOSED and original_status != CaseRecord.Status.CLOSED:
                 if not form.cleaned_data.get("root_cause_analysis") or not form.cleaned_data.get("solving_steps"):
+                    # Revert instance mutation so the template doesn't think it's closed yet
+                    case.status = original_status
                     return render(request, "partials/rca_form.html", {
                         "case": case,
                         "rca_form": form,
@@ -1016,6 +1075,8 @@ def case_update_rca(request, case_id):
                 content_type="text/html"
             )
         else:
+            # Revert instance mutation if validation fails so the template logic maintains the true DB status
+            case.status = original_status
             return render(request, "partials/rca_form.html", {
                 "case": case,
                 "rca_form": form,
@@ -1081,9 +1142,9 @@ def case_send_reply(request, case_id):
                     from gateways.tasks import send_outbound_whatsapp_task
                     send_outbound_whatsapp_task.delay(str(msg.id))
                     
-                    # Reset the 10-minute session countdown for the employee
+                    # Reset the 30-minute session countdown for the employee
                     from gateways.tasks import check_wa_session_timeout_task
-                    check_wa_session_timeout_task.apply_async((str(case.id),), countdown=600)
+                    check_wa_session_timeout_task.apply_async((str(case.id),), countdown=1800)
             except Exception as e:
                 msg.delivery_status = Message.DeliveryStatus.FAILED
                 msg.delivery_error = f"Celery connection failed: {str(e)}"
@@ -2348,3 +2409,43 @@ def api_users_list(request):
         })
         
     return JsonResponse(data, safe=False)
+
+@login_required
+@require_POST
+def toggle_wa_session(request, case_id):
+    """
+    Toggle the hold_wa_session flag for a specific case via HTMX.
+    """
+    case = get_object_or_404(CaseRecord, id=case_id)
+    
+    # Check permissions
+    if request.user.role_access not in ['SuperAdmin', 'Manager', 'SupportDesk']:
+        return HttpResponseForbidden("You do not have permission to perform this action.")
+        
+    case.hold_wa_session = not case.hold_wa_session
+    case.save(update_fields=['hold_wa_session'])
+    
+    # Return the updated button HTML
+    if case.hold_wa_session:
+        return HttpResponse(f"""
+        <button type="button" 
+                hx-post="{request.path}" 
+                hx-swap="outerHTML" 
+                class="jk-btn jk-btn-sm border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 shadow-sm"
+                title="WA Session (Currently Held)">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Release Session
+        </button>
+        """)
+    else:
+        return HttpResponse(f"""
+        <button type="button" 
+                hx-post="{request.path}" 
+                hx-swap="outerHTML" 
+                class="jk-btn jk-btn-sm" 
+                style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" 
+                title="WA Session (Currently Active)">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Hold Session
+        </button>
+        """)

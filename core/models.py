@@ -216,6 +216,27 @@ class Employee(AuditableModel):
         verbose_name_plural = "Employees"
         ordering = ["full_name"]
 
+    def clean(self):
+        super().clean()
+        if self.phone_number:
+            raw = self.phone_number.lstrip("+")
+            if not raw.isdigit() or not (7 <= len(raw) <= 15):
+                from django.core.exceptions import ValidationError
+                raise ValidationError({
+                    "phone_number": (
+                        f"'{self.phone_number}' is not a valid phone number. "
+                        "It must be in E.164 format (7-15 digits, e.g. +6281234567890). "
+                        "Numbers longer than 15 digits are likely WhatsApp Linked Device IDs (LID)."
+                    )
+                })
+
+    def has_valid_phone(self):
+        """Returns True if phone_number is a valid E.164 number (7-15 digits)."""
+        if not self.phone_number:
+            return False
+        raw = self.phone_number.lstrip("+")
+        return raw.isdigit() and 7 <= len(raw) <= 15
+
     def __str__(self):
         return f"{self.full_name} ({self.unit.code})"
 

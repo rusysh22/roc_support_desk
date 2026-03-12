@@ -38,11 +38,15 @@ urlpatterns = [
     path("cases/<uuid:case_id>/status/", views.case_update_status, name="case_update_status"),
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
+    path("cases/<uuid:case_id>/change-requester/", views.case_change_requester, name="case_change_requester"),
     path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
     path("cases/<uuid:case_id>/request-edit/", views.case_request_edit, name="case_request_edit"),
     path("cases/<uuid:case_id>/approve-edit/", views.case_approve_edit, name="case_approve_edit"),
     path("cases/<uuid:case_id>/reject-edit/", views.case_reject_edit, name="case_reject_edit"),
     path("cases/<uuid:case_id>/unmerge/", views.case_unmerge, name="case_unmerge"),
+    
+    # Toggle WA Session Hold
+    path("cases/<uuid:case_id>/toggle-wa-session/", views.toggle_wa_session, name="toggle_wa_session"),
 
     # API
     path("api/users/", views.api_users_list, name="api_users_list"),

@@ -1,7 +1,15 @@
 {% extends "base.html" %}
+{% load custom_tags %}
 
 {% block title %}{{ case.case_number }} — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block page_title %}{{ case.case_number }}{% endblock %}
+{% block page_title %}
+<div class="flex items-center gap-2">
+    <a href="javascript:history.back()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100" title="Back">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+    </a>
+    <span>{{ case.case_number }}</span>
+</div>
+{% endblock %}
 {% block nav_cases %}active{% endblock %}
 
 {% block topbar_actions %}
@@ -37,7 +45,18 @@
                         <span class="text-slate-300">•</span>
                         <span>{{ case.requester.email|default:"No Email" }}</span>
                         <span class="text-slate-300">•</span>
-                        <span>{{ case.requester.phone_number|default:"No Phone" }}</span>
+                        {% if case.requester.phone_number %}
+                            {% if case.requester.phone_number|is_valid_phone %}
+                                <span>{{ case.requester.phone_number }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 border border-red-200 text-red-600 font-medium" title="Invalid phone number format — possibly a WhatsApp Linked Device ID (LID). Please update in requester info.">
+                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                    {{ case.requester.phone_number }}
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <span>No Phone</span>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -218,6 +237,28 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                 <div class="jk-spinner htmx-indicator" id="thread-spinner"></div>
+                {% if case.source == 'EvolutionAPI_WA' and case.status != 'Closed' %}
+                    {% if case.hold_wa_session %}
+                        <button type="button" 
+                                hx-post="{% url 'desk:toggle_wa_session' case.id %}" 
+                                hx-swap="outerHTML" 
+                                class="jk-btn jk-btn-sm border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 shadow-sm"
+                                title="Release WA Session (Currently Held)">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Release Session
+                        </button>
+                    {% else %}
+                        <button type="button" 
+                                hx-post="{% url 'desk:toggle_wa_session' case.id %}" 
+                                hx-swap="outerHTML" 
+                                class="jk-btn jk-btn-sm" 
+                                style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" 
+                                title="Hold WA Session (Currently Active)">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Hold Session
+                        </button>
+                    {% endif %}
+                {% endif %}
                 <button type="button" @click="showLogModal = true" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" title="View delivery log">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                 </button>
@@ -228,17 +269,58 @@
 
             <!-- Edit Requester Modal (Moved from Main Header) -->
             <div x-show="showEditRequesterModal" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md relative max-h-[90vh] flex flex-col" @click.outside="showEditRequesterModal = false">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md relative max-h-[90vh] flex flex-col" @click.outside="showEditRequesterModal = false"
+                     x-data="{
+                        activeTab: 'edit',
+                        showConfirm: false,
+                        empSearch: '',
+                        selectedEmployeeId: '',
+                        selectedEmployeeName: '',
+                        selectedEmployeeUnit: '',
+                        employees: [
+                            {% for emp in all_employees %}
+                            { id: '{{ emp.id }}', name: '{{ emp.full_name|escapejs }}', unit: '{{ emp.unit.name|escapejs }}', email: '{{ emp.email|default:""|escapejs }}', phone: '{{ emp.phone_number|default:""|escapejs }}', role: '{{ emp.job_role|default:""|escapejs }}' }{% if not forloop.last %},{% endif %}
+                            {% endfor %}
+                        ],
+                        get filteredEmployees() {
+                            if (this.empSearch === '') return this.employees;
+                            const q = this.empSearch.toLowerCase();
+                            return this.employees.filter(e => e.name.toLowerCase().includes(q) || e.unit.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) || e.phone.includes(q));
+                        },
+                        selectEmployee(emp) {
+                            this.selectedEmployeeId = emp.id;
+                            this.selectedEmployeeName = emp.name;
+                            this.selectedEmployeeUnit = emp.unit;
+                        }
+                     }">
                     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                            Edit Requester Info
+                            Requester Info
                         </h3>
                         <button @click="showEditRequesterModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <form action="{% url 'desk:case_update_requester' case.id %}" method="post">
+
+                    <!-- Tab Switcher -->
+                    <div class="flex border-b border-slate-200 px-6 bg-white">
+                        <button type="button" @click="activeTab = 'edit'; showConfirm = false;"
+                                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
+                                :class="activeTab === 'edit' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
+                            <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            Edit Info
+                        </button>
+                        <button type="button" @click="activeTab = 'change'; showConfirm = false;"
+                                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
+                                :class="activeTab === 'change' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
+                            <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            Change Requester
+                        </button>
+                    </div>
+
+                    <!-- ====== TAB 1: Edit Info (existing) ====== -->
+                    <form x-show="activeTab === 'edit'" action="{% url 'desk:case_update_requester' case.id %}" method="post" class="flex flex-col flex-1 overflow-hidden">
                         {% csrf_token %}
                         <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
                             <div>
@@ -260,9 +342,9 @@
                                 </div>
                             </div>
                             <!-- Searchable Company Unit Dropdown based on Alpine.js -->
-                            <div x-data="{ 
-                                open: false, 
-                                search: '', 
+                            <div x-data="{
+                                open: false,
+                                search: '',
                                 selectedValue: '{{ case.requester.unit_id|default:'' }}',
                                 selectedText: '{{ case.requester.unit.name|escapejs }} ({{ case.requester.unit.code|escapejs }})',
                                 options: [
@@ -284,23 +366,23 @@
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Company Unit</label>
                                 <!-- Hidden input for actual form submission -->
                                 <input type="hidden" name="unit_id" :value="selectedValue">
-                                
-                                <button type="button" @click="open = !open" 
+
+                                <button type="button" @click="open = !open"
                                         class="jk-select w-full text-left flex items-center justify-between"
                                         :class="{'border-indigo-500 ring-1 ring-indigo-500': open}">
                                     <span x-text="selectedText || 'Select a Company Unit...'" :class="{'text-slate-400': !selectedValue}" class="truncate"></span>
                                     <svg class="w-4 h-4 text-slate-400 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="{'rotate-180': open}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
-                                
+
                                 <!-- Popup Overlay Dropdown -->
-                                <div x-show="open" style="display: none;" 
+                                <div x-show="open" style="display: none;"
                                      class="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4"
-                                     x-transition:enter="transition ease-out duration-150" 
-                                     x-transition:enter-start="opacity-0" 
-                                     x-transition:enter-end="opacity-100" 
-                                     x-transition:leave="transition ease-in duration-100" 
-                                     x-transition:leave-start="opacity-100" 
-                                     x-transition:leave-end="opacity-0" 
+                                     x-transition:enter="transition ease-out duration-150"
+                                     x-transition:enter-start="opacity-0"
+                                     x-transition:enter-end="opacity-100"
+                                     x-transition:leave="transition ease-in duration-100"
+                                     x-transition:leave-start="opacity-100"
+                                     x-transition:leave-end="opacity-0"
                                      x-cloak>
                                     <div class="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl shadow-2xl flex flex-col max-h-[70vh] sm:max-h-[60vh] overflow-hidden" @click.outside="open = false; search = '';">
                                         <!-- Header -->
@@ -314,15 +396,15 @@
                                         <div class="p-3 border-b border-slate-100 shrink-0">
                                             <div class="relative">
                                                 <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                                                <input type="text" x-model="search" x-ref="unitSearch" placeholder="Search units..." 
-                                                       class="w-full text-sm border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 rounded-lg pl-9 pr-3 py-2.5 text-slate-700 placeholder-slate-400 transition-colors" 
+                                                <input type="text" x-model="search" x-ref="unitSearch" placeholder="Search units..."
+                                                       class="w-full text-sm border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 rounded-lg pl-9 pr-3 py-2.5 text-slate-700 placeholder-slate-400 transition-colors"
                                                        @click.stop @keydown.enter.prevent @keydown.escape="open = false; search = '';">
                                             </div>
                                         </div>
                                         <!-- Options List -->
                                         <div class="overflow-y-auto flex-1 p-2">
                                             <template x-for="option in filteredOptions" :key="option.id">
-                                                <div @click="selectOption(option)" 
+                                                <div @click="selectOption(option)"
                                                      class="cursor-pointer px-3 py-2.5 text-sm rounded-lg transition-all"
                                                      :class="{'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200': selectedValue === option.id, 'text-slate-700 hover:bg-slate-100': selectedValue !== option.id}">
                                                     <div class="flex items-center gap-2">
@@ -347,6 +429,120 @@
                             <button type="submit" class="jk-btn jk-btn-primary">Save Changes</button>
                         </div>
                     </form>
+
+                    <!-- ====== TAB 2: Change Requester ====== -->
+                    <div x-show="activeTab === 'change'" class="flex flex-col flex-1 overflow-hidden">
+                        <!-- Search & Select Employee (hidden when confirming) -->
+                        <div x-show="!showConfirm" class="flex flex-col flex-1 overflow-hidden">
+                            <div class="p-4 sm:p-6 space-y-4 flex flex-col flex-1 overflow-hidden">
+                                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                    <p class="text-sm text-amber-800">
+                                        <svg class="w-4 h-4 inline-block mr-1 -mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                        Changing the requester will replace all requester data on this ticket.
+                                    </p>
+                                </div>
+                                <!-- Current Requester -->
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Current Requester</p>
+                                    <p class="text-sm font-medium text-slate-800">{{ case.requester.full_name }}</p>
+                                    <p class="text-xs text-slate-500">{{ case.requester.unit.name|default:"-" }} &middot; {{ case.requester.job_role|default:"-" }}</p>
+                                </div>
+                                <!-- Search Input -->
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Search New Requester</label>
+                                    <div class="relative">
+                                        <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                        <input type="text" x-model="empSearch" placeholder="Search by name, email, unit, or phone number..."
+                                               class="w-full text-sm border border-slate-200 bg-white focus:ring-2 focus:ring-amber-100 focus:border-amber-400 rounded-lg pl-9 pr-3 py-2.5 text-slate-700 placeholder-slate-400 transition-colors">
+                                    </div>
+                                </div>
+                                <!-- Employee List -->
+                                <div class="overflow-y-auto flex-1 border border-slate-200 rounded-lg -mx-1">
+                                    <template x-for="emp in filteredEmployees" :key="emp.id">
+                                        <div @click="selectEmployee(emp)"
+                                             class="cursor-pointer px-3 py-2.5 border-b border-slate-100 last:border-b-0 transition-all"
+                                             :class="{'bg-amber-50 border-l-4 border-l-amber-400': selectedEmployeeId === emp.id, 'hover:bg-slate-50': selectedEmployeeId !== emp.id}">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0"
+                                                     :class="{'bg-amber-200 text-amber-700': selectedEmployeeId === emp.id}"
+                                                     x-text="emp.name.charAt(0).toUpperCase()"></div>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-medium text-slate-800 truncate" x-text="emp.name"></p>
+                                                    <p class="text-xs text-slate-500 truncate">
+                                                        <span x-text="emp.unit || '-'"></span> &middot; <span x-text="emp.role || '-'"></span>
+                                                    </p>
+                                                    <p x-show="emp.phone" class="text-xs text-slate-400 truncate" x-text="emp.phone"></p>
+                                                </div>
+                                                <div x-show="selectedEmployeeId === emp.id" class="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="filteredEmployees.length === 0" class="px-3 py-6 text-sm text-center text-slate-400 italic">
+                                        No matching requester found.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+                                <button type="button" @click="showEditRequesterModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                                <button type="button" @click="showConfirm = true" :disabled="!selectedEmployeeId"
+                                        class="jk-btn text-white transition-colors"
+                                        :class="selectedEmployeeId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-300 cursor-not-allowed'">
+                                    Change Requester
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Confirmation Dialog -->
+                        <div x-show="showConfirm" class="flex flex-col flex-1 overflow-hidden">
+                            <div class="p-4 sm:p-6 space-y-4 flex-1">
+                                <div class="text-center py-2">
+                                    <div class="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-7 h-7 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                    </div>
+                                    <h4 class="text-lg font-bold text-slate-800 mb-2">Confirm Requester Change</h4>
+                                    <p class="text-sm text-slate-600 mb-4">Are you sure you want to change the requester for this ticket?</p>
+                                </div>
+                                <!-- Change Summary -->
+                                <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-600 shrink-0">
+                                            {{ case.requester.full_name|slice:":1"|upper }}
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-xs text-red-500 font-semibold uppercase tracking-wide">From</p>
+                                            <p class="text-sm font-medium text-slate-800">{{ case.requester.full_name }}</p>
+                                            <p class="text-xs text-slate-500">{{ case.requester.unit.name|default:"-" }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-center">
+                                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-sm font-bold text-green-600 shrink-0"
+                                             x-text="selectedEmployeeName ? selectedEmployeeName.charAt(0).toUpperCase() : '?'"></div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-xs text-green-600 font-semibold uppercase tracking-wide">To</p>
+                                            <p class="text-sm font-medium text-slate-800" x-text="selectedEmployeeName"></p>
+                                            <p class="text-xs text-slate-500" x-text="selectedEmployeeUnit || '-'"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+                                <button type="button" @click="showConfirm = false" class="jk-btn jk-btn-secondary">Back</button>
+                                <form action="{% url 'desk:case_change_requester' case.id %}" method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="new_employee_id" :value="selectedEmployeeId">
+                                    <button type="submit" class="jk-btn bg-amber-500 hover:bg-amber-600 text-white">
+                                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Yes, Change Requester
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -711,6 +907,9 @@
         </div>
     </div>
 </div>
+
+<!-- Extra padding to prevent floating tab bar from obscuring bottom content -->
+<div class="h-24 sm:h-32 w-full"></div>
 
 {% endblock %}
 
