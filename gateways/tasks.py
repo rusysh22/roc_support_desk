@@ -89,27 +89,57 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             return f"skipped:duplicate:{external_id}"
 
         # ---------------------------------------------------------
-        # 3. Employee lookup
+        # 3. Validate phone number & Employee lookup
         # ---------------------------------------------------------
-        is_invalid_phone = False
+        # Final safety net: reject phone numbers that are not valid E.164
+        # even if the parser let them through (defense in depth).
+        raw_digits = sender_phone.lstrip("+")
+        is_invalid_phone = not (raw_digits.isdigit() and 7 <= len(raw_digits) <= 15)
+
+        if is_invalid_phone:
+            logger.warning(
+                "Webhook from invalid phone number '%s' (likely LID). "
+                "Will NOT auto-create Employee — marking as spam.",
+                sender_phone,
+            )
+
         try:
             employee: Employee = Employee.objects.get(phone_number=sender_phone)
-            if not employee.has_valid_phone():
-                is_invalid_phone = True
+            if is_invalid_phone and not employee.has_valid_phone():
+                logger.warning(
+                    "Existing Employee %s has invalid phone '%s' — case will be marked as spam.",
+                    employee.full_name, sender_phone,
+                )
         except Employee.DoesNotExist:
+            if is_invalid_phone:
+                # Do NOT persist an Employee with a garbage phone number.
+                # Create a transient object (unsaved) just to proceed with
+                # spam case creation so the message is not silently lost.
+                logger.warning(
+                    "Skipping Employee creation for invalid phone '%s'. "
+                    "Message will be logged as spam case.",
+                    sender_phone,
+                )
+                default_unit = _get_or_create_external_unit()
+                display_name = sender_name if sender_name else f"WA User {sender_phone}"
+                employee = Employee(
+                    phone_number=sender_phone,
+                    full_name=display_name,
+                    unit=default_unit,
+                    job_role="WhatsApp User",
+                )
+                # Don't save — just return early with a spam skip
+                return "skipped:invalid_phone"
+
             default_unit = _get_or_create_external_unit()
-            # If we know their WhatsApp PushName, use it. Otherwise "WA User +62..."
             display_name = sender_name if sender_name else f"WA User {sender_phone}"
             employee = Employee.objects.create(
                 phone_number=sender_phone,
                 full_name=display_name,
                 unit=default_unit,
-                job_role="WhatsApp User"
+                job_role="WhatsApp User",
             )
             logger.info("Auto-registered new Employee from WA: %s (%s)", sender_phone, display_name)
-            if not employee.has_valid_phone():
-                is_invalid_phone = True
-                logger.warning("Employee %s has invalid phone number (likely LID): %s — case will be marked as spam.", display_name, sender_phone)
 
         # ---------------------------------------------------------
         # 4. Session threading

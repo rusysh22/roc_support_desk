@@ -26,13 +26,40 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
             logger.info(f"Ignored Evolution webhook {message_id}: originated from bot (fromMe=True).")
             return None
 
-        # Handle LID Addressing: prioritize remoteJidAlt over remoteJid
+        # Handle LID Addressing
+        # WhatsApp Linked Device IDs (LID) use @lid suffix and are NOT real
+        # phone numbers. We must resolve them to real @s.whatsapp.net JIDs.
+        #
+        # Strategy: pick the BEST candidate from remoteJid / remoteJidAlt,
+        # preferring any @s.whatsapp.net JID over @lid JIDs.
+        remote_jid_primary = key.get("remoteJid", "")
         remote_jid_alt = key.get("remoteJidAlt", "")
-        remote_jid = remote_jid_alt if remote_jid_alt else key.get("remoteJid", "")
-        
+
+        def _is_phone_jid(jid: str) -> bool:
+            """Return True if JID looks like a real phone@s.whatsapp.net."""
+            if not jid or not jid.endswith("@s.whatsapp.net"):
+                return False
+            num = jid.split("@")[0]
+            return num.isdigit() and 7 <= len(num) <= 15
+
+        # Prefer whichever candidate is a valid phone JID
+        if _is_phone_jid(remote_jid_primary):
+            remote_jid = remote_jid_primary
+        elif _is_phone_jid(remote_jid_alt):
+            remote_jid = remote_jid_alt
+        else:
+            # Neither is a valid phone JID — take whichever is available
+            # (will be resolved via DB fallback below)
+            remote_jid = remote_jid_primary or remote_jid_alt
+
         if not remote_jid:
             logger.info(f"Ignored Evolution webhook {message_id}: missing remoteJid/remoteJidAlt.")
             return None
+
+        logger.debug(
+            f"Webhook {message_id}: remoteJid={remote_jid_primary}, "
+            f"remoteJidAlt={remote_jid_alt}, selected={remote_jid}"
+        )
 
         # 3. Ignore Unsupported Chat Types
         if remote_jid.endswith("@g.us"):
@@ -42,35 +69,41 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
         if remote_jid == "status@broadcast":
             logger.info(f"Ignored Evolution webhook {message_id}: status broadcast.")
             return None
-            
-        # Ignore unresolved LID identifiers or attempt Database Fallback
-        if remote_jid.endswith("@lid") and not remote_jid_alt:
-            logger.info(f"Unresolved LID address detected ({remote_jid}). Attempting Database Fallback...")
-            
+
+        # Attempt Database Fallback for LID or non-phone JIDs
+        if remote_jid.endswith("@lid"):
+            logger.info(f"LID address detected ({remote_jid}). Attempting Database Fallback...")
+
             from gateways.services import EvolutionAPIService
             svc = EvolutionAPIService()
             fallback_chat_data = svc.find_latest_chat(remote_jid)
-            
+
             if fallback_chat_data and "remoteJid" in fallback_chat_data:
-                # Evolution's chat response usually stores the real JID in the top level remoteJid string
-                remote_jid = fallback_chat_data["remoteJid"]
-                logger.info(f"Fallback successful. Reassigned LID {key.get('remoteJid')} -> {remote_jid}")
+                resolved = fallback_chat_data["remoteJid"]
+                if _is_phone_jid(resolved):
+                    logger.info(f"Fallback successful. Resolved LID {remote_jid} -> {resolved}")
+                    remote_jid = resolved
+                else:
+                    logger.warning(
+                        f"Ignored Evolution webhook {message_id}: "
+                        f"Fallback returned non-phone JID ({resolved}) for LID ({remote_jid})."
+                    )
+                    return None
             else:
-                logger.warning(f"Ignored Evolution webhook {message_id}: Fallback failed. Unable to resolve LID address ({remote_jid}).")
+                logger.warning(f"Ignored Evolution webhook {message_id}: Fallback failed for LID ({remote_jid}).")
                 return None
 
-        # 1. Correct Sender Extraction
-        # Safely split at "@" instead of chaining replaces
+        # Extract raw number from the resolved JID
         raw_number = remote_jid.split("@")[0]
 
-        # Ensure it's a valid numeric phone number before proceeding
+        # Ensure it's a valid numeric phone number
         if not raw_number.isdigit():
             logger.warning(f"Ignored Evolution webhook {message_id}: non-numeric sender ID ({raw_number}).")
             return None
 
-        # Validate E.164 length (7-15 digits). Numbers longer than 15 digits
-        # are likely LID identifiers that slipped through the @lid check
-        # (e.g. remoteJidAlt returned a LID instead of a real number).
+        # Validate E.164 length (7-15 digits). Numbers outside this range
+        # are likely LID identifiers that slipped through (e.g. a numeric
+        # LID without the @lid suffix).
         if not (7 <= len(raw_number) <= 15):
             logger.info(
                 f"Suspected LID number detected ({raw_number}, {len(raw_number)} digits). "
