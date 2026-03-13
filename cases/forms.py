@@ -257,6 +257,7 @@ class StaffReplyForm(forms.Form):
     """Form for staff to send a reply message within a case thread."""
 
     body = forms.CharField(
+        required=False,
         label="Reply",
         widget=forms.Textarea(attrs={
             "class": "jk-textarea",

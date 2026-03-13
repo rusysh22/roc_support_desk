@@ -1097,6 +1097,16 @@ def case_send_reply(request, case_id):
     if request.method == "POST":
         form = StaffReplyForm(request.POST, request.FILES)
         if form.is_valid():
+            # Must have at least body or attachment
+            if not form.cleaned_data.get("body") and not form.cleaned_data.get("attachment"):
+                messages = case.messages.select_related(
+                    "sender_employee", "sender_staff"
+                ).prefetch_related("attachments").all()
+                return render(request, "partials/chat_thread.html", {
+                    "case": case,
+                    "chat_messages": messages,
+                })
+
             # Determine the channel based on the original case source
             reply_channel = Message.Channel.WEB
             
@@ -1111,7 +1121,7 @@ def case_send_reply(request, case_id):
             msg = Message.objects.create(
                 case=case,
                 sender_staff=request.user,
-                body=form.cleaned_data["body"],
+                body=form.cleaned_data.get("body") or "",
                 cc_emails=form.cleaned_data.get("cc_emails", ""),
                 direction=Message.Direction.OUTBOUND,
                 channel=reply_channel,

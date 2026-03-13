@@ -711,9 +711,25 @@
                     <div class="jk-reply-bar__input-wrap">
                         <textarea name="body" x-ref="replyInput" x-model="replyText"
                                   class="jk-reply-bar__input" rows="1"
-                                  placeholder="Type a message..." required
+                                  placeholder="Type a message... (Ctrl+V to paste image)"
                                   @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
-                                  @keydown.enter.prevent="if(!event.shiftKey && replyText.trim()) { $el.closest('form').requestSubmit(); } else if (event.shiftKey) { replyText += '\n'; $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'; }"></textarea>
+                                  @keydown.enter.prevent="if(!event.shiftKey && replyText.trim()) { $el.closest('form').requestSubmit(); } else if (event.shiftKey) { replyText += '\n'; $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'; }"
+                                  @paste="
+                                    const items = event.clipboardData?.items;
+                                    if (items) {
+                                      for (const item of items) {
+                                        if (item.type.startsWith('image/')) {
+                                          event.preventDefault();
+                                          const file = item.getAsFile();
+                                          const dt = new DataTransfer();
+                                          dt.items.add(file);
+                                          $refs.fileInput.files = dt.files;
+                                          fileName = file.name || 'pasted-image.png';
+                                          break;
+                                        }
+                                      }
+                                    }
+                                  "></textarea>
                         <div class="jk-reply-bar__file-tag" x-show="fileName" x-cloak>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             <span x-text="fileName"></span>
@@ -724,7 +740,7 @@
                     <!-- Send button -->
                     <button type="submit" 
                             class="jk-reply-bar__send" 
-                            :disabled="!replyText.trim() || isSubmitting" 
+                            :disabled="(!replyText.trim() && !fileName) || isSubmitting" 
                             title="Send Reply" aria-label="Send message">
                         <svg x-show="!isSubmitting" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
