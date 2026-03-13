@@ -184,7 +184,7 @@
             </div>
             <div class="jk-topbar-actions flex items-center gap-2">
                 {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
-                <div hx-get="{% url 'desk:notifications' %}" hx-trigger="load, every 60s">
+                <div hx-get="{% url 'desk:notifications' %}" hx-trigger="load, every 5s">
                     <!-- Bell gets loaded here -->
                 </div>
                 {% endif %}
@@ -268,6 +268,70 @@
     </div>
 
     {% block extra_scripts %}{% endblock %}
+
+    <!-- Browser Notification Handler -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is authenticated and is staff
+            const isStaff = {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk' %}true{% else %}false{% endif %};
+            if (!isStaff) return;
+
+            // Request permission on load
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            // Track IDs we have already notified about in this session
+            let notifiedIds = JSON.parse(localStorage.getItem('roc_notified_ids') || '[]');
+            
+            // Cleanup old IDs (older than 24h) to keep localStorage clean
+            const now = Date.now();
+            notifiedIds = notifiedIds.filter(item => (now - item.timestamp) < 86400000);
+            localStorage.setItem('roc_notified_ids', JSON.stringify(notifiedIds));
+
+            function triggerBrowserNotification(notif) {
+                if (Notification.permission !== 'granted') return;
+
+                // Check if already notified
+                if (notifiedIds.some(item => item.id === notif.id)) return;
+
+                const notification = new Notification(notif.title, {
+                    body: notif.body,
+                    icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% else %}data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛠️</text></svg>{% endif %}"
+                });
+
+                notification.onclick = function() {
+                    window.focus();
+                    if (notif.url) {
+                        window.location.href = notif.url;
+                    }
+                    notification.close();
+                };
+
+                // Add to notified list
+                notifiedIds.push({ id: notif.id, timestamp: Date.now() });
+                localStorage.setItem('roc_notified_ids', JSON.stringify(notifiedIds));
+            }
+
+            // Listen for HTMX partial loads of the notification bell
+            document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+                // Check if the request was for the notifications bell
+                if (evt.detail.xhr.responseURL && evt.detail.xhr.responseURL.includes('/notifications/')) {
+                    try {
+                        const scriptTag = document.getElementById('notif-metadata');
+                        if (scriptTag) {
+                            const data = JSON.parse(scriptTag.textContent);
+                            if (data && data.notifications) {
+                                data.notifications.forEach(triggerBrowserNotification);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Error parsing notification metadata:", e);
+                    }
+                }
+            });
+        });
+    </script>
 
     <!-- Auto-Format Phone Numbers (08 -> 628) -->
     <script>

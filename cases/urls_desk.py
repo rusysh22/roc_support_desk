@@ -61,6 +61,7 @@ urlpatterns = [
     path("forms/", views.form_list_view, name="form_list"),
     path("forms/create/", views.form_create_view, name="form_create"),
     path("forms/<uuid:pk>/edit/", views.form_edit_view, name="form_edit"),
+    path("forms/<uuid:pk>/delete/", views.form_delete_view, name="form_delete"),
     path("forms/<uuid:pk>/duplicate/", views.form_duplicate_view, name="form_duplicate"),
     path("forms/<uuid:pk>/responses/", views.form_responses_view, name="form_responses"),
     path("forms/<uuid:pk>/responses/export/", views.form_responses_export, name="form_responses_export"),

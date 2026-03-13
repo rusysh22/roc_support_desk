@@ -102,3 +102,37 @@
         </div>
     </div>
 </div>
+
+<!-- Metadata for Browser Notifications -->
+<script id="notif-metadata" type="application/json">
+{
+    "notifications": [
+        {% for msg in recent_unread_messages %}
+        {
+            "id": "msg_{{ msg.id }}",
+            "title": "New Message - {{ msg.case.case_number }}",
+            "body": "{{ msg.body|truncatechars:100|escapejs }}",
+            "url": "{% url 'desk:mark_notification_read' notif_type='msg' notif_id=msg.id %}"
+        }{% if not forloop.last or recent_cases or recent_mentions %},{% endif %}
+        {% endfor %}
+        
+        {% for case in recent_cases %}
+        {
+            "id": "case_{{ case.id }}",
+            "title": "New Ticket - {{ case.case_number }}",
+            "body": "{{ case.subject|truncatechars:100|escapejs }}",
+            "url": "{% url 'desk:mark_notification_read' notif_type='case' notif_id=case.id %}"
+        }{% if not forloop.last or recent_mentions %},{% endif %}
+        {% endfor %}
+
+        {% for mention in recent_mentions %}
+        {
+            "id": "mention_{{ mention.id }}",
+            "title": "You were mentioned",
+            "body": "{{ mention.author.username }} tagged you in {{ mention.case.case_number }}",
+            "url": "{% url 'desk:mark_notification_read' notif_type='mention' notif_id=mention.id %}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>

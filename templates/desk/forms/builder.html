@@ -253,6 +253,12 @@
     </div>
     {% endif %}
 
+    {% if form.errors %}
+    <div class="p-3 rounded-xl bg-red-50 text-red-800 border-red-200 border text-sm font-medium shadow-sm mb-4 shrink-0">
+        Please correct the errors in the Properties panel before saving.
+    </div>
+    {% endif %}
+
     <!-- ===== MOBILE SIDEBAR OVERLAY ===== -->
     <div x-show="mobileSidebarOpen" x-transition.opacity @click="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden" style="display:none;"></div>
 
@@ -292,8 +298,11 @@
                             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.slug.label }}</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 font-mono text-sm">/</span>
-                                <input type="text" name="slug" value="{{ form.slug.value }}" class="jk-input pl-7 font-mono text-sm bg-slate-50 focus:bg-white" required id="id_slug">
+                                <input type="text" name="slug" value="{{ form.slug.value }}" class="jk-input pl-7 font-mono text-sm {% if form.slug.errors %}border-red-400 bg-red-50 focus:ring-red-500 focus:border-red-500{% else %}bg-slate-50 focus:bg-white{% endif %}" required id="id_slug">
                             </div>
+                            {% if form.slug.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.slug.errors.0 }}</p>
+                            {% endif %}
                         </div>
                         <div>
                             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>

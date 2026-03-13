@@ -2057,6 +2057,20 @@ def form_create_view(request):
 
 @staff_required
 @require_POST
+def form_delete_view(request, pk):
+    """Delete a DynamicForm and all related fields/submissions."""
+    from core.models import DynamicForm
+    from django.contrib import messages
+
+    form = get_object_or_404(DynamicForm, pk=pk)
+    title = form.title
+    form.delete()
+    messages.success(request, f"Form '{title}' has been deleted.")
+    return redirect("desk:form_list")
+
+
+@staff_required
+@require_POST
 def form_duplicate_view(request, pk):
     """
     Duplicate a DynamicForm and all its fields.
