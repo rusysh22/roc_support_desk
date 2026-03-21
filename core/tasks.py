@@ -11,11 +11,13 @@ from django.utils.html import strip_tags
 logger = logging.getLogger(__name__)
 
 @shared_task(
+    bind=True,
     name="core.send_password_reset_otp_task",
     max_retries=3,
     default_retry_delay=30,
+    acks_late=True,
 )
-def send_password_reset_otp_task(user_email: str, otp_code: str, username: str) -> str:
+def send_password_reset_otp_task(self, user_email: str, otp_code: str, username: str) -> str:
     """
     Sends a 6-digit OTP code to the requested user's email for password reset.
     """
@@ -88,16 +90,11 @@ def send_password_reset_otp_task(user_email: str, otp_code: str, username: str) 
             to=[user_email],
         )
         email.attach_alternative(html_content, "text/html")
-        email.send()
-        
+        email.send(fail_silently=False)
+
         logger.info("Password reset OTP sent to %s", user_email)
         return f"sent_to:{user_email}"
-        
+
     except Exception as exc:
         logger.exception("Failed to send OTP email to %s: %s", user_email, exc)
-        try:
-            # Using self.retry in @shared_task requires declaring bind=True, but we'll let Celery catch raising it inside a standard task
-            raise exc
-        except Exception:
-            pass
-        return f"error:{user_email}"
+        raise self.retry(exc=exc)
