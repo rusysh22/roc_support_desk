@@ -81,13 +81,36 @@ def send_password_reset_otp_task(self, user_email: str, otp_code: str, username:
     try:
         from core.models import EmailConfig
         email_config = EmailConfig.get_solo()
-        from_email = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", f"noreply@{site_name.replace(' ', '').lower()}.com")
-        
+        from_email = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
+
+        logger.info(
+            "OTP email config — host=%s, port=%s, user=%s, tls=%s, ssl=%s, from=%s",
+            email_config.smtp_host,
+            email_config.smtp_port,
+            email_config.smtp_user,
+            email_config.smtp_use_tls,
+            email_config.smtp_use_ssl,
+            from_email,
+        )
+
+        # Build explicit SMTP connection with timeout (same pattern as gateway tasks)
+        from django.core.mail import get_connection
+        connection = get_connection(
+            host=email_config.smtp_host,
+            port=email_config.smtp_port,
+            username=email_config.smtp_user,
+            password=email_config.smtp_password,
+            use_tls=email_config.smtp_use_tls,
+            use_ssl=email_config.smtp_use_ssl,
+            timeout=30,
+        )
+
         email = EmailMultiAlternatives(
             subject=subject,
             body=text_content,
             from_email=from_email,
             to=[user_email],
+            connection=connection,
         )
         email.attach_alternative(html_content, "text/html")
         email.send(fail_silently=False)
