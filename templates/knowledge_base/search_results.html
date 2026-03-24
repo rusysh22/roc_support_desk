@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load kb_tags %}
 
 {% block title %}Search Results for "{{ query }}" - Knowledge Base{% endblock %}
 
@@ -47,9 +48,9 @@
                     <div class="flex items-center gap-2 mb-2">
                         <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">{{ article.category.name }}</span>
                     </div>
-                    <h3 class="text-lg font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title }}</h3>
-                    <p class="text-slate-600 text-sm mb-4 line-clamp-2 md:pr-12">
-                        {{ article.problem_summary|striptags|truncatewords:30 }}
+                    <h3 class="text-lg font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title|highlight:query }}</h3>
+                    <p class="text-slate-600 text-sm mb-4 line-clamp-3 md:pr-12">
+                        {{ article.problem_summary|highlight:query }}
                     </p>
                     <div class="flex items-center text-xs font-medium text-slate-400 gap-4">
                         <span>Updated: {{ article.updated_at|date:"M d, Y" }}</span>

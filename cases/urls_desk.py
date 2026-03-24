@@ -38,6 +38,7 @@ urlpatterns = [
     path("cases/<uuid:case_id>/status/", views.case_update_status, name="case_update_status"),
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
+    path("cases/<uuid:case_id>/update-subject/", views.case_update_subject, name="case_update_subject"),
     path("cases/<uuid:case_id>/change-requester/", views.case_change_requester, name="case_change_requester"),
     path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
     path("cases/<uuid:case_id>/request-edit/", views.case_request_edit, name="case_request_edit"),

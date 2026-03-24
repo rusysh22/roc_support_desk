@@ -34,10 +34,25 @@
 <div class="jk-card mb-6">
     <div class="jk-card-body py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-3 sm:gap-4">
-            <div class="flex-1 min-w-0" x-data="{ showEditRequesterModal: false }">
+            <div class="flex-1 min-w-0" x-data="{ showEditRequesterModal: false, editingSubject: false, subjectVal: '{{ case.subject|escapejs }}' }">
                 <div class="flex flex-col gap-1 mb-4">
                     <div class="flex items-center gap-3">
-                        <h2 class="text-xl font-bold text-slate-800 break-words">{{ case.subject }}</h2>
+                        <!-- Display mode -->
+                        <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words" x-text="subjectVal"></h2>
+                        <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                        <!-- Edit mode -->
+                        <form x-show="editingSubject" x-cloak action="{% url 'desk:case_update_subject' case.id %}" method="post" class="flex items-center gap-2 flex-1">
+                            {% csrf_token %}
+                            <input x-ref="subjectInput" type="text" name="subject" x-model="subjectVal" @keydown.escape="editingSubject = false" class="flex-1 text-xl font-bold text-slate-800 border border-slate-300 rounded-lg px-3 py-1 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none" required>
+                            <button type="submit" class="text-emerald-600 hover:text-emerald-700 p-1 rounded-md hover:bg-emerald-50 transition-colors" title="Save">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </button>
+                            <button type="button" @click="editingSubject = false; subjectVal = '{{ case.subject|escapejs }}'" class="text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors" title="Cancel">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </form>
                     </div>
                     {% if case.requester %}
                     <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
@@ -1028,8 +1043,109 @@
         if (container) {
             container.scrollTop = container.scrollHeight;
         }
-        
+
         initTribute();
     });
+</script>
+
+<!-- ===== Image Lightbox Gallery ===== -->
+<div class="jk-lightbox" id="jk-lightbox" onclick="closeLightboxOutside(event)">
+    <button class="jk-lightbox__close" onclick="closeLightbox()" title="Close (Esc)">&times;</button>
+    <button class="jk-lightbox__nav jk-lightbox__nav--prev" onclick="navigateLightbox(-1)" title="Previous">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="jk-lightbox__main">
+        <img class="jk-lightbox__img" id="jk-lightbox-img" src="" alt="">
+    </div>
+    <button class="jk-lightbox__nav jk-lightbox__nav--next" onclick="navigateLightbox(1)" title="Next">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <span class="jk-lightbox__filename" id="jk-lightbox-name"></span>
+    <span class="jk-lightbox__counter" id="jk-lightbox-counter"></span>
+    <!-- Thumbnail strip -->
+    <div class="jk-lightbox__strip" id="jk-lightbox-strip"></div>
+</div>
+
+<script>
+(function() {
+    let gallery = [];
+    let currentIdx = 0;
+    const box      = document.getElementById('jk-lightbox');
+    const img      = document.getElementById('jk-lightbox-img');
+    const nameEl   = document.getElementById('jk-lightbox-name');
+    const counterEl = document.getElementById('jk-lightbox-counter');
+    const stripEl  = document.getElementById('jk-lightbox-strip');
+    const prevBtn  = box.querySelector('.jk-lightbox__nav--prev');
+    const nextBtn  = box.querySelector('.jk-lightbox__nav--next');
+
+    window.openLightbox = function(el) {
+        const group = el.dataset.lightboxGroup;
+        const thumbs = document.querySelectorAll('[data-lightbox-group="' + group + '"]');
+        gallery = Array.from(thumbs).map(function(t) {
+            return { src: t.dataset.lightboxSrc, name: t.dataset.lightboxName };
+        });
+        currentIdx = Array.from(thumbs).indexOf(el);
+        buildStrip();
+        showImage();
+        box.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    };
+
+    window.closeLightbox = function() {
+        box.classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    window.closeLightboxOutside = function(e) {
+        if (e.target === box || e.target.classList.contains('jk-lightbox__main')) closeLightbox();
+    };
+
+    window.navigateLightbox = function(dir) {
+        currentIdx = (currentIdx + dir + gallery.length) % gallery.length;
+        showImage();
+    };
+
+    function buildStrip() {
+        stripEl.innerHTML = '';
+        if (gallery.length <= 1) { stripEl.style.display = 'none'; return; }
+        stripEl.style.display = '';
+        gallery.forEach(function(item, i) {
+            var thumb = document.createElement('img');
+            thumb.src = item.src;
+            thumb.alt = item.name;
+            thumb.className = 'jk-lightbox__strip-thumb' + (i === currentIdx ? ' active' : '');
+            thumb.onclick = function(e) { e.stopPropagation(); currentIdx = i; showImage(); };
+            stripEl.appendChild(thumb);
+        });
+    }
+
+    function showImage() {
+        var item = gallery[currentIdx];
+        img.src = item.src;
+        img.alt = item.name;
+        nameEl.textContent = item.name;
+        var hasMultiple = gallery.length > 1;
+        prevBtn.style.display = hasMultiple ? '' : 'none';
+        nextBtn.style.display = hasMultiple ? '' : 'none';
+        counterEl.textContent = hasMultiple ? (currentIdx + 1) + ' / ' + gallery.length : '';
+
+        // Update strip active state
+        var thumbs = stripEl.querySelectorAll('.jk-lightbox__strip-thumb');
+        thumbs.forEach(function(t, i) {
+            t.classList.toggle('active', i === currentIdx);
+        });
+        // Scroll active thumb into view
+        if (thumbs[currentIdx]) {
+            thumbs[currentIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (!box.classList.contains('active')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navigateLightbox(-1);
+        if (e.key === 'ArrowRight') navigateLightbox(1);
+    });
+})();
 </script>
 {% endblock %}

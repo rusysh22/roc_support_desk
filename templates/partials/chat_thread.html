@@ -73,11 +73,24 @@
                 {% if msg.attachments.all %}
                 <div class="jk-msg__files">
                     {% for att in msg.attachments.all %}
-                    <a href="{{ att.file.url }}" target="_blank" class="jk-msg__file">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                        <span>{{ att.original_filename|default:"Attachment" }}</span>
-                        <small>({{ att.file_size|filesizeformat }})</small>
-                    </a>
+                        {% with fname=att.original_filename|default:""|lower %}
+                        {% if fname|slice:"-4:" == ".png" or fname|slice:"-4:" == ".jpg" or fname|slice:"-5:" == ".jpeg" or fname|slice:"-4:" == ".gif" or fname|slice:"-5:" == ".webp" or fname|slice:"-4:" == ".bmp" %}
+                        <img src="{{ att.file.url }}"
+                             alt="{{ att.original_filename|default:'Image' }}"
+                             class="jk-msg__img-thumb"
+                             loading="lazy"
+                             data-lightbox-src="{{ att.file.url }}"
+                             data-lightbox-name="{{ att.original_filename|default:'Image' }}"
+                             data-lightbox-group="chat-gallery"
+                             onclick="openLightbox(this)">
+                        {% else %}
+                        <a href="{{ att.file.url }}" target="_blank" class="jk-msg__file">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                            <span>{{ att.original_filename|default:"Attachment" }}</span>
+                            <small>({{ att.file_size|filesizeformat }})</small>
+                        </a>
+                        {% endif %}
+                        {% endwith %}
                     {% endfor %}
                 </div>
                 {% endif %}

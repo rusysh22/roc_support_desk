@@ -853,6 +853,27 @@ def case_update_requester(request, case_id):
 
 
 @staff_required
+def case_update_subject(request, case_id):
+    """HTMX/POST endpoint — update the case subject (title)."""
+    if request.method == "POST":
+        case = get_object_or_404(CaseRecord, id=case_id)
+        new_subject = request.POST.get("subject", "").strip()
+        if new_subject and new_subject != case.subject:
+            old_subject = case.subject
+            case.subject = new_subject
+            case.save(update_fields=["subject"])
+            CaseAuditLog.objects.create(
+                case=case,
+                action=CaseAuditLog.ActionText.UPDATED,
+                field_name="subject",
+                old_value=old_subject,
+                new_value=new_subject,
+                created_by=request.user,
+            )
+    return redirect("desk:case_detail", case_id=case_id)
+
+
+@staff_required
 def case_change_requester(request, case_id):
     """
     POST endpoint to change (replace) the Requester on a CaseRecord.
