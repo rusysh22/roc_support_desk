@@ -99,6 +99,11 @@
                 <span>Task Management</span>
             </a>
             
+            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">📖</span>
+                <span>Knowledge Management</span>
+            </a>
+
             {% if user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
             <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📝</span>
@@ -108,11 +113,6 @@
             <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">🔗</span>
                 <span>Shorten Link</span>
-            </a>
-
-            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📖</span>
-                <span>Knowledge Management</span>
             </a>
 
             {% if user.role_access in 'SuperAdmin,Manager' %}
