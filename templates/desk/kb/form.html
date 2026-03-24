@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit{% else %}Create{% endif %} Article | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_kb_mgmt %}jk-sidebar-link-active{% endblock %}
+{% block page_title %}{% if is_edit %}Edit Article{% else %}New Article{% endif %}{% endblock %}
+
+{% block extra_head %}
+<!-- Quill.js Rich Text Editor -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+
+<style>
+    .ql-toolbar.ql-snow {
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
+        border-color: #e2e8f0;
+        background: #f8fafc;
+        padding: 0.5rem;
+        font-family: 'Inter', sans-serif;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .ql-container.ql-snow {
+        border-bottom-left-radius: 0.75rem;
+        border-bottom-right-radius: 0.75rem;
+        border-color: #e2e8f0;
+        background: #ffffff;
+        min-height: 200px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.875rem;
+    }
+    .ql-editor {
+        min-height: 200px;
+        line-height: 1.6;
+    }
+    .ql-editor.ql-blank::before {
+        color: #94a3b8;
+        font-style: normal;
+    }
+    .ql-editor img {
+        max-width: 100%;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        cursor: pointer;
+    }
+    .ql-editor h1, .ql-editor h2, .ql-editor h3 {
+        margin-top: 0.75rem;
+    }
+
+    /* Image Resize Overlay */
+    .ql-image-resize-overlay {
+        position: absolute;
+        border: 2px solid #6366f1;
+        border-radius: 0.375rem;
+        pointer-events: none;
+        z-index: 20;
+    }
+    .ql-image-resize-handle {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: #6366f1;
+        border: 2px solid white;
+        border-radius: 2px;
+        pointer-events: all;
+        cursor: nwse-resize;
+        z-index: 21;
+    }
+    .ql-image-resize-handle.se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+    .ql-image-resize-handle.sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+    .ql-image-resize-handle.ne { top: -5px; right: -5px; cursor: nesw-resize; }
+    .ql-image-resize-handle.nw { top: -5px; left: -5px; cursor: nwse-resize; }
+    .ql-image-resize-toolbar {
+        position: absolute;
+        bottom: -36px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 4px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,.1);
+        pointer-events: all;
+        z-index: 21;
+        white-space: nowrap;
+    }
+    .ql-image-resize-toolbar button {
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.375rem;
+        background: white;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .ql-image-resize-toolbar button:hover {
+        background: #f1f5f9;
+        border-color: #6366f1;
+        color: #6366f1;
+    }
+    .ql-image-resize-toolbar button.active {
+        background: #6366f1;
+        color: white;
+        border-color: #6366f1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6" x-data="kbForm()">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'kb_desk:article_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </a>
+        <div>
+            <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit Article{% else %}Create New Article{% endif %}</h2>
+            <p class="text-sm text-slate-500 mt-1">
+                {% if is_edit %}
+                    Update the knowledge base article content.
+                    {% if article.status == "Rejected" and article.rejection_reason %}
+                        <span class="text-red-500 font-medium">Rejected: {{ article.rejection_reason }}</span>
+                    {% endif %}
+                {% else %}
+                    Fill in the details below. The article will be saved as a Draft.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <form method="post" id="articleForm" class="p-6 sm:p-8">
+            {% csrf_token %}
+
+            <!-- Validation Errors -->
+            {% if form.errors %}
+            <div class="p-4 rounded-xl bg-red-50 text-red-800 border-red-200 border text-sm mb-6">
+                <strong class="font-bold">Please correct the following errors:</strong>
+                <ul class="list-disc ml-5 mt-2 space-y-1">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li><b>{{ field.label }}</b>: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="space-y-8">
+
+                <!-- Basic Info Section -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Basic Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Title <span class="text-red-500">*</span></label>
+                            {{ form.title }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Category <span class="text-red-500">*</span></label>
+                            {{ form.category }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Source Case <span class="text-slate-400 font-normal">(optional)</span></label>
+                            {{ form.source_case }}
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Tags</label>
+                            {{ form.tags_input }}
+                            <p class="text-xs text-slate-400 mt-1">{{ form.tags_input.help_text }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Problem Summary -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Problem Summary <span class="text-red-500">*</span></h3>
+                    {{ form.problem_summary }}
+                    <div id="editor-problem-summary" class="quill-editor"></div>
+                </div>
+
+                <!-- Root Cause -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Root Cause <span class="text-red-500">*</span></h3>
+                    {{ form.root_cause }}
+                    <div id="editor-root-cause" class="quill-editor"></div>
+                </div>
+
+                <!-- Solution -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-500">*</span></h3>
+                    {{ form.solution }}
+                    <div id="editor-solution" class="quill-editor"></div>
+                </div>
+
+            </div>
+
+            <!-- Submit -->
+            <div class="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
+                <a href="{% url 'kb_desk:article_list' %}" class="px-6 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center">
+                    Cancel
+                </a>
+                <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm">
+                    {% if is_edit %}Save Changes{% else %}Create Article{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/**
+ * Custom Image Blot that preserves width/style attributes through Quill's delta system.
+ * Without this, Quill strips inline styles on re-render (setContents/getContents).
+ */
+const BlockEmbed = Quill.import('blots/block/embed');
+
+class ResizableImage extends BlockEmbed {
+    static blotName = 'image';
+    static tagName = 'IMG';
+
+    static create(value) {
+        const node = super.create();
+        if (typeof value === 'string') {
+            node.setAttribute('src', value);
+        } else if (typeof value === 'object') {
+            node.setAttribute('src', value.src || '');
+            if (value.width) node.setAttribute('width', value.width);
+            if (value.style) node.setAttribute('style', value.style);
+            if (value.alt) node.setAttribute('alt', value.alt);
+        }
+        return node;
+    }
+
+    static value(node) {
+        return {
+            src: node.getAttribute('src') || '',
+            width: node.getAttribute('width') || '',
+            style: node.getAttribute('style') || '',
+            alt: node.getAttribute('alt') || '',
+        };
+    }
+
+    static formats(node) {
+        const formats = {};
+        if (node.getAttribute('width')) formats.width = node.getAttribute('width');
+        if (node.getAttribute('style')) formats.style = node.getAttribute('style');
+        if (node.getAttribute('alt')) formats.alt = node.getAttribute('alt');
+        return formats;
+    }
+
+    format(name, value) {
+        if (['width', 'style', 'alt'].includes(name)) {
+            if (value) {
+                this.domNode.setAttribute(name, value);
+            } else {
+                this.domNode.removeAttribute(name);
+            }
+        } else {
+            super.format(name, value);
+        }
+    }
+}
+
+Quill.register(ResizableImage, true);
+
+
+/**
+ * Quill Image Resize — click an image to show resize handles & size presets.
+ */
+class QuillImageResize {
+    constructor(quill) {
+        this.quill = quill;
+        this.overlay = null;
+        this.activeImg = null;
+        this.startX = 0;
+        this.startWidth = 0;
+
+        quill.root.addEventListener('click', (e) => {
+            if (e.target.tagName === 'IMG') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.show(e.target);
+            } else {
+                this.hide();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (this.overlay && !this.overlay.contains(e.target) && e.target.tagName !== 'IMG') {
+                this.hide();
+            }
+        });
+    }
+
+    show(img) {
+        this.hide();
+        this.activeImg = img;
+
+        const container = this.quill.root.parentElement;
+        const containerRect = container.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
+
+        // Create overlay
+        this.overlay = document.createElement('div');
+        this.overlay.className = 'ql-image-resize-overlay';
+        this.overlay.style.left = (imgRect.left - containerRect.left + container.scrollLeft) + 'px';
+        this.overlay.style.top = (imgRect.top - containerRect.top + container.scrollTop) + 'px';
+        this.overlay.style.width = imgRect.width + 'px';
+        this.overlay.style.height = imgRect.height + 'px';
+
+        // Corner handles
+        ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+            const handle = document.createElement('div');
+            handle.className = `ql-image-resize-handle ${pos}`;
+            handle.addEventListener('mousedown', (e) => this.onMouseDown(e, pos));
+            this.overlay.appendChild(handle);
+        });
+
+        // Size preset toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'ql-image-resize-toolbar';
+        const currentWidth = img.style.width || '100%';
+        [
+            { label: '25%', value: '25%' },
+            { label: '50%', value: '50%' },
+            { label: '75%', value: '75%' },
+            { label: '100%', value: '100%' },
+        ].forEach(preset => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = preset.label;
+            if (currentWidth === preset.value) btn.classList.add('active');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                img.style.width = preset.value;
+                img.style.height = 'auto';
+                this.syncToHidden();
+                this.show(img); // refresh overlay position
+            });
+            toolbar.appendChild(btn);
+        });
+        this.overlay.appendChild(toolbar);
+
+        container.style.position = 'relative';
+        container.appendChild(this.overlay);
+    }
+
+    hide() {
+        if (this.overlay) {
+            this.overlay.remove();
+            this.overlay = null;
+        }
+        this.activeImg = null;
+    }
+
+    onMouseDown(e, pos) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.activeImg) return;
+
+        this.startX = e.clientX;
+        this.startWidth = this.activeImg.getBoundingClientRect().width;
+
+        const onMouseMove = (ev) => {
+            const dx = (pos.includes('e') ? 1 : -1) * (ev.clientX - this.startX);
+            const newWidth = Math.max(50, this.startWidth + dx);
+            this.activeImg.style.width = newWidth + 'px';
+            this.activeImg.style.height = 'auto';
+
+            // Update overlay position
+            const container = this.quill.root.parentElement;
+            const containerRect = container.getBoundingClientRect();
+            const imgRect = this.activeImg.getBoundingClientRect();
+            this.overlay.style.left = (imgRect.left - containerRect.left + container.scrollLeft) + 'px';
+            this.overlay.style.top = (imgRect.top - containerRect.top + container.scrollTop) + 'px';
+            this.overlay.style.width = imgRect.width + 'px';
+            this.overlay.style.height = imgRect.height + 'px';
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            this.syncToHidden();
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    syncToHidden() {
+        // Directly read innerHTML from Quill's editor root — this preserves
+        // the inline style/width attributes that the user just set.
+        // Do NOT call setContents/getContents as that triggers Quill's
+        // delta round-trip which can strip attributes.
+        const html = this.quill.root.innerHTML;
+
+        // Find the matching hidden textarea by walking up from the Quill container.
+        // DOM structure: <textarea class="hidden"> ... <div class="quill-editor"> (becomes .ql-snow wrapper)
+        const qlContainer = this.quill.root.closest('.ql-snow');
+        if (qlContainer) {
+            // The hidden textarea is a sibling before the .ql-snow wrapper
+            let prev = qlContainer.previousElementSibling;
+            while (prev) {
+                if (prev.tagName === 'TEXTAREA') {
+                    prev.value = html === '<p><br></p>' ? '' : html;
+                    return;
+                }
+                prev = prev.previousElementSibling;
+            }
+        }
+    }
+}
+
+function kbForm() {
+    return {
+        editors: {},
+
+        init() {
+            const imageUploadUrl = '{% url "kb_desk:image_upload" %}';
+            const csrfToken = '{{ csrf_token }}';
+
+            // Upload a file to the server and insert into Quill at the given index
+            async function uploadAndInsert(quillInstance, file, index) {
+                if (!file.type.startsWith('image/')) return;
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('Image must be smaller than 5MB.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const res = await fetch(imageUploadUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrfToken },
+                        body: formData,
+                    });
+                    const data = await res.json();
+                    if (data.url) {
+                        quillInstance.insertEmbed(index, 'image', data.url);
+                        quillInstance.setSelection(index + 1);
+                    } else {
+                        alert(data.error || 'Upload failed.');
+                    }
+                } catch (err) {
+                    alert('Image upload failed. Please try again.');
+                }
+            }
+
+            // Toolbar image button handler
+            function imageHandler(quillInstance) {
+                const input = document.createElement('input');
+                input.setAttribute('type', 'file');
+                input.setAttribute('accept', 'image/jpeg,image/png,image/gif,image/webp');
+                input.click();
+                input.onchange = () => {
+                    if (input.files[0]) {
+                        const range = quillInstance.getSelection(true);
+                        uploadAndInsert(quillInstance, input.files[0], range.index);
+                    }
+                };
+            }
+
+            // Intercept paste/drop to upload images instead of base64 embedding
+            function attachPasteDropHandler(quill) {
+                quill.root.addEventListener('paste', (e) => {
+                    const clipboardData = e.clipboardData || window.clipboardData;
+                    if (!clipboardData || !clipboardData.items) return;
+
+                    for (const item of clipboardData.items) {
+                        if (item.type.startsWith('image/')) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const file = item.getAsFile();
+                            if (file) {
+                                const range = quill.getSelection(true);
+                                uploadAndInsert(quill, file, range ? range.index : 0);
+                            }
+                            return;
+                        }
+                    }
+                });
+
+                quill.root.addEventListener('drop', (e) => {
+                    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const range = quill.getSelection(true);
+                        uploadAndInsert(quill, file, range ? range.index : 0);
+                    }
+                });
+            }
+
+            const toolbarOptions = [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                ['blockquote', 'code-block'],
+                ['link', 'image'],
+                ['clean'],
+            ];
+
+            // Initialize each Quill editor
+            const fields = [
+                { id: 'editor-problem-summary', hidden: 'id_problem_summary', placeholder: 'Describe the problem...' },
+                { id: 'editor-root-cause', hidden: 'id_root_cause', placeholder: 'What caused this issue...' },
+                { id: 'editor-solution', hidden: 'id_solution', placeholder: 'Step-by-step solution...' },
+            ];
+
+            fields.forEach(field => {
+                const container = document.getElementById(field.id);
+                const hiddenInput = document.getElementById(field.hidden);
+                if (!container || !hiddenInput) return;
+
+                // Pre-fill content
+                if (hiddenInput.value && hiddenInput.value !== '<p><br></p>') {
+                    container.innerHTML = hiddenInput.value;
+                }
+
+                const quill = new Quill(container, {
+                    theme: 'snow',
+                    placeholder: field.placeholder,
+                    modules: {
+                        toolbar: {
+                            container: toolbarOptions,
+                            handlers: {
+                                image: function() { imageHandler(quill); }
+                            }
+                        }
+                    }
+                });
+
+                // Sync Quill content to hidden textarea
+                quill.on('text-change', () => {
+                    const html = quill.root.innerHTML;
+                    hiddenInput.value = (html === '<p><br></p>') ? '' : html;
+                });
+
+                // Attach image resize and paste/drop upload handler
+                new QuillImageResize(quill);
+                attachPasteDropHandler(quill);
+
+                this.editors[field.id] = quill;
+            });
+
+            // Sync before submit — read directly from DOM to preserve inline styles
+            document.getElementById('articleForm').addEventListener('submit', () => {
+                fields.forEach(field => {
+                    const quill = this.editors[field.id];
+                    const hiddenInput = document.getElementById(field.hidden);
+                    if (quill && hiddenInput) {
+                        const html = quill.root.innerHTML;
+                        hiddenInput.value = (html === '<p><br></p>') ? '' : html;
+                    }
+                });
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -46,6 +46,7 @@ urlpatterns = [
     # Admin / Support desk
     path("desk/", include("cases.urls_desk", namespace="desk")),
     path("desk/links/", include("links.urls_desk", namespace="links_desk")),
+    path("desk/kb/", include("knowledge_base.urls_desk", namespace="kb_desk")),
 
     # Short Links Public Redirect
     path("s/", include("links.urls", namespace="links")),

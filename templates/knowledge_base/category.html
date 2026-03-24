@@ -49,7 +49,7 @@
                     <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 transform scale-y-0 group-hover:scale-y-100 origin-top transition-transform duration-300"></div>
                     
                     <h2 class="text-xl font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title }}</h2>
-                    <p class="text-slate-600 text-sm mb-4 line-clamp-2 md:pr-12">{{ article.problem_summary }}</p>
+                    <p class="text-slate-600 text-sm mb-4 line-clamp-2 md:pr-12">{{ article.problem_summary|striptags|truncatewords:30 }}</p>
                     
                     <div class="flex items-center text-xs font-medium text-slate-500 gap-4">
                         <span class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md">

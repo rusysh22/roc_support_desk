@@ -1,0 +1,33 @@
+{% comment %}Action buttons for KB article — context: article, user{% endcomment %}
+
+{% if article.status == "Draft" or article.status == "Rejected" %}
+    <a href="{% url 'kb_desk:article_edit' article.pk %}" class="text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Edit</a>
+    <form method="post" action="{% url 'kb_desk:article_submit' article.pk %}" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="text-sm font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Submit for Review</button>
+    </form>
+    <form method="post" action="{% url 'kb_desk:article_delete' article.pk %}" onsubmit="return confirm('Delete article &quot;{{ article.title }}&quot;? This cannot be undone.')" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Delete</button>
+    </form>
+{% elif article.status == "Pending" %}
+    <a href="{% url 'kb_desk:article_edit' article.pk %}" class="text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">View</a>
+    {% if user.role_access in "SuperAdmin,Manager" %}
+    <form method="post" action="{% url 'kb_desk:article_approve' article.pk %}" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Approve</button>
+    </form>
+    <button type="button"
+            @click="$dispatch('open-reject', { pk: '{{ article.pk }}', title: '{{ article.title|escapejs }}' })"
+            class="text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Reject</button>
+    {% endif %}
+{% elif article.status == "Published" %}
+    <a href="{% url 'kb_desk:article_edit' article.pk %}" class="text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Edit</a>
+    <a href="{% url 'knowledge_base:article_detail' article.slug %}" target="_blank" class="text-sm font-medium text-sky-600 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">View Public</a>
+    {% if user.role_access in "SuperAdmin,Manager" %}
+    <form method="post" action="{% url 'kb_desk:article_unpublish' article.pk %}" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Unpublish</button>
+    </form>
+    {% endif %}
+{% endif %}

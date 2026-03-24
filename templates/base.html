@@ -109,7 +109,12 @@
                 <span class="jk-sidebar-link-icon">🔗</span>
                 <span>Shorten Link</span>
             </a>
-            
+
+            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">📖</span>
+                <span>KB Management</span>
+            </a>
+
             {% if user.role_access in 'SuperAdmin,Manager' %}
             <a href="{% url 'desk:email_settings' %}" class="jk-sidebar-link {% block nav_email_settings %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📧</span>

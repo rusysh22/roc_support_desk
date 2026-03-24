@@ -1,25 +1,75 @@
 """
 Knowledge Base App — Models
 =============================
-Auto-generated solution articles derived from resolved CaseRecords.
+Searchable knowledge base articles for future reference.
 
-When a case is closed, staff can generate an ``Article`` from the
-case's ``root_cause_analysis`` and ``solving_steps``, creating a
-searchable knowledge base for future reference.
+Articles can be created independently by staff or generated from
+resolved CaseRecords. Supports rich text content with embedded images,
+tagging, and a Manager/SuperAdmin approval workflow before publishing.
 """
+from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
 
 from core.models import AuditableModel
 
 
+def kb_image_upload_path(instance, filename):
+    """Upload path for images embedded in KB articles."""
+    return f"kb_images/{filename}"
+
+
+class ArticleTag(AuditableModel):
+    """Reusable tag for categorising knowledge base articles."""
+
+    name = models.CharField(max_length=100, unique=True, verbose_name="Tag Name")
+    slug = models.SlugField(max_length=120, unique=True, blank=True)
+
+    class Meta:
+        verbose_name = "Tag"
+        verbose_name_plural = "Tags"
+        ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class ArticleImage(AuditableModel):
+    """Image uploaded via the Quill editor for embedding in article content."""
+
+    image = models.ImageField(upload_to=kb_image_upload_path, verbose_name="Image")
+    alt_text = models.CharField(max_length=255, blank=True, verbose_name="Alt Text")
+
+    class Meta:
+        verbose_name = "Article Image"
+        verbose_name_plural = "Article Images"
+
+    def __str__(self):
+        return self.alt_text or self.image.name
+
+
 class Article(AuditableModel):
     """
-    Knowledge base article derived from a resolved CaseRecord.
+    Knowledge base article.
 
-    Links back to the originating case and category for traceability.
-    Can also be created independently by staff.
+    Supports rich HTML content (via Quill.js), optional linking to a
+    source CaseRecord, tagging, and a two-stage publish workflow:
+
+    Status flow:
+        Draft  →  Pending Review  →  Published
+                                  →  Rejected (back to Draft)
     """
+
+    class Status(models.TextChoices):
+        DRAFT = "Draft", "Draft"
+        PENDING = "Pending", "Pending Review"
+        PUBLISHED = "Published", "Published"
+        REJECTED = "Rejected", "Rejected"
 
     title = models.CharField(max_length=500, verbose_name="Title")
     slug = models.SlugField(max_length=520, unique=True, blank=True, verbose_name="Slug")
@@ -40,6 +90,7 @@ class Article(AuditableModel):
         help_text="The CaseRecord this article was generated from (if any).",
     )
 
+    # Rich text content fields (stored as HTML from Quill.js)
     problem_summary = models.TextField(
         verbose_name="Problem Summary",
         help_text="Concise description of the problem.",
@@ -53,11 +104,44 @@ class Article(AuditableModel):
         help_text="Step-by-step resolution procedure.",
     )
 
+    # Tags
+    tags = models.ManyToManyField(
+        ArticleTag,
+        blank=True,
+        related_name="articles",
+        verbose_name="Tags",
+    )
+
+    # Approval workflow
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        verbose_name="Status",
+    )
     is_published = models.BooleanField(
         default=False,
         db_index=True,
         verbose_name="Published",
-        help_text="Only published articles are visible in the knowledge base.",
+        help_text="Auto-set when status becomes Published.",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_articles",
+        verbose_name="Reviewed By",
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Reviewed At",
+    )
+    rejection_reason = models.TextField(
+        blank=True,
+        verbose_name="Rejection Reason",
     )
 
     class Meta:
@@ -66,7 +150,7 @@ class Article(AuditableModel):
         ordering = ["-created_at"]
 
     def save(self, *args, **kwargs):
-        """Auto-generate slug from title if not provided."""
+        """Auto-generate slug and sync is_published with status."""
         if not self.slug:
             base_slug = slugify(self.title)[:500]
             slug = base_slug
@@ -75,8 +159,16 @@ class Article(AuditableModel):
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
+        # Keep is_published in sync with status
+        self.is_published = self.status == self.Status.PUBLISHED
         super().save(*args, **kwargs)
 
     def __str__(self):
-        status = "✅" if self.is_published else "📝"
-        return f"{status} {self.title}"
+        status_icons = {
+            self.Status.DRAFT: "\U0001f4dd",
+            self.Status.PENDING: "\u23f3",
+            self.Status.PUBLISHED: "\u2705",
+            self.Status.REJECTED: "\u274c",
+        }
+        icon = status_icons.get(self.status, "")
+        return f"{icon} {self.title}"
