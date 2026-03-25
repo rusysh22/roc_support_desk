@@ -293,6 +293,56 @@ class EvolutionAPIService:
             )
             return None
 
+    def send_whatsapp_audio(
+        self,
+        phone_number: str,
+        base64_data: str,
+        mime_type: str = "audio/ogg; codecs=opus",
+    ) -> dict | None:
+        """
+        Send a PTT (Push-to-Talk) voice note via WhatsApp.
+        Uses /message/sendWhatsAppAudio/{instance} endpoint which renders
+        as a voice note bubble (green with waveform) instead of a file attachment.
+
+        Args:
+            phone_number: Recipient phone in E.164 format.
+            base64_data: The base64-encoded audio data.
+            mime_type: Audio MIME type.
+
+        Returns:
+            API response dict, or None on failure.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("message/sendWhatsAppAudio")
+        payload = {
+            "number": clean_number,
+            "audio": f"data:{mime_type};base64,{base64_data}",
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout + 30,
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info(
+                "WhatsApp voice note sent to %s — message_id: %s",
+                clean_number,
+                data.get("key", {}).get("id", "unknown"),
+            )
+            return data
+
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to send WhatsApp voice note to %s: %s",
+                clean_number,
+                exc,
+            )
+            return None
+
     # ------------------------------------------------------------------
     # Public API — Download Media
     # ------------------------------------------------------------------
@@ -374,7 +424,196 @@ class EvolutionAPIService:
 
         return ContentFile(content_bytes, name=filename)
 
+    # ------------------------------------------------------------------
+    # Public API — Read Receipts
+    # ------------------------------------------------------------------
 
+    def mark_messages_as_read(
+        self,
+        phone_number: str,
+        message_ids: list[str],
+    ) -> dict | None:
+        """
+        Send read receipts (blue checkmarks) for the given message IDs
+        via Evolution API.
+
+        Args:
+            phone_number: Sender's phone in E.164 format.
+            message_ids: List of Evolution API message IDs to mark as read.
+
+        Returns:
+            API response dict, or None on failure.
+        """
+        if not message_ids:
+            return None
+
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("chat/markMessageAsRead")
+        payload = {
+            "readMessages": [
+                {
+                    "remoteJid": f"{clean_number}@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": mid,
+                }
+                for mid in message_ids
+            ]
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info(
+                "Marked %d message(s) as read for %s",
+                len(message_ids),
+                clean_number,
+            )
+            return data
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to mark messages as read for %s: %s",
+                clean_number,
+                exc,
+            )
+            return None
+
+    # ------------------------------------------------------------------
+    # Public API — Message Actions (Delete, Edit, React)
+    # ------------------------------------------------------------------
+
+    def delete_message_for_everyone(
+        self,
+        phone_number: str,
+        message_id: str,
+    ) -> dict | None:
+        """
+        Delete (revoke) a message for everyone via Evolution API.
+
+        Args:
+            phone_number: Recipient phone in E.164 format.
+            message_id: Evolution API message ID to delete.
+
+        Returns:
+            API response dict, or None on failure.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("chat/deleteMessageForEveryone")
+        payload = {
+            "id": message_id,
+            "remoteJid": f"{clean_number}@s.whatsapp.net",
+            "fromMe": True,
+        }
+
+        try:
+            response = requests.delete(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info("Deleted message %s for %s", message_id, clean_number)
+            return data
+        except requests.RequestException as exc:
+            logger.error("Failed to delete message %s: %s", message_id, exc)
+            return None
+
+    def update_message(
+        self,
+        phone_number: str,
+        message_id: str,
+        new_text: str,
+    ) -> dict | None:
+        """
+        Edit/update a sent message text via Evolution API.
+
+        Args:
+            phone_number: Recipient phone in E.164 format.
+            message_id: Evolution API message ID to edit.
+            new_text: New message text.
+
+        Returns:
+            API response dict, or None on failure.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("chat/updateMessage")
+        payload = {
+            "number": clean_number,
+            "text": new_text,
+            "key": {
+                "remoteJid": f"{clean_number}@s.whatsapp.net",
+                "fromMe": True,
+                "id": message_id,
+            },
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info("Updated message %s for %s", message_id, clean_number)
+            return data
+        except requests.RequestException as exc:
+            logger.error("Failed to update message %s: %s", message_id, exc)
+            return None
+
+    def send_reaction(
+        self,
+        phone_number: str,
+        message_id: str,
+        emoji: str,
+        from_me: bool = False,
+    ) -> dict | None:
+        """
+        Send an emoji reaction to a message via Evolution API.
+        Send empty string as emoji to remove reaction.
+
+        Args:
+            phone_number: Phone number associated with the chat.
+            message_id: Evolution API message ID to react to.
+            emoji: Emoji string (e.g. "👍") or "" to remove.
+            from_me: Whether the message being reacted to was sent by us.
+
+        Returns:
+            API response dict, or None on failure.
+        """
+        clean_number = phone_number.lstrip("+")
+        url = self._build_url("message/sendReaction")
+        payload = {
+            "key": {
+                "remoteJid": f"{clean_number}@s.whatsapp.net",
+                "fromMe": from_me,
+                "id": message_id,
+            },
+            "reaction": emoji,
+        }
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=self._headers(),
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+            logger.info("Sent reaction %s to message %s", emoji, message_id)
+            return data
+        except requests.RequestException as exc:
+            logger.error("Failed to send reaction to message %s: %s", message_id, exc)
+            return None
 
 
 # ======================================================================

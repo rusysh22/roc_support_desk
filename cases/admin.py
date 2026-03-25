@@ -40,7 +40,8 @@ class MessageInline(StackedInline):
 class CaseCategoryAdmin(ModelAdmin):
     """Admin for service catalogue categories."""
 
-    list_display = ("name", "prefix_code", "slug", "icon", "created_at")
+    list_display = ("name", "parent", "prefix_code", "slug", "icon", "created_at")
+    list_filter = ("parent",)
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")

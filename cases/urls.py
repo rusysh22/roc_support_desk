@@ -12,6 +12,9 @@ urlpatterns = [
     # Home / Client Dashboard
     path("", views.client_dashboard, name="dashboard"),
 
+    # Sub-category selection (for main categories with children)
+    path("category/<slug:slug>/", views.category_children, name="category_children"),
+
     # Create a new case (optional category pre-selection via slug)
     path("submit/", views.create_case, name="create_case"),
     path("submit/<slug:slug>/", views.create_case, name="create_case_category"),

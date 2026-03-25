@@ -315,14 +315,14 @@
                     <input type="checkbox" value="{{ case.id }}" x-model="selectedIds"
                            class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
                 </td>
-                <td>
-                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link">
+                <td class="whitespace-nowrap">
+                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link text-xs sm:text-sm">
                         {{ case.case_number }}
                     </a>
                 </td>
                 <td>
                     <a href="{% url 'desk:case_detail' case_id=case.id %}"
-                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[250px] flex items-center gap-2">
+                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[140px] sm:max-w-[200px] lg:max-w-[280px] flex items-center gap-2">
                         {% if case.has_unread_messages %}
                             <span class="flex w-2 h-2 rounded-full bg-red-500 flex-shrink-0 shadow-sm" title="Unread messages"></span>
                         {% endif %}
@@ -365,9 +365,9 @@
                     <span class="text-slate-400">Unassigned</span>
                     {% endif %}
                 </td>
-                <td class="text-sm text-slate-500 whitespace-nowrap">
+                <td class="text-xs sm:text-sm text-slate-500 whitespace-nowrap">
                     {{ case.created_at|date:"d M Y" }}<br>
-                    <span class="text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
+                    <span class="text-[10px] sm:text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
                 </td>
                 <td class="text-sm text-slate-500 whitespace-nowrap hidden md:table-cell">
                     {% if case.last_viewed_at %}

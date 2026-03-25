@@ -39,6 +39,7 @@ urlpatterns = [
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
     path("cases/<uuid:case_id>/update-subject/", views.case_update_subject, name="case_update_subject"),
+    path("cases/<uuid:case_id>/update-category/", views.case_update_category, name="case_update_category"),
     path("cases/<uuid:case_id>/change-requester/", views.case_change_requester, name="case_change_requester"),
     path("cases/<uuid:case_id>/forward/", views.case_forward_escalation, name="case_forward_escalation"),
     path("cases/<uuid:case_id>/request-edit/", views.case_request_edit, name="case_request_edit"),
@@ -46,6 +47,11 @@ urlpatterns = [
     path("cases/<uuid:case_id>/reject-edit/", views.case_reject_edit, name="case_reject_edit"),
     path("cases/<uuid:case_id>/unmerge/", views.case_unmerge, name="case_unmerge"),
     
+    # Message Actions (Delete, Edit, React)
+    path("cases/<uuid:case_id>/msg/<uuid:message_id>/delete/", views.message_delete, name="message_delete"),
+    path("cases/<uuid:case_id>/msg/<uuid:message_id>/edit/", views.message_edit, name="message_edit"),
+    path("cases/<uuid:case_id>/msg/<uuid:message_id>/react/", views.message_react, name="message_react"),
+
     # Toggle WA Session Hold
     path("cases/<uuid:case_id>/toggle-wa-session/", views.toggle_wa_session, name="toggle_wa_session"),
 

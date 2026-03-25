@@ -20,6 +20,15 @@
         border: 1px solid #e2e8f0;
         padding: 20px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        overflow-x: auto;
+    }
+    @media (max-width: 768px) {
+        #calendar-container { padding: 10px; }
+        .fc .fc-toolbar { flex-wrap: wrap; gap: 8px; }
+        .fc .fc-toolbar-title { font-size: 0.95rem; }
+        .fc .fc-button { font-size: 11px; padding: 4px 10px; }
+        .fc .fc-daygrid-event { font-size: 10px; padding: 1px 4px; }
+        .calendar-legend { gap: 8px; font-size: 11px; }
     }
     .fc {
         font-family: 'Inter', system-ui, sans-serif;
@@ -357,8 +366,9 @@
         const calendarEl = document.getElementById('calendar');
         const events = {{ events_json|safe }};
 
+        const isMobile = window.innerWidth < 768;
         const calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
+            initialView: isMobile ? 'listWeek' : 'dayGridMonth',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',

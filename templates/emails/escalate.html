@@ -180,10 +180,32 @@
                 </table>
             </div>
 
+            {% if selected_messages %}
+            <div class="section">
+                <div class="section-title">Conversation ({{ selected_messages|length }} messages)</div>
+                {% for m in selected_messages %}
+                <div style="margin-bottom: 12px; padding: 12px; border-radius: 8px; {% if m.direction == 'OUT' %}background-color: #ecfdf5; border-left: 3px solid #10b981;{% else %}background-color: #f8fafc; border-left: 3px solid #6366f1;{% endif %}">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="font-size: 12px; font-weight: 700; {% if m.direction == 'OUT' %}color: #059669;{% else %}color: #4f46e5;{% endif %}">
+                            {% if m.direction == 'OUT' %}Staff{% else %}Customer{% endif %} ({{ m.sender }})
+                        </span>
+                        <span style="font-size: 11px; color: #94a3b8;">{{ m.timestamp }}</span>
+                    </div>
+                    <div style="font-size: 14px; color: #334155; white-space: pre-wrap;">{{ m.body }}</div>
+                    {% if m.has_attachments %}
+                    <div style="margin-top: 6px; font-size: 12px; color: #64748b;">
+                        📎 {% for name in m.attachment_names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% elif problem_description %}
             <div class="section">
                 <div class="section-title">Problem Description</div>
                 <div class="problem-desc">{{ problem_description }}</div>
             </div>
+            {% endif %}
 
             <div class="action-box">
                 <p>💡 <strong>To respond to this ticket:</strong> Simply reply directly to this email. Your response will be automatically threaded into the support portal.</p>

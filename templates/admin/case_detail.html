@@ -13,9 +13,29 @@
 {% block nav_cases %}active{% endblock %}
 
 {% block topbar_actions %}
-<a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">
-    ← Back to Tickets
-</a>
+<div class="flex items-center gap-2">
+    {% if prev_case_id %}
+    <a href="{% url 'desk:case_detail' prev_case_id %}" class="jk-btn jk-btn-secondary jk-btn-sm px-2" title="Previous Ticket">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    {% else %}
+    <span class="jk-btn jk-btn-secondary jk-btn-sm px-2 opacity-30 pointer-events-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </span>
+    {% endif %}
+    <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">
+        ← Back to Tickets
+    </a>
+    {% if next_case_id %}
+    <a href="{% url 'desk:case_detail' next_case_id %}" class="jk-btn jk-btn-secondary jk-btn-sm px-2" title="Next Ticket">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+    {% else %}
+    <span class="jk-btn jk-btn-secondary jk-btn-sm px-2 opacity-30 pointer-events-none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </span>
+    {% endif %}
+</div>
 {% endblock %}
 
 {% block content %}
@@ -39,6 +59,7 @@
                     <div class="flex items-center gap-3">
                         <!-- Display mode -->
                         <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words" x-text="subjectVal"></h2>
+                        {% if case.status != 'Closed' %}
                         <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
@@ -53,6 +74,7 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </form>
+                        {% endif %}
                     </div>
                     {% if case.requester %}
                     <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
@@ -135,9 +157,31 @@
 
         <!-- Meta Row -->
         <div class="flex flex-wrap gap-3 sm:gap-6 mt-3 pt-3 border-t border-slate-100 text-[11px] sm:text-xs text-slate-400">
-            <div>
+            <div x-data="{ editingCat: false }">
                 <span class="font-medium text-slate-500">Category:</span>
-                {{ case.category.name }}
+                <span x-show="!editingCat" class="inline-flex items-center gap-1">
+                    {% if case.category.parent %}{{ case.category.parent.name }} &rsaquo; {% endif %}{{ case.category.name }}
+                    {% if case.status != 'Closed' %}
+                    <button type="button" @click="editingCat = true" class="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 rounded" title="Change Category">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    {% endif %}
+                </span>
+                {% if case.status != 'Closed' %}
+                <form x-show="editingCat" x-cloak class="inline-flex items-center gap-1"
+                      action="{% url 'desk:case_update_category' case.id %}" method="post">
+                    {% csrf_token %}
+                    <select name="category_id" class="text-[11px] sm:text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+                            onchange="this.form.submit()">
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id == case.category_id %}selected{% endif %}>{% if cat.parent %}{{ cat.parent.name }} &rsaquo; {% endif %}{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" @click="editingCat = false" class="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded" title="Cancel">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </form>
+                {% endif %}
             </div>
             {% if case.requester and case.requester.unit %}
             <div>
@@ -232,11 +276,52 @@
     <div class="flex flex-col gap-4 min-w-0">
         <div class="jk-chat-panel">
             <!-- Chat Header -->
-        <div class="jk-chat-panel__header" x-data="{ showEscalateModal: false, showEditRequesterModal: false, showLogModal: false, escalateChannel: 'EMAIL' }">
+        <div class="jk-chat-panel__header" x-data="{
+            showEscalateModal: false, showEditRequesterModal: false, showLogModal: false, escalateChannel: 'EMAIL',
+            escalateSelectMode: false, escalateSelectedCount: 0, escalateSelectedIds: '',
+            enterSelectMode() {
+                this.escalateSelectMode = true;
+                window._escalateSelectMode = true;
+                window._chatInteracting = true;
+                this.escalateSelectedCount = 0;
+                this.escalateSelectedIds = '';
+                var ct = document.getElementById('chat-thread');
+                if (ct) ct.classList.add('escalate-selecting');
+            },
+            exitSelectMode() {
+                this.escalateSelectMode = false;
+                window._escalateSelectMode = false;
+                window._chatInteracting = false;
+                this.escalateSelectedCount = 0;
+                this.escalateSelectedIds = '';
+                document.querySelectorAll('.jk-escalate-msg-check').forEach(cb => cb.checked = false);
+                var ct = document.getElementById('chat-thread');
+                if (ct) ct.classList.remove('escalate-selecting');
+            },
+            selectAllMessages() {
+                const cbs = document.querySelectorAll('.jk-escalate-msg-check');
+                const allChecked = Array.from(cbs).every(cb => cb.checked);
+                cbs.forEach(cb => cb.checked = !allChecked);
+                this.updateCount();
+            },
+            updateCount() {
+                const cbs = document.querySelectorAll('.jk-escalate-msg-check:checked');
+                this.escalateSelectedCount = cbs.length;
+                this.escalateSelectedIds = Array.from(cbs).map(cb => cb.value).join(',');
+            },
+            continueToEscalate() {
+                if (this.escalateSelectedCount === 0) return;
+                this.updateCount();
+                this.showEscalateModal = true;
+            },
+            init() {
+                window._updateEscalateCount = () => this.updateCount();
+            }
+        }">
             <div class="jk-chat-panel__header-info group relative">
                 <div class="jk-chat-panel__header-avatar relative">
                     {{ case.requester.full_name|slice:":1"|upper }}
-                    {% if case.requester %}
+                    {% if case.requester and case.status != 'Closed' %}
                     <button type="button" @click="showEditRequesterModal = true" class="absolute -bottom-1 -right-1 bg-white border border-slate-200 rounded-full p-1 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 shadow-sm transition-all" title="Edit Requester Info">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     </button>
@@ -277,9 +362,11 @@
                 <button type="button" @click="showLogModal = true" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" title="View delivery log">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                 </button>
-                <button type="button" @click="showEscalateModal = true" class="jk-btn jk-btn-sm" style="background:white; border:1px solid #e2e8f0; color:#475569;">
+                {% if case.status != 'Closed' %}
+                <button type="button" x-show="!escalateSelectMode" @click="enterSelectMode()" class="jk-btn jk-btn-sm" style="background:white; border:1px solid #e2e8f0; color:#475569;">
                     <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Escalate / Forward
                 </button>
+                {% endif %}
             </div>
 
             <!-- Edit Requester Modal (Moved from Main Header) -->
@@ -563,19 +650,25 @@
 
             <!-- Escalate Modal -->
             <div x-show="showEscalateModal" style="display: none;" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" @click.outside="showEscalateModal = false">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" @click.outside="showEscalateModal = false; exitSelectMode();">
                     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                             Escalate Ticket
                         </h3>
-                        <button @click="showEscalateModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                        <button @click="showEscalateModal = false; exitSelectMode();" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <form action="{% url 'desk:case_forward_escalation' case.id %}" method="post" x-data="{ isSubmitting: false }" @submit="isSubmitting = true">
+                    <form action="{% url 'desk:case_forward_escalation' case.id %}" method="post" x-data="{ isSubmitting: false }" @submit="isSubmitting = true; exitSelectMode();">
                         {% csrf_token %}
+                        <input type="hidden" name="selected_message_ids" :value="escalateSelectedIds">
                         <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                            <!-- Selected messages indicator -->
+                            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center gap-2">
+                                <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                                <span class="text-sm font-medium text-indigo-700" x-text="escalateSelectedCount + ' message(s) selected for escalation'"></span>
+                            </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-2">Escalate Via</label>
                                 <div class="grid grid-cols-2 gap-3">
@@ -601,21 +694,61 @@
                                     </label>
                                 </div>
                             </div>
+                            <div x-data="{
+                                contacts: [
+                                    {% for emp in all_employees %}{% if emp.email or emp.phone_number %}
+                                    { name: '{{ emp.full_name|escapejs }}', unit: '{{ emp.unit.name|default:""|escapejs }}', email: '{{ emp.email|default:""|escapejs }}', phone: '{{ emp.phone_number|default:""|escapejs }}' },
+                                    {% endif %}{% endfor %}
+                                ],
+                                searchQ: '',
+                                filteredContacts() {
+                                    var q = this.searchQ.toLowerCase();
+                                    return this.contacts.filter(function(c) {
+                                        if (!q) return true;
+                                        return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q) || c.unit.toLowerCase().includes(q);
+                                    });
+                                },
+                                pickContact(c) {
+                                    var ch = escalateChannel;
+                                    $refs.forwardTo.value = ch === 'EMAIL' ? c.email : c.phone;
+                                    this.searchQ = c.name;
+                                    this.$refs.contactDropdown.style.display = 'none';
+                                }
+                            }">
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Select Contact (Optional)</label>
+                                <div class="relative">
+                                    <input type="text" x-model="searchQ" @focus="$refs.contactDropdown.style.display = ''" @input="$refs.contactDropdown.style.display = ''" class="jk-input text-sm" placeholder="Search by name, email, or phone...">
+                                    <div x-ref="contactDropdown" class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-30" style="display:none" @click.outside="$el.style.display = 'none'">
+                                        <template x-for="c in filteredContacts()" :key="c.name + c.email + c.phone">
+                                            <button type="button" @click="pickContact(c)"
+                                                    x-show="(escalateChannel === 'EMAIL' && c.email) || (escalateChannel === 'WHATSAPP' && c.phone)"
+                                                    class="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0">
+                                                <div class="text-sm font-medium text-slate-800" x-text="c.name + (c.unit ? ' — ' + c.unit : '')"></div>
+                                                <div class="text-xs text-slate-500">
+                                                    <span x-show="escalateChannel === 'EMAIL'" x-text="c.email"></span>
+                                                    <span x-show="escalateChannel === 'WHATSAPP'" x-text="c.phone"></span>
+                                                </div>
+                                            </button>
+                                        </template>
+                                        <div x-show="filteredContacts().length === 0" class="px-3 py-2 text-sm text-slate-400 text-center">No contacts found</div>
+                                    </div>
+                                </div>
+                            </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">To (Destination)</label>
                                 <input type="text" name="forward_to" x-ref="forwardTo" class="jk-input" :placeholder="escalateChannel === 'EMAIL' ? 'e.g. vendor@odoo.com' : 'e.g. +6281234567'" required>
-                                <p class="text-xs text-slate-500 mt-1">Replies will automatically thread back into this ticket.</p>
+                                <p class="text-xs text-slate-500 mt-1">Pick from contacts above, or type manually. Replies will thread back into this ticket.</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Notes / Instructions for 3rd Party</label>
                                 <textarea name="custom_message" rows="4" class="jk-input" placeholder="Explain what they need to do..." required></textarea>
                             </div>
                             <div class="bg-amber-50 rounded-lg p-3 text-sm text-amber-800 border border-amber-200">
-                                <span class="font-semibold">Note:</span> The original ticket description and requester details will be appended automatically.
+                                <span class="font-semibold">Note:</span> The selected messages (with media/attachments) and requester details will be included automatically.
                             </div>
                         </div>
                         <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                            <button type="button" @click="showEscalateModal = false" class="jk-btn jk-btn-secondary" :disabled="isSubmitting">Cancel</button>
+                            <button type="button" @click="showEscalateModal = false; exitSelectMode();" class="jk-btn jk-btn-secondary" :disabled="isSubmitting">Cancel</button>
                             <button type="submit" class="jk-btn jk-btn-primary shadow-sm" :disabled="isSubmitting">
                                 <span x-show="!isSubmitting">Send Escalation</span>
                                 <span x-show="isSubmitting" class="flex items-center gap-2" x-cloak>
@@ -674,13 +807,34 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Escalate Selection Mode Bar -->
+            <div x-show="escalateSelectMode" x-cloak class="jk-escalate-select-bar">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button type="button" @click="exitSelectMode()" class="text-slate-500 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-white/60" title="Cancel selection">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                    <span style="font-size:13px;font-weight:600;color:#4338ca;">Select messages to escalate</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button type="button" @click="selectAllMessages()" style="padding:4px 10px;font-size:12px;font-weight:600;background:white;border:1px solid #c7d2fe;color:#4338ca;border-radius:6px;cursor:pointer;">
+                        Select All
+                    </button>
+                    <span style="font-size:12px;font-weight:600;color:#4f46e5;min-width:70px;text-align:center;" x-text="escalateSelectedCount + ' selected'"></span>
+                    <button type="button" @click="continueToEscalate()" :disabled="escalateSelectedCount === 0"
+                            :style="escalateSelectedCount > 0 ? 'padding:4px 14px;font-size:12px;font-weight:600;background:#4f46e5;color:white;border:none;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px;' : 'padding:4px 14px;font-size:12px;font-weight:600;background:#a5b4fc;color:white;border:none;border-radius:6px;cursor:not-allowed;display:flex;align-items:center;gap:4px;opacity:0.6;'">
+                        Continue
+                        <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- Chat Messages (HTMX polling every 5s) -->
+        <!-- Chat Messages (HTMX polling every 5s, paused during interactions) -->
         <div id="chat-thread"
              class="jk-chat-panel__body"
              hx-get="{% url 'desk:chat_thread' case_id=case.id %}"
-             hx-trigger="every 5s"
+             hx-trigger="every 5s[!window._chatInteracting]"
              hx-indicator="#thread-spinner">
             {% include "partials/chat_thread.html" %}
         </div>
@@ -689,7 +843,50 @@
         <div class="jk-chat-panel__footer">
             <form id="reply-form" hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
                 hx-swap="innerHTML" hx-indicator="#reply-spinner" enctype="multipart/form-data"
-                x-data="{ replyText: '', fileName: '', showCc: false, ccText: '', isSubmitting: false }" 
+                x-data="{
+                    replyText: '', fileName: '', showCc: false, ccText: '', isSubmitting: false,
+                    isRecording: false, recordingDuration: 0, _recTimer: null, _mediaRecorder: null, _audioChunks: [], _stream: null,
+                    formatDuration(s) { return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); },
+                    async startRecording() {
+                        try {
+                            this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            const mimeTypes = ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'];
+                            let mime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m)) || '';
+                            this._mediaRecorder = new MediaRecorder(this._stream, mime ? { mimeType: mime } : {});
+                            this._audioChunks = [];
+                            this._mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) this._audioChunks.push(e.data); };
+                            this._mediaRecorder.onstop = () => {
+                                const blob = new Blob(this._audioChunks, { type: this._mediaRecorder.mimeType });
+                                const ext = this._mediaRecorder.mimeType.includes('webm') ? 'webm' : this._mediaRecorder.mimeType.includes('ogg') ? 'ogg' : 'm4a';
+                                const file = new File([blob], 'voice-note.' + ext, { type: this._mediaRecorder.mimeType });
+                                const dt = new DataTransfer();
+                                dt.items.add(file);
+                                this.$refs.fileInput.files = dt.files;
+                                this.fileName = file.name;
+                                this._stream.getTracks().forEach(t => t.stop());
+                                this._stream = null;
+                                this.$nextTick(() => this.$el.requestSubmit());
+                            };
+                            this._mediaRecorder.start();
+                            this.isRecording = true;
+                            this.recordingDuration = 0;
+                            this._recTimer = setInterval(() => this.recordingDuration++, 1000);
+                        } catch(err) { alert('Microphone access denied or not available.'); }
+                    },
+                    stopRecording() {
+                        clearInterval(this._recTimer);
+                        if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') this._mediaRecorder.stop();
+                        this.isRecording = false;
+                    },
+                    cancelRecording() {
+                        clearInterval(this._recTimer);
+                        if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') { this._mediaRecorder.ondataavailable = null; this._mediaRecorder.onstop = null; this._mediaRecorder.stop(); }
+                        if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+                        this._audioChunks = [];
+                        this.isRecording = false;
+                        this.recordingDuration = 0;
+                    }
+                }"
                 @submit="isSubmitting = true"
                 @htmx:after-request="isSubmitting = false; replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto';">
                 {% csrf_token %}
@@ -752,10 +949,31 @@
                         </div>
                     </div>
 
+                    <!-- Voice Recorder: Recording UI (replaces input area when recording) -->
+                    <div x-show="isRecording" x-cloak class="jk-reply-bar__recording">
+                        <span class="jk-reply-bar__rec-dot"></span>
+                        <span class="text-sm font-mono text-red-600 font-semibold" x-text="formatDuration(recordingDuration)"></span>
+                        <span class="text-xs text-slate-500">Recording...</span>
+                        <div class="flex-1"></div>
+                        <button type="button" @click="cancelRecording()" class="text-xs text-slate-500 hover:text-red-600 px-2 py-1 rounded transition-colors" title="Cancel">
+                            Cancel
+                        </button>
+                        <button type="button" @click="stopRecording()" class="jk-reply-bar__rec-send" title="Send voice note">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- Mic button (shown when NOT recording) -->
+                    <button x-show="!isRecording" type="button" @click="startRecording()"
+                            class="jk-reply-bar__mic" title="Record voice note" aria-label="Record voice note"
+                            :disabled="isSubmitting">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="23" x2="16" y2="23" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+
                     <!-- Send button -->
-                    <button type="submit" 
-                            class="jk-reply-bar__send" 
-                            :disabled="(!replyText.trim() && !fileName) || isSubmitting" 
+                    <button x-show="!isRecording" type="submit"
+                            class="jk-reply-bar__send"
+                            :disabled="(!replyText.trim() && !fileName) || isSubmitting"
                             title="Send Reply" aria-label="Send message">
                         <svg x-show="!isSubmitting" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -1023,9 +1241,16 @@
         }
     }
 
-    // Auto-scroll chat to bottom on HTMX swap
+    // Pause chat polling flag (set by Alpine.js message actions)
+    window._chatInteracting = false;
+    // Escalate selection mode flag (read by chat_thread.html Alpine.js)
+    window._escalateSelectMode = false;
+
+    // Auto-scroll chat to bottom on HTMX swap + reset interaction flag
     document.addEventListener('htmx:afterSwap', function (e) {
         if (e.detail.target.id === 'chat-thread') {
+            // Don't reset if in escalate selection mode
+            if (!window._escalateSelectMode) window._chatInteracting = false;
             const container = e.detail.target.querySelector('.jk-chat-messages');
             if (container) {
                 container.scrollTop = container.scrollHeight;
@@ -1054,12 +1279,25 @@
     <button class="jk-lightbox__nav jk-lightbox__nav--prev" onclick="navigateLightbox(-1)" title="Previous">
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     </button>
-    <div class="jk-lightbox__main">
+    <div class="jk-lightbox__main" id="jk-lightbox-main">
         <img class="jk-lightbox__img" id="jk-lightbox-img" src="" alt="">
     </div>
     <button class="jk-lightbox__nav jk-lightbox__nav--next" onclick="navigateLightbox(1)" title="Next">
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
+    <!-- Zoom controls -->
+    <div class="jk-lightbox__zoom-controls">
+        <button onclick="zoomLightbox(-1)" title="Zoom Out (-)">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <span id="jk-lightbox-zoom-level">100%</span>
+        <button onclick="zoomLightbox(1)" title="Zoom In (+)">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="8" x2="11" y2="14" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button onclick="resetZoom()" title="Reset (0)">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+    </div>
     <span class="jk-lightbox__filename" id="jk-lightbox-name"></span>
     <span class="jk-lightbox__counter" id="jk-lightbox-counter"></span>
     <!-- Thumbnail strip -->
@@ -1068,23 +1306,47 @@
 
 <script>
 (function() {
-    let gallery = [];
-    let currentIdx = 0;
-    const box      = document.getElementById('jk-lightbox');
-    const img      = document.getElementById('jk-lightbox-img');
-    const nameEl   = document.getElementById('jk-lightbox-name');
-    const counterEl = document.getElementById('jk-lightbox-counter');
-    const stripEl  = document.getElementById('jk-lightbox-strip');
-    const prevBtn  = box.querySelector('.jk-lightbox__nav--prev');
-    const nextBtn  = box.querySelector('.jk-lightbox__nav--next');
+    var gallery = [];
+    var currentIdx = 0;
+    var zoomLevel = 1;
+    var panX = 0, panY = 0, isPanning = false, panStartX = 0, panStartY = 0;
+    var box       = document.getElementById('jk-lightbox');
+    var mainEl    = document.getElementById('jk-lightbox-main');
+    var img       = document.getElementById('jk-lightbox-img');
+    var nameEl    = document.getElementById('jk-lightbox-name');
+    var counterEl = document.getElementById('jk-lightbox-counter');
+    var stripEl   = document.getElementById('jk-lightbox-strip');
+    var zoomEl    = document.getElementById('jk-lightbox-zoom-level');
+    var prevBtn   = box.querySelector('.jk-lightbox__nav--prev');
+    var nextBtn   = box.querySelector('.jk-lightbox__nav--next');
+
+    function applyTransform() {
+        img.style.transform = 'scale(' + zoomLevel + ') translate(' + (panX / zoomLevel) + 'px, ' + (panY / zoomLevel) + 'px)';
+        zoomEl.textContent = Math.round(zoomLevel * 100) + '%';
+    }
+
+    function resetTransform() {
+        zoomLevel = 1; panX = 0; panY = 0;
+        applyTransform();
+    }
+
+    window.zoomLightbox = function(dir) {
+        var step = 0.25;
+        zoomLevel = Math.max(0.25, Math.min(5, zoomLevel + dir * step));
+        if (zoomLevel <= 1) { panX = 0; panY = 0; }
+        applyTransform();
+    };
+
+    window.resetZoom = function() { resetTransform(); };
 
     window.openLightbox = function(el) {
-        const group = el.dataset.lightboxGroup;
-        const thumbs = document.querySelectorAll('[data-lightbox-group="' + group + '"]');
+        var group = el.dataset.lightboxGroup;
+        var thumbs = document.querySelectorAll('[data-lightbox-group="' + group + '"]');
         gallery = Array.from(thumbs).map(function(t) {
             return { src: t.dataset.lightboxSrc, name: t.dataset.lightboxName };
         });
         currentIdx = Array.from(thumbs).indexOf(el);
+        resetTransform();
         buildStrip();
         showImage();
         box.classList.add('active');
@@ -1094,16 +1356,88 @@
     window.closeLightbox = function() {
         box.classList.remove('active');
         document.body.style.overflow = '';
+        resetTransform();
     };
 
     window.closeLightboxOutside = function(e) {
-        if (e.target === box || e.target.classList.contains('jk-lightbox__main')) closeLightbox();
+        if (e.target === box || (e.target === mainEl && zoomLevel <= 1)) closeLightbox();
     };
 
     window.navigateLightbox = function(dir) {
         currentIdx = (currentIdx + dir + gallery.length) % gallery.length;
+        resetTransform();
         showImage();
     };
+
+    // Mouse wheel zoom
+    mainEl.addEventListener('wheel', function(e) {
+        if (!box.classList.contains('active')) return;
+        e.preventDefault();
+        var dir = e.deltaY < 0 ? 1 : -1;
+        zoomLightbox(dir);
+    }, { passive: false });
+
+    // Pan with mouse drag (only when zoomed in)
+    img.addEventListener('mousedown', function(e) {
+        if (zoomLevel <= 1) return;
+        e.preventDefault();
+        isPanning = true;
+        panStartX = e.clientX - panX;
+        panStartY = e.clientY - panY;
+        img.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isPanning) return;
+        panX = e.clientX - panStartX;
+        panY = e.clientY - panStartY;
+        applyTransform();
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isPanning) {
+            isPanning = false;
+            img.style.cursor = zoomLevel > 1 ? 'grab' : '';
+        }
+    });
+
+    // Touch pinch zoom + pan
+    var lastTouchDist = 0;
+    mainEl.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 2) {
+            lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        } else if (e.touches.length === 1 && zoomLevel > 1) {
+            isPanning = true;
+            panStartX = e.touches[0].clientX - panX;
+            panStartY = e.touches[0].clientY - panY;
+        }
+    }, { passive: true });
+
+    mainEl.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            var delta = (dist - lastTouchDist) * 0.01;
+            zoomLevel = Math.max(0.25, Math.min(5, zoomLevel + delta));
+            lastTouchDist = dist;
+            applyTransform();
+        } else if (e.touches.length === 1 && isPanning) {
+            panX = e.touches[0].clientX - panStartX;
+            panY = e.touches[0].clientY - panStartY;
+            applyTransform();
+        }
+    }, { passive: false });
+
+    mainEl.addEventListener('touchend', function() {
+        isPanning = false;
+        lastTouchDist = 0;
+    });
+
+    // Double-click to toggle zoom
+    img.addEventListener('dblclick', function() {
+        if (zoomLevel > 1) { resetTransform(); }
+        else { zoomLevel = 2.5; applyTransform(); }
+    });
 
     function buildStrip() {
         stripEl.innerHTML = '';
@@ -1114,7 +1448,7 @@
             thumb.src = item.src;
             thumb.alt = item.name;
             thumb.className = 'jk-lightbox__strip-thumb' + (i === currentIdx ? ' active' : '');
-            thumb.onclick = function(e) { e.stopPropagation(); currentIdx = i; showImage(); };
+            thumb.onclick = function(e) { e.stopPropagation(); currentIdx = i; resetTransform(); showImage(); };
             stripEl.appendChild(thumb);
         });
     }
@@ -1128,13 +1462,10 @@
         prevBtn.style.display = hasMultiple ? '' : 'none';
         nextBtn.style.display = hasMultiple ? '' : 'none';
         counterEl.textContent = hasMultiple ? (currentIdx + 1) + ' / ' + gallery.length : '';
+        img.style.cursor = '';
 
-        // Update strip active state
         var thumbs = stripEl.querySelectorAll('.jk-lightbox__strip-thumb');
-        thumbs.forEach(function(t, i) {
-            t.classList.toggle('active', i === currentIdx);
-        });
-        // Scroll active thumb into view
+        thumbs.forEach(function(t, i) { t.classList.toggle('active', i === currentIdx); });
         if (thumbs[currentIdx]) {
             thumbs[currentIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
@@ -1145,6 +1476,9 @@
         if (e.key === 'Escape') closeLightbox();
         if (e.key === 'ArrowLeft') navigateLightbox(-1);
         if (e.key === 'ArrowRight') navigateLightbox(1);
+        if (e.key === '+' || e.key === '=') zoomLightbox(1);
+        if (e.key === '-') zoomLightbox(-1);
+        if (e.key === '0') resetZoom();
     });
 })();
 </script>

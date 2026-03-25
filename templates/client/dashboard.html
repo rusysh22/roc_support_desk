@@ -27,7 +27,7 @@
     </div>
     <div class="jk-category-grid">
         {% for category in categories %}
-        <a href="{% url 'cases:create_case_category' slug=category.slug %}"
+        <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
             class="jk-card jk-card-clickable jk-category-card group">
             <div class="jk-card-body">
                 <div class="jk-category-icon">
@@ -36,7 +36,12 @@
                 <h3 class="jk-category-name">{{ category.name }}</h3>
                 <p class="jk-category-desc">{{ category.description|default:"Submit a request for this category." }}</p>
                 <div class="mt-4 flex items-center text-indigo-500 text-sm font-semibold gap-1 group-hover:gap-2 transition-all">
+                    {% if category.children.all %}
+                    <span>View Services</span>
+                    <span class="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-md">{{ category.children.count }}</span>
+                    {% else %}
                     <span>Submit Request</span>
+                    {% endif %}
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>

@@ -22,10 +22,21 @@ class CaseCategory(AuditableModel):
     """
     Service catalogue category displayed as a card on the client portal.
 
-    Examples: "Report Hardware Problem", "System Error Report",
-    "Network Access Request".
+    Supports one level of nesting: a category with ``parent=None`` is a
+    **Main Category** shown on the portal grid.  A category with a parent
+    is a **Sub-Category** shown after the user clicks the main category.
+    Categories without children link directly to the ticket form.
     """
 
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+        verbose_name="Parent Category",
+        help_text="Leave empty for a Main Category. Select a parent to make this a Sub-Category.",
+    )
     name = models.CharField(max_length=200, verbose_name="Category Name")
     slug = models.SlugField(max_length=220, unique=True, blank=True, verbose_name="Slug")
     icon = models.CharField(
@@ -64,7 +75,14 @@ class CaseCategory(AuditableModel):
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
 
+    @property
+    def is_parent(self):
+        """True if this category has sub-categories."""
+        return self.children.exists()
+
     def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
         return self.name
 
 
@@ -427,6 +445,19 @@ class Message(AuditableModel):
         verbose_name="CC Emails",
         help_text="Comma-separated secondary recipients for email channels.",
     )
+    is_deleted = models.BooleanField(
+        default=False,
+        verbose_name="Is Deleted",
+    )
+    is_edited = models.BooleanField(
+        default=False,
+        verbose_name="Is Edited",
+    )
+    original_body = models.TextField(
+        blank=True,
+        verbose_name="Original Body",
+        help_text="Stores the body before edit, for audit trail.",
+    )
 
     class Meta:
         verbose_name = "Message"
@@ -485,6 +516,43 @@ class Attachment(AuditableModel):
 
     def __str__(self):
         return self.original_filename or str(self.file)
+
+
+# =====================================================================
+# Message Reaction (Emoji)
+# =====================================================================
+
+class MessageReaction(AuditableModel):
+    """
+    Emoji reaction on a message, sent via WhatsApp reaction API.
+    """
+
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+        verbose_name="Message",
+    )
+    emoji = models.CharField(
+        max_length=10,
+        verbose_name="Emoji",
+    )
+    reacted_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="message_reactions",
+        verbose_name="Reacted By",
+    )
+
+    class Meta:
+        verbose_name = "Message Reaction"
+        verbose_name_plural = "Message Reactions"
+        unique_together = ("message", "reacted_by")
+
+    def __str__(self):
+        return f"{self.emoji} on {self.message_id}"
 
 
 # =====================================================================

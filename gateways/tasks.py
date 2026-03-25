@@ -894,12 +894,14 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 
         svc = EvolutionAPIService()
 
-        # Human-like delay: simulate typing before sending staff reply
+        # Human-like delay: simulate typing/recording before sending staff reply
         import random
         import time
         sleep_duration = random.randint(2, 5)
+        has_audio_att = msg.attachments.filter(mime_type__startswith="audio/").exists()
+        presence_type = "recording" if has_audio_att else "composing"
         logger.info("Applying human-like staff reply delay of %s seconds for %s", sleep_duration, requester.phone_number)
-        svc.send_presence(requester.phone_number, presence="composing", delay=sleep_duration * 1000)
+        svc.send_presence(requester.phone_number, presence=presence_type, delay=sleep_duration * 1000)
         time.sleep(sleep_duration)
 
         attachments = msg.attachments.all()[:10]  # Max 10 files
@@ -922,14 +924,29 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
                         
                     base64_data = base64.b64encode(file_data).decode('utf-8')
                     caption = msg.body if first else ""
-                    
-                    resp = svc.send_whatsapp_media(
-                        phone_number=requester.phone_number,
-                        base64_data=base64_data,
-                        mime_type=att.mime_type or "application/octet-stream",
-                        filename=att.original_filename,
-                        caption=caption,
-                    )
+                    mime = att.mime_type or "application/octet-stream"
+
+                    # Send audio as PTT voice note (green waveform bubble)
+                    if mime.startswith("audio/"):
+                        # Send text separately first if this is the first attachment with body
+                        if first and msg.body:
+                            svc.send_whatsapp_message(
+                                phone_number=requester.phone_number,
+                                text=msg.body,
+                            )
+                        resp = svc.send_whatsapp_audio(
+                            phone_number=requester.phone_number,
+                            base64_data=base64_data,
+                            mime_type=mime,
+                        )
+                    else:
+                        resp = svc.send_whatsapp_media(
+                            phone_number=requester.phone_number,
+                            base64_data=base64_data,
+                            mime_type=mime,
+                            filename=att.original_filename,
+                            caption=caption,
+                        )
                     if first:
                         response_data = resp
                     first = False
@@ -1278,10 +1295,11 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
     default_retry_delay=30,
     acks_late=True,
 )
-def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom_message: str, message_id: str = None) -> str:
+def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom_message: str, message_id: str = None, selected_message_ids: str = "") -> str:
     """
     Escalate or Forward a ticket to a third party (Email/WhatsApp).
-    Formats a comprehensive message containing the agent's notes and the original problem.
+    If selected_message_ids is provided, only those messages (with their attachments) are included.
+    Otherwise falls back to the original problem description + all case attachments.
     """
     from cases.models import CaseRecord, Message
     from gateways.services import EvolutionAPIService
@@ -1295,7 +1313,7 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
     try:
         case = CaseRecord.objects.get(id=case_id)
         case_number = case.case_number
-        
+
         msg_obj = None
         if message_id:
             try:
@@ -1307,24 +1325,70 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
         requester_name = case.requester.full_name if case.requester else case.requester_name
         req_unit = case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name
 
-        # Collect latest attachments from case (max 10)
+        # Parse selected message IDs
+        sel_ids = [mid.strip() for mid in selected_message_ids.split(",") if mid.strip()] if selected_message_ids else []
+
+        # Collect selected messages and their attachments
+        selected_messages = []
         attachments = []
-        for m in case.messages.all().prefetch_related('attachments').order_by('created_at'):
-            attachments.extend(list(m.attachments.all()))
-        attachments = attachments[:10]
+        if sel_ids:
+            selected_messages = list(
+                Message.objects.filter(id__in=sel_ids, case=case)
+                .prefetch_related('attachments')
+                .order_by('created_at')
+            )
+            for m in selected_messages:
+                attachments.extend(list(m.attachments.all()))
+            attachments = attachments[:10]
+        else:
+            # Fallback: all attachments from case
+            for m in case.messages.all().prefetch_related('attachments').order_by('created_at'):
+                attachments.extend(list(m.attachments.all()))
+            attachments = attachments[:10]
+
+        # Build conversation transcript from selected messages
+        def build_conversation_text(messages, fmt="plain"):
+            """Build a chronological transcript of selected messages."""
+            lines = []
+            for m in messages:
+                sender = m.sender_staff.username if m.direction == 'OUT' and m.sender_staff else (
+                    m.sender_employee.full_name if m.direction == 'IN' and m.sender_employee else "Unknown"
+                )
+                ts = m.sent_at.strftime('%d %b %Y, %H:%M') if m.sent_at else ""
+                direction_label = "Staff" if m.direction == 'OUT' else "Customer"
+                body = m.body or ""
+                if m.is_deleted:
+                    body = "[Message deleted]"
+
+                if fmt == "wa":
+                    lines.append(f"[{ts}] *{direction_label} ({sender})*:\n{body}")
+                    if m.attachments.exists():
+                        att_names = [a.original_filename or "Attachment" for a in m.attachments.all()]
+                        lines.append(f"  📎 {', '.join(att_names)}")
+                else:
+                    lines.append(f"[{ts}] {direction_label} ({sender}):\n{body}")
+                    if m.attachments.exists():
+                        att_names = [a.original_filename or "Attachment" for a in m.attachments.all()]
+                        lines.append(f"  Attachments: {', '.join(att_names)}")
+            return "\n\n".join(lines)
 
         if channel == 'WHATSAPP':
             import base64
             svc = EvolutionAPIService()
-            wa_text = (
+
+            # Build WA text
+            wa_header = (
                 f"🚨 *Ticket Escalation: {case_number}*\n\n"
                 f"_*Subject:*_ {case.subject}\n"
                 f"_*Requester:*_ {requester_name} ({req_unit})\n\n"
-                f"*Notes from Support:*\n{custom_message}\n\n"
-                f"*Original Problem:*\n{case.problem_description}\n\n"
-                f"Reply to this message to add your response to the ticket (Requires linking)."
+                f"*Notes from Support:*\n{custom_message}\n"
             )
-            
+            if selected_messages:
+                conversation = build_conversation_text(selected_messages, fmt="wa")
+                wa_text = f"{wa_header}\n*--- Conversation ({len(selected_messages)} messages) ---*\n\n{conversation}\n\n_Reply to this message to respond._"
+            else:
+                wa_text = f"{wa_header}\n*Original Problem:*\n{case.problem_description}\n\n_Reply to this message to add your response to the ticket (Requires linking)._"
+
             response_data = None
             if attachments:
                 first = True
@@ -1333,13 +1397,13 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                         if att.file_size > 10 * 1024 * 1024:
                             logger.warning("Skipping escalate attachment %s: exceeds 10MB limit.", att.original_filename)
                             continue
-                            
+
                         with att.file.open('rb') as f:
                             file_data = f.read()
-                            
+
                         base64_data = base64.b64encode(file_data).decode('utf-8')
                         caption = wa_text if first else ""
-                        
+
                         resp = svc.send_whatsapp_media(
                             phone_number=forward_to,
                             base64_data=base64_data,
@@ -1352,12 +1416,12 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                         first = False
                     except Exception as e:
                         logger.error("Error attaching file %s to WA escalate payload: %s", att.original_filename, e)
-                
+
                 if first and wa_text:
                     response_data = svc.send_whatsapp_message(forward_to, f"{wa_text}\n\n[Warning: All attachments exceeded limits]")
             else:
                 response_data = svc.send_whatsapp_message(forward_to, wa_text)
-            
+
             if msg_obj:
                 if response_data:
                     msg_obj.external_id = response_data.get("key", {}).get("id", "")
@@ -1365,9 +1429,9 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 else:
                     msg_obj.delivery_status = Message.DeliveryStatus.FAILED
                 msg_obj.save(update_fields=["external_id", "delivery_status"])
-                
+
             return "success:wa"
-        
+
         elif channel == 'EMAIL':
             from core.models import EmailConfig
             email_config = EmailConfig.get_solo()
@@ -1377,16 +1441,31 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
             subject = f"[CS-{str(case.id)[:8].upper()}] Fwd: {case.subject}"
             case_thread_id = f'<case-{case.id}@{from_domain}>'
 
-            plain_body = (
-                f"Ticket Escalation: {case_number}\n\n"
-                f"Notes from Support:\n{custom_message}\n\n"
-                f"---\n"
-                f"Original Subject: {case.subject}\n"
-                f"Requester: {requester_name} ({req_unit})\n\n"
-                f"Problem Description:\n{case.problem_description}\n\n"
-                f"---\n"
-                f"Reply to this email to add your response directly to ticket {case_number}."
-            )
+            # Build plain text body
+            if selected_messages:
+                conversation_plain = build_conversation_text(selected_messages, fmt="plain")
+                plain_body = (
+                    f"Ticket Escalation: {case_number}\n\n"
+                    f"Notes from Support:\n{custom_message}\n\n"
+                    f"---\n"
+                    f"Original Subject: {case.subject}\n"
+                    f"Requester: {requester_name} ({req_unit})\n\n"
+                    f"--- Conversation ({len(selected_messages)} messages) ---\n\n"
+                    f"{conversation_plain}\n\n"
+                    f"---\n"
+                    f"Reply to this email to add your response directly to ticket {case_number}."
+                )
+            else:
+                plain_body = (
+                    f"Ticket Escalation: {case_number}\n\n"
+                    f"Notes from Support:\n{custom_message}\n\n"
+                    f"---\n"
+                    f"Original Subject: {case.subject}\n"
+                    f"Requester: {requester_name} ({req_unit})\n\n"
+                    f"Problem Description:\n{case.problem_description}\n\n"
+                    f"---\n"
+                    f"Reply to this email to add your response directly to ticket {case_number}."
+                )
 
             from django.template.loader import render_to_string
 
@@ -1400,7 +1479,7 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                     'Message-ID': f'<case-{case.id}-escalate-{timezone.now().timestamp()}@{from_domain}>',
                 },
             )
-            
+
             # Embed Attachments
             total_size = 0
             limit_exceeded = False
@@ -1414,10 +1493,25 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                         email.attach(att.original_filename, f.read(), att.mime_type)
                 except Exception as e:
                     logger.error("Failed to attach file %s to escalate email: %s", att.original_filename, e)
-                    
+
             if limit_exceeded:
                 email.body += "\n\n[Warning: Some attachments were not included because the total size exceeded the 10MB limit.]"
-                
+
+            # Build conversation data for HTML template
+            conversation_html_data = []
+            for m in selected_messages:
+                sender = m.sender_staff.username if m.direction == 'OUT' and m.sender_staff else (
+                    m.sender_employee.full_name if m.direction == 'IN' and m.sender_employee else "Unknown"
+                )
+                conversation_html_data.append({
+                    "direction": m.direction,
+                    "sender": sender,
+                    "timestamp": m.sent_at.strftime('%d %b %Y, %H:%M') if m.sent_at else "",
+                    "body": m.body if not m.is_deleted else "[Message deleted]",
+                    "has_attachments": m.attachments.exists(),
+                    "attachment_names": [a.original_filename or "Attachment" for a in m.attachments.all()],
+                })
+
             # Render HTML body with template
             html_context = {
                 "case_number": case_number,
@@ -1425,7 +1519,8 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 "custom_message": custom_message,
                 "requester_name": requester_name,
                 "req_unit": req_unit,
-                "problem_description": case.problem_description,
+                "problem_description": case.problem_description if not selected_messages else "",
+                "selected_messages": conversation_html_data,
                 "date_escalated": timezone.now().strftime('%d %b %Y, %H:%M'),
                 "site_name": site_name,
                 "limit_exceeded": limit_exceeded,
@@ -1440,10 +1535,146 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 msg_obj.save(update_fields=["delivery_status"])
 
             return "success:email"
-        
+
     except CaseRecord.DoesNotExist:
         return "error:case_not_found"
     except Exception as exc:
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.mark_wa_messages_read_task",
+    max_retries=1,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def mark_wa_messages_read_task(self, case_id: str, message_external_ids: list[str]) -> str:
+    """
+    Send read receipts (blue checkmarks) to WhatsApp for messages
+    that staff has viewed in the case detail page.
+    """
+    from cases.models import CaseRecord
+    from gateways.services import EvolutionAPIService
+
+    try:
+        case = CaseRecord.objects.select_related("requester").get(id=case_id)
+        if not case.requester or not case.requester.phone_number:
+            return "skipped:no_phone"
+
+        svc = EvolutionAPIService()
+        result = svc.mark_messages_as_read(
+            case.requester.phone_number,
+            message_external_ids,
+        )
+        if result:
+            return f"success:marked_{len(message_external_ids)}_read"
+        return "error:api_returned_none"
+
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        logger.error("mark_wa_messages_read_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.delete_whatsapp_message_task",
+    max_retries=1,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def delete_whatsapp_message_task(self, message_id: str) -> str:
+    """Delete (revoke) a WhatsApp message for everyone."""
+    from cases.models import Message
+    from gateways.services import EvolutionAPIService
+
+    try:
+        msg = Message.objects.select_related("case__requester").get(id=message_id)
+        phone = msg.case.requester.phone_number if msg.case.requester else None
+        if not phone or not msg.external_id:
+            return "skipped:no_phone_or_external_id"
+
+        svc = EvolutionAPIService()
+        result = svc.delete_message_for_everyone(phone, msg.external_id)
+        return "success" if result else "error:api_returned_none"
+
+    except Message.DoesNotExist:
+        return "error:message_not_found"
+    except Exception as exc:
+        logger.error("delete_whatsapp_message_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.edit_whatsapp_message_task",
+    max_retries=1,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def edit_whatsapp_message_task(self, message_id: str) -> str:
+    """Edit/update a sent WhatsApp message text."""
+    from cases.models import Message
+    from gateways.services import EvolutionAPIService
+
+    try:
+        msg = Message.objects.select_related("case__requester").get(id=message_id)
+        phone = msg.case.requester.phone_number if msg.case.requester else None
+        if not phone or not msg.external_id:
+            return "skipped:no_phone_or_external_id"
+
+        svc = EvolutionAPIService()
+        result = svc.update_message(phone, msg.external_id, msg.body)
+        return "success" if result else "error:api_returned_none"
+
+    except Message.DoesNotExist:
+        return "error:message_not_found"
+    except Exception as exc:
+        logger.error("edit_whatsapp_message_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.react_whatsapp_message_task",
+    max_retries=1,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def react_whatsapp_message_task(self, message_id: str, emoji: str) -> str:
+    """Send an emoji reaction to a WhatsApp message."""
+    from cases.models import Message
+    from gateways.services import EvolutionAPIService
+
+    try:
+        msg = Message.objects.select_related("case__requester").get(id=message_id)
+        phone = msg.case.requester.phone_number if msg.case.requester else None
+        if not phone or not msg.external_id:
+            return "skipped:no_phone_or_external_id"
+
+        svc = EvolutionAPIService()
+        from_me = msg.direction == "OUT"
+        result = svc.send_reaction(phone, msg.external_id, emoji, from_me=from_me)
+        return "success" if result else "error:api_returned_none"
+
+    except Message.DoesNotExist:
+        return "error:message_not_found"
+    except Exception as exc:
+        logger.error("react_whatsapp_message_task failed: %s", exc)
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:

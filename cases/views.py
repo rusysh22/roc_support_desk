@@ -57,6 +57,14 @@ def staff_required(view_func):
     return _wrapped
 
 
+def _case_is_closed(case, request):
+    """Return True and add an error message if the case is closed."""
+    if case.status == CaseRecord.Status.CLOSED:
+        messages.error(request, "Cannot modify a closed ticket.")
+        return True
+    return False
+
+
 def manager_or_admin_required(view_func):
     """Decorator for Manager/SuperAdmin only actions."""
     @wraps(view_func)
@@ -77,11 +85,35 @@ def client_dashboard(request):
     """
     Display the service catalogue as a responsive grid of CaseCategory cards,
     plus any DynamicForms configured to appear on the portal.
+
+    Only root categories (parent=None) are displayed.  Categories that have
+    children act as "Main Categories" — clicking them shows sub-categories.
+    Categories without children link directly to the ticket form.
     """
     from core.models import DynamicForm
-    categories = CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"])
+    categories = (
+        CaseCategory.objects
+        .filter(parent__isnull=True)
+        .exclude(slug__in=["whatsapp-general", "email-general"])
+        .prefetch_related("children")
+    )
     portal_forms = DynamicForm.objects.filter(is_published=True, show_on_portal=True)
     return render(request, "client/dashboard.html", {"categories": categories, "portal_forms": portal_forms})
+
+
+def category_children(request, slug):
+    """
+    Display sub-categories of a main (parent) category.
+    If the category has no children, redirect to the ticket form directly.
+    """
+    parent = get_object_or_404(CaseCategory, slug=slug, parent__isnull=True)
+    children = parent.children.all()
+    if not children.exists():
+        return redirect("cases:create_case_category", slug=slug)
+    return render(request, "client/category_children.html", {
+        "parent": parent,
+        "children": children,
+    })
 
 
 def create_case(request, slug=None):
@@ -96,9 +128,17 @@ def create_case(request, slug=None):
 
     if slug:
         selected_category = get_object_or_404(CaseCategory, slug=slug)
+        # If this is a parent category with children, redirect to sub-category selection
+        if selected_category.children.exists():
+            return redirect("cases:category_children", slug=slug)
         initial["category"] = selected_category
 
-    categories_qs = CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"])
+    # Only show leaf categories (no children) in the form dropdown
+    categories_qs = (
+        CaseCategory.objects
+        .exclude(slug__in=["whatsapp-general", "email-general"])
+        .filter(children__isnull=True)
+    )
     category_templates_json = json.dumps({
         str(c.id): c.template_text for c in categories_qs if c.template_text
     })
@@ -756,9 +796,24 @@ def case_detail(request, case_id):
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+        # Collect WhatsApp external IDs for read receipts before marking as read
+        wa_external_ids = list(
+            case.messages.filter(
+                id__in=unread_msg_ids,
+                channel="WhatsApp",
+                external_id__gt="",
+            ).values_list("external_id", flat=True)
+        )
         case.has_unread_messages = False
         case.save(update_fields=["has_unread_messages"])
         case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+        # Send read receipts (blue checkmarks) to WhatsApp asynchronously
+        if wa_external_ids:
+            from gateways.tasks import mark_wa_messages_read_task
+            try:
+                mark_wa_messages_read_task.delay(str(case.id), wa_external_ids)
+            except Exception:
+                pass  # Don't break page load if Celery is unavailable
 
     # Record when staff last viewed this ticket
     from django.utils import timezone
@@ -767,7 +822,7 @@ def case_detail(request, case_id):
 
     messages_qs = case.messages.select_related(
         "sender_employee", "sender_staff"
-    ).prefetch_related("attachments").all()
+    ).prefetch_related("attachments", "reactions").all()
     rca_form = CaseRCAForm(instance=case)
     reply_form = StaffReplyForm()
 
@@ -781,6 +836,20 @@ def case_detail(request, case_id):
     master = case.master_ticket if case.master_ticket else case
     related_cases = [master] + list(master.sub_tickets.exclude(id=master.id).all())
 
+    # Prev / Next ticket navigation (ordered by created_at DESC — same as list)
+    prev_case = (
+        CaseRecord.objects.filter(created_at__gt=case.created_at)
+        .order_by("created_at")
+        .values_list("id", flat=True)
+        .first()
+    )
+    next_case = (
+        CaseRecord.objects.filter(created_at__lt=case.created_at)
+        .order_by("-created_at")
+        .values_list("id", flat=True)
+        .first()
+    )
+
     return render(request, "admin/case_detail.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -792,6 +861,9 @@ def case_detail(request, case_id):
         "master_case": master,
         "company_units": CompanyUnit.objects.all(),
         "all_employees": Employee.objects.select_related("unit").all(),
+        "all_categories": CaseCategory.objects.select_related("parent").prefetch_related("children").all(),
+        "prev_case_id": prev_case,
+        "next_case_id": next_case,
     })
 
 
@@ -803,6 +875,8 @@ def case_update_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if _case_is_closed(case, request):
+            return redirect("desk:case_detail", case_id=case_id)
         if case.requester:
             full_name = request.POST.get("full_name")
             email = request.POST.get("email")
@@ -857,6 +931,8 @@ def case_update_subject(request, case_id):
     """HTMX/POST endpoint — update the case subject (title)."""
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if _case_is_closed(case, request):
+            return redirect("desk:case_detail", case_id=case_id)
         new_subject = request.POST.get("subject", "").strip()
         if new_subject and new_subject != case.subject:
             old_subject = case.subject
@@ -874,6 +950,31 @@ def case_update_subject(request, case_id):
 
 
 @staff_required
+def case_update_category(request, case_id):
+    """HTMX/POST endpoint — update the case category."""
+    if request.method == "POST":
+        case = get_object_or_404(CaseRecord, id=case_id)
+        if _case_is_closed(case, request):
+            return redirect("desk:case_detail", case_id=case_id)
+        new_category_id = request.POST.get("category_id", "").strip()
+        if new_category_id:
+            new_category = get_object_or_404(CaseCategory, id=new_category_id)
+            if new_category != case.category:
+                old_category_name = case.category.name
+                case.category = new_category
+                case.save(update_fields=["category"])
+                CaseAuditLog.objects.create(
+                    case=case,
+                    action=CaseAuditLog.ActionText.UPDATED,
+                    field_name="category",
+                    old_value=old_category_name,
+                    new_value=new_category.name,
+                    created_by=request.user,
+                )
+    return redirect("desk:case_detail", case_id=case_id)
+
+
+@staff_required
 def case_change_requester(request, case_id):
     """
     POST endpoint to change (replace) the Requester on a CaseRecord.
@@ -881,6 +982,8 @@ def case_change_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if _case_is_closed(case, request):
+            return redirect("desk:case_detail", case_id=case_id)
         new_employee_id = request.POST.get("new_employee_id")
         if new_employee_id:
             try:
@@ -917,19 +1020,22 @@ def case_forward_escalation(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if _case_is_closed(case, request):
+            return redirect("desk:case_detail", case_id=case_id)
         forward_to = request.POST.get("forward_to", "").strip()
         channel = request.POST.get("channel", "EMAIL").upper()
         custom_message = request.POST.get("custom_message", "").strip()
+        selected_message_ids = request.POST.get("selected_message_ids", "").strip()
 
         if forward_to and channel in ["EMAIL", "WHATSAPP"]:
             from cases.models import Message
             # Use body prefix "*** ESKALASI TIKET VIA" to identify it as escalation later
             msg_channel = Message.Channel.EMAIL if channel == 'EMAIL' else Message.Channel.WHATSAPP
-            
+
             # Append Initials for Escalate
             staff_initials = getattr(request.user, "initials", "sys")
             full_body = f"*** TICKET ESCALATED VIA {channel} TO: {forward_to} ***\n\nInternal Agent Note:\n{custom_message}\n\n-{staff_initials}"
-            
+
             msg = Message.objects.create(
                 case=case,
                 sender_staff=request.user,
@@ -942,12 +1048,13 @@ def case_forward_escalation(request, case_id):
             # Fire celery task to send via API
             from gateways.tasks import escalate_case_task
             import random
-            
+
             try:
                 # Use apply_async with countdown to simulate human delay (2-6 seconds)
                 delay_secs = random.randint(2, 6)
                 escalate_case_task.apply_async(
                     args=[str(case.id), forward_to, channel, custom_message, str(msg.id)],
+                    kwargs={"selected_message_ids": selected_message_ids},
                     countdown=delay_secs
                 )
                 from django.contrib import messages
@@ -1114,6 +1221,8 @@ def case_send_reply(request, case_id):
     HTMX endpoint — staff sends a reply message within the case thread.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    if _case_is_closed(case, request):
+        return redirect("desk:case_detail", case_id=case_id)
 
     if request.method == "POST":
         form = StaffReplyForm(request.POST, request.FILES)
@@ -1203,18 +1312,149 @@ def chat_thread(request, case_id):
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
+        wa_external_ids = list(
+            case.messages.filter(
+                id__in=unread_msg_ids, channel="WhatsApp", external_id__gt=""
+            ).values_list("external_id", flat=True)
+        )
         case.has_unread_messages = False
         case.save(update_fields=["has_unread_messages"])
         case.messages.filter(id__in=unread_msg_ids).update(is_read=True)
+        if wa_external_ids:
+            from gateways.tasks import mark_wa_messages_read_task
+            try:
+                mark_wa_messages_read_task.delay(str(case.id), wa_external_ids)
+            except Exception:
+                pass
 
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
-    ).prefetch_related("attachments").all()
+    ).prefetch_related("attachments", "reactions").all()
 
     return render(request, "partials/chat_thread.html", {
         "case": case,
         "chat_messages": messages,
         "unread_msg_ids": unread_msg_ids,
+    })
+
+
+# =====================================================================
+# Message Actions (Delete, Edit, React)
+# =====================================================================
+
+@staff_required
+@require_POST
+def message_delete(request, case_id, message_id):
+    """Soft-delete an outbound WhatsApp message and revoke it on WhatsApp."""
+    case = get_object_or_404(CaseRecord, id=case_id)
+    if _case_is_closed(case, request):
+        return redirect("desk:case_detail", case_id=case_id)
+    msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
+
+    if not msg.is_deleted:
+        msg.is_deleted = True
+        msg.original_body = msg.body
+        msg.body = ""
+        msg.save(update_fields=["is_deleted", "original_body", "body"])
+
+        if msg.channel == "WhatsApp" and msg.external_id:
+            from gateways.tasks import delete_whatsapp_message_task
+            try:
+                delete_whatsapp_message_task.delay(str(msg.id))
+            except Exception:
+                pass
+
+    messages = case.messages.select_related(
+        "sender_employee", "sender_staff"
+    ).prefetch_related("attachments", "reactions").all()
+    return render(request, "partials/chat_thread.html", {
+        "case": case,
+        "chat_messages": messages,
+        "unread_msg_ids": [],
+    })
+
+
+@staff_required
+@require_POST
+def message_edit(request, case_id, message_id):
+    """Edit an outbound WhatsApp message text."""
+    case = get_object_or_404(CaseRecord, id=case_id)
+    if _case_is_closed(case, request):
+        return redirect("desk:case_detail", case_id=case_id)
+    msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
+
+    new_body = request.POST.get("body", "").strip()
+    if not new_body or msg.is_deleted:
+        messages = case.messages.select_related(
+            "sender_employee", "sender_staff"
+        ).prefetch_related("attachments", "reactions").all()
+        return render(request, "partials/chat_thread.html", {
+            "case": case, "chat_messages": messages, "unread_msg_ids": [],
+        })
+
+    if not msg.original_body:
+        msg.original_body = msg.body
+    msg.body = new_body
+    msg.is_edited = True
+    msg.save(update_fields=["body", "is_edited", "original_body"])
+
+    if msg.channel == "WhatsApp" and msg.external_id:
+        from gateways.tasks import edit_whatsapp_message_task
+        try:
+            edit_whatsapp_message_task.delay(str(msg.id))
+        except Exception:
+            pass
+
+    messages = case.messages.select_related(
+        "sender_employee", "sender_staff"
+    ).prefetch_related("attachments", "reactions").all()
+    return render(request, "partials/chat_thread.html", {
+        "case": case, "chat_messages": messages, "unread_msg_ids": [],
+    })
+
+
+@staff_required
+@require_POST
+def message_react(request, case_id, message_id):
+    """Send an emoji reaction to a WhatsApp message."""
+    from cases.models import MessageReaction
+
+    case = get_object_or_404(CaseRecord, id=case_id)
+    msg = get_object_or_404(Message, id=message_id, case=case)
+    emoji = request.POST.get("emoji", "").strip()
+
+    if emoji:
+        # Toggle: if same emoji already exists, remove it (unreact)
+        existing = MessageReaction.objects.filter(
+            message=msg, reacted_by=request.user, emoji=emoji
+        ).first()
+        if existing:
+            existing.delete()
+            # Send empty reaction to WhatsApp to remove it
+            if msg.channel == "WhatsApp" and msg.external_id:
+                from gateways.tasks import react_whatsapp_message_task
+                try:
+                    react_whatsapp_message_task.delay(str(msg.id), "")
+                except Exception:
+                    pass
+        else:
+            MessageReaction.objects.update_or_create(
+                message=msg,
+                reacted_by=request.user,
+                defaults={"emoji": emoji},
+            )
+            if msg.channel == "WhatsApp" and msg.external_id:
+                from gateways.tasks import react_whatsapp_message_task
+                try:
+                    react_whatsapp_message_task.delay(str(msg.id), emoji)
+                except Exception:
+                    pass
+
+    messages = case.messages.select_related(
+        "sender_employee", "sender_staff"
+    ).prefetch_related("attachments", "reactions").all()
+    return render(request, "partials/chat_thread.html", {
+        "case": case, "chat_messages": messages, "unread_msg_ids": [],
     })
 
 
