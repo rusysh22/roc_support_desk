@@ -1295,8 +1295,8 @@
 
 .jk-msg__action-trigger {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 2px;
+    right: -28px;
     width: 24px;
     height: 24px;
     display: flex;
@@ -1323,11 +1323,18 @@
 
 .jk-msg__bubble--out .jk-msg__action-trigger {
     color: rgba(0, 0, 0, 0.35);
+    right: auto;
+    left: -28px;
 }
 
 .jk-msg__bubble--out .jk-msg__action-trigger:hover {
     background: rgba(0, 0, 0, 0.08);
     color: rgba(0, 0, 0, 0.7);
+}
+
+.jk-msg__bubble--out .jk-msg__action-menu {
+    right: auto;
+    left: -28px;
 }
 
 .jk-msg__action-menu {

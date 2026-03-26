@@ -7,7 +7,7 @@ list filters, and audit field auto-population.
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline, StackedInline
 
-from .models import Attachment, CaseCategory, CaseRecord, Message
+from .models import Attachment, CaseCategory, CaseRecord, Message, RCATemplate
 
 
 # =====================================================================
@@ -44,6 +44,27 @@ class CaseCategoryAdmin(ModelAdmin):
     list_filter = ("parent",)
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# RCA Template
+# =====================================================================
+
+@admin.register(RCATemplate)
+class RCATemplateAdmin(ModelAdmin):
+    """Admin for RCA quick-fill templates."""
+
+    list_display = ("name", "category", "order", "created_at")
+    list_filter = ("category",)
+    list_editable = ("order",)
+    search_fields = ("name", "rca_text", "solving_steps_text")
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):

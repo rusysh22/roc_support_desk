@@ -235,6 +235,49 @@
 
             <hr class="jk-divider mb-8">
 
+            {% if rca_templates %}
+            <!-- RCA Quick-Fill Templates -->
+            <div class="mb-6" x-data="{
+                templates: [
+                    {% for tpl in rca_templates %}
+                    { name: '{{ tpl.name|escapejs }}', rca: `{{ tpl.rca_text|escapejs }}`, solving: `{{ tpl.solving_steps_text|escapejs }}`, cat: '{{ tpl.category.name|default:"Global"|escapejs }}' }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                activeIdx: null,
+                applyTemplate(idx) {
+                    const rcaEl = document.getElementById('id_root_cause_analysis');
+                    const solveEl = document.getElementById('id_solving_steps');
+                    if (this.activeIdx === idx) {
+                        if (rcaEl) rcaEl.value = '';
+                        if (solveEl) solveEl.value = '';
+                        this.activeIdx = null;
+                        return;
+                    }
+                    const tpl = this.templates[idx];
+                    if (tpl.rca && rcaEl) rcaEl.value = tpl.rca;
+                    if (tpl.solving && solveEl) solveEl.value = tpl.solving;
+                    this.activeIdx = idx;
+                }
+            }">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quick Fill Template</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    {% for tpl in rca_templates %}
+                    <button type="button"
+                            @click="applyTemplate({{ forloop.counter0 }})"
+                            :class="activeIdx === {{ forloop.counter0 }} ? 'bg-indigo-100 border-indigo-400 text-indigo-700 ring-1 ring-indigo-300' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-full transition-all shadow-sm cursor-pointer">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        {{ tpl.name }}
+                        {% if not tpl.category %}<span class="text-[10px] text-slate-400">(Global)</span>{% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Root Cause Analysis -->
             <div class="jk-form-group {% if rca_form.root_cause_analysis.errors %}has-error{% endif %}">
                 <label for="id_root_cause_analysis" class="jk-label">

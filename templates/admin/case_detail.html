@@ -94,6 +94,10 @@
                         {% else %}
                             <span>No Phone</span>
                         {% endif %}
+                        {% if case.requester.job_role %}
+                        <span class="text-slate-300">•</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium text-xs">{{ case.requester.job_role }}</span>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -660,7 +664,7 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <form action="{% url 'desk:case_forward_escalation' case.id %}" method="post" x-data="{ isSubmitting: false }" @submit="isSubmitting = true; exitSelectMode();">
+                    <form action="{% url 'desk:case_forward_escalation' case.id %}" method="post" x-data="{ isSubmitting: false }" @submit="isSubmitting = true;">
                         {% csrf_token %}
                         <input type="hidden" name="selected_message_ids" :value="escalateSelectedIds">
                         <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">

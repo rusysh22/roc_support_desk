@@ -29,7 +29,7 @@ from django.core.cache import cache
 
 from core.models import CompanyUnit, Employee, User
 from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
-from .models import Attachment, CaseCategory, CaseRecord, Message, CaseComment, CaseAuditLog
+from .models import Attachment, CaseCategory, CaseRecord, Message, CaseComment, CaseAuditLog, RCATemplate
 
 
 # =====================================================================
@@ -862,6 +862,9 @@ def case_detail(request, case_id):
         "company_units": CompanyUnit.objects.all(),
         "all_employees": Employee.objects.select_related("unit").all(),
         "all_categories": CaseCategory.objects.select_related("parent").prefetch_related("children").all(),
+        "rca_templates": RCATemplate.objects.filter(
+            Q(category=case.category) | Q(category__isnull=True)
+        ).select_related("category"),
         "prev_case_id": prev_case,
         "next_case_id": next_case,
     })

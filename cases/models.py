@@ -87,6 +87,59 @@ class CaseCategory(AuditableModel):
 
 
 # =====================================================================
+# RCA Template
+# =====================================================================
+
+class RCATemplate(AuditableModel):
+    """
+    Predefined Root Cause Analysis and Solving Steps templates.
+
+    Linked to a CaseCategory so that staff see relevant quick-fill
+    buttons when documenting a ticket's resolution.  Templates without
+    a category are shown for ALL tickets as general-purpose options.
+    """
+
+    category = models.ForeignKey(
+        CaseCategory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="rca_templates",
+        verbose_name="Category",
+        help_text="Leave empty to make this template available for all categories.",
+    )
+    name = models.CharField(
+        max_length=200,
+        verbose_name="Template Name",
+        help_text="Short label shown on the quick-fill button, e.g. 'Penambahan Akses User'.",
+    )
+    rca_text = models.TextField(
+        blank=True,
+        verbose_name="Root Cause Analysis Text",
+        help_text="Template text for the RCA field. Leave blank to skip.",
+    )
+    solving_steps_text = models.TextField(
+        blank=True,
+        verbose_name="Solving Steps Text",
+        help_text="Template text for the Solving Steps field. Leave blank to skip.",
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Display Order",
+        help_text="Lower numbers appear first.",
+    )
+
+    class Meta:
+        verbose_name = "RCA Template"
+        verbose_name_plural = "RCA Templates"
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        prefix = f"[{self.category.name}] " if self.category else "[Global] "
+        return f"{prefix}{self.name}"
+
+
+# =====================================================================
 # Ticket Record
 # =====================================================================
 
