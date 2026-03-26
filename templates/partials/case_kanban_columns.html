@@ -9,6 +9,32 @@
     </div>
     <div class="kanban-body">
         {% for case in col.cases %}
+        {% if case.category.is_confidential and not case.has_confidential_access_flag %}
+        {# === Masked confidential card — subject hidden, requester visible === #}
+        <div class="kanban-card opacity-50" style="cursor: default; pointer-events: none;">
+            <div class="flex items-center justify-between mb-2">
+                <div class="kanban-card__id flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    {{ case.case_number }}
+                </div>
+            </div>
+            <div class="kanban-card__subject text-slate-400 italic">Confidential Ticket</div>
+            <div class="kanban-card__meta">
+                <span class="truncate" style="max-width: 130px;">{{ case.requester.full_name }}</span>
+                {% if case.source == "EvolutionAPI_WA" %}
+                <span class="kanban-card__source kanban-card__source--wa">WA</span>
+                {% elif case.source == "Email" %}
+                <span class="kanban-card__source kanban-card__source--email">Email</span>
+                {% else %}
+                <span class="kanban-card__source kanban-card__source--web">Web</span>
+                {% endif %}
+            </div>
+            <div class="kanban-card__date text-slate-300">
+                {{ case.created_at|date:"d M Y, H:i" }}
+            </div>
+        </div>
+        {% else %}
+        {# === Normal card === #}
         <div class="kanban-card {% if case.has_unread_messages %}bg-rose-50 border-rose-200 shadow-rose-100{% endif %}" draggable="true" data-case-id="{{ case.id }}"
              ondragstart="event.dataTransfer.setData('text/plain', '{{ case.id }}'); this.classList.add('dragging')"
              ondragend="this.classList.remove('dragging')"
@@ -16,11 +42,14 @@
              hx-target="#htmx-modal"
              hx-swap="innerHTML"
              style="cursor: pointer;">
-            
+
             <div class="flex items-center justify-between mb-2">
                 <div class="kanban-card__id flex items-center gap-1.5">
                     {% if case.has_unread_messages %}
                         <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Unread messages"></span>
+                    {% endif %}
+                    {% if case.category.is_confidential %}
+                    <svg class="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                     {% endif %}
                     {{ case.case_number }}
                 </div>
@@ -34,7 +63,7 @@
             </div>
 
             <div class="kanban-card__subject">{{ case.subject }}</div>
-            
+
             <div class="kanban-card__meta">
                 <span class="truncate" style="max-width: 130px;">{{ case.requester.full_name }}</span>
                 {% if case.source == "EvolutionAPI_WA" %}
@@ -46,9 +75,10 @@
                 {% endif %}
             </div>
             <div class="kanban-card__date">
-                🗓️ {{ case.created_at|date:"d M Y, H:i" }}
+                {{ case.created_at|date:"d M Y, H:i" }}
             </div>
         </div>
+        {% endif %}
         {% empty %}
         <div class="kanban-empty">No cases</div>
         {% endfor %}

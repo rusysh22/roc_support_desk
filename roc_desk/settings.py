@@ -66,9 +66,33 @@ def get_admin_site_name_for_unfold():
     except Exception:
         return "RoC Desk Admin"
 
+def get_admin_logo(request):
+    try:
+        from core.models import SiteConfig
+        config = SiteConfig.get_solo()
+        if config.logo:
+            return config.logo.url
+    except Exception:
+        pass
+    return None
+
+def get_admin_favicon(request):
+    try:
+        from core.models import SiteConfig
+        config = SiteConfig.get_solo()
+        if config.favicon:
+            return [
+                {"rel": "icon", "sizes": "32x32", "href": config.favicon.url},
+            ]
+    except Exception:
+        pass
+    return []
+
 UNFOLD = {
     "SITE_TITLE": lazy(get_admin_site_name_for_unfold, str)(),
     "SITE_HEADER": lazy(get_admin_site_name_for_unfold, str)(),
+    "SITE_LOGO": get_admin_logo,
+    "SITE_FAVICONS": get_admin_favicon,
 }
 
 

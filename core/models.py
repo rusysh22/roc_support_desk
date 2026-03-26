@@ -129,6 +129,12 @@ class User(AbstractUser):
         help_text="User initials used as a signature (e.g., 'mrs').",
     )
 
+    can_handle_confidential = models.BooleanField(
+        default=False,
+        verbose_name="Can Handle Confidential",
+        help_text="Allow this user to access tickets in confidential categories.",
+    )
+
     # --- Auth configuration ---
     USERNAME_FIELD = "login_username"
     REQUIRED_FIELDS = ["username", "email"]

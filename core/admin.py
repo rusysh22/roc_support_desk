@@ -29,10 +29,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         "nik",
         "role_access",
         "initials",
+        "can_handle_confidential",
         "is_staff",
         "is_active",
     )
-    list_filter = ("role_access", "is_staff", "is_active")
+    list_filter = ("role_access", "can_handle_confidential", "is_staff", "is_active")
     search_fields = ("login_username", "username", "email", "nik", "initials")
     ordering = ("login_username",)
 
@@ -40,7 +41,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         (None, {"fields": ("login_username", "password")}),
         (
             "Personal Info",
-            {"fields": ("username", "email", "nik", "role_access", "initials")},
+            {"fields": ("username", "email", "nik", "role_access", "initials", "can_handle_confidential")},
         ),
         (
             "Permissions",

@@ -662,7 +662,7 @@
     line-height: 1.55;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    word-break: break-all;
+    word-break: normal;
     position: relative;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
     min-width: 0;
@@ -690,7 +690,7 @@
 .jk-msg__text {
     white-space: pre-wrap;
     overflow-wrap: break-word;
-    word-break: break-all;
+    word-break: normal;
 }
 
 .jk-msg__text a {
@@ -2517,4 +2517,94 @@
     .jk-bulk-bar .px-4 {
         padding: 0.5rem 0.625rem;
     }
+}
+
+/* =============================================================
+   CONFIDENTIAL TICKET STYLES
+   ============================================================= */
+
+/* Masked confidential row in table */
+.jk-confidential-masked {
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 8px,
+        rgba(245, 158, 11, 0.03) 8px,
+        rgba(245, 158, 11, 0.03) 16px
+    );
+}
+
+.jk-confidential-masked td {
+    user-select: none;
+}
+
+/* Confidential management panel in case detail */
+.jk-confidential-panel {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fcd34d;
+    border-radius: var(--jk-radius);
+    padding: 1rem 1.25rem;
+}
+
+.jk-confidential-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.jk-confidential-panel__title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #92400e;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.jk-confidential-panel__users {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+}
+
+.jk-confidential-panel__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    background: #ffffff;
+    border: 1px solid #fbbf24;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #78350f;
+}
+
+.jk-confidential-panel__chip button {
+    color: #dc2626;
+    font-size: 0.625rem;
+    line-height: 1;
+    padding: 0.125rem;
+    border-radius: 9999px;
+    transition: var(--jk-transition);
+}
+
+.jk-confidential-panel__chip button:hover {
+    background: #fecaca;
+}
+
+/* Confidential badge */
+.jk-badge-confidential {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
 }

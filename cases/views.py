@@ -20,7 +20,7 @@ from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.contrib import messages
-from django.db.models import Q, F
+from django.db.models import Q, F, Value, BooleanField, Case as DBCase, When, Exists, OuterRef
 from django.http import HttpResponseForbidden, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -63,6 +63,28 @@ def _case_is_closed(case, request):
         messages.error(request, "Cannot modify a closed ticket.")
         return True
     return False
+
+
+def _check_confidential_access(case, user):
+    """Return True if the user is allowed to access this case's details."""
+    if not getattr(case.category, "is_confidential", False):
+        return True
+    return user.role_access == "SuperAdmin" or user.can_handle_confidential
+
+
+def _annotate_confidential_access(qs, user):
+    """Annotate a CaseRecord queryset with ``has_confidential_access_flag``."""
+    if user.role_access == "SuperAdmin" or user.can_handle_confidential:
+        return qs.annotate(
+            has_confidential_access_flag=Value(True, output_field=BooleanField()),
+        )
+    return qs.annotate(
+        has_confidential_access_flag=DBCase(
+            When(category__is_confidential=False, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        )
+    )
 
 
 def manager_or_admin_required(view_func):
@@ -504,6 +526,9 @@ def case_list(request):
         "created_at": "created_at",
         "last_viewed_at": "last_viewed_at",
     }
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
+
     db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
     if sort_order == "asc":
         cases = cases.order_by(F(db_field).asc(nulls_last=True))
@@ -631,6 +656,9 @@ def case_list_partial(request):
         "category": "category__name", "assigned_to": "assigned_to__username",
         "created_at": "created_at", "last_viewed_at": "last_viewed_at",
     }
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
+
     db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
     if sort_order == "asc":
         cases = cases.order_by(F(db_field).asc(nulls_last=True))
@@ -717,6 +745,9 @@ def case_kanban_partial(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
+
     status_columns = [
         ("Open", "⏳", "Open", "#6366f1"),
         ("Investigating", "🔍", "Investigating", "#f59e0b"),
@@ -748,6 +779,8 @@ def case_unmerge(request, case_id):
     Unmerges a sub-ticket from its master ticket.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     if case.master_ticket:
         master_num = case.master_ticket.case_number
         case.master_ticket = None
@@ -801,7 +834,9 @@ def case_detail(request, case_id):
         CaseRecord.objects.select_related("requester", "category", "assigned_to"),
         id=case_id,
     )
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
@@ -859,6 +894,8 @@ def case_detail(request, case_id):
         .first()
     )
 
+    # (Confidential access is now category-based; no per-ticket user list needed)
+
     return render(request, "admin/case_detail.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -887,6 +924,8 @@ def case_update_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if not _check_confidential_access(case, request.user):
+            return HttpResponseForbidden("You do not have access to this confidential ticket.")
         if _case_is_closed(case, request):
             return redirect("desk:case_detail", case_id=case_id)
         if case.requester:
@@ -943,6 +982,8 @@ def case_update_subject(request, case_id):
     """HTMX/POST endpoint — update the case subject (title)."""
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if not _check_confidential_access(case, request.user):
+            return HttpResponseForbidden("You do not have access to this confidential ticket.")
         if _case_is_closed(case, request):
             return redirect("desk:case_detail", case_id=case_id)
         new_subject = request.POST.get("subject", "").strip()
@@ -966,6 +1007,8 @@ def case_update_category(request, case_id):
     """HTMX/POST endpoint — update the case category."""
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if not _check_confidential_access(case, request.user):
+            return HttpResponseForbidden("You do not have access to this confidential ticket.")
         if _case_is_closed(case, request):
             return redirect("desk:case_detail", case_id=case_id)
         new_category_id = request.POST.get("category_id", "").strip()
@@ -994,6 +1037,8 @@ def case_change_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if not _check_confidential_access(case, request.user):
+            return HttpResponseForbidden("You do not have access to this confidential ticket.")
         if _case_is_closed(case, request):
             return redirect("desk:case_detail", case_id=case_id)
         new_employee_id = request.POST.get("new_employee_id")
@@ -1032,6 +1077,8 @@ def case_forward_escalation(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
+        if not _check_confidential_access(case, request.user):
+            return HttpResponseForbidden("You do not have access to this confidential ticket.")
         if _case_is_closed(case, request):
             return redirect("desk:case_detail", case_id=case_id)
         forward_to = request.POST.get("forward_to", "").strip()
@@ -1088,6 +1135,8 @@ def case_update_rca(request, case_id):
     and SLA fields.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
 
     if request.method == "POST":
         original_status = case.status
@@ -1233,6 +1282,8 @@ def case_send_reply(request, case_id):
     HTMX endpoint — staff sends a reply message within the case thread.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     if _case_is_closed(case, request):
         return redirect("desk:case_detail", case_id=case_id)
 
@@ -1320,7 +1371,9 @@ def chat_thread(request, case_id):
     HTMX endpoint — returns the chat thread partial for polling refresh.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
@@ -1359,6 +1412,8 @@ def chat_thread(request, case_id):
 def message_delete(request, case_id, message_id):
     """Soft-delete an outbound WhatsApp message and revoke it on WhatsApp."""
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     if _case_is_closed(case, request):
         return redirect("desk:case_detail", case_id=case_id)
     msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
@@ -1391,6 +1446,8 @@ def message_delete(request, case_id, message_id):
 def message_edit(request, case_id, message_id):
     """Edit an outbound WhatsApp message text."""
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     if _case_is_closed(case, request):
         return redirect("desk:case_detail", case_id=case_id)
     msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
@@ -1432,6 +1489,8 @@ def message_react(request, case_id, message_id):
     from cases.models import MessageReaction
 
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     msg = get_object_or_404(Message, id=message_id, case=case)
     emoji = request.POST.get("emoji", "").strip()
 
@@ -1480,6 +1539,8 @@ def case_quick_view(request, case_id):
     HTMX endpoint — returns a quick view modal for a specific case card.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     return render(request, "partials/quick_view_modal.html", {
         "case": case,
     })
@@ -1551,6 +1612,9 @@ def case_kanban(request):
         cases = cases.filter(created_at__date__gte=date_from)
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
+
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
 
     # Group by status
     status_columns = [
@@ -1626,6 +1690,8 @@ def case_update_status(request, case_id):
         return HttpResponse(status=405)
 
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     new_status = request.POST.get("status", "")
 
     valid_statuses = [s[0] for s in CaseRecord.Status.choices]
@@ -1657,6 +1723,8 @@ def case_close_and_notify(request, case_id):
         return HttpResponse(status=405)
         
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     closure_msg_body = request.POST.get("closure_message_body", "").strip()
     
     if not closure_msg_body:
@@ -1708,6 +1776,8 @@ def case_request_edit(request, case_id):
         return HttpResponse(status=405)
         
     case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
     reason = request.POST.get("reason", "").strip()
     
     if case.status != CaseRecord.Status.CLOSED:
@@ -1739,9 +1809,11 @@ def case_approve_edit(request, case_id):
         
     if not (request.user.is_superuser or request.user.role_access == "Manager"):
         return HttpResponse("Unauthorized", status=403)
-        
+
     case = get_object_or_404(CaseRecord, id=case_id)
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     case.edit_permission_status = CaseRecord.EditPermissionStatus.APPROVED
     case.save(update_fields=["edit_permission_status"])
     
@@ -1766,9 +1838,11 @@ def case_reject_edit(request, case_id):
         
     if not (request.user.is_superuser or request.user.role_access == "Manager"):
         return HttpResponse("Unauthorized", status=403)
-        
+
     case = get_object_or_404(CaseRecord, id=case_id)
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     case.edit_permission_status = CaseRecord.EditPermissionStatus.REJECTED
     case.save(update_fields=["edit_permission_status"])
     
@@ -1857,6 +1931,9 @@ def case_calendar(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
+
     # --- Dynamic date source for calendar ---
     date_source = request.GET.get("date_source", "created_at")
     DATE_SOURCE_FIELDS = {
@@ -1881,12 +1958,13 @@ def case_calendar(request):
         dt_value = getattr(c, date_field, None)
         if not dt_value:
             continue  # Skip cases without the selected date
+        has_access = getattr(c, "has_confidential_access_flag", True)
         events.append({
             "id": str(c.id),
-            "title": f"[{c.case_number}] {c.subject[:40]}",
+            "title": f"[{c.case_number}] {'Confidential Ticket' if not has_access else c.subject[:40]}",
             "start": localtime(dt_value).strftime("%Y-%m-%d"),
-            "url": f"/desk/cases/{c.id}/",
-            "color": status_colors.get(c.status, "#6366f1"),
+            "url": f"/desk/cases/{c.id}/" if has_access else "",
+            "color": "#94a3b8" if not has_access else status_colors.get(c.status, "#6366f1"),
             "status": c.status,
             "requester": c.requester.full_name if c.requester else "—",
         })
@@ -1979,6 +2057,9 @@ def case_export_excel(request):
     if date_to:
         cases = cases.filter(created_at__date__lte=date_to)
 
+    # Annotate confidential access for the current user
+    cases = _annotate_confidential_access(cases, request.user)
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Tickets"
@@ -2013,11 +2094,13 @@ def case_export_excel(request):
 
     # Data rows
     data_align = Alignment(vertical="top", wrap_text=True)
+    MASKED = "[Confidential]"
     for row_idx, case in enumerate(cases, 2):
+        has_access = getattr(case, "has_confidential_access_flag", True)
         row_data = [
             row_idx - 1,
             case.case_number,
-            case.subject,
+            case.subject if has_access else MASKED,
             case.get_status_display(),
             case.get_priority_display(),
             case.get_case_type_display(),
@@ -2028,14 +2111,14 @@ def case_export_excel(request):
             case.requester.phone_number if case.requester else "",
             case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name,
             case.requester.job_role if case.requester else case.requester_job_role,
-            case.problem_description or "",
-            case.root_cause_analysis or "",
-            case.solving_steps or "",
-            case.quick_notes or "",
+            (case.problem_description or "") if has_access else MASKED,
+            (case.root_cause_analysis or "") if has_access else MASKED,
+            (case.solving_steps or "") if has_access else MASKED,
+            (case.quick_notes or "") if has_access else MASKED,
             case.tags or "",
-            ", ".join([f.username for f in case.followers.all()]),
-            case.link or "",
-            case.assigned_to.username if case.assigned_to else "Unassigned",
+            ", ".join([f.username for f in case.followers.all()]) if has_access else MASKED,
+            (case.link or "") if has_access else MASKED,
+            (case.assigned_to.username if case.assigned_to else "Unassigned") if has_access else MASKED,
             localtime(case.response_due_at).strftime("%d/%m/%Y %H:%M") if case.response_due_at else "",
             localtime(case.resolution_due_at).strftime("%d/%m/%Y %H:%M") if case.resolution_due_at else "",
             localtime(case.created_at).strftime("%d/%m/%Y %H:%M") if case.created_at else "",
@@ -2143,19 +2226,25 @@ def notification_bell(request):
     read_msg_ids = [n.replace("msg_", "") for n in read_notifs if n.startswith("msg_")]
     read_mention_ids = [n.replace("mention_", "") for n in read_notifs if n.startswith("mention_")]
     
-    # 1. New Tickets in the last 24h
+    # 1. New Tickets in the last 24h (exclude confidential without access)
+    _conf_filter = Q()  # no filter needed
+    if request.user.role_access != "SuperAdmin" and not request.user.can_handle_confidential:
+        _conf_filter = Q(category__is_confidential=False)
     recent_cases = CaseRecord.objects.select_related("requester").filter(
         created_at__gte=time_threshold
-    ).exclude(id__in=read_case_ids).order_by("-created_at")[:10]
-    
-    # 2. Unread Incoming Messages in the last 24h
+    ).filter(_conf_filter).exclude(id__in=read_case_ids).order_by("-created_at")[:10]
+
+    # 2. Unread Incoming Messages in the last 24h (exclude confidential without access)
+    _msg_conf_filter = Q()
+    if request.user.role_access != "SuperAdmin" and not request.user.can_handle_confidential:
+        _msg_conf_filter = Q(case__category__is_confidential=False)
     recent_unread_messages = Message.objects.select_related(
         "case", "sender_employee"
     ).filter(
         direction=Message.Direction.INBOUND,
         is_read=False,
         created_at__gte=time_threshold
-    ).exclude(id__in=read_msg_ids).order_by("-created_at")[:10]
+    ).filter(_msg_conf_filter).exclude(id__in=read_msg_ids).order_by("-created_at")[:10]
     
     # 3. Recent Mentions in Internal Notes
     recent_mentions = CaseComment.objects.select_related("case", "author").filter(
@@ -2220,7 +2309,9 @@ def case_add_comment(request, case_id):
     from core.models import User
     
     case = get_object_or_404(CaseRecord, id=case_id)
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     if request.method == "POST":
         body = request.POST.get("comment_body", "").strip()
         if body:
@@ -2764,7 +2855,9 @@ def toggle_wa_session(request, case_id):
     Toggle the hold_wa_session flag for a specific case via HTMX.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    
+    if not _check_confidential_access(case, request.user):
+        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+
     # Check permissions
     if request.user.role_access not in ['SuperAdmin', 'Manager', 'SupportDesk']:
         return HttpResponseForbidden("You do not have permission to perform this action.")

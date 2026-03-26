@@ -309,6 +309,72 @@
         </thead>
         <tbody id="case-tbody">
             {% for case in cases %}
+            {% if case.category.is_confidential and not case.has_confidential_access_flag %}
+            {# === Masked confidential row — subject hidden, requester/category visible === #}
+            <tr class="jk-confidential-masked opacity-60 hover:bg-slate-50/50 transition-colors">
+                <td class="jk-col-checkbox hidden sm:table-cell">
+                    <input type="checkbox" disabled class="w-4 h-4 rounded border-slate-200 bg-slate-100 cursor-not-allowed">
+                </td>
+                <td class="jk-col-ticket whitespace-nowrap">
+                    <span class="text-slate-400 text-xs sm:text-sm font-semibold">
+                        <svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        {{ case.case_number }}
+                    </span>
+                </td>
+                <td class="jk-col-subject">
+                    <span class="text-slate-400 italic text-sm">Confidential Ticket</span>
+                </td>
+                <td class="jk-col-status">
+                    {% if case.status == "Open" %}
+                    <span class="jk-badge jk-badge-open">Open</span>
+                    {% elif case.status == "Investigating" %}
+                    <span class="jk-badge jk-badge-investigating">Investigating</span>
+                    {% elif case.status == "PendingInfo" %}
+                    <span class="jk-badge jk-badge-pending">Pending Info</span>
+                    {% elif case.status == "Resolved" %}
+                    <span class="jk-badge jk-badge-resolved">Resolved</span>
+                    {% elif case.status == "Closed" %}
+                    <span class="jk-badge jk-badge-closed">Closed</span>
+                    {% endif %}
+                </td>
+                <td class="jk-col-source hidden md:table-cell">
+                    {% if case.source == "EvolutionAPI_WA" %}
+                    <span class="jk-badge jk-badge-wa">WhatsApp</span>
+                    {% elif case.source == "Email" %}
+                    <span class="jk-badge jk-badge-email">Email</span>
+                    {% else %}
+                    <span class="jk-badge jk-badge-web">Web</span>
+                    {% endif %}
+                </td>
+                <td class="jk-col-requester hidden">
+                    <span class="jk-col-requester__name">{{ case.requester.full_name|default:"Unknown" }}</span>
+                    {% if case.requester.phone_number %}<span class="jk-col-requester__contact">{{ case.requester.phone_number }}</span>
+                    {% elif case.requester.email %}<span class="jk-col-requester__contact">{{ case.requester.email }}</span>{% endif %}
+                    {% if case.requester.unit %}<span class="jk-col-requester__unit">{{ case.requester.unit.name }}</span>{% endif %}
+                </td>
+                <td class="text-sm hidden lg:table-cell">
+                    <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
+                    {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
+                    {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
+                    {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
+                </td>
+                <td class="text-sm text-slate-500 hidden lg:table-cell">{{ case.category.name }}</td>
+                <td class="text-sm hidden xl:table-cell">
+                    {% if case.assigned_to %}
+                    <span class="font-medium">{{ case.assigned_to.username }}</span>
+                    {% else %}
+                    <span class="text-slate-400">Unassigned</span>
+                    {% endif %}
+                </td>
+                <td class="jk-col-created text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+                    {{ case.created_at|date:"d M Y" }}<br>
+                    <span class="text-[10px] sm:text-xs text-slate-300">{{ case.created_at|time:"H:i" }}</span>
+                </td>
+                <td class="text-sm text-slate-400 whitespace-nowrap hidden md:table-cell">—</td>
+                <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
+                <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
+            </tr>
+            {% else %}
             <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
                 :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
                 <td class="jk-col-checkbox hidden sm:table-cell">
@@ -317,7 +383,7 @@
                 </td>
                 <td class="jk-col-ticket whitespace-nowrap">
                     <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link text-xs sm:text-sm">
-                        {{ case.case_number }}
+                        {% if case.category.is_confidential %}<svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>{% endif %}{{ case.case_number }}
                     </a>
                 </td>
                 <td class="jk-col-subject">
@@ -421,6 +487,7 @@
                     {% endif %}
                 </td>
             </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>

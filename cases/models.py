@@ -63,6 +63,11 @@ class CaseCategory(AuditableModel):
         verbose_name="Prefix Code",
         help_text="2-letter or number prefix for ticket sequence (e.g. RQ, IN, HR).",
     )
+    is_confidential = models.BooleanField(
+        default=False,
+        verbose_name="Confidential Category",
+        help_text="Tickets in this category are confidential — only users with 'can handle confidential' permission can access them.",
+    )
 
     class Meta:
         verbose_name = "Ticket Category"
@@ -401,6 +406,7 @@ class CaseRecord(AuditableModel):
         """Human-readable case identifier derived from category prefix and UUID."""
         prefix = self.category.prefix_code if self.category else "RQ"
         return f"{prefix}-{str(self.id)[:8].upper()}"
+
 
 
 # =====================================================================
