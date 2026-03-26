@@ -103,16 +103,25 @@ def client_dashboard(request):
 
 def category_children(request, slug):
     """
-    Display sub-categories of a main (parent) category.
-    If the category has no children, redirect to the ticket form directly.
+    Display sub-categories of a category at any level.
+    If the category has no children (leaf), redirect to the ticket form.
     """
-    parent = get_object_or_404(CaseCategory, slug=slug, parent__isnull=True)
-    children = parent.children.all()
+    parent = get_object_or_404(CaseCategory, slug=slug)
+    children = parent.children.prefetch_related("children").all()
     if not children.exists():
         return redirect("cases:create_case_category", slug=slug)
+
+    # Build breadcrumb trail: current → parent → grandparent → ...
+    breadcrumbs = []
+    node = parent.parent
+    while node:
+        breadcrumbs.insert(0, node)
+        node = node.parent
+
     return render(request, "client/category_children.html", {
         "parent": parent,
         "children": children,
+        "breadcrumbs": breadcrumbs,
     })
 
 
@@ -420,7 +429,7 @@ def case_list(request):
     Supports status/source/category filtering via GET params.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to"
     ).all()
 
     # --- Filtering ---
@@ -557,7 +566,7 @@ def case_list_partial(request):
     on the case list page. Accepts the same GET params as case_list.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to"
     ).all()
 
     folder = request.GET.get("folder", "inbox")
@@ -651,7 +660,7 @@ def case_kanban_partial(request):
     Returns only the kanban columns HTML fragment for the auto-refresh mechanism.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to"
     ).all()
 
     folder = request.GET.get("folder", "inbox")
@@ -1482,7 +1491,7 @@ def case_kanban(request):
     Supports same filters as case_list.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to"
     ).all()
 
     # --- Filtering ---
@@ -1788,7 +1797,7 @@ def case_calendar(request):
     from django.utils.timezone import localtime
 
     cases = CaseRecord.objects.select_related(
-        "requester", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to"
     ).all()
 
     folder = request.GET.get("folder", "inbox")
@@ -2066,6 +2075,56 @@ def case_export_excel(request):
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+# =====================================================================
+# RCA Templates — Create / Delete
+# =====================================================================
+
+@manager_or_admin_required
+@require_POST
+def rca_template_create(request):
+    """Create a new RCA Template. Managers/SuperAdmins only."""
+    name = request.POST.get("name", "").strip()
+    rca_text = request.POST.get("rca_text", "").strip()
+    solving_steps_text = request.POST.get("solving_steps_text", "").strip()
+    category_id = request.POST.get("category_id", "").strip()
+    redirect_case_id = request.POST.get("redirect_case_id", "").strip()
+
+    if name:
+        category = None
+        if category_id:
+            category = CaseCategory.objects.filter(id=category_id).first()
+        RCATemplate.objects.create(
+            name=name,
+            rca_text=rca_text,
+            solving_steps_text=solving_steps_text,
+            category=category,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        messages.success(request, f"Template '{name}' created.")
+    else:
+        messages.error(request, "Template name is required.")
+
+    if redirect_case_id:
+        return redirect("desk:case_detail", case_id=redirect_case_id)
+    return redirect("desk:case_list")
+
+
+@manager_or_admin_required
+@require_POST
+def rca_template_delete(request, template_id):
+    """Delete an RCA Template. Managers/SuperAdmins only."""
+    tpl = get_object_or_404(RCATemplate, id=template_id)
+    tpl_name = tpl.name
+    tpl.delete()
+    messages.success(request, f"Template '{tpl_name}' deleted.")
+
+    redirect_case_id = request.POST.get("redirect_case_id", "").strip()
+    if redirect_case_id:
+        return redirect("desk:case_detail", case_id=redirect_case_id)
+    return redirect("desk:case_list")
 
 
 @staff_required

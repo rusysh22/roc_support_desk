@@ -73,6 +73,10 @@ urlpatterns = [
     path("forms/<uuid:pk>/responses/", views.form_responses_view, name="form_responses"),
     path("forms/<uuid:pk>/responses/export/", views.form_responses_export, name="form_responses_export"),
 
+    # RCA Templates
+    path("rca-templates/create/", views.rca_template_create, name="rca_template_create"),
+    path("rca-templates/<uuid:template_id>/delete/", views.rca_template_delete, name="rca_template_delete"),
+
     # Notifications Bell
     path("notifications/", views.notification_bell, name="notifications"),
     path("notifications/<str:notif_type>/<str:notif_id>/read/", views.mark_notification_read, name="mark_notification_read"),

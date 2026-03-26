@@ -1643,6 +1643,29 @@
         border-right: none;
     }
 
+    .jk-chat-panel__header {
+        padding: 0.5rem 0.75rem;
+        gap: 0.375rem;
+    }
+
+    .jk-chat-panel__header-avatar {
+        width: 30px;
+        height: 30px;
+        font-size: 0.75rem;
+    }
+
+    .jk-chat-panel__header-info {
+        gap: 0.5rem;
+    }
+
+    .jk-chat-panel__header-name {
+        font-size: 0.8125rem;
+    }
+
+    .jk-chat-panel__header-meta {
+        font-size: 0.625rem;
+    }
+
     .jk-msg {
         max-width: 92%;
     }
@@ -2137,5 +2160,361 @@
     .jk-card-header {
         padding: 0.75rem;
         font-size: 0.75rem;
+    }
+}
+
+/* =============================================================
+   CASE DETAIL — MOBILE RESPONSIVE
+   ============================================================= */
+
+@media (max-width: 768px) {
+    /* --- Ticket Header Card --- */
+    .jk-detail-header .jk-card-body {
+        padding: 0.75rem !important;
+    }
+
+    /* Compact status & source badges */
+    .jk-detail-badges > div {
+        padding: 0.25rem 0.625rem !important;
+        font-size: 0.6875rem !important;
+        gap: 0.25rem !important;
+    }
+
+    .jk-detail-badges > div svg {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    /* Meta row: stack vertically on mobile */
+    .jk-detail-meta {
+        flex-direction: column;
+        gap: 0.25rem !important;
+    }
+
+    .jk-detail-meta > div {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0.125rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .jk-detail-meta > div:last-child {
+        border-bottom: none;
+    }
+
+    /* Subject title smaller */
+    .jk-detail-subject {
+        font-size: 1rem !important;
+    }
+
+    /* Requester info line */
+    .jk-detail-requester {
+        font-size: 0.75rem !important;
+    }
+
+    /* Chat panel header buttons compact */
+    .jk-chat-panel__header .jk-btn-sm {
+        padding: 0.1875rem 0.375rem;
+        font-size: 0.625rem;
+    }
+
+    .jk-chat-panel__header .jk-btn-sm svg {
+        width: 0.75rem;
+        height: 0.75rem;
+        margin-right: 0.125rem;
+    }
+
+    /* Split panel gap reduction */
+    .jk-split {
+        gap: 0.75rem;
+    }
+
+    /* RCA form compact */
+    .jk-rca-section .jk-form-group {
+        margin-bottom: 0.75rem;
+    }
+
+    .jk-rca-section .jk-label {
+        font-size: 0.75rem;
+    }
+
+    .jk-rca-section .jk-textarea {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Even tighter on very small screens */
+    .jk-detail-header .jk-card-body {
+        padding: 0.5rem !important;
+    }
+
+    .jk-detail-subject {
+        font-size: 0.875rem !important;
+        line-height: 1.3;
+    }
+
+    .jk-detail-requester {
+        font-size: 0.6875rem !important;
+    }
+
+    .jk-detail-badges .jk-badge-pill {
+        padding: 0.1875rem 0.5rem;
+        font-size: 0.625rem;
+    }
+
+    .jk-detail-meta {
+        font-size: 0.625rem !important;
+    }
+
+    /* Chat header even more compact */
+    .jk-chat-panel__header .jk-btn-sm {
+        padding: 0.125rem 0.25rem;
+        font-size: 0.5625rem;
+    }
+}
+
+/* ===================================================================
+   Case List — Mobile Card Layout
+   On screens ≤ 768px the table rows become stacked cards.
+   =================================================================== */
+
+@media (max-width: 768px) {
+    /* Table wrapper — remove border so cards float freely */
+    .jk-case-list-wrapper {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    /* Remove min-width so table doesn't force horizontal scroll */
+    .jk-case-list-table {
+        min-width: 0 !important;
+        display: block;
+    }
+
+    .jk-case-list-table thead {
+        display: none;
+    }
+
+    .jk-case-list-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+
+    .jk-case-list-table tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-rows: auto auto auto auto auto;
+        gap: 0.125rem 0.5rem;
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.75rem;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        position: relative;
+    }
+
+    .jk-case-list-table tbody tr.bg-rose-100 {
+        border-left: 3px solid #ef4444;
+    }
+
+    /* Hide all cells by default, then show the ones we want */
+    .jk-case-list-table tbody td {
+        display: none;
+        padding: 0;
+        border: none;
+    }
+
+    /* Row 1: checkbox + ticket# + status badge */
+    .jk-case-list-table tbody td.jk-col-checkbox {
+        display: flex;
+        align-items: center;
+        grid-row: 1;
+        grid-column: 1;
+    }
+
+    .jk-case-list-table tbody td.jk-col-ticket {
+        display: flex;
+        align-items: center;
+        grid-row: 1;
+        grid-column: 2;
+        font-weight: 600;
+    }
+
+    .jk-case-list-table tbody td.jk-col-status {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        grid-row: 1;
+        grid-column: 3;
+    }
+
+    /* Row 2: subject spanning full width */
+    .jk-case-list-table tbody td.jk-col-subject {
+        display: block;
+        grid-row: 2;
+        grid-column: 1 / -1;
+        padding-top: 0.25rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-subject a {
+        max-width: 100% !important;
+        font-size: 0.8125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Row 3: requester info (name + phone/email) */
+    .jk-case-list-table tbody td.jk-col-requester {
+        display: flex !important;
+        align-items: center;
+        gap: 0.375rem;
+        grid-row: 3;
+        grid-column: 1 / -1;
+        padding-top: 0.25rem;
+        font-size: 0.75rem;
+        color: #475569;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .jk-col-requester__name {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 45%;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+
+    .jk-col-requester__contact {
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 45%;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+
+    .jk-col-requester__contact::before {
+        content: "•";
+        margin-right: 0.375rem;
+        color: #cbd5e1;
+    }
+
+    /* Row 4: unit/company */
+    .jk-col-requester__unit {
+        display: none;
+    }
+
+    .jk-case-list-table tbody td.jk-col-requester .jk-col-requester__unit {
+        display: block;
+        grid-row: 4;
+        grid-column: 1 / -1;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: #4f46e5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* When unit exists, requester cell becomes a 2-line block */
+    .jk-case-list-table tbody td.jk-col-requester:has(.jk-col-requester__unit) {
+        flex-wrap: wrap;
+    }
+
+    .jk-case-list-table tbody td.jk-col-requester .jk-col-requester__unit {
+        width: 100%;
+        flex-basis: 100%;
+        padding-top: 0.0625rem;
+    }
+
+    /* Row 5: source + date */
+    .jk-case-list-table tbody td.jk-col-source {
+        display: inline-flex !important;
+        grid-row: 5;
+        grid-column: 1 / 2;
+        padding-top: 0.375rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-source .jk-badge {
+        font-size: 0.625rem;
+        padding: 0.125rem 0.375rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        grid-row: 5;
+        grid-column: 2 / -1;
+        padding-top: 0.375rem;
+        font-size: 0.6875rem;
+        color: #94a3b8;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created br {
+        display: none;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created span {
+        margin-left: 0.25rem;
+    }
+
+    /* Badges inside cards */
+    .jk-case-list-table .jk-badge {
+        font-size: 0.6875rem;
+        padding: 0.125rem 0.5rem;
+    }
+
+    /* Status filter bar — smaller pills on mobile */
+    .jk-status-filter-bar {
+        gap: 0.375rem !important;
+    }
+
+    .jk-status-filter-bar button {
+        padding: 0.25rem 0.625rem;
+        font-size: 0.6875rem;
+    }
+
+    /* Pagination compact */
+    .jk-case-list-table + .px-6 {
+        padding: 0.75rem;
+    }
+
+    /* Live indicator — smaller on mobile */
+    #live-indicator {
+        bottom: 10px !important;
+        right: 10px !important;
+        padding: 4px 10px !important;
+        font-size: 10px !important;
+        border-radius: 8px !important;
+    }
+
+    /* Bulk action bar — compact on mobile */
+    .jk-bulk-bar {
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+        transform: none !important;
+        width: auto !important;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .jk-bulk-bar .px-5 {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .jk-bulk-bar .px-4 {
+        padding: 0.5rem 0.625rem;
     }
 }

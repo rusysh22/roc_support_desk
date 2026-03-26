@@ -71,7 +71,7 @@
 </div>
 
 <!-- Status Button Bar -->
-<div class="flex flex-wrap gap-2 mb-4" x-data="{
+<div class="jk-status-filter-bar flex flex-wrap gap-2 mb-4" x-data="{
     activeStatuses: '{{ current_filters.status }}' ? '{{ current_filters.status }}'.split(',').map(s => s.trim()).filter(s => s) : [],
     toggleStatus(status) {
         if (!status) {
@@ -233,7 +233,7 @@
 
 <!-- Tickets Table with Alpine Data for Bulk Actions -->
 {% if cases %}
-<div class="jk-table-wrapper select-none" x-data="{
+<div class="jk-table-wrapper jk-case-list-wrapper select-none" x-data="{
     selectedIds: [],
     caseIds: {{ cases|length|default:0 }} ? [{% for c in cases %}'{{ c.id }}'{% if not forloop.last %},{% endif %}{% endfor %}] : [],
     showMergeModal: false,
@@ -249,7 +249,7 @@
         }
     }
 }">
-    <table class="jk-table relative">
+    <table class="jk-table jk-case-list-table relative">
         <thead>
             <tr>
                 <th class="w-10 hidden sm:table-cell">
@@ -311,16 +311,16 @@
             {% for case in cases %}
             <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
                 :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
-                <td class="hidden sm:table-cell">
+                <td class="jk-col-checkbox hidden sm:table-cell">
                     <input type="checkbox" value="{{ case.id }}" x-model="selectedIds"
                            class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
                 </td>
-                <td class="whitespace-nowrap">
+                <td class="jk-col-ticket whitespace-nowrap">
                     <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link text-xs sm:text-sm">
                         {{ case.case_number }}
                     </a>
                 </td>
-                <td>
+                <td class="jk-col-subject">
                     <a href="{% url 'desk:case_detail' case_id=case.id %}"
                         class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[140px] sm:max-w-[200px] lg:max-w-[280px] flex items-center gap-2">
                         {% if case.has_unread_messages %}
@@ -329,7 +329,7 @@
                         {{ case.subject }}
                     </a>
                 </td>
-                <td>
+                <td class="jk-col-status">
                     {% if case.status == "Open" %}
                     <span class="jk-badge jk-badge-open">Open</span>
                     {% elif case.status == "Investigating" %}
@@ -342,7 +342,7 @@
                     <span class="jk-badge jk-badge-closed">Closed</span>
                     {% endif %}
                 </td>
-                <td class="hidden md:table-cell">
+                <td class="jk-col-source hidden md:table-cell">
                     {% if case.source == "EvolutionAPI_WA" %}
                     <span class="jk-badge jk-badge-wa">💬 WhatsApp</span>
                     {% elif case.source == "Email" %}
@@ -350,6 +350,13 @@
                     {% else %}
                     <span class="jk-badge jk-badge-web">🌐 Web</span>
                     {% endif %}
+                </td>
+                <!-- Mobile-only requester row (visible in card layout, hidden in desktop table) -->
+                <td class="jk-col-requester hidden">
+                    <span class="jk-col-requester__name">{{ case.requester.full_name|default:"Unknown" }}</span>
+                    {% if case.requester.phone_number %}<span class="jk-col-requester__contact">{{ case.requester.phone_number }}</span>
+                    {% elif case.requester.email %}<span class="jk-col-requester__contact">{{ case.requester.email }}</span>{% endif %}
+                    {% if case.requester.unit %}<span class="jk-col-requester__unit">{{ case.requester.unit.name }}</span>{% endif %}
                 </td>
                 <td class="text-sm hidden lg:table-cell">
                     <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
@@ -365,7 +372,7 @@
                     <span class="text-slate-400">Unassigned</span>
                     {% endif %}
                 </td>
-                <td class="text-xs sm:text-sm text-slate-500 whitespace-nowrap">
+                <td class="jk-col-created text-xs sm:text-sm text-slate-500 whitespace-nowrap">
                     {{ case.created_at|date:"d M Y" }}<br>
                     <span class="text-[10px] sm:text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
                 </td>
@@ -420,7 +427,7 @@
 
     <!-- Pagination block -->
     {% if cases.has_other_pages %}
-    <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-4">
+    <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex items-center justify-between flex-wrap gap-2 sm:gap-4">
         <div class="text-sm text-slate-500">
             Showing <span class="font-medium text-slate-900">{{ cases.start_index }}</span> to <span class="font-medium text-slate-900">{{ cases.end_index }}</span> of <span class="font-medium text-slate-900">{{ cases.paginator.count }}</span> cases
         </div>
@@ -457,7 +464,7 @@
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-10"
          style="display: none;"
-         class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
+         class="jk-bulk-bar fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
         
         <div class="px-5 py-3.5 bg-slate-800 flex items-center gap-2 border-r border-slate-700/50 font-medium">
             <span class="flex items-center justify-center w-6 h-6 bg-indigo-500 rounded-full text-xs font-bold" x-text="selectedIds.length"></span>

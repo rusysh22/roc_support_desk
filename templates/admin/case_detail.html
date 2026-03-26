@@ -23,8 +23,9 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     </span>
     {% endif %}
-    <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm">
-        ← Back to Tickets
+    <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm" title="Back to Tickets">
+        <span class="hidden sm:inline">← Back to Tickets</span>
+        <svg class="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </a>
     {% if next_case_id %}
     <a href="{% url 'desk:case_detail' next_case_id %}" class="jk-btn jk-btn-secondary jk-btn-sm px-2" title="Next Ticket">
@@ -51,14 +52,14 @@
 {% endif %}
 
 <!-- Ticket Header -->
-<div class="jk-card mb-6">
+<div class="jk-card jk-detail-header mb-4 sm:mb-6">
     <div class="jk-card-body py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-3 sm:gap-4">
             <div class="flex-1 min-w-0" x-data="{ showEditRequesterModal: false, editingSubject: false, subjectVal: '{{ case.subject|escapejs }}' }">
                 <div class="flex flex-col gap-1 mb-4">
                     <div class="flex items-center gap-3">
                         <!-- Display mode -->
-                        <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words" x-text="subjectVal"></h2>
+                        <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words jk-detail-subject" x-text="subjectVal"></h2>
                         {% if case.status != 'Closed' %}
                         <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
@@ -77,7 +78,7 @@
                         {% endif %}
                     </div>
                     {% if case.requester %}
-                    <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500 jk-detail-requester">
                         <span class="font-medium text-slate-700">{{ case.requester.full_name }}</span>
                         <span class="text-slate-300">•</span>
                         <span>{{ case.requester.email|default:"No Email" }}</span>
@@ -103,10 +104,10 @@
                 </div>
                 <!-- Edit Requester Modal is now lower down in the DOM -->
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 jk-detail-badges">
                 <!-- Status Badge -->
                 {% if case.status == "Open" %}
-                <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
+                <div class="jk-badge-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Open
                 </div>
@@ -160,7 +161,7 @@
         </div>
 
         <!-- Meta Row -->
-        <div class="flex flex-wrap gap-3 sm:gap-6 mt-3 pt-3 border-t border-slate-100 text-[11px] sm:text-xs text-slate-400">
+        <div class="jk-detail-meta flex flex-wrap gap-3 sm:gap-6 mt-3 pt-3 border-t border-slate-100 text-[11px] sm:text-xs text-slate-400">
             <div x-data="{ editingCat: false }">
                 <span class="font-medium text-slate-500">Category:</span>
                 <span x-show="!editingCat" class="inline-flex items-center gap-1">
@@ -339,27 +340,27 @@
                     </div>
                 </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
                 <div class="jk-spinner htmx-indicator" id="thread-spinner"></div>
                 {% if case.source == 'EvolutionAPI_WA' and case.status != 'Closed' %}
                     {% if case.hold_wa_session %}
-                        <button type="button" 
-                                hx-post="{% url 'desk:toggle_wa_session' case.id %}" 
-                                hx-swap="outerHTML" 
+                        <button type="button"
+                                hx-post="{% url 'desk:toggle_wa_session' case.id %}"
+                                hx-swap="outerHTML"
                                 class="jk-btn jk-btn-sm border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 shadow-sm"
                                 title="Release WA Session (Currently Held)">
-                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            Release Session
+                            <svg class="w-3.5 h-3.5 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="hidden sm:inline">Release Session</span>
                         </button>
                     {% else %}
-                        <button type="button" 
-                                hx-post="{% url 'desk:toggle_wa_session' case.id %}" 
-                                hx-swap="outerHTML" 
-                                class="jk-btn jk-btn-sm" 
-                                style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;" 
+                        <button type="button"
+                                hx-post="{% url 'desk:toggle_wa_session' case.id %}"
+                                hx-swap="outerHTML"
+                                class="jk-btn jk-btn-sm"
+                                style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2); color:#cbd5e1;"
                                 title="Hold WA Session (Currently Active)">
-                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            Hold Session
+                            <svg class="w-3.5 h-3.5 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="hidden sm:inline">Hold Session</span>
                         </button>
                     {% endif %}
                 {% endif %}
@@ -368,7 +369,7 @@
                 </button>
                 {% if case.status != 'Closed' %}
                 <button type="button" x-show="!escalateSelectMode" @click="enterSelectMode()" class="jk-btn jk-btn-sm" style="background:white; border:1px solid #e2e8f0; color:#475569;">
-                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Escalate / Forward
+                    <svg class="w-3.5 h-3.5 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> <span class="hidden sm:inline">Escalate / Forward</span>
                 </button>
                 {% endif %}
             </div>
@@ -1155,7 +1156,7 @@
         </div>
 
         <!-- RCA + Solving Steps (HTMX form) -->
-        <div id="rca-panel">
+        <div id="rca-panel" class="jk-rca-section">
             {% include "partials/rca_form.html" %}
         </div>
     </div>
