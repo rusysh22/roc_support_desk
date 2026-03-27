@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import CompanyUnit, Employee, User, SiteConfig, OTPToken
+from .models import CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken
 
 
 # =====================================================================
@@ -173,3 +173,18 @@ class OTPTokenAdmin(ModelAdmin):
         return obj.is_valid()
     is_valid_token.boolean = True
     is_valid_token.short_description = "Is Valid"
+
+
+# =====================================================================
+# Feedback Admin
+# =====================================================================
+
+@admin.register(Feedback)
+class FeedbackAdmin(ModelAdmin):
+    """Admin configuration for user feedback."""
+
+    list_display = ("subject", "feedback_type", "user", "is_read", "created_at")
+    list_filter = ("feedback_type", "is_read", "created_at")
+    search_fields = ("subject", "message", "user__username", "user__email")
+    readonly_fields = ("id", "user", "feedback_type", "subject", "message", "created_at", "updated_at")
+    list_editable = ("is_read",)

@@ -358,7 +358,7 @@ class CaseRecord(AuditableModel):
     hold_wa_session = models.BooleanField(
         default=False,
         verbose_name="Hold WA Session",
-        help_text="If true, bypasses the 30-minute auto end-session for WhatsApp conversations."
+        help_text="If true, bypasses the 60-minute auto end-session for WhatsApp conversations."
     )
     master_ticket = models.ForeignKey(
         'self',
@@ -516,6 +516,15 @@ class Message(AuditableModel):
         blank=True,
         verbose_name="Original Body",
         help_text="Stores the body before edit, for audit trail.",
+    )
+    quoted_message = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="replies",
+        verbose_name="Quoted Message",
+        help_text="The message being replied to (quote reply).",
     )
 
     class Meta:

@@ -280,6 +280,32 @@ class SiteConfig(AuditableModel):
         verbose_name="Max Upload Size (MB)",
         help_text="Maximum allowed file size for form attachments in Megabytes."
     )
+    terms_and_privacy = models.TextField(
+        blank=True,
+        default=(
+            "Terms of Use\n"
+            "=============\n\n"
+            "By using this Support Desk system, you agree to the following terms:\n\n"
+            "1. This system is provided for internal use only. All submitted tickets and data "
+            "are treated as company property.\n"
+            "2. Users must provide accurate information when submitting tickets or requests.\n"
+            "3. Misuse of the system, including submitting spam or false reports, may result in "
+            "restricted access.\n"
+            "4. The system administrator reserves the right to modify these terms at any time.\n\n"
+            "Privacy Policy\n"
+            "===============\n\n"
+            "1. Personal data collected (name, email, phone number, employee ID) is used solely "
+            "for ticket management and communication purposes.\n"
+            "2. Ticket data may be accessed by authorized support staff and management for "
+            "resolution and reporting.\n"
+            "3. Confidential tickets are restricted to authorized personnel only.\n"
+            "4. We do not share your personal data with third parties without your consent.\n"
+            "5. Data retention follows company policy. Closed tickets are retained for audit and "
+            "reporting purposes."
+        ),
+        verbose_name="Terms & Privacy Policy",
+        help_text="Terms of use and privacy policy text displayed on the Help & About page.",
+    )
 
     class Meta:
         verbose_name = "Site Configuration"
@@ -309,6 +335,56 @@ class SiteConfig(AuditableModel):
 
     def __str__(self):
         return self.site_name
+
+
+# =====================================================================
+# User Feedback
+# =====================================================================
+
+class Feedback(AuditableModel):
+    """
+    Stores user feedback submitted from the Help & About page.
+    """
+
+    class FeedbackType(models.TextChoices):
+        BUG = "Bug", "Bug Report"
+        FEATURE = "Feature", "Feature Request"
+        IMPROVEMENT = "Improvement", "Improvement Suggestion"
+        OTHER = "Other", "Other"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feedbacks",
+        verbose_name="Submitted By",
+    )
+    feedback_type = models.CharField(
+        max_length=20,
+        choices=FeedbackType.choices,
+        default=FeedbackType.OTHER,
+        verbose_name="Type",
+    )
+    subject = models.CharField(
+        max_length=200,
+        verbose_name="Subject",
+    )
+    message = models.TextField(
+        verbose_name="Message",
+    )
+    is_read = models.BooleanField(
+        default=False,
+        verbose_name="Read",
+    )
+
+    class Meta:
+        verbose_name = "Feedback"
+        verbose_name_plural = "Feedbacks"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.feedback_type}] {self.subject}"
 
 
 class EmailConfig(AuditableModel):

@@ -132,7 +132,7 @@
 </div>
 
 <!-- Filters Bar -->
-<div class="jk-card mb-4" x-data="{ showFilters: false, showAdvanced: '{{ current_filters.type }}{{ current_filters.tags }}{{ current_filters.followers }}'.length > 0 }">
+<div class="jk-card mb-4" x-data="{ showFilters: false, showAdvanced: '{{ current_filters.type }}{{ current_filters.tags }}{{ current_filters.followers }}{{ current_filters.read_status }}'.length > 0 }">
     <div class="jk-card-body py-3">
         <form method="get" id="filterForm">
             <input type="hidden" name="status" id="statusField" value="{{ current_filters.status }}">
@@ -216,6 +216,15 @@
                             {% for u in all_followers %}
                             <option value="{{ u.id }}" {% if current_filters.followers|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
                             {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Read Status</label>
+                        <select name="read_status" class="jk-select text-sm">
+                            <option value="">All Tickets</option>
+                            <option value="unread" {% if current_filters.read_status == 'unread' %}selected{% endif %}>Unread Messages</option>
+                            <option value="unopened" {% if current_filters.read_status == 'unopened' %}selected{% endif %}>Never Opened</option>
+                            <option value="read" {% if current_filters.read_status == 'read' %}selected{% endif %}>Read</option>
                         </select>
                     </div>
                 </div>

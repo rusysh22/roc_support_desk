@@ -575,7 +575,8 @@
                                     <template x-for="emp in filteredEmployees" :key="emp.id">
                                         <div @click="selectEmployee(emp)"
                                              class="cursor-pointer px-3 py-2.5 border-b border-slate-100 last:border-b-0 transition-all"
-                                             :class="{'bg-amber-50 border-l-4 border-l-amber-400': selectedEmployeeId === emp.id, 'hover:bg-slate-50': selectedEmployeeId !== emp.id}">
+                                             :class="{'hover:bg-slate-50': selectedEmployeeId !== emp.id}"
+                                             :style="selectedEmployeeId === emp.id ? 'background: rgba(245,158,11,0.06); box-shadow: inset 0 0 0 1px rgba(245,158,11,0.2), 0 2px 8px rgba(245,158,11,0.10);' : ''"
                                             <div class="flex items-center gap-3">
                                                 <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0"
                                                      :class="{'bg-amber-200 text-amber-700': selectedEmployeeId === emp.id}"
@@ -900,8 +901,9 @@
                     }
                 }"
                 @submit="isSubmitting = true"
-                @htmx:after-request="isSubmitting = false; replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto';">
+                @htmx:after-request="isSubmitting = false; replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto'; window._clearQuoteReply();">
                 {% csrf_token %}
+                <input type="hidden" name="quoted_message_id" id="quotedMessageId" value="">
 
                 <div class="mb-2 px-2 flex justify-end items-center gap-4">
                     {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
@@ -918,6 +920,17 @@
 
                 <div x-show="showCc" x-collapse x-cloak class="mb-3 px-2">
                     <input type="text" name="cc_emails" x-ref="ccInput" x-model="ccText" class="jk-input text-xs py-1.5" placeholder="CC (comma-separated valid emails)">
+                </div>
+
+                <!-- Quote reply preview -->
+                <div id="quoteReplyBar" class="hidden mx-2 mb-2 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style="background: rgba(99,102,241,0.06); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-indigo-600 text-[10px]" id="quoteReplyName"></div>
+                        <div class="text-slate-500 truncate" id="quoteReplyText"></div>
+                    </div>
+                    <button type="button" onclick="window._clearQuoteReply()" class="text-slate-400 hover:text-red-500 flex-shrink-0 transition-colors" title="Cancel reply">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
 
                 {% if case.status != 'Closed' %}
@@ -1212,6 +1225,23 @@
 <script src="https://unpkg.com/tributejs@5.1.3/dist/tribute.min.js"></script>
 
 <script>
+    // ── Quote Reply Helpers ─────────────────────────────────────
+    window._setQuoteReply = function(msgId, name, text) {
+        document.getElementById('quotedMessageId').value = msgId;
+        document.getElementById('quoteReplyName').textContent = name;
+        document.getElementById('quoteReplyText').textContent = text;
+        document.getElementById('quoteReplyBar').classList.remove('hidden');
+        // Focus the reply input
+        const replyInput = document.querySelector('[name="body"][x-ref="replyInput"]');
+        if (replyInput) replyInput.focus();
+    };
+    window._clearQuoteReply = function() {
+        document.getElementById('quotedMessageId').value = '';
+        document.getElementById('quoteReplyBar').classList.add('hidden');
+        document.getElementById('quoteReplyName').textContent = '';
+        document.getElementById('quoteReplyText').textContent = '';
+    };
+
     let tributeInstance = null;
     let cachedUsers = null;
 

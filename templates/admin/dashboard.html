@@ -1,0 +1,971 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block nav_dashboard_staff %}active{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+<!-- ============================================================= -->
+<!-- FILTER BAR                                                     -->
+<!-- ============================================================= -->
+<div class="jk-card">
+    <form method="get" class="jk-card-body py-3 px-4">
+        <div class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">From</label>
+                <input type="date" name="date_from" value="{{ filter_date_from }}" class="jk-input text-sm w-full">
+            </div>
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">To</label>
+                <input type="date" name="date_to" value="{{ filter_date_to }}" class="jk-input text-sm w-full">
+            </div>
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Agent</label>
+                <select name="assigned_to" class="jk-select text-sm w-full">
+                    <option value="">All Agents</option>
+                    <option value="unassigned" {% if filter_assigned == "unassigned" %}selected{% endif %}>Unassigned</option>
+                    {% for u in staff_users %}
+                    <option value="{{ u.id }}" {% if filter_assigned == u.id|stringformat:"d" %}selected{% endif %}>{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                <select name="category" class="jk-select text-sm w-full">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.slug }}" {% if filter_category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1 min-w-[120px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Source</label>
+                <select name="source" class="jk-select text-sm w-full">
+                    <option value="">All Sources</option>
+                    <option value="EvolutionAPI_WA" {% if filter_source == "EvolutionAPI_WA" %}selected{% endif %}>WhatsApp</option>
+                    <option value="Email" {% if filter_source == "Email" %}selected{% endif %}>Email</option>
+                    <option value="WebForm" {% if filter_source == "WebForm" %}selected{% endif %}>Web Form</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[120px]">
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
+                <select name="priority" class="jk-select text-sm w-full">
+                    <option value="">All Priorities</option>
+                    <option value="Low" {% if filter_priority == "Low" %}selected{% endif %}>Low</option>
+                    <option value="Medium" {% if filter_priority == "Medium" %}selected{% endif %}>Medium</option>
+                    <option value="High" {% if filter_priority == "High" %}selected{% endif %}>High</option>
+                    <option value="Critical" {% if filter_priority == "Critical" %}selected{% endif %}>Critical</option>
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                    Filter
+                </button>
+                <a href="{% url 'desk:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm" title="Reset">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </a>
+            </div>
+        </div>
+        <div class="mt-2 text-[10px] text-slate-400 font-medium">{{ date_range_label }}</div>
+    </form>
+</div>
+
+<!-- ============================================================= -->
+<!-- SUMMARY CARDS                                                  -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <!-- Total Tickets -->
+    <div class="jk-card jk-card-body p-4 flex flex-col">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Tickets</div>
+        <div class="text-2xl font-extrabold text-slate-800 mt-1">{{ total_in_range }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">In selected range</div>
+    </div>
+
+    <!-- Active -->
+    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(99,102,241,0.15), 0 4px 12px rgba(99,102,241,0.12);">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+        <div class="text-2xl font-extrabold text-indigo-600 mt-1">{{ total_active }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">Open + Investigating + Pending</div>
+    </div>
+
+    <!-- Unassigned -->
+    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(245,158,11,0.15), 0 4px 12px rgba(245,158,11,0.12);">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unassigned</div>
+        <div class="text-2xl font-extrabold text-amber-600 mt-1">{{ total_unassigned }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">Need attention</div>
+    </div>
+
+    <!-- Resolved -->
+    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(16,185,129,0.15), 0 4px 12px rgba(16,185,129,0.12);">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Resolved</div>
+        <div class="text-2xl font-extrabold text-emerald-600 mt-1">{{ resolved_in_range }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">Today: <span class="font-bold text-emerald-600">{{ resolved_today }}</span></div>
+    </div>
+
+    <!-- SLA Breached -->
+    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 4px 12px rgba(239,68,68,0.12);">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">SLA Breached</div>
+        <div class="text-2xl font-extrabold text-red-600 mt-1">{{ sla_breached }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">At risk: <span class="font-bold text-orange-500">{{ sla_at_risk }}</span></div>
+    </div>
+
+    <!-- Unread -->
+    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(244,63,94,0.15), 0 4px 12px rgba(244,63,94,0.12);">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unread Messages</div>
+        <div class="text-2xl font-extrabold text-rose-600 mt-1">{{ unread_count }}</div>
+        <div class="text-[10px] text-slate-400 mt-auto pt-1">Awaiting response</div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- CHART ROW 1: Trend + Status + Source                           -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Ticket Trend (takes 2 cols on lg) -->
+    <div class="jk-card lg:col-span-2">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 class="text-sm font-bold text-slate-800">Ticket Trend</h3>
+                <div class="flex items-center gap-2">
+                    {% if avg_resolution %}
+                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-medium">Avg: {{ avg_resolution }}</span>
+                    {% endif %}
+                    <div class="flex bg-slate-100 rounded-lg p-0.5" x-data>
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=daily"
+                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'daily' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Day</a>
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=weekly"
+                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'weekly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Week</a>
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=monthly"
+                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'monthly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Month</a>
+                    </div>
+                </div>
+            </div>
+            <div style="height: 260px; position: relative;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Distribution -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Status Distribution</h3>
+            <div style="height: 260px; position: relative;" class="flex items-center justify-center">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- CHART ROW 2: Source + Priority + SLA Gauge                     -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- Source Channel -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">By Channel</h3>
+            <div style="height: 200px; position: relative;">
+                <canvas id="sourceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Priority Distribution -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">By Priority</h3>
+            <div style="height: 200px; position: relative;">
+                <canvas id="priorityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLA Performance Gauge -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">SLA Performance</h3>
+            <div class="flex flex-col items-center justify-center" style="height: 200px;">
+                <div class="relative w-36 h-36">
+                    <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
+                        <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+                        <circle cx="18" cy="18" r="15.915" fill="none"
+                                stroke="{% if sla_pct >= 80 %}#10b981{% elif sla_pct >= 60 %}#f59e0b{% else %}#ef4444{% endif %}"
+                                stroke-width="3"
+                                stroke-dasharray="{{ sla_pct }} 100"
+                                stroke-linecap="round"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-2xl font-extrabold {% if sla_pct >= 80 %}text-emerald-600{% elif sla_pct >= 60 %}text-amber-600{% else %}text-red-600{% endif %}">{{ sla_pct }}%</span>
+                        <span class="text-[9px] text-slate-400 font-medium">ON TIME</span>
+                    </div>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-2">{{ sla_met }} / {{ sla_total }} tickets met SLA</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- CHART ROW 3: Category + Agent Workload + Company Unit          -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- Top Categories -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800">Top Categories</h3>
+                <a href="{% url 'desk:case_list' %}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+            </div>
+            <div style="max-height: 300px; overflow-y: auto; position: relative;">
+                <div id="catChartWrap"><canvas id="catChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Workload -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800">Agent Workload (Active)</h3>
+                <a href="{% url 'desk:case_list' %}?status=Open,Investigating,PendingInfo" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+            </div>
+            <div style="max-height: 300px; overflow-y: auto; position: relative;">
+                <div id="agentChartWrap"><canvas id="agentChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- By Company Unit -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800">By Company</h3>
+                <a href="{% url 'desk:case_list' %}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+            </div>
+            <div style="max-height: 300px; overflow-y: auto; position: relative;">
+                <div id="unitChartWrap"><canvas id="unitChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- WORD CLOUD ROW: Tags + RCA/Solving Steps                       -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- Tags Word Cloud -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Tags Cloud</h3>
+            <div id="tagCloudContainer" style="height: 260px; position: relative;" class="flex items-center justify-center">
+                <canvas id="tagCloudCanvas"></canvas>
+                <div id="tagCloudEmpty" class="hidden text-xs text-slate-400 absolute">No tag data available</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RCA & Solving Steps Word Cloud -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">RCA & Solving Keywords</h3>
+            <div id="rcaCloudContainer" style="height: 260px; position: relative;" class="flex items-center justify-center">
+                <canvas id="rcaCloudCanvas"></canvas>
+                <div id="rcaCloudEmpty" class="hidden text-xs text-slate-400 absolute">No RCA data available</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- CHART ROW 4: FRT Trend + Resolution Rate + Reopen/Aging        -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- First Response Time Trend -->
+    <div class="jk-card lg:col-span-2">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 class="text-sm font-bold text-slate-800">First Response Time</h3>
+                {% if avg_frt %}
+                <span class="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-semibold">Avg: {{ avg_frt }}</span>
+                {% endif %}
+            </div>
+            <div style="height: 220px; position: relative;">
+                <canvas id="frtChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Aging -->
+    <div class="jk-card">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Ticket Aging (Active)</h3>
+            <div style="height: 220px; position: relative;">
+                <canvas id="agingChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- CHART ROW 5: Peak Hours Heatmap + Resolution Rate + Reopen     -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Peak Hours Heatmap -->
+    <div class="jk-card lg:col-span-2">
+        <div class="jk-card-body p-4">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Peak Hours</h3>
+            <div style="position: relative; overflow-x: auto;">
+                <canvas id="heatmapCanvas" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resolution Rate + Reopen -->
+    <div class="space-y-4">
+        <!-- Resolution Rate -->
+        <div class="jk-card">
+            <div class="jk-card-body p-4">
+                <h3 class="text-sm font-bold text-slate-800 mb-3">Resolution Rate Trend</h3>
+                <div style="height: 160px; position: relative;">
+                    <canvas id="resrateChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reopen Rate -->
+        <div class="jk-card">
+            <div class="jk-card-body p-4">
+                <h3 class="text-sm font-bold text-slate-800 mb-3">Reopen Rate</h3>
+                <div class="flex items-center gap-4">
+                    <div class="relative w-20 h-20 flex-shrink-0">
+                        <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
+                            <circle cx="18" cy="18" r="15.915" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+                            <circle cx="18" cy="18" r="15.915" fill="none"
+                                    stroke="{% if reopen_pct <= 5 %}#10b981{% elif reopen_pct <= 15 %}#f59e0b{% else %}#ef4444{% endif %}"
+                                    stroke-width="3"
+                                    stroke-dasharray="{{ reopen_pct }} 100"
+                                    stroke-linecap="round"/>
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-lg font-extrabold {% if reopen_pct <= 5 %}text-emerald-600{% elif reopen_pct <= 15 %}text-amber-600{% else %}text-red-600{% endif %}">{{ reopen_pct }}%</span>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-500">
+                        <div><span class="font-bold text-slate-700">{{ reopened_count }}</span> tickets reopened</div>
+                        <div class="text-[10px] text-slate-400 mt-1">out of {{ total_in_range }} in range</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- TABLES ROW: Recent + SLA At Risk + Top Requesters              -->
+<!-- ============================================================= -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- Recent Tickets -->
+    <div class="jk-card lg:col-span-2">
+        <div class="jk-card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-800">Recent Tickets</h3>
+                <a href="{% url 'desk:case_list' %}?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+            </div>
+            <div class="overflow-x-auto" style="max-height: 340px; overflow-y: auto;">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th class="pb-2 pr-3">Ticket</th>
+                            <th class="pb-2 pr-3">Subject</th>
+                            <th class="pb-2 pr-3">Status</th>
+                            <th class="pb-2 pr-3">Requester</th>
+                            <th class="pb-2">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for case in recent_tickets %}
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="py-2 pr-3">
+                                <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link font-semibold">{{ case.case_number }}</a>
+                            </td>
+                            <td class="py-2 pr-3 max-w-[200px] truncate text-slate-700">{{ case.subject|truncatechars:40 }}</td>
+                            <td class="py-2 pr-3">
+                                {% if case.status == "Open" %}<span class="jk-badge jk-badge-open">Open</span>
+                                {% elif case.status == "Investigating" %}<span class="jk-badge jk-badge-investigating">Investigating</span>
+                                {% elif case.status == "PendingInfo" %}<span class="jk-badge jk-badge-pending">Pending</span>
+                                {% elif case.status == "Resolved" %}<span class="jk-badge jk-badge-resolved">Resolved</span>
+                                {% elif case.status == "Closed" %}<span class="jk-badge jk-badge-closed">Closed</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 pr-3 text-slate-600 truncate max-w-[120px]">{{ case.requester.full_name|default:"—" }}</td>
+                            <td class="py-2 text-slate-400 whitespace-nowrap">{{ case.created_at|date:"d M, H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="py-4 text-center text-slate-400">No tickets in this range</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: SLA + Top Requesters -->
+    <div class="space-y-4">
+
+        <!-- SLA At Risk / Breached -->
+        <div class="jk-card">
+            <div class="jk-card-body p-4">
+                <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    SLA Alerts
+                </h3>
+                <div class="space-y-1.5" style="max-height: 220px; overflow-y: auto;">
+                    {% for case in sla_breached_tickets %}
+                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="flex items-center justify-between p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors text-xs group">
+                        <div class="min-w-0">
+                            <span class="font-semibold text-red-700">{{ case.case_number }}</span>
+                            <span class="text-red-600 truncate block max-w-[160px]">{{ case.subject|truncatechars:30 }}</span>
+                        </div>
+                        <span class="text-[9px] bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-bold flex-shrink-0">BREACHED</span>
+                    </a>
+                    {% endfor %}
+                    {% for case in sla_at_risk_tickets %}
+                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="flex items-center justify-between p-2 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors text-xs group">
+                        <div class="min-w-0">
+                            <span class="font-semibold text-amber-700">{{ case.case_number }}</span>
+                            <span class="text-amber-600 truncate block max-w-[160px]">{{ case.subject|truncatechars:30 }}</span>
+                        </div>
+                        <span class="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-bold flex-shrink-0">AT RISK</span>
+                    </a>
+                    {% endfor %}
+                    {% if not sla_breached_tickets and not sla_at_risk_tickets %}
+                    <div class="text-center py-3 text-slate-400 text-xs">No SLA alerts</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Requesters -->
+        <div class="jk-card">
+            <div class="jk-card-body p-4">
+                <h3 class="text-sm font-bold text-slate-800 mb-3">Top Requesters</h3>
+                <div class="space-y-2" style="max-height: 180px; overflow-y: auto;">
+                    {% for r in top_requesters %}
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="min-w-0">
+                            <div class="font-medium text-slate-700 truncate">{{ r.requester__full_name }}</div>
+                            <div class="text-[10px] text-slate-400">{{ r.requester__unit__name|default:"—" }}</div>
+                        </div>
+                        <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold text-[10px] flex-shrink-0">{{ r.count }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-3 text-slate-400 text-xs">No data</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- STALE TICKETS TABLE                                            -->
+<!-- ============================================================= -->
+<div class="jk-card">
+    <div class="jk-card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Stale Tickets <span class="text-[10px] text-slate-400 font-normal ml-1">(no activity &gt; 3 days)</span>
+            </h3>
+        </div>
+        <div class="overflow-x-auto" style="max-height: 300px; overflow-y: auto;">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="border-b border-slate-200 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <th class="pb-2 pr-3">Ticket</th>
+                        <th class="pb-2 pr-3">Subject</th>
+                        <th class="pb-2 pr-3">Status</th>
+                        <th class="pb-2 pr-3">Agent</th>
+                        <th class="pb-2 pr-3">Age</th>
+                        <th class="pb-2">Last Activity</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for case in stale_tickets %}
+                    <tr class="hover:bg-amber-50/50">
+                        <td class="py-2 pr-3">
+                            <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link font-semibold">{{ case.case_number }}</a>
+                        </td>
+                        <td class="py-2 pr-3 max-w-[200px] truncate text-slate-700">{{ case.subject|truncatechars:40 }}</td>
+                        <td class="py-2 pr-3">
+                            {% if case.status == "Open" %}<span class="jk-badge jk-badge-open">Open</span>
+                            {% elif case.status == "Investigating" %}<span class="jk-badge jk-badge-investigating">Investigating</span>
+                            {% elif case.status == "PendingInfo" %}<span class="jk-badge jk-badge-pending">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 pr-3 text-slate-600">{{ case.assigned_to.username|default:"Unassigned" }}</td>
+                        <td class="py-2 pr-3 text-slate-500 whitespace-nowrap">{{ case.created_at|timesince }}</td>
+                        <td class="py-2 text-slate-400 whitespace-nowrap">
+                            {% if case.last_msg_at %}{{ case.last_msg_at|timesince }} ago{% else %}{{ case.created_at|timesince }} ago{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="py-4 text-center text-slate-400">No stale tickets — great job!</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const defaultFont = { family: "'Inter', system-ui, sans-serif", size: 11, weight: '500' };
+    Chart.defaults.font = defaultFont;
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+    Chart.defaults.plugins.legend.labels.padding = 12;
+
+    // ── Ticket Trend (Line) ──────────────────────────────────────
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: {{ trend_labels|safe }},
+            datasets: [
+                {
+                    label: 'Created',
+                    data: {{ trend_created|safe }},
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#6366f1',
+                },
+                {
+                    label: 'Resolved',
+                    data: {{ trend_resolved|safe }},
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#10b981',
+                    borderDash: [4, 3],
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'top', align: 'end', onClick: () => {} } },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxRotation: 0 } },
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+
+    // ── Status Distribution (Doughnut) ───────────────────────────
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ status_labels|safe }},
+            datasets: [{
+                data: {{ status_counts|safe }},
+                backgroundColor: {{ status_bg|safe }},
+                borderWidth: 0,
+                hoverOffset: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 10, font: { size: 10 } } },
+            }
+        }
+    });
+
+    // ── Source Channel (Horizontal Bar) ───────────────────────────
+    new Chart(document.getElementById('sourceChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ source_labels|safe }},
+            datasets: [{
+                data: {{ source_counts|safe }},
+                backgroundColor: ['#25D366', '#6366f1', '#0ea5e9'],
+                borderRadius: 6,
+                borderSkipped: false,
+                barThickness: 24,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+
+    // ── Priority Distribution (Doughnut) ─────────────────────────
+    new Chart(document.getElementById('priorityChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ priority_labels|safe }},
+            datasets: [{
+                data: {{ priority_counts|safe }},
+                backgroundColor: {{ priority_bg|safe }},
+                borderWidth: 0,
+                hoverOffset: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 10, font: { size: 10 } } },
+            }
+        }
+    });
+
+    // ── Helper: dynamic height for horizontal bar charts ──────
+    function autoHeightBar(wrapId, itemCount) {
+        const barH = 28;  // px per bar (bar + gap)
+        const pad = 20;   // top/bottom padding
+        const h = Math.max(120, itemCount * barH + pad);
+        document.getElementById(wrapId).style.height = h + 'px';
+    }
+
+    // ── Top Categories (Horizontal Bar) ──────────────────────────
+    const catLabels = {{ cat_labels|safe }};
+    const catCounts = {{ cat_counts|safe }};
+    autoHeightBar('catChartWrap', catLabels.length);
+    new Chart(document.getElementById('catChart'), {
+        type: 'bar',
+        data: {
+            labels: catLabels,
+            datasets: [{
+                data: catCounts,
+                backgroundColor: '#6366f1',
+                borderRadius: 6,
+                borderSkipped: false,
+                barThickness: 18,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+
+    // ── Agent Workload (Horizontal Bar) ──────────────────────────
+    const agentLabels = {{ agent_labels|safe }};
+    const agentCounts = {{ agent_counts|safe }};
+    autoHeightBar('agentChartWrap', agentLabels.length);
+    new Chart(document.getElementById('agentChart'), {
+        type: 'bar',
+        data: {
+            labels: agentLabels,
+            datasets: [{
+                data: agentCounts,
+                backgroundColor: '#f59e0b',
+                borderRadius: 6,
+                borderSkipped: false,
+                barThickness: 18,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+
+    // ── By Company (Horizontal Bar) ───────────────────────────
+    const unitLabels = {{ unit_labels|safe }};
+    const unitCounts = {{ unit_counts|safe }};
+    autoHeightBar('unitChartWrap', unitLabels.length);
+    new Chart(document.getElementById('unitChart'), {
+        type: 'bar',
+        data: {
+            labels: unitLabels,
+            datasets: [{
+                data: unitCounts,
+                backgroundColor: '#0ea5e9',
+                borderRadius: 6,
+                borderSkipped: false,
+                barThickness: 18,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+
+    // ── First Response Time (Line) ─────────────────────────────
+    new Chart(document.getElementById('frtChart'), {
+        type: 'line',
+        data: {
+            labels: {{ frt_labels|safe }},
+            datasets: [{
+                label: 'Avg FRT (hours)',
+                data: {{ frt_values|safe }},
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#8b5cf6',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', align: 'end' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const v = ctx.parsed.y;
+                            return v >= 24 ? (v / 24).toFixed(1) + ' days' : v.toFixed(1) + ' hrs';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxRotation: 0 } },
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, title: { display: true, text: 'Hours', font: { size: 10 } } }
+            }
+        }
+    });
+
+    // ── Ticket Aging (Horizontal Bar) ───────────────────────────
+    new Chart(document.getElementById('agingChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ aging_labels|safe }},
+            datasets: [{
+                data: {{ aging_counts|safe }},
+                backgroundColor: ['#10b981', '#0ea5e9', '#f59e0b', '#f97316', '#ef4444'],
+                borderRadius: 6,
+                borderSkipped: false,
+                barThickness: 22,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+
+    // ── Peak Hours Heatmap (Canvas 2D) ──────────────────────────
+    (function() {
+        const matrix = {{ heatmap_matrix|safe }};
+        const canvas = document.getElementById('heatmapCanvas');
+        const ctx = canvas.getContext('2d');
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const cellW = 28, cellH = 20, padL = 36, padT = 20;
+
+        canvas.width = padL + 24 * cellW + 10;
+        canvas.height = padT + 7 * cellH + 20;
+        canvas.style.width = '100%';
+
+        // Find max for color scaling
+        let maxVal = 1;
+        matrix.forEach(r => r.forEach(v => { if (v > maxVal) maxVal = v; }));
+
+        function heatColor(v) {
+            if (v === 0) return '#f1f5f9';
+            const t = v / maxVal;
+            if (t < 0.25) return '#c7d2fe';
+            if (t < 0.5) return '#818cf8';
+            if (t < 0.75) return '#6366f1';
+            return '#4338ca';
+        }
+
+        // Hour labels
+        ctx.font = '9px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'center';
+        for (let h = 0; h < 24; h++) {
+            if (h % 3 === 0) ctx.fillText(h.toString().padStart(2, '0'), padL + h * cellW + cellW / 2, padT - 6);
+        }
+
+        // Draw cells
+        for (let d = 0; d < 7; d++) {
+            // Day label
+            ctx.fillStyle = '#64748b';
+            ctx.textAlign = 'right';
+            ctx.font = '600 10px Inter, system-ui, sans-serif';
+            ctx.fillText(days[d], padL - 6, padT + d * cellH + cellH / 2 + 4);
+
+            for (let h = 0; h < 24; h++) {
+                const v = matrix[d][h];
+                const x = padL + h * cellW;
+                const y = padT + d * cellH;
+
+                // Rounded rect
+                ctx.fillStyle = heatColor(v);
+                ctx.beginPath();
+                ctx.roundRect(x + 1, y + 1, cellW - 2, cellH - 2, 3);
+                ctx.fill();
+
+                // Number if > 0
+                if (v > 0) {
+                    ctx.fillStyle = v / maxVal > 0.5 ? '#fff' : '#475569';
+                    ctx.textAlign = 'center';
+                    ctx.font = '600 9px Inter, system-ui, sans-serif';
+                    ctx.fillText(v, x + cellW / 2, y + cellH / 2 + 3);
+                }
+            }
+        }
+    })();
+
+    // ── Resolution Rate Trend (Line) ────────────────────────────
+    new Chart(document.getElementById('resrateChart'), {
+        type: 'line',
+        data: {
+            labels: {{ resrate_labels|safe }},
+            datasets: [{
+                label: 'Resolution %',
+                data: {{ resrate_values|safe }},
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 2,
+                pointHoverRadius: 5,
+                pointBackgroundColor: '#10b981',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: { label: function(ctx) { return ctx.parsed.y + '%'; } }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 6, font: { size: 9 } } },
+                y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => v + '%', font: { size: 9 } } }
+            }
+        }
+    });
+
+    // ── Word Clouds (wordcloud2.js) ─────────────────────────────
+    const jokoColors = ['#6366f1','#8b5cf6','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316','#64748b'];
+
+    function renderCloud(canvasId, emptyId, data, colors) {
+        const canvas = document.getElementById(canvasId);
+        const empty = document.getElementById(emptyId);
+        if (!data || data.length === 0) {
+            canvas.style.display = 'none';
+            empty.classList.remove('hidden');
+            return;
+        }
+        // Size canvas to container
+        const container = canvas.parentElement;
+        canvas.width = container.offsetWidth;
+        canvas.height = container.offsetHeight;
+
+        // Scale weights: largest word = ~48px, smallest = ~12px
+        const maxCount = Math.max(...data.map(d => d[1]));
+        const minCount = Math.min(...data.map(d => d[1]));
+        const range = maxCount - minCount || 1;
+        const scaledData = data.map(d => [
+            d[0],
+            Math.round(12 + (d[1] - minCount) / range * 36)
+        ]);
+
+        let colorIdx = 0;
+        WordCloud(canvas, {
+            list: scaledData,
+            gridSize: 6,
+            weightFactor: 1,
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontWeight: 600,
+            color: function() { return colors[(colorIdx++) % colors.length]; },
+            rotateRatio: 0.3,
+            rotationSteps: 2,
+            backgroundColor: 'transparent',
+            drawOutOfBound: false,
+            shrinkToFit: true,
+            shuffle: true,
+        });
+    }
+
+    const tagCloud = {{ tag_cloud|safe }};
+    const rcaCloud = {{ rca_cloud|safe }};
+
+    // Slight delay to ensure canvas containers are laid out
+    setTimeout(function() {
+        renderCloud('tagCloudCanvas', 'tagCloudEmpty', tagCloud, jokoColors);
+        renderCloud('rcaCloudCanvas', 'rcaCloudEmpty', rcaCloud, jokoColors);
+    }, 200);
+});
+</script>
+{% endblock %}

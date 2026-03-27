@@ -149,18 +149,20 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         from datetime import timedelta
         
         active_case: Optional[CaseRecord] = None
+        quoted_msg_obj = None  # For storing the quoted_message FK
         # quoted_id is already extracted via the parser
-        
+
         if quoted_id:
             orig_msg = Message.objects.filter(external_id=quoted_id).first()
             if orig_msg:
                 active_case = orig_msg.case
+                quoted_msg_obj = orig_msg
                 logger.info("Threaded WA reply via quoted message %s to case %s.", quoted_id, active_case.case_number)
         
         if not active_case:
             from django.db.models import Q
-            session_window = timezone.now() - timedelta(minutes=30)
-            
+            session_window = timezone.now() - timedelta(minutes=60)
+
             # Fallback A: Did we recently send an outbound message to this user's phone?
             # Escalations include the phone number in the body, e.g., "*** ESKALASI TIKET VIA WHATSAPP KE: 628... ***"
             clean_phone = sender_phone.lstrip('+') if sender_phone else ""
@@ -177,7 +179,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
 
         if not active_case:
             # Fallback B: If they are the requester on a recent WA case
-            session_window = timezone.now() - timedelta(minutes=60) # 30 mins for session
+            session_window = timezone.now() - timedelta(minutes=60)  # 60 mins for session
             active_case = (
                 CaseRecord.objects.filter(
                     requester=employee,
@@ -207,7 +209,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             recent_cases_count = CaseRecord.objects.filter(
                 requester=employee,
                 source=CaseRecord.Source.EVOLUTION_WA,
-                created_at__gte=timezone.now() - timedelta(minutes=30)
+                created_at__gte=timezone.now() - timedelta(minutes=60)
             ).count()
             is_spam = recent_cases_count >= 3
 
@@ -250,6 +252,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 direction=Message.Direction.INBOUND,
                 channel=Message.Channel.WHATSAPP,
                 external_id=external_id,
+                quoted_message=quoted_msg_obj,
             )
         except IntegrityError:
             logger.warning(
@@ -857,9 +860,14 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
     import base64
 
     try:
-        msg = Message.objects.select_related("case__requester").get(id=message_id)
+        msg = Message.objects.select_related("case__requester", "quoted_message").get(id=message_id)
         case = msg.case
         requester = case.requester
+
+        # Get external_id of quoted message for WA reply threading
+        quoted_ext_id = None
+        if msg.quoted_message and msg.quoted_message.external_id:
+            quoted_ext_id = msg.quoted_message.external_id
 
         if not requester or not requester.phone_number:
             msg.delivery_status = Message.DeliveryStatus.FAILED
@@ -933,6 +941,7 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
                             svc.send_whatsapp_message(
                                 phone_number=requester.phone_number,
                                 text=msg.body,
+                                quoted_msg_id=quoted_ext_id,
                             )
                         resp = svc.send_whatsapp_audio(
                             phone_number=requester.phone_number,
@@ -958,12 +967,14 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
                  response_data = svc.send_whatsapp_message(
                     phone_number=requester.phone_number,
                     text=f"{msg.body}\n\n[Warning: Attachments exceeded 10MB limit]",
+                    quoted_msg_id=quoted_ext_id,
                 )
         else:
             # Just send text
             response_data = svc.send_whatsapp_message(
                 phone_number=requester.phone_number,
                 text=msg.body,
+                quoted_msg_id=quoted_ext_id,
             )
 
         if response_data:
@@ -1227,11 +1238,11 @@ def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url:
             return "error:max_retries"
 
 
-@shared_task(bind=True, name="gateways.check_wa_session_timeout_task", max_retries=1)
-def check_wa_session_timeout_task(self, case_id: str) -> str:
+@shared_task(bind=True, name="gateways.check_wa_session_warning_task", max_retries=1)
+def check_wa_session_warning_task(self, case_id: str) -> str:
     """
-    Checks if a WhatsApp session has been inactive for 30 minutes.
-    If yes, sends a session expiry message and keeps the case open or closed
+    Sends a confirmation message at ~45 minutes of inactivity asking if the
+    user is still active. The actual expiry task runs at 60 minutes.
     """
     from cases.models import CaseRecord
     from django.utils import timezone
@@ -1240,7 +1251,54 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
 
     try:
         case = CaseRecord.objects.get(id=case_id)
-        
+
+        if case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
+            return "skipped:case_already_closed"
+        if case.hold_wa_session:
+            return "skipped:session_on_hold"
+
+        time_since_update = timezone.now() - case.updated_at
+        if time_since_update >= timedelta(minutes=45):
+            if case.requester and case.requester.phone_number:
+                import random
+                import time
+
+                svc = EvolutionAPIService()
+                warning_msg = (
+                    "Hi, are you still there? 😊\n"
+                    "Your support session will automatically end in about 15 minutes "
+                    "due to inactivity. Please reply if you still need assistance."
+                )
+                try:
+                    sleep_duration = random.randint(3, 8)
+                    svc.send_presence(case.requester.phone_number, presence="composing", delay=sleep_duration * 1000)
+                    time.sleep(sleep_duration)
+                    svc.send_whatsapp_message(case.requester.phone_number, warning_msg)
+                    logger.info("Sent WA session warning message for case %s", case.case_number)
+                except Exception as exc:
+                    logger.warning("Failed to send WA warning message for case %s: %s", case.case_number, str(exc))
+            return "success:warning_sent"
+        else:
+            return "skipped:session_renewed"
+
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+
+
+@shared_task(bind=True, name="gateways.check_wa_session_timeout_task", max_retries=1)
+def check_wa_session_timeout_task(self, case_id: str) -> str:
+    """
+    Checks if a WhatsApp session has been inactive for 60 minutes.
+    If yes, sends a session expiry message.
+    """
+    from cases.models import CaseRecord
+    from django.utils import timezone
+    from datetime import timedelta
+    from .services import EvolutionAPIService
+
+    try:
+        case = CaseRecord.objects.get(id=case_id)
+
         # If the case is already completed, no need to send timeout
         if case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
             return "skipped:case_already_closed"
@@ -1249,17 +1307,17 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
         if case.hold_wa_session:
             return "skipped:session_on_hold"
 
-        # Check if the session is genuinely 30 mins old from last update
+        # Check if the session is genuinely 60 mins old from last update
         time_since_update = timezone.now() - case.updated_at
-        if time_since_update >= timedelta(minutes=30):
-            # Session expired. Send warning message.
+        if time_since_update >= timedelta(minutes=60):
+            # Session expired. Send expiry message.
             if case.requester and case.requester.phone_number:
                 import random
                 import time
 
                 svc = EvolutionAPIService()
                 expiry_msg = (
-                    "Your support session has ended due to 30 minutes of inactivity.\n"
+                    "Your support session has ended due to 60 minutes of inactivity.\n"
                     "If you have any further questions or require additional assistance, "
                     "please feel free to send a new message, and a new ticket will be created for you."
                 )
@@ -1274,16 +1332,13 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
                     logger.info("Sent WA session expiry message for case %s", case.case_number)
                 except Exception as exc:
                     logger.warning("Failed to send WA expiry message for case %s: %s", case.case_number, str(exc))
-            
-            # Optional: auto-resolve ticket could go here. 
-            # Per user request, we are just sending the message for now.
 
             return "success:expired"
         else:
-            # Not yet 30 mins since last update (another message was sent in between)
+            # Not yet 60 mins since last update (another message was sent in between)
             # The newer message would have spawned its own timeout task.
             return "skipped:session_renewed"
-            
+
     except CaseRecord.DoesNotExist:
         return "error:case_not_found"
 

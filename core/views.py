@@ -134,3 +134,48 @@ def custom_404_view(request, exception=None):
     not found page instead of Django's default.
     """
     return render(request, "404.html", status=404)
+
+
+# =====================================================================
+# Help & About
+# =====================================================================
+
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+
+from .models import Feedback, SiteConfig
+import django
+
+
+def help_and_about(request):
+    """Help & About page — accessible by anyone."""
+    config = SiteConfig.get_solo()
+    return render(request, "help_and_about.html", {
+        "config": config,
+        "django_version": django.get_version(),
+        "feedback_types": Feedback.FeedbackType.choices,
+    })
+
+
+@login_required
+@require_POST
+def submit_feedback(request):
+    """Handle feedback form submission."""
+    feedback_type = request.POST.get("feedback_type", "Other").strip()
+    subject = request.POST.get("subject", "").strip()
+    message_text = request.POST.get("message", "").strip()
+
+    if not subject or not message_text:
+        messages.error(request, "Subject and message are required.")
+        return redirect("help_about")
+
+    Feedback.objects.create(
+        user=request.user,
+        feedback_type=feedback_type,
+        subject=subject,
+        message=message_text,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    messages.success(request, "Thank you! Your feedback has been submitted.")
+    return redirect("help_about")

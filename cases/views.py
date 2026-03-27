@@ -100,6 +100,513 @@ def manager_or_admin_required(view_func):
 
 
 # =====================================================================
+# Staff — Analytics Dashboard
+# =====================================================================
+
+@staff_required
+def dashboard(request):
+    """
+    Analytics dashboard for staff — summary cards, charts, tables.
+    Supports date-range, assigned_to, category, source, and priority filters.
+    """
+    from django.db.models import Count, Avg, Sum, ExpressionWrapper, DurationField
+    from django.db.models.functions import TruncDate, TruncMonth, Coalesce
+    from django.utils.timezone import localtime, make_aware
+    from datetime import datetime, timedelta
+
+    now = timezone.now()
+    today = now.date()
+
+    # ── Filter params ──────────────────────────────────────────────
+    date_from_str = request.GET.get("date_from", "")
+    date_to_str = request.GET.get("date_to", "")
+    filter_assigned = request.GET.get("assigned_to", "")
+    filter_category = request.GET.get("category", "")
+    filter_source = request.GET.get("source", "")
+    filter_priority = request.GET.get("priority", "")
+
+    # Default: first day of current month → today
+    if date_from_str:
+        try:
+            date_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+        except ValueError:
+            date_from = today.replace(day=1)
+    else:
+        date_from = today.replace(day=1)
+
+    if date_to_str:
+        try:
+            date_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+        except ValueError:
+            date_to = today
+    else:
+        date_to = today
+
+    dt_from = make_aware(datetime.combine(date_from, datetime.min.time()))
+    dt_to = make_aware(datetime.combine(date_to, datetime.max.time()))
+
+    # ── Base queryset (non-spam, non-sub-ticket) ───────────────────
+    qs = CaseRecord.objects.filter(
+        is_spam=False,
+        master_ticket__isnull=True,
+        created_at__range=(dt_from, dt_to),
+    ).select_related("category", "assigned_to", "requester", "requester__unit")
+
+    # Apply filters
+    if filter_assigned:
+        if filter_assigned == "unassigned":
+            qs = qs.filter(assigned_to__isnull=True)
+        else:
+            qs = qs.filter(assigned_to_id=filter_assigned)
+    if filter_category:
+        qs = qs.filter(category__slug=filter_category)
+    if filter_source:
+        qs = qs.filter(source=filter_source)
+    if filter_priority:
+        qs = qs.filter(priority=filter_priority)
+
+    # ── Also build an "all time active" queryset (not filtered by date) for summary cards ──
+    active_qs = CaseRecord.objects.filter(
+        is_spam=False,
+        master_ticket__isnull=True,
+        status__in=[CaseRecord.Status.OPEN, CaseRecord.Status.INVESTIGATING, CaseRecord.Status.PENDING_INFO],
+    )
+    if filter_assigned:
+        if filter_assigned == "unassigned":
+            active_qs = active_qs.filter(assigned_to__isnull=True)
+        else:
+            active_qs = active_qs.filter(assigned_to_id=filter_assigned)
+    if filter_category:
+        active_qs = active_qs.filter(category__slug=filter_category)
+    if filter_source:
+        active_qs = active_qs.filter(source=filter_source)
+    if filter_priority:
+        active_qs = active_qs.filter(priority=filter_priority)
+
+    # ── SUMMARY CARDS ──────────────────────────────────────────────
+    total_in_range = qs.count()
+    total_active = active_qs.count()
+    total_unassigned = active_qs.filter(assigned_to__isnull=True).count()
+
+    resolved_in_range = qs.filter(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]).count()
+    resolved_today = CaseRecord.objects.filter(
+        is_spam=False, master_ticket__isnull=True,
+        status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED],
+        updated_at__date=today,
+    ).count()
+
+    unread_count = active_qs.filter(has_unread_messages=True).count()
+
+    # SLA breached: resolution_due_at < now AND status not closed/resolved
+    sla_breached = active_qs.filter(
+        resolution_due_at__lt=now,
+    ).exclude(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]).count()
+
+    # SLA at risk: due within 24h
+    sla_at_risk = active_qs.filter(
+        resolution_due_at__gt=now,
+        resolution_due_at__lte=now + timedelta(hours=24),
+    ).exclude(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]).count()
+
+    # Avg resolution time (for closed tickets in range)
+    closed_in_range = qs.filter(status=CaseRecord.Status.CLOSED, resolution_due_at__isnull=False)
+    avg_resolution = None
+    if closed_in_range.exists():
+        from django.db.models import ExpressionWrapper, DurationField
+        avg_dur = closed_in_range.annotate(
+            dur=ExpressionWrapper(F("updated_at") - F("created_at"), output_field=DurationField())
+        ).aggregate(avg=Avg("dur"))["avg"]
+        if avg_dur:
+            total_hours = avg_dur.total_seconds() / 3600
+            if total_hours >= 24:
+                avg_resolution = f"{total_hours / 24:.1f} days"
+            else:
+                avg_resolution = f"{total_hours:.1f} hrs"
+
+    # ── CHART DATA: Ticket Trend (auto-granularity) ──────────────
+    day_span = (date_to - date_from).days + 1
+    trend_granularity = request.GET.get("granularity", "")
+    if not trend_granularity:
+        # Auto: daily ≤ 31 days, weekly ≤ 90, monthly beyond
+        if day_span <= 31:
+            trend_granularity = "daily"
+        elif day_span <= 90:
+            trend_granularity = "weekly"
+        else:
+            trend_granularity = "monthly"
+
+    if trend_granularity == "monthly":
+        from django.db.models.functions import TruncMonth as TruncPeriod
+        fmt = "%b %Y"
+    elif trend_granularity == "weekly":
+        from django.db.models.functions import TruncWeek as TruncPeriod
+        fmt = "%d %b"
+    else:
+        TruncPeriod = TruncDate
+        fmt = "%d %b"
+
+    trend_data = (
+        qs.annotate(period=TruncPeriod("created_at"))
+        .values("period")
+        .annotate(created=Count("id"))
+        .order_by("period")
+    )
+    resolved_trend = (
+        qs.filter(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED])
+        .annotate(period=TruncPeriod("updated_at"))
+        .values("period")
+        .annotate(resolved=Count("id"))
+        .order_by("period")
+    )
+    created_map = {}
+    for row in trend_data:
+        key = row["period"].date() if hasattr(row["period"], "date") else row["period"]
+        created_map[key] = row["created"]
+
+    resolved_map = {}
+    for r in resolved_trend:
+        key = r["period"].date() if hasattr(r["period"], "date") else r["period"]
+        resolved_map[key] = r["resolved"]
+
+    # Merge all dates from both datasets so no data points are lost
+    all_dates = sorted(set(created_map.keys()) | set(resolved_map.keys()))
+
+    trend_labels = []
+    trend_created = []
+    trend_resolved = []
+    for d in all_dates:
+        trend_labels.append(d.strftime(fmt))
+        trend_created.append(created_map.get(d, 0))
+        trend_resolved.append(resolved_map.get(d, 0))
+
+    # ── CHART DATA: Status Distribution ────────────────────────────
+    status_dist = qs.values("status").annotate(count=Count("id")).order_by("status")
+    status_labels = []
+    status_counts = []
+    status_colors = {
+        "Open": "#6366f1",
+        "Investigating": "#f59e0b",
+        "PendingInfo": "#0ea5e9",
+        "Resolved": "#10b981",
+        "Closed": "#64748b",
+    }
+    status_bg = []
+    for s in status_dist:
+        status_labels.append(s["status"])
+        status_counts.append(s["count"])
+        status_bg.append(status_colors.get(s["status"], "#94a3b8"))
+
+    # ── CHART DATA: Source Channel ─────────────────────────────────
+    source_dist = qs.values("source").annotate(count=Count("id")).order_by("-count")
+    source_labels = []
+    source_counts = []
+    source_display = {"EvolutionAPI_WA": "WhatsApp", "Email": "Email", "WebForm": "Web Form"}
+    for s in source_dist:
+        source_labels.append(source_display.get(s["source"], s["source"]))
+        source_counts.append(s["count"])
+
+    # ── CHART DATA: Priority Distribution ──────────────────────────
+    priority_dist = qs.values("priority").annotate(count=Count("id")).order_by("-count")
+    priority_labels = []
+    priority_counts = []
+    priority_colors_map = {"Low": "#10b981", "Medium": "#f59e0b", "High": "#ef4444", "Critical": "#7c3aed"}
+    priority_bg = []
+    for p in priority_dist:
+        priority_labels.append(p["priority"])
+        priority_counts.append(p["count"])
+        priority_bg.append(priority_colors_map.get(p["priority"], "#94a3b8"))
+
+    # ── CHART DATA: Top Categories ─────────────────────────────────
+    cat_dist = (
+        qs.filter(category__isnull=False)
+        .values("category__name")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+    cat_labels = [c["category__name"] for c in cat_dist]
+    cat_counts = [c["count"] for c in cat_dist]
+
+    # ── CHART DATA: Agent Workload ─────────────────────────────────
+    agent_dist = (
+        active_qs.filter(assigned_to__isnull=False)
+        .values("assigned_to__username")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+    agent_labels = [a["assigned_to__username"] for a in agent_dist]
+    agent_counts = [a["count"] for a in agent_dist]
+
+    # ── CHART DATA: By Company Unit ────────────────────────────────
+    unit_dist = (
+        qs.filter(requester__unit__isnull=False)
+        .values("requester__unit__name")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+    unit_labels = [u["requester__unit__name"] for u in unit_dist]
+    unit_counts = [u["count"] for u in unit_dist]
+
+    # ── SLA Performance (closed tickets with SLA data) ─────────────
+    closed_with_sla = qs.filter(
+        status=CaseRecord.Status.CLOSED,
+        resolution_due_at__isnull=False,
+    )
+    sla_total = closed_with_sla.count()
+    sla_met = closed_with_sla.filter(updated_at__lte=F("resolution_due_at")).count()
+    sla_pct = round((sla_met / sla_total * 100), 1) if sla_total > 0 else 0
+
+    # ── TABLES: Recent Tickets ─────────────────────────────────────
+    recent_tickets = qs.order_by("-created_at")[:8]
+
+    # ── TABLES: SLA At Risk ────────────────────────────────────────
+    sla_at_risk_tickets = active_qs.filter(
+        resolution_due_at__gt=now,
+        resolution_due_at__lte=now + timedelta(hours=24),
+    ).order_by("resolution_due_at")[:5]
+
+    sla_breached_tickets = active_qs.filter(
+        resolution_due_at__lt=now,
+    ).order_by("resolution_due_at")[:5]
+
+    # ── TABLES: Top Requesters ─────────────────────────────────────
+    top_requesters = (
+        qs.filter(requester__isnull=False)
+        .values("requester__full_name", "requester__unit__name")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:5]
+    )
+
+    # ── CHART DATA: First Response Time (FRT) Trend ────────────────
+    from django.db.models import Min, Subquery, OuterRef
+    frt_subquery = Message.objects.filter(
+        case=OuterRef("pk"),
+        direction=Message.Direction.OUTBOUND,
+    ).order_by("sent_at").values("sent_at")[:1]
+
+    frt_qs = (
+        qs.annotate(first_reply_at=Subquery(frt_subquery))
+        .filter(first_reply_at__isnull=False)
+        .annotate(
+            frt_seconds=ExpressionWrapper(
+                F("first_reply_at") - F("created_at"),
+                output_field=DurationField(),
+            )
+        )
+        .annotate(period=TruncPeriod("created_at"))
+        .values("period")
+        .annotate(avg_frt=Avg("frt_seconds"))
+        .order_by("period")
+    )
+    frt_labels = []
+    frt_values = []
+    for row in frt_qs:
+        p = row["period"]
+        d = p.date() if hasattr(p, "date") else p
+        frt_labels.append(d.strftime(fmt))
+        frt_hours = row["avg_frt"].total_seconds() / 3600 if row["avg_frt"] else 0
+        frt_values.append(round(frt_hours, 1))
+
+    # Overall avg FRT
+    overall_frt_qs = (
+        qs.annotate(first_reply_at=Subquery(frt_subquery))
+        .filter(first_reply_at__isnull=False)
+        .annotate(
+            frt_seconds=ExpressionWrapper(
+                F("first_reply_at") - F("created_at"),
+                output_field=DurationField(),
+            )
+        )
+        .aggregate(avg=Avg("frt_seconds"))
+    )
+    avg_frt = None
+    if overall_frt_qs["avg"]:
+        frt_h = overall_frt_qs["avg"].total_seconds() / 3600
+        avg_frt = f"{frt_h:.1f} hrs" if frt_h < 24 else f"{frt_h / 24:.1f} days"
+
+    # ── CHART DATA: Ticket Aging (active tickets) ────────────────
+    aging_buckets = [
+        ("< 1 day", 0, 1),
+        ("1-3 days", 1, 3),
+        ("3-7 days", 3, 7),
+        ("7-14 days", 7, 14),
+        ("> 14 days", 14, 9999),
+    ]
+    aging_labels = []
+    aging_counts = []
+    for label, d_min, d_max in aging_buckets:
+        cutoff_max = now - timedelta(days=d_min)
+        cutoff_min = now - timedelta(days=d_max)
+        cnt = active_qs.filter(created_at__lte=cutoff_max, created_at__gt=cutoff_min).count()
+        aging_labels.append(label)
+        aging_counts.append(cnt)
+
+    # ── CHART DATA: Peak Hours Heatmap ───────────────────────────
+    from django.db.models.functions import ExtractHour, ExtractIsoWeekDay
+    peak_data = (
+        qs.annotate(
+            hour=ExtractHour("created_at"),
+            weekday=ExtractIsoWeekDay("created_at"),  # 1=Mon … 7=Sun
+        )
+        .values("weekday", "hour")
+        .annotate(count=Count("id"))
+        .order_by("weekday", "hour")
+    )
+    # Build 7x24 matrix [weekday][hour]
+    heatmap_matrix = [[0] * 24 for _ in range(7)]
+    for row in peak_data:
+        heatmap_matrix[row["weekday"] - 1][row["hour"]] = row["count"]
+
+    # ── CHART DATA: Resolution Rate Trend ────────────────────────
+    resrate_labels = []
+    resrate_values = []
+    for d in all_dates:
+        c = created_map.get(d, 0)
+        r = resolved_map.get(d, 0)
+        resrate_labels.append(d.strftime(fmt))
+        pct = round((r / c * 100), 1) if c > 0 else 0
+        resrate_values.append(pct)
+
+    # ── CHART DATA: Reopen Rate ──────────────────────────────────
+    # Tickets that were resolved/closed but now active again
+    reopened_count = CaseRecord.objects.filter(
+        is_spam=False,
+        master_ticket__isnull=True,
+        created_at__range=(dt_from, dt_to),
+        status__in=[CaseRecord.Status.OPEN, CaseRecord.Status.INVESTIGATING, CaseRecord.Status.PENDING_INFO],
+        edit_permission_status__isnull=False,  # had amendment workflow = was closed before
+    ).count()
+    reopen_pct = round((reopened_count / total_in_range * 100), 1) if total_in_range > 0 else 0
+
+    # ── TABLE: Stale Tickets (no message activity > 3 days) ──────
+    stale_cutoff = now - timedelta(days=3)
+    stale_tickets = (
+        active_qs.annotate(
+            last_msg_at=Subquery(
+                Message.objects.filter(case=OuterRef("pk"))
+                .order_by("-sent_at")
+                .values("sent_at")[:1]
+            )
+        )
+        .filter(
+            Q(last_msg_at__lt=stale_cutoff) | Q(last_msg_at__isnull=True, created_at__lt=stale_cutoff)
+        )
+        .select_related("category", "assigned_to", "requester")
+        .order_by("created_at")[:8]
+    )
+
+    # ── WORD CLOUD: Tags ────────────────────────────────────────────
+    import re
+    from collections import Counter
+
+    STOPWORDS = {
+        "yang", "dan", "di", "ke", "dari", "ini", "itu", "untuk", "dengan",
+        "pada", "adalah", "akan", "sudah", "tidak", "bisa", "ada", "juga",
+        "atau", "oleh", "karena", "saat", "telah", "belum", "user", "the",
+        "and", "for", "that", "this", "with", "was", "has", "been", "but",
+        "are", "were", "had", "have", "can", "will", "its", "may", "our",
+        "all", "one", "two", "new", "used", "more", "than", "each", "into",
+        "done", "pagi", "selamat", "malam", "siang", "sore", "tim", "gws", "citis",
+    }
+
+    tag_counter = Counter()
+    for row in qs.filter(tags__isnull=False).exclude(tags="").values_list("tags", flat=True):
+        for tag in row.split(","):
+            t = tag.strip().lower()
+            if t and len(t) > 1:
+                tag_counter[t] += 1
+
+    tag_cloud = [[word, count] for word, count in tag_counter.most_common(60)]
+
+    # ── WORD CLOUD: RCA & Solving Steps ──────────────────────────────
+    rca_counter = Counter()
+    rca_fields = qs.filter(
+        Q(root_cause_analysis__isnull=False) | Q(solving_steps__isnull=False)
+    ).values_list("root_cause_analysis", "solving_steps")
+
+    word_pattern = re.compile(r'[a-zA-Z\u00C0-\u024F]+')
+    for rca, steps in rca_fields:
+        for text in (rca or "", steps or ""):
+            for word in word_pattern.findall(text.lower()):
+                if len(word) > 2 and word not in STOPWORDS:
+                    rca_counter[word] += 1
+
+    rca_cloud = [[word, count] for word, count in rca_counter.most_common(80)]
+
+    # ── Filter options for dropdowns ───────────────────────────────
+    staff_users = User.objects.filter(
+        role_access__in=[User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER, User.RoleAccess.SUPPORTDESK]
+    ).order_by("username")
+    categories = CaseCategory.objects.filter(parent__isnull=True).order_by("name")
+
+    import json
+    context = {
+        # Summary cards
+        "total_in_range": total_in_range,
+        "total_active": total_active,
+        "total_unassigned": total_unassigned,
+        "resolved_in_range": resolved_in_range,
+        "resolved_today": resolved_today,
+        "unread_count": unread_count,
+        "sla_breached": sla_breached,
+        "sla_at_risk": sla_at_risk,
+        "avg_resolution": avg_resolution,
+        # Charts (JSON for Chart.js)
+        "trend_labels": json.dumps(trend_labels),
+        "trend_created": json.dumps(trend_created),
+        "trend_resolved": json.dumps(trend_resolved),
+        "status_labels": json.dumps(status_labels),
+        "status_counts": json.dumps(status_counts),
+        "status_bg": json.dumps(status_bg),
+        "source_labels": json.dumps(source_labels),
+        "source_counts": json.dumps(source_counts),
+        "priority_labels": json.dumps(priority_labels),
+        "priority_counts": json.dumps(priority_counts),
+        "priority_bg": json.dumps(priority_bg),
+        "cat_labels": json.dumps(cat_labels),
+        "cat_counts": json.dumps(cat_counts),
+        "agent_labels": json.dumps(agent_labels),
+        "agent_counts": json.dumps(agent_counts),
+        "unit_labels": json.dumps(unit_labels),
+        "unit_counts": json.dumps(unit_counts),
+        "sla_pct": sla_pct,
+        "sla_met": sla_met,
+        "sla_total": sla_total,
+        # Tables
+        "recent_tickets": recent_tickets,
+        "sla_at_risk_tickets": sla_at_risk_tickets,
+        "sla_breached_tickets": sla_breached_tickets,
+        "top_requesters": top_requesters,
+        # Filters
+        "staff_users": staff_users,
+        "categories": categories,
+        "filter_date_from": date_from.strftime("%Y-%m-%d"),
+        "filter_date_to": date_to.strftime("%Y-%m-%d"),
+        "filter_assigned": filter_assigned,
+        "filter_category": filter_category,
+        "filter_source": filter_source,
+        "filter_priority": filter_priority,
+        "date_range_label": f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}",
+        "trend_granularity": trend_granularity,
+        # Word clouds
+        "tag_cloud": json.dumps(tag_cloud),
+        "rca_cloud": json.dumps(rca_cloud),
+        # New analytics
+        "frt_labels": json.dumps(frt_labels),
+        "frt_values": json.dumps(frt_values),
+        "avg_frt": avg_frt,
+        "aging_labels": json.dumps(aging_labels),
+        "aging_counts": json.dumps(aging_counts),
+        "heatmap_matrix": json.dumps(heatmap_matrix),
+        "resrate_labels": json.dumps(resrate_labels),
+        "resrate_values": json.dumps(resrate_values),
+        "reopened_count": reopened_count,
+        "reopen_pct": reopen_pct,
+        "stale_tickets": stale_tickets,
+    }
+    return render(request, "admin/dashboard.html", context)
+
+
+# =====================================================================
 # Public — Client Portal
 # =====================================================================
 
@@ -463,7 +970,8 @@ def case_list(request):
     type_filter = request.GET.get("type")
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
-    
+    read_filter = request.GET.get("read_status", "")
+
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -494,7 +1002,13 @@ def case_list(request):
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
         cases = cases.filter(followers__id=followers_filter)
-        
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_messages=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(last_viewed_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
+
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -568,6 +1082,7 @@ def case_list(request):
             "type": type_filter or "",
             "tags": tags_filter or "",
             "followers": followers_filter or "",
+            "read_status": read_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
@@ -602,6 +1117,7 @@ def case_list_partial(request):
     type_filter = request.GET.get("type")
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
+    read_filter = request.GET.get("read_status", "")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -631,6 +1147,12 @@ def case_list_partial(request):
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
         cases = cases.filter(followers__id=followers_filter)
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_messages=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(last_viewed_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -700,6 +1222,7 @@ def case_kanban_partial(request):
     type_filter = request.GET.get("type")
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
+    read_filter = request.GET.get("read_status", "")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -728,6 +1251,12 @@ def case_kanban_partial(request):
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
         cases = cases.filter(followers__id=followers_filter)
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_messages=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(last_viewed_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
     if search_query:
         cases = cases.filter(
             Q(id__icontains=search_query) |
@@ -865,7 +1394,8 @@ def case_detail(request, case_id):
     case.save(update_fields=["last_viewed_at"])
 
     messages_qs = case.messages.select_related(
-        "sender_employee", "sender_staff"
+        "sender_employee", "sender_staff",
+        "quoted_message__sender_employee", "quoted_message__sender_staff",
     ).prefetch_related("attachments", "reactions").all()
     rca_form = CaseRCAForm(instance=case)
     reply_form = StaffReplyForm()
@@ -1311,6 +1841,12 @@ def case_send_reply(request, case_id):
             elif case.source == CaseRecord.Source.EVOLUTION_WA:
                 reply_channel = Message.Channel.WHATSAPP  # Prep for future WA outbound support
 
+            # Handle quote reply
+            quoted_message = None
+            quoted_id = request.POST.get("quoted_message_id", "").strip()
+            if quoted_id:
+                quoted_message = Message.objects.filter(id=quoted_id, case=case).first()
+
             msg = Message.objects.create(
                 case=case,
                 sender_staff=request.user,
@@ -1319,6 +1855,7 @@ def case_send_reply(request, case_id):
                 direction=Message.Direction.OUTBOUND,
                 channel=reply_channel,
                 delivery_status=Message.DeliveryStatus.PENDING if reply_channel != Message.Channel.WEB else Message.DeliveryStatus.SUCCESS,
+                quoted_message=quoted_message,
             )
 
             # Handle optional attachment
@@ -1345,9 +1882,10 @@ def case_send_reply(request, case_id):
                     from gateways.tasks import send_outbound_whatsapp_task
                     send_outbound_whatsapp_task.delay(str(msg.id))
                     
-                    # Reset the 30-minute session countdown for the employee
-                    from gateways.tasks import check_wa_session_timeout_task
-                    check_wa_session_timeout_task.apply_async((str(case.id),), countdown=1800)
+                    # Reset the 60-minute session countdown for the employee
+                    from gateways.tasks import check_wa_session_warning_task, check_wa_session_timeout_task
+                    check_wa_session_warning_task.apply_async((str(case.id),), countdown=2700)   # 45 min: confirmation
+                    check_wa_session_timeout_task.apply_async((str(case.id),), countdown=3600)   # 60 min: expiry
             except Exception as e:
                 msg.delivery_status = Message.DeliveryStatus.FAILED
                 msg.delivery_error = f"Celery connection failed: {str(e)}"
@@ -1393,7 +1931,8 @@ def chat_thread(request, case_id):
                 pass
 
     messages = case.messages.select_related(
-        "sender_employee", "sender_staff"
+        "sender_employee", "sender_staff",
+        "quoted_message__sender_employee", "quoted_message__sender_staff",
     ).prefetch_related("attachments", "reactions").all()
 
     return render(request, "partials/chat_thread.html", {
@@ -1565,6 +2104,7 @@ def case_kanban(request):
     type_filter = request.GET.get("type")
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
+    read_filter = request.GET.get("read_status", "")
 
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
@@ -1595,6 +2135,12 @@ def case_kanban(request):
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
         cases = cases.filter(followers__id=followers_filter)
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_messages=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(last_viewed_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
 
     if search_query:
         cases = cases.filter(
@@ -1671,6 +2217,7 @@ def case_kanban(request):
             "type": type_filter or "",
             "tags": tags_filter or "",
             "followers": followers_filter or "",
+            "read_status": read_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",
@@ -1997,6 +2544,7 @@ def case_calendar(request):
             "type": type_filter or "",
             "tags": tags_filter or "",
             "followers": followers_filter or "",
+            "read_status": read_filter or "",
             "q": search_query,
             "date_from": date_from or "",
             "date_to": date_to or "",

@@ -40,6 +40,10 @@ urlpatterns = [
     path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
 
+    # Help & About (any logged-in user)
+    path("help/", core_views.help_and_about, name="help_about"),
+    path("help/feedback/", core_views.submit_feedback, name="submit_feedback"),
+
     # Client portal (public)
     path("", include("cases.urls", namespace="cases")),
 

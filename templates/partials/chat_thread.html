@@ -93,6 +93,12 @@
                         <button hx-post="{% url 'desk:message_react' case_id=case.id message_id=msg.id %}" hx-vals='{"emoji":"😂"}' hx-target="#chat-thread" hx-swap="innerHTML" class="jk-msg__react-btn">😂</button>
                         <button hx-post="{% url 'desk:message_react' case_id=case.id message_id=msg.id %}" hx-vals='{"emoji":"🙏"}' hx-target="#chat-thread" hx-swap="innerHTML" class="jk-msg__react-btn">🙏</button>
                     </div>
+                    {% if case.status != 'Closed' %}
+                    <button @click="closeActions(); window._setQuoteReply('{{ msg.id }}', '{% if msg.direction == "OUT" %}{{ msg.sender_staff.username|default:"Support"|escapejs }}{% else %}{{ msg.sender_employee.full_name|default:"Employee"|escapejs }}{% endif %}', `{{ msg.body|truncatechars:100|escapejs }}`)" class="jk-msg__action-item">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 0 1 5 5v6M3 10l6 6M3 10l6-6"/></svg>
+                        Reply
+                    </button>
+                    {% endif %}
                     {% if msg.direction == 'OUT' and case.status != 'Closed' %}
                     {% if msg.body and not msg.attachments.all %}
                     <button @click="startEdit(`{{ msg.body|escapejs }}`)" class="jk-msg__action-item">
@@ -108,6 +114,17 @@
                         Delete
                     </button>
                     {% endif %}
+                </div>
+                {% endif %}
+
+                {% if msg.quoted_message and not msg.quoted_message.is_deleted %}
+                <div class="jk-msg__quoted rounded-lg px-3 py-2 mb-1.5 text-xs cursor-pointer"
+                     style="background: rgba(99,102,241,0.06); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);"
+                     title="Replying to this message">
+                    <div class="font-semibold text-indigo-600 text-[10px] mb-0.5">
+                        {% if msg.quoted_message.direction == "OUT" %}{{ msg.quoted_message.sender_staff.username|default:"Support" }}{% else %}{{ msg.quoted_message.sender_employee.full_name|default:"Employee" }}{% endif %}
+                    </div>
+                    <div class="text-slate-500 line-clamp-2">{{ msg.quoted_message.body|truncatechars:120 }}</div>
                 </div>
                 {% endif %}
 

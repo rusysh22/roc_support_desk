@@ -9,6 +9,9 @@ from . import views
 app_name = "desk"
 
 urlpatterns = [
+    # Dashboard — Analytics
+    path("", views.dashboard, name="dashboard"),
+
     # Ticket list — Table view
     path("cases/", views.case_list, name="case_list"),
     path("cases/bulk-action/", views.case_bulk_action, name="case_bulk_action"),

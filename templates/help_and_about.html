@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Help & About — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Help & About{% endblock %}
+{% block nav_help %}active{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-4">
+
+    <!-- ============================================================= -->
+    <!-- HEADER                                                         -->
+    <!-- ============================================================= -->
+    <div class="text-center mb-6">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-2xl shadow-lg mb-3">
+            {% if site_config.logo %}
+            <img src="{{ site_config.logo.url }}" alt="Logo" class="w-10 h-10 object-contain">
+            {% else %}
+            <span>?</span>
+            {% endif %}
+        </div>
+        <h1 class="text-xl font-bold text-slate-800">Help & About</h1>
+        <p class="text-sm text-slate-500 mt-1">Everything you need to know about {{ config.site_name|default:"RoC Desk" }}</p>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MENU LIST                                                      -->
+    <!-- ============================================================= -->
+    <div class="jk-card overflow-hidden" x-data="{ open: null }">
+
+        <!-- Help Centre -->
+        <button @click="open = open === 'help' ? null : 'help'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Help Centre</div>
+                <div class="text-xs text-slate-500">Frequently asked questions</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'help' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'help'" x-collapse class="bg-slate-50 border-b border-slate-100">
+            <div class="px-6 py-4 space-y-3 text-sm text-slate-700">
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">How do I submit a ticket?</summary>
+                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed">Go to the <strong>Ticket Portal</strong> from the sidebar, select the appropriate category, fill in the form, and click Submit. You will receive a confirmation with your ticket number.</p>
+                </details>
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">How do I track my ticket status?</summary>
+                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed">After submitting, you can check the status on the <strong>Ticket Portal</strong> page. Staff members can view all tickets in <strong>Task Management</strong>.</p>
+                </details>
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">What are the ticket statuses?</summary>
+                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed"><strong>Open</strong> — Newly created. <strong>Investigating</strong> — Being worked on. <strong>Pending Info</strong> — Waiting for your response. <strong>Resolved</strong> — Solution applied. <strong>Closed</strong> — Completed and archived.</p>
+                </details>
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">What channels can I use to submit tickets?</summary>
+                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed">You can submit tickets via the <strong>Web Portal</strong>, <strong>WhatsApp</strong>, or <strong>Email</strong>. All channels are integrated into one dashboard.</p>
+                </details>
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">What is a confidential ticket?</summary>
+                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed">Certain ticket categories are marked as confidential. Only authorized staff can view the details of these tickets. Other users will see the ticket listed but with the subject masked.</p>
+                </details>
+            </div>
+        </div>
+
+        <!-- Contact Developer -->
+        <button @click="open = open === 'contact' ? null : 'contact'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Contact Developer</div>
+                <div class="text-xs text-slate-500">Report bugs or get technical support</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'contact' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'contact'" x-collapse class="bg-slate-50 border-b border-slate-100">
+            <div class="px-6 py-4 text-sm text-slate-700 space-y-2">
+                <p class="text-xs text-slate-500">For technical issues or system bugs, please contact:</p>
+                <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                        IT
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-800 text-sm">IT Support Team</div>
+                        <div class="text-xs text-slate-500">it-support@company.com</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Feedback -->
+        <button @click="open = open === 'feedback' ? null : 'feedback'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Send Feedback</div>
+                <div class="text-xs text-slate-500">Technical issues, suggestions</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'feedback' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'feedback'" x-collapse class="bg-slate-50 border-b border-slate-100">
+            <div class="px-6 py-4">
+                {% if user.is_authenticated %}
+                <form method="post" action="{% url 'submit_feedback' %}" class="space-y-3">
+                    {% csrf_token %}
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
+                        <select name="feedback_type" class="jk-select text-sm w-full">
+                            {% for value, label in feedback_types %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Subject</label>
+                        <input type="text" name="subject" required maxlength="200" placeholder="Brief description..." class="jk-input text-sm w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Message</label>
+                        <textarea name="message" required rows="3" placeholder="Describe the issue or suggestion..." class="jk-input text-sm w-full" style="resize: vertical;"></textarea>
+                    </div>
+                    <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm w-full">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        Submit Feedback
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-xs text-slate-500 text-center py-2">Please <a href="{% url 'login' %}?next={% url 'help_about' %}" class="text-indigo-600 font-medium hover:underline">login</a> to submit feedback.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- About System -->
+        <button @click="open = open === 'about' ? null : 'about'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">About System</div>
+                <div class="text-xs text-slate-500">Version, features, tech stack</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'about' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'about'" x-collapse class="bg-slate-50 border-b border-slate-100">
+            <div class="px-6 py-4 space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="p-3 bg-white rounded-lg border border-slate-200">
+                        <div class="text-slate-500">Application</div>
+                        <div class="font-semibold text-slate-800 mt-0.5">{{ config.site_name|default:"RoC Desk" }}</div>
+                    </div>
+                    <div class="p-3 bg-white rounded-lg border border-slate-200">
+                        <div class="text-slate-500">Version</div>
+                        <div class="font-semibold text-slate-800 mt-0.5">1.1.5</div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Key Features</div>
+                    <div class="grid grid-cols-2 gap-1.5 text-xs text-slate-600">
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Multi-channel Ticketing</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> SLA Tracking</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Kanban & Calendar View</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Knowledge Base</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Confidential Tickets</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> RCA Templates</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Export to Excel</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Dynamic Form Builder</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> WhatsApp Integration</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Email Integration</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Real-time Notifications</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Link Shortener</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terms & Privacy Policy -->
+        <button @click="open = open === 'terms' ? null : 'terms'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Terms & Privacy Policy</div>
+                <div class="text-xs text-slate-500">Usage terms and data privacy</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'terms' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'terms'" x-collapse class="bg-slate-50 border-b border-slate-100">
+            <div class="px-6 py-4 text-xs text-slate-600 leading-relaxed whitespace-pre-line">{{ config.terms_and_privacy }}</div>
+        </div>
+
+        <!-- Changelog -->
+        <button @click="open = open === 'changelog' ? null : 'changelog'"
+                class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
+            <div class="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Changelog</div>
+                <div class="text-xs text-slate-500">Release notes and updates</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{ 'rotate-180': open === 'changelog' }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
+            <div class="px-6 py-4 space-y-4 text-sm">
+
+                <!-- v1.1.5 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.1.5</span>
+                        <span class="text-[10px] text-slate-400">27 Mar 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li>Confidential ticket access control (category-based)</li>
+                        <li>Help & About page with FAQ, feedback form, terms</li>
+                        <li>Mobile responsive table improvements</li>
+                        <li>Chat bubble word-break fix</li>
+                        <li>Multi-level category support with breadcrumbs</li>
+                        <li>Django Unfold admin logo & favicon</li>
+                    </ul>
+                </div>
+
+                <!-- v1.1.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.1.0</span>
+                        <span class="text-[10px] text-slate-400">15 Mar 2026</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li>RCA Template quick-fill functionality</li>
+                        <li>Knowledge base management interface</li>
+                        <li>Kanban board with drag-and-drop</li>
+                        <li>Calendar view for ticket tracking</li>
+                        <li>Notification bell with real-time updates</li>
+                    </ul>
+                </div>
+
+                <!-- v1.0.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.0.0</span>
+                        <span class="text-[10px] text-slate-400">01 Feb 2026</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li>Initial release</li>
+                        <li>Ticket management (create, assign, resolve, close)</li>
+                        <li>Multi-channel support (Web, WhatsApp, Email)</li>
+                        <li>SLA tracking with response & resolution deadlines</li>
+                        <li>Excel export</li>
+                        <li>Dynamic form builder</li>
+                        <li>Link shortener</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-slate-400 py-4">
+        {{ config.site_name|default:"RoC Desk" }} &middot; Built with Django {{ django_version }}
+    </div>
+
+</div>
+{% endblock %}

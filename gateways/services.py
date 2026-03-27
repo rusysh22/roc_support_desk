@@ -182,6 +182,7 @@ class EvolutionAPIService:
         self,
         phone_number: str,
         text: str,
+        quoted_msg_id: Optional[str] = None,
     ) -> dict | None:
         """
         Send a text message via WhatsApp through Evolution API.
@@ -189,6 +190,7 @@ class EvolutionAPIService:
         Args:
             phone_number: Recipient phone in E.164 format (e.g. ``+6281234567890``).
             text: Message body.
+            quoted_msg_id: External ID of the message to quote/reply to.
 
         Returns:
             API response as dict, or None on failure.
@@ -201,6 +203,8 @@ class EvolutionAPIService:
             "number": clean_number,
             "text": text,
         }
+        if quoted_msg_id:
+            payload["quoted"] = {"key": {"id": quoted_msg_id}}
 
         try:
             response = requests.post(
