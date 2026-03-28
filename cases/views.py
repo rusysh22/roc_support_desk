@@ -2429,6 +2429,7 @@ def case_calendar(request):
     type_filter = request.GET.get("type")
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
+    read_filter = request.GET.get("read_status", "")
 
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
@@ -2460,6 +2461,12 @@ def case_calendar(request):
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
         cases = cases.filter(followers__id=followers_filter)
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_messages=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(last_viewed_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
 
     if search_query:
         cases = cases.filter(

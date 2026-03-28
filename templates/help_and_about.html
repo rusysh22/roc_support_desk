@@ -80,15 +80,27 @@
         <div x-show="open === 'contact'" x-collapse class="bg-slate-50 border-b border-slate-100">
             <div class="px-6 py-4 text-sm text-slate-700 space-y-2">
                 <p class="text-xs text-slate-500">For technical issues or system bugs, please contact:</p>
+                {% for admin in superadmins %}
+                <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold uppercase">
+                        {{ admin.initials|default:"SA" }}
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-800 text-sm">{{ admin.username }}</div>
+                        <div class="text-xs text-slate-500">{{ admin.email }}</div>
+                    </div>
+                </div>
+                {% empty %}
                 <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
                     <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
                         IT
                     </div>
                     <div>
                         <div class="font-semibold text-slate-800 text-sm">IT Support Team</div>
-                        <div class="text-xs text-slate-500">it-support@company.com</div>
+                        <div class="text-xs text-slate-500">—</div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
 
@@ -157,7 +169,7 @@
                     </div>
                     <div class="p-3 bg-white rounded-lg border border-slate-200">
                         <div class="text-slate-500">Version</div>
-                        <div class="font-semibold text-slate-800 mt-0.5">1.1.5</div>
+                        <div class="font-semibold text-slate-800 mt-0.5">1.2.0</div>
                     </div>
                 </div>
 
@@ -175,6 +187,7 @@
                         <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> WhatsApp Integration</div>
                         <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Email Integration</div>
                         <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Real-time Notifications</div>
+                        <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Dashboard Reports</div>
                         <div class="flex items-center gap-1.5"><span class="text-emerald-500">&#10003;</span> Link Shortener</div>
                     </div>
                 </div>
@@ -212,13 +225,28 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.1.5 -->
+                <!-- v1.2.0 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.2.0</span>
+                        <span class="text-[10px] text-slate-400">28 Mar 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li>Dashboard Reports with analytics & statistics</li>
+                        <li>Quoted message support in chat thread</li>
+                        <li>Checkbox alignment fix on ticket table</li>
+                        <li>UI improvements and layout refinements</li>
+                    </ul>
+                </div>
+
+                <!-- v1.1.5 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.1.5</span>
                         <span class="text-[10px] text-slate-400">27 Mar 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li>Confidential ticket access control (category-based)</li>

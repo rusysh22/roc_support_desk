@@ -143,17 +143,21 @@ def custom_404_view(request, exception=None):
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
-from .models import Feedback, SiteConfig
+from .models import Feedback, SiteConfig, User
 import django
 
 
 def help_and_about(request):
     """Help & About page — accessible by anyone."""
     config = SiteConfig.get_solo()
+    superadmins = User.objects.filter(
+        role_access=User.RoleAccess.SUPERADMIN, is_active=True
+    ).values("username", "email", "initials")
     return render(request, "help_and_about.html", {
         "config": config,
         "django_version": django.get_version(),
         "feedback_types": Feedback.FeedbackType.choices,
+        "superadmins": superadmins,
     })
 
 
