@@ -103,14 +103,17 @@ class Article(AuditableModel):
 
     # Rich text content fields (stored as HTML from Quill.js)
     problem_summary = models.TextField(
+        blank=True,
         verbose_name="Problem Summary",
         help_text="Concise description of the problem.",
     )
     root_cause = models.TextField(
+        blank=True,
         verbose_name="Root Cause",
         help_text="Documented root cause of the issue.",
     )
     solution = models.TextField(
+        blank=True,
         verbose_name="Solution",
         help_text="Step-by-step resolution procedure.",
     )

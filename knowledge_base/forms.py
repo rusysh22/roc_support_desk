@@ -57,6 +57,7 @@ class ArticleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["problem_summary"].required = True
         self.fields["source_case"].required = False
         self.fields["source_case"].queryset = self.fields["source_case"].queryset.select_related("category")
 

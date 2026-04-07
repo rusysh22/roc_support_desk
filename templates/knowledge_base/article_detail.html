@@ -46,8 +46,8 @@
         border-radius: 0.25rem;
         font-size: 0.85em;
     }
-    .kb-content a { color: #6366f1; text-decoration: underline; }
-    .kb-content a:hover { color: #4f46e5; }
+    .kb-content a { color: #2563eb; text-decoration: underline; font-weight: 500; }
+    .kb-content a:hover { color: #1d4ed8; }
     .kb-content strong { font-weight: 700; }
     .kb-content em { font-style: italic; }
     .kb-content s { text-decoration: line-through; }
@@ -83,11 +83,20 @@
 
     <!-- Article Header -->
     <div class="bg-white rounded-t-2xl p-8 md:p-10 border border-slate-200 border-b-0 shadow-sm relative overflow-hidden">
+        <!-- Badge -->
+        <div class="absolute top-6 right-6 z-20">
+            {% if article.article_type == 'Announcement' %}
+                <span class="px-3 py-1 bg-indigo-500 text-white text-xs font-bold rounded-full shadow-sm">📢 Announcement</span>
+            {% else %}
+                <span class="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full shadow-sm">🔧 Issue Handling</span>
+            {% endif %}
+        </div>
+
         <!-- Decoration -->
         <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-0 opacity-50"></div>
         
         <div class="relative z-10">
-            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 leading-tight">{{ article.title }}</h1>
+            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 leading-tight max-w-[85%]">{{ article.title }}</h1>
             
             <div class="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                 <div class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
@@ -106,40 +115,66 @@
     <!-- Article Content -->
     <div class="bg-white rounded-b-2xl p-8 md:p-10 border border-slate-200 shadow-sm prose prose-slate prose-indigo max-w-none">
         
-        <!-- Summary Section -->
+        <!-- Section 1: Problem Summary / Announcement Overview -->
         <div class="mb-10">
             <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-indigo-100 flex items-center gap-2">
                 <span class="text-indigo-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </span>
-                Problem Summary
+                {% if article.article_type == 'Announcement' %}Announcement{% else %}Problem Summary{% endif %}
             </h2>
             <div class="text-slate-700 leading-relaxed kb-content">{{ article.problem_summary|safe }}</div>
         </div>
 
-        <!-- Root Cause Section -->
+        <!-- Section 2: Root Cause / Detailed Information -->
         {% if article.root_cause %}
-        <div class="mb-10 bg-rose-50 rounded-xl p-6 border border-rose-100">
-            <h2 class="text-xl font-bold text-rose-900 mb-4 flex items-center gap-2 mt-0">
-                <span class="text-rose-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </span>
-                Root Cause
-            </h2>
-            <div class="text-rose-800 leading-relaxed kb-content">{{ article.root_cause|safe }}</div>
-        </div>
+            {% if article.article_type == 'Announcement' %}
+                <div class="mb-10">
+                    <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-indigo-100 flex items-center gap-2 mt-0">
+                        <span class="text-indigo-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </span>
+                        Details
+                    </h2>
+                    <div class="text-slate-700 leading-relaxed kb-content">{{ article.root_cause|safe }}</div>
+                </div>
+            {% else %}
+                <div class="mb-10 bg-rose-50 rounded-xl p-6 border border-rose-100">
+                    <h2 class="text-xl font-bold text-rose-900 mb-4 flex items-center gap-2 mt-0">
+                        <span class="text-rose-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </span>
+                        Root Cause
+                    </h2>
+                    <div class="text-rose-800 leading-relaxed kb-content">{{ article.root_cause|safe }}</div>
+                </div>
+            {% endif %}
         {% endif %}
 
-        <!-- Solution Section -->
-        <div class="mb-6">
-            <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-emerald-100 flex items-center gap-2 mt-0">
-                <span class="text-emerald-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </span>
-                Steps to Resolve
-            </h2>
-            <div class="text-slate-700 leading-relaxed kb-content">{{ article.solution|safe }}</div>
-        </div>
+        <!-- Section 3: Solution / Closing Notes -->
+        {% if article.solution %}
+            {% if article.article_type == 'Announcement' %}
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-indigo-100 flex items-center gap-2 mt-0">
+                        <span class="text-indigo-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </span>
+                        Information
+                    </h2>
+                    <div class="text-slate-700 leading-relaxed kb-content">{{ article.solution|safe }}</div>
+                </div>
+            {% else %}
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-emerald-100 flex items-center gap-2 mt-0">
+                        <span class="text-emerald-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </span>
+                        Steps to Resolve
+                    </h2>
+                    <div class="text-slate-700 leading-relaxed kb-content">{{ article.solution|safe }}</div>
+                </div>
+            {% endif %}
+        {% endif %}
         
     </div>
     
@@ -156,4 +191,63 @@
     </div>
 
 </div>
+
+<script>
+    // Auto-link functionality for plain text URLs in KB content
+    document.addEventListener("DOMContentLoaded", function() {
+        const urlRegex = /(?<!["'])((https?:\/\/)[^\s<]+)/g;
+        const containers = document.querySelectorAll('.kb-content');
+        
+        containers.forEach(container => {
+            // Traverse text nodes to avoid breaking existing HTML elements
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            const nodesToReplace = [];
+            
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.parentElement.tagName !== 'A' && urlRegex.test(node.nodeValue)) {
+                    nodesToReplace.push(node);
+                    urlRegex.lastIndex = 0; // Reset regex
+                }
+            }
+            
+            nodesToReplace.forEach(node => {
+                const fragment = document.createDocumentFragment();
+                const parts = node.nodeValue.split(urlRegex);
+                
+                // The split with capture group returns: [pre, match, protocol, ...]
+                // This is a bit tricky, let's use a cleaner approach
+                let lastIndex = 0;
+                let match;
+                urlRegex.lastIndex = 0; // Reset
+                
+                const text = node.nodeValue;
+                while ((match = urlRegex.exec(text)) !== null) {
+                    // Pre-match text
+                    if (match.index > lastIndex) {
+                        fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+                    }
+                    
+                    // The URL link
+                    const link = document.createElement('a');
+                    link.href = match[0];
+                    link.textContent = match[0];
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    fragment.appendChild(link);
+                    
+                    lastIndex = urlRegex.lastIndex;
+                }
+                
+                // Post-match text
+                if (lastIndex < text.length) {
+                    fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+                }
+                
+                node.parentNode.replaceChild(fragment, node);
+            });
+        });
+    });
+</script>
 {% endblock %}
+
