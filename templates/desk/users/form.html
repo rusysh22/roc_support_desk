@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} User | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_users %}jk-sidebar-link-active{% endblock %}
+{% block page_title %}{% if is_edit %}Edit User{% else %}New User{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'users_desk:user_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </a>
+        <div>
+            <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit User: {{ user_obj.login_username }}{% else %}Create New User{% endif %}</h2>
+            <p class="text-sm text-slate-500 mt-1">
+                Fill in the details below.
+            </p>
+        </div>
+    </div>
+
+    <!-- Form Container -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <form method="post" class="p-6 sm:p-8">
+            {% csrf_token %}
+
+            <!-- Validation Errors -->
+            {% if form.errors %}
+            <div class="p-4 rounded-xl bg-red-50 text-red-800 border-red-200 border text-sm mb-6">
+                <strong class="font-bold">Please correct the following errors:</strong>
+                <ul class="list-disc ml-5 mt-2 space-y-1">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li><b>{{ field.label }}</b>: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="space-y-6">
+                
+                <!-- Section: Credentials -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Account Credentials</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Login Username <span class="text-red-500">*</span></label>
+                            {{ form.login_username }}
+                            <p class="text-xs text-slate-400 mt-1">Unique ID used for logging in.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+                            {{ form.password }}
+                            <p class="text-xs text-slate-400 mt-1">{{ form.password.help_text }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Profile -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Profile Details</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Display Name <span class="text-red-500">*</span></label>
+                            {{ form.username }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email Address <span class="text-red-500">*</span></label>
+                            {{ form.email }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">NIK (Employeed ID) <span class="text-slate-400 font-normal">(optional)</span></label>
+                            {{ form.nik }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Initials <span class="text-red-500">*</span></label>
+                            {{ form.initials }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Access Control -->
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Access & Permissions</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Role Access <span class="text-red-500">*</span></label>
+                            {{ form.role_access }}
+                        </div>
+                        <div class="flex items-end pb-2">
+                            <label class="flex items-center gap-3 cursor-pointer group p-2 border border-slate-200 rounded-lg w-full hover:bg-slate-50 transition-colors">
+                                {{ form.can_handle_confidential }}
+                                <div>
+                                    <span class="block text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">Can Handle Confidential</span>
+                                    <span class="block text-xs text-slate-500">Allow access to confidential tickets</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Submit -->
+            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
+                <a href="{% url 'users_desk:user_list' %}" class="px-6 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center">
+                    Cancel
+                </a>
+                <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm">
+                    {% if is_edit %}Save Changes{% else %}Create User{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

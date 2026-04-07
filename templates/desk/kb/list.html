@@ -19,10 +19,12 @@
                 <input type="text" name="q" value="{{ search_query }}" placeholder="Search articles..." class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 bg-slate-50 transition-all shadow-sm">
                 <svg class="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </form>
+            {% if user.role_access != 'Auditor' %}
             <a href="{% url 'kb_desk:article_create' %}" class="jk-btn-primary flex justify-center items-center gap-2 px-4 py-2 rounded-2xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all whitespace-nowrap text-sm">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 <span>New Article</span>
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -137,11 +139,13 @@
                 </div>
                 <h3 class="text-lg font-medium text-slate-900">No Articles Found</h3>
                 <p class="mt-1 text-slate-500 max-w-sm mx-auto">Start building your knowledge base by creating the first article.</p>
+                {% if user.role_access != 'Auditor' %}
                 <div class="mt-6">
                     <a href="{% url 'kb_desk:article_create' %}" class="jk-btn jk-btn-primary inline-flex px-6 py-2.5 rounded-xl shadow-sm text-sm">
                         Create Article
                     </a>
                 </div>
+                {% endif %}
             </div>
         {% endif %}
     </div>

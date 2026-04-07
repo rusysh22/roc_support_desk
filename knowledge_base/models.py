@@ -71,8 +71,19 @@ class Article(AuditableModel):
         PUBLISHED = "Published", "Published"
         REJECTED = "Rejected", "Rejected"
 
+    class ArticleType(models.TextChoices):
+        ISSUE = "Issue", "Issue Handling"
+        ANNOUNCEMENT = "Announcement", "Announcement"
+
     title = models.CharField(max_length=500, verbose_name="Title")
     slug = models.SlugField(max_length=520, unique=True, blank=True, verbose_name="Slug")
+    
+    article_type = models.CharField(
+        max_length=20,
+        choices=ArticleType.choices,
+        default=ArticleType.ISSUE,
+        verbose_name="Article Type",
+    )
 
     category = models.ForeignKey(
         "cases.CaseCategory",

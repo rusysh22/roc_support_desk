@@ -60,7 +60,7 @@
                     <div class="flex items-center gap-3">
                         <!-- Display mode -->
                         <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words jk-detail-subject" x-text="subjectVal"></h2>
-                        {% if case.status != 'Closed' %}
+                        {% if case.status != 'Closed' and user.role_access != 'Auditor' %}
                         <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
@@ -186,7 +186,7 @@
                     <select name="category_id" class="text-[11px] sm:text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
                             onchange="this.form.submit()">
                         {% for cat in all_categories %}
-                        <option value="{{ cat.id }}" {% if cat.id == case.category_id %}selected{% endif %}>{% if cat.parent %}{{ cat.parent.name }} &rsaquo; {% endif %}{{ cat.name }}</option>
+                        <option value="{{ cat.id }}" {% if cat.id == case.category_id %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
                     <button type="button" @click="editingCat = false" class="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded" title="Cancel">
@@ -854,6 +854,11 @@
 
         <!-- Reply Form -->
         <div class="jk-chat-panel__footer">
+            {% if user.role_access == 'Auditor' %}
+            <div class="p-3 m-2 text-center bg-amber-50 border border-amber-200 rounded-lg">
+                <p class="text-xs font-semibold text-amber-700">👁 Auditor View — Read-only. Replies are disabled.</p>
+            </div>
+            {% else %}
             <form id="reply-form" hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
                 hx-swap="innerHTML" hx-indicator="#reply-spinner" enctype="multipart/form-data"
                 x-data="{
@@ -1012,6 +1017,7 @@
                 </div>
                 {% endif %}
             </form>
+            {% endif %}
         </div>
     </div> <!-- /jk-chat-panel -->
 

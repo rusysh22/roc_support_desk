@@ -93,6 +93,7 @@
             </a>
 
             {% if user.is_authenticated %}
+            {% if user.role_access != 'PortalUser' %}
             <div class="jk-sidebar-section">{{ user.get_role_access_display }}</div>
             <a href="{% url 'desk:dashboard' %}" class="jk-sidebar-link {% block nav_dashboard_staff %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📊</span>
@@ -108,7 +109,7 @@
                 <span>Knowledge Management</span>
             </a>
 
-            {% if user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
+            {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
             <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">📝</span>
                 <span>Form Creator</span>
@@ -132,12 +133,22 @@
             {% endif %}
             {% endif %}
             
+            {% if user.role_access == 'SuperAdmin' %}
+            <div class="jk-sidebar-section">Master Data</div>
+            <a href="{% url 'users_desk:user_list' %}" class="jk-sidebar-link {% block nav_users %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">👥</span>
+                <span>User Management</span>
+            </a>
+            {% endif %}
+
             {% if user.is_superuser or user.role_access in 'SuperAdmin,Manager' %}
             <a href="{% url 'admin:index' %}" class="jk-sidebar-link">
                 <span class="jk-sidebar-link-icon">⚙️</span>
                 <span>Admin Master</span>
             </a>
             {% endif %}
+
+            {% endif %}{# end role_access != PortalUser #}
 
             <div class="jk-sidebar-section">Account</div>
             <form method="post" action="{% url 'logout' %}">
@@ -154,6 +165,7 @@
                 <span>Login</span>
             </a>
             {% endif %}
+
             {% endblock %}
         </nav>
 
@@ -178,7 +190,7 @@
                 <div class="flex items-center gap-2 p-2">
                     <div class="flex flex-col flex-1 items-center justify-center text-center p-2 rounded-xl bg-black/10 border border-white/5">
                         <span class="text-slate-300 font-medium text-sm">{{ site_config.site_name|default:"RoC Desk" }}</span>
-                        <span class="text-slate-500 text-xs mt-0.5">Version 1.2.0</span>
+                        <span class="text-slate-500 text-xs mt-0.5">Version 1.2.5</span>
                     </div>
                     <a href="{% url 'help_about' %}" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-all flex-shrink-0" title="Help & About">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -202,7 +214,7 @@
                 <h1 class="jk-topbar-title">{% block page_title %}{{ site_config.site_name|default:"RoC Desk" }}{% endblock %}</h1>
             </div>
             <div class="jk-topbar-actions flex items-center gap-2">
-                {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk' %}
+                {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
                 <div hx-get="{% url 'desk:notifications' %}" hx-trigger="load, every 5s[!window._notifOpen]">
                     <!-- Bell gets loaded here -->
                 </div>
@@ -290,7 +302,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Check if user is authenticated and is staff
-            const isStaff = {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk' %}true{% else %}false{% endif %};
+            const isStaff = {% if user.is_authenticated and user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}true{% else %}false{% endif %};
             if (!isStaff) return;
 
             // Request permission on load

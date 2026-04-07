@@ -48,6 +48,10 @@
     .ql-editor h1, .ql-editor h2, .ql-editor h3 {
         margin-top: 0.75rem;
     }
+    .ql-editor a {
+        color: #3b82f6;
+        text-decoration: underline;
+    }
 
     /* Image Resize Overlay */
     .ql-image-resize-overlay {
@@ -167,37 +171,65 @@
                             {{ form.title }}
                         </div>
                         <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Article Type <span class="text-red-500">*</span></label>
+                            {{ form.article_type }}
+                        </div>
+                        <div>
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Category <span class="text-red-500">*</span></label>
                             {{ form.category }}
                         </div>
-                        <div>
+                        <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Source Case <span class="text-slate-400 font-normal">(optional)</span></label>
                             {{ form.source_case }}
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Tags</label>
-                            {{ form.tags_input }}
-                            <p class="text-xs text-slate-400 mt-1">{{ form.tags_input.help_text }}</p>
+                            <!-- Hidden original input -->
+                            <div class="hidden">
+                                {{ form.tags_input }}
+                            </div>
+                            
+                            <!-- Alpine tag ui -->
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                    <input type="text" x-model="newTag" @keydown.enter.prevent="addTag()" placeholder="Add a tag and press enter..." class="jk-input max-w-sm" />
+                                    <button type="button" @click="addTag()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-sm transition-colors">Add</button>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mt-2" x-show="tags.length > 0">
+                                    <template x-for="(tag, index) in tags" :key="index">
+                                        <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-sm font-medium">
+                                            <span x-text="tag"></span>
+                                            <button type="button" @click="removeTag(index)" class="text-indigo-400 hover:text-indigo-600 focus:outline-none">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">{{ form.tags_input.help_text }}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Problem Summary -->
                 <div>
-                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Problem Summary <span class="text-red-500">*</span></h3>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                        <span x-text="articleType === 'Announcement' ? 'Announcement Content' : 'Problem Summary'"></span> 
+                        <span class="text-red-500">*</span>
+                    </h3>
                     {{ form.problem_summary }}
                     <div id="editor-problem-summary" class="quill-editor"></div>
                 </div>
 
                 <!-- Root Cause -->
-                <div>
+                <div x-show="articleType === 'Issue'" x-transition>
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Root Cause <span class="text-red-500">*</span></h3>
                     {{ form.root_cause }}
                     <div id="editor-root-cause" class="quill-editor"></div>
                 </div>
 
                 <!-- Solution -->
-                <div>
+                <div x-show="articleType === 'Issue'" x-transition>
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-500">*</span></h3>
                     {{ form.solution }}
                     <div id="editor-solution" class="quill-editor"></div>
@@ -427,8 +459,47 @@ class QuillImageResize {
 function kbForm() {
     return {
         editors: {},
+        articleType: 'Issue',
+        tags: [],
+        newTag: '',
+
+        addTag() {
+            const tag = this.newTag.trim();
+            if (tag && !this.tags.includes(tag)) {
+                this.tags.push(tag);
+            }
+            this.newTag = '';
+            this.syncTags();
+        },
+
+        removeTag(index) {
+            this.tags.splice(index, 1);
+            this.syncTags();
+        },
+
+        syncTags() {
+            const input = document.getElementById('id_tags_input');
+            if (input) {
+                input.value = this.tags.join(', ');
+            }
+        },
 
         init() {
+            // Handle Type Toggle
+            const typeSelect = document.getElementById('id_article_type');
+            if (typeSelect) {
+                this.articleType = typeSelect.value;
+                typeSelect.addEventListener('change', (e) => {
+                    this.articleType = e.target.value;
+                });
+            }
+
+            // Init Tags
+            const tagsInput = document.getElementById('id_tags_input');
+            if (tagsInput && tagsInput.value) {
+                this.tags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
+            }
+
             const imageUploadUrl = '{% url "kb_desk:image_upload" %}';
             const csrfToken = '{{ csrf_token }}';
 

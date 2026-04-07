@@ -12,6 +12,11 @@ urlpatterns = [
     # Home / Client Dashboard
     path("", views.client_dashboard, name="dashboard"),
 
+    # Category management (SuperAdmin only, AJAX)
+    path("category/create/", views.create_category, name="create_category"),
+    path("category/<uuid:category_id>/update/", views.update_category, name="update_category"),
+    path("category/<uuid:category_id>/delete/", views.delete_category, name="delete_category"),
+
     # Sub-category selection (for main categories with children)
     path("category/<slug:slug>/", views.category_children, name="category_children"),
 

@@ -35,6 +35,7 @@ class ArticleForm(forms.ModelForm):
         model = Article
         fields = [
             "title",
+            "article_type",
             "category",
             "source_case",
             "problem_summary",
@@ -46,6 +47,7 @@ class ArticleForm(forms.ModelForm):
                 "class": "jk-input",
                 "placeholder": "Article title",
             }),
+            "article_type": forms.Select(attrs={"class": "jk-input"}),
             "category": forms.Select(attrs={"class": "jk-input"}),
             "source_case": forms.Select(attrs={"class": "jk-input"}),
             "problem_summary": NoRequireTextarea(attrs={"class": "hidden", "id": "id_problem_summary"}),

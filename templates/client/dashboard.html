@@ -16,7 +16,7 @@
 </div>
 
 <!-- ===== SERVICES SECTION ===== -->
-{% if categories %}
+{% if categories or user.role_access == "SuperAdmin" %}
 <div class="mb-10">
     <div class="flex items-center gap-2.5 mb-5">
         <div class="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -24,12 +24,31 @@
         </div>
         <h3 class="text-lg font-extrabold text-slate-800 tracking-tight">Services</h3>
         <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200">{{ categories|length }}</span>
+        {% if user.role_access == "SuperAdmin" %}
+        <button onclick="document.getElementById('createCategoryModal').classList.remove('hidden')"
+                class="ml-auto w-8 h-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center shadow-sm hover:shadow-md transition-all" title="Add Category">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </button>
+        {% endif %}
     </div>
     <div class="jk-category-grid">
         {% for category in categories %}
-        <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
-            class="jk-card jk-card-clickable jk-category-card group">
-            <div class="jk-card-body">
+        <div class="jk-card jk-category-card group relative">
+            {% if user.role_access == "SuperAdmin" %}
+            <!-- Admin Actions -->
+            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button onclick="event.stopPropagation(); openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}')"
+                        class="w-7 h-7 bg-white hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Edit">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button onclick="event.stopPropagation(); openDeleteModal('{{ category.id }}', '{{ category.name|escapejs }}')"
+                        class="w-7 h-7 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Delete">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+            {% endif %}
+            <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+                class="jk-card-body block jk-card-clickable">
                 <div class="jk-category-icon">
                     {{ category.icon|default:"📝" }}
                 </div>
@@ -46,8 +65,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </div>
-            </div>
-        </a>
+            </a>
+        </div>
         {% endfor %}
     </div>
 </div>
@@ -67,7 +86,7 @@
         {% for form in portal_forms %}
         <a href="{% url 'cases:public_form' slug=form.slug %}"
             class="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 transition-all duration-200">
-            
+
             <!-- Form Card Header -->
             <div class="flex items-start gap-3 mb-3">
                 <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-purple-500/20">
@@ -118,4 +137,233 @@
 <div class="mt-10 text-center text-xs text-slate-400">
     <p>Need urgent help? Contact the IT Helpdesk directly via WhatsApp or email.</p>
 </div>
+
+{% if user.role_access == "SuperAdmin" %}
+<!-- Create Category Modal -->
+<div id="createCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('createCategoryModal').classList.add('hidden')"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800">New Category</h3>
+            <button onclick="document.getElementById('createCategoryModal').classList.add('hidden')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form method="post" action="{% url 'cases:create_category' %}" @submit.prevent="submitForm($event)">
+            {% csrf_token %}
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Parent Category <span class="text-slate-400 font-normal">(optional)</span></label>
+                    <select name="parent" class="jk-input text-sm w-full">
+                        <option value="">-- Root Category (Main) --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-[10px] text-slate-400 mt-1">Leave empty to create a main category on the portal.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Category Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" required maxlength="200" placeholder="e.g. Network & Connectivity" class="jk-input text-sm w-full">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Description</label>
+                    <textarea name="description" rows="2" placeholder="Brief description of this category..." class="jk-input text-sm w-full" style="resize:vertical;"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon</label>
+                        <input type="text" name="icon" maxlength="100" placeholder="e.g. emoji or CSS class" class="jk-input text-sm w-full">
+                        <p class="text-[10px] text-slate-400 mt-1">Default: emoji</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Prefix Code</label>
+                        <input type="text" name="prefix_code" maxlength="2" placeholder="RQ" value="RQ" class="jk-input text-sm w-full uppercase">
+                        <p class="text-[10px] text-slate-400 mt-1">2 chars for ticket numbering</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="is_confidential" id="catConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                    <label for="catConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button type="button" onclick="document.getElementById('createCategoryModal').classList.add('hidden')" class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm" :disabled="submitting">
+                    <span x-show="!submitting">Create Category</span>
+                    <span x-show="submitting" class="flex items-center gap-1.5">
+                        <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+                        Creating...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div id="editCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('editCategoryModal').classList.add('hidden')"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800">Edit Category</h3>
+            <button onclick="document.getElementById('editCategoryModal').classList.add('hidden')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form id="editCategoryForm" method="post" @submit.prevent="submitForm($event)">
+            {% csrf_token %}
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Parent Category <span class="text-slate-400 font-normal">(optional)</span></label>
+                    <select name="parent" id="editCatParent" class="jk-input text-sm w-full">
+                        <option value="">-- Root Category (Main) --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Category Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" id="editCatName" required maxlength="200" class="jk-input text-sm w-full">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Description</label>
+                    <textarea name="description" id="editCatDesc" rows="2" class="jk-input text-sm w-full" style="resize:vertical;"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon</label>
+                        <input type="text" name="icon" id="editCatIcon" maxlength="100" class="jk-input text-sm w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Prefix Code</label>
+                        <input type="text" name="prefix_code" id="editCatPrefix" maxlength="2" class="jk-input text-sm w-full uppercase">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Slug</label>
+                    <input type="text" name="slug" id="editCatSlug" maxlength="220" class="jk-input text-sm w-full">
+                    <p class="text-[10px] text-slate-400 mt-1">URL-safe identifier. Change with caution.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="is_confidential" id="editCatConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                    <label for="editCatConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button type="button" onclick="document.getElementById('editCategoryModal').classList.add('hidden')" class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm" :disabled="submitting">
+                    <span x-show="!submitting">Save Changes</span>
+                    <span x-show="submitting" class="flex items-center gap-1.5">
+                        <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+                        Saving...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="{ submitting: false }">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('deleteCategoryModal').classList.add('hidden')"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div class="px-6 py-5 text-center">
+            <div class="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg class="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mb-1">Delete Category</h3>
+            <p class="text-sm text-slate-500">Are you sure you want to delete "<span id="deleteCatName" class="font-semibold text-slate-700"></span>"? This action cannot be undone.</p>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button type="button" onclick="document.getElementById('deleteCategoryModal').classList.add('hidden')" class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+            <button type="button" id="confirmDeleteBtn" class="jk-btn jk-btn-sm" style="background:#e11d48;color:#fff;" :disabled="submitting"
+                    @click="submitting = true; performDelete()">
+                <span x-show="!submitting">Delete</span>
+                <span x-show="submitting" class="flex items-center gap-1.5">
+                    <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+                    Deleting...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function categoryForm() {
+    return {
+        submitting: false,
+        submitForm(e) {
+            this.submitting = true;
+            const form = e.target;
+            const formData = new FormData(form);
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Operation failed.');
+                    this.submitting = false;
+                }
+            })
+            .catch(() => {
+                alert('An error occurred. Please try again.');
+                this.submitting = false;
+            });
+        }
+    }
+}
+
+const categoryBaseUrl = '{% url "cases:dashboard" %}category/';
+
+function openEditModal(id, name, description, icon, prefixCode, slug, isConfidential, parentId) {
+    document.getElementById('editCatParent').value = parentId || '';
+    document.getElementById('editCatName').value = name;
+    document.getElementById('editCatDesc').value = description;
+    document.getElementById('editCatIcon').value = icon;
+    document.getElementById('editCatPrefix').value = prefixCode;
+    document.getElementById('editCatSlug').value = slug;
+    document.getElementById('editCatConfidential').checked = isConfidential;
+    document.getElementById('editCategoryForm').action = categoryBaseUrl + id + '/update/';
+    document.getElementById('editCategoryModal').classList.remove('hidden');
+}
+
+let deleteCategoryId = null;
+function openDeleteModal(id, name) {
+    deleteCategoryId = id;
+    document.getElementById('deleteCatName').textContent = name;
+    document.getElementById('deleteCategoryModal').classList.remove('hidden');
+}
+
+function performDelete() {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(categoryBaseUrl + deleteCategoryId + '/delete/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to delete category.');
+            document.getElementById('deleteCategoryModal').classList.add('hidden');
+        }
+    })
+    .catch(() => {
+        alert('An error occurred. Please try again.');
+        document.getElementById('deleteCategoryModal').classList.add('hidden');
+    });
+}
+</script>
+{% endif %}
 {% endblock %}

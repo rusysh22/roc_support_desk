@@ -138,6 +138,53 @@ class EvolutionAPIService:
             )
             return None
 
+    def find_message_by_id(self, remote_jid: str, message_id: str) -> dict | None:
+        """
+        Fetch a specific message from Evolution API to get full context
+        (including contextInfo for quoted replies).
+
+        Uses the ``chat/findMessages`` endpoint.
+
+        Args:
+            remote_jid: The chat JID (e.g., "6281234567890@s.whatsapp.net")
+            message_id: The WhatsApp message ID (stanza ID)
+
+        Returns:
+            The message dict with full contextInfo, or None.
+        """
+        url = self._build_url("chat/findMessages")
+        payload = {
+            "where": {
+                "key": {
+                    "remoteJid": remote_jid,
+                    "id": message_id,
+                }
+            },
+            "limit": 1,
+        }
+
+        try:
+            response = requests.post(
+                url, json=payload, headers=self._headers(), timeout=self.timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Evolution API returns array of messages
+            messages = data if isinstance(data, list) else data.get("messages", data.get("records", []))
+            if messages and isinstance(messages, list) and len(messages) > 0:
+                msg = messages[0]
+                logger.info(
+                    "findMessages returned message %s, keys=%s",
+                    message_id,
+                    list(msg.get("message", {}).keys()) if msg.get("message") else "no-message",
+                )
+                return msg
+            return None
+        except requests.RequestException as exc:
+            logger.warning("findMessages failed for %s/%s: %s", remote_jid, message_id, exc)
+            return None
+
     def get_qr_code(self) -> dict | None:
         """Fetch the Base64 QR code for pairing the WhatsApp instance."""
         url = self._build_url("instance/connect")

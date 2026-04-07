@@ -22,7 +22,8 @@ from .models import Article, ArticleImage
 # =====================================================================
 
 def staff_required(view_func):
-    """All staff (SupportDesk, Manager, SuperAdmin) can access."""
+    """All staff (SupportDesk, Manager, SuperAdmin, Auditor) can access.
+    Auditors have read-only access."""
     from functools import wraps
 
     @wraps(view_func)
@@ -32,9 +33,14 @@ def staff_required(view_func):
             User.RoleAccess.SUPERADMIN,
             User.RoleAccess.MANAGER,
             User.RoleAccess.SUPPORTDESK,
+            User.RoleAccess.AUDITOR,
         }
         if getattr(request.user, "role_access", None) not in allowed:
             return HttpResponseForbidden("Access denied.")
+            
+        if request.user.role_access == User.RoleAccess.AUDITOR and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return HttpResponseForbidden("Access denied. Auditors have read-only access.")
+            
         return view_func(request, *args, **kwargs)
     return _wrapped
 

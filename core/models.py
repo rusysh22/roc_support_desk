@@ -88,6 +88,8 @@ class User(AbstractUser):
         SUPERADMIN = "SuperAdmin", "Super Admin"
         MANAGER = "Manager", "Manager"
         SUPPORTDESK = "SupportDesk", "Support Desk"
+        AUDITOR = "Auditor", "Auditor"
+        PORTALUSER = "PortalUser", "Portal User"
 
     # Override: username is kept for display only, NOT for login
     username = models.CharField(
@@ -279,6 +281,11 @@ class SiteConfig(AuditableModel):
         default=10,
         verbose_name="Max Upload Size (MB)",
         help_text="Maximum allowed file size for form attachments in Megabytes."
+    )
+    require_public_login = models.BooleanField(
+        default=False,
+        verbose_name="Require Public Login",
+        help_text="If enabled, all users must be logged in to access the public Ticket Portal and Knowledge Base."
     )
     terms_and_privacy = models.TextField(
         blank=True,
@@ -532,14 +539,6 @@ class FormSubmission(models.Model):
 
     def __str__(self):
         return f"Submission to {self.form.title} at {self.submitted_at.strftime('%Y-%m-%d %H:%M')}"
-        if not obj:
-            obj = cls.objects.create()
-        return obj
-
-    def __str__(self):
-        return "Email Configuration"
-
-
 # =====================================================================
 # OTP Tokens
 # =====================================================================

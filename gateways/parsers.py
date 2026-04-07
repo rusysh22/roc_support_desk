@@ -14,10 +14,46 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
         key = data.get("key", {})
         message = data.get("message", {})
 
+        # Debug: log message structure for quote detection
+        import json as _json
+        logger.info(
+            "Parser debug: message keys=%s, has contextInfo=%s, extendedText=%s",
+            list(message.keys()) if message else "empty",
+            "contextInfo" in message,
+            bool(message.get("extendedTextMessage", {}).get("contextInfo")),
+        )
+        # Log all dict values that might contain quote info
+        for _k, _v in message.items():
+            if isinstance(_v, dict):
+                logger.info(
+                    "Parser debug: '%s' keys=%s",
+                    _k,
+                    list(_v.keys()),
+                )
+
         # 5. Message ID Extraction
         message_id = key.get("id")
         if not message_id:
             logger.info("Ignored Evolution webhook: missing message ID.")
+            return None
+
+        # 1b. Detect protocolMessage (delete/revoke) sent as messages_upsert
+        protocol = message.get("protocolMessage", {})
+        if protocol.get("type") in (0, "REVOKE"):
+            deleted_msg_id = protocol.get("key", {}).get("id")
+            if deleted_msg_id:
+                logger.info(f"ProtocolMessage REVOKE detected in upsert for {deleted_msg_id}.")
+                return {
+                    "sender_number": None,
+                    "sender_name": None,
+                    "message_text": None,
+                    "message_id": message_id,
+                    "from_me": key.get("fromMe", False),
+                    "remote_jid": None,
+                    "media": None,
+                    "protocol_action": "delete",
+                    "protocol_target_id": deleted_msg_id,
+                }
             return None
 
         # 2. Prevent Bot Self-Messages
@@ -196,10 +232,26 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
                     quoted_id = media["contextInfo"].get("stanzaId")
                 break
 
+        # Fallback: check extendedTextMessage for quoted_id
         if not quoted_id:
             ext = message.get("extendedTextMessage", {})
             if ext and "contextInfo" in ext:
                 quoted_id = ext["contextInfo"].get("stanzaId")
+
+        # Fallback: check top-level contextInfo (some Evolution API versions)
+        if not quoted_id:
+            ctx = message.get("contextInfo", {})
+            if ctx:
+                quoted_id = ctx.get("stanzaId")
+
+        # Fallback: check messageContextInfo (Evolution API v2 format)
+        if not quoted_id:
+            msg_ctx = message.get("messageContextInfo", {})
+            if msg_ctx:
+                quoted_id = msg_ctx.get("stanzaId")
+
+        if quoted_id:
+            logger.info("Quoted message detected: stanzaId=%s for message %s", quoted_id, message_id)
 
         # 7. Output Structure
         result = {
@@ -219,4 +271,75 @@ def parse_evolution_webhook(payload: dict[str, Any]) -> Optional[dict[str, Any]]
 
     except Exception as exc:
         logger.exception("Error parsing Evolution webhook payload: %s", exc)
+        return None
+
+
+def parse_message_update(payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """
+    Parse Evolution API ``messages_update`` webhook payload.
+
+    Handles message status changes such as:
+    - Message deleted by sender (protocolMessage REVOKE or status=5)
+
+    Returns a dict with ``action`` and relevant IDs, or None if irrelevant.
+    """
+    try:
+        data = payload.get("data", payload)
+
+        # --- Format 1: Array of updates (Evolution API v2) ---
+        # payload: { "data": [ { "key": {...}, "update": { "status": 5 } } ] }
+        if isinstance(data, list):
+            results = []
+            for item in data:
+                key = item.get("key", {})
+                update = item.get("update", {})
+                msg_id = key.get("id")
+                if not msg_id:
+                    continue
+                # status=5 means message was deleted/revoked
+                if update.get("status") == 5:
+                    results.append({
+                        "action": "delete",
+                        "message_id": msg_id,
+                        "from_me": key.get("fromMe", False),
+                    })
+            return {"updates": results} if results else None
+
+        # --- Format 2: Single object with key + update ---
+        key = data.get("key", {})
+        update = data.get("update", {})
+        message = data.get("message", {})
+        msg_id = key.get("id")
+
+        if not msg_id:
+            return None
+
+        # Check for status=5 (revoke/delete)
+        if update.get("status") == 5:
+            return {
+                "updates": [{
+                    "action": "delete",
+                    "message_id": msg_id,
+                    "from_me": key.get("fromMe", False),
+                }]
+            }
+
+        # Check for protocolMessage (delete for everyone)
+        protocol = message.get("protocolMessage", {})
+        if protocol.get("type") in (0, "REVOKE"):
+            # The deleted message ID is in protocol.key.id
+            deleted_msg_id = protocol.get("key", {}).get("id")
+            if deleted_msg_id:
+                return {
+                    "updates": [{
+                        "action": "delete",
+                        "message_id": deleted_msg_id,
+                        "from_me": protocol.get("key", {}).get("fromMe", False),
+                    }]
+                }
+
+        return None
+
+    except Exception as exc:
+        logger.exception("Error parsing message_update payload: %s", exc)
         return None

@@ -115,13 +115,17 @@ def evolution_webhook(request: HttpRequest, event_suffix: str = "") -> HttpRespo
     # 5. Dispatch to Celery — async processing
     # -----------------------------------------------------------------
     try:
-        from gateways.tasks import process_evolution_webhook_task
-
-        process_evolution_webhook_task.delay(payload)
-        logger.info(
-            "Webhook payload enqueued for async processing (event=%s).",
-            event or "default",
-        )
+        if normalized_event == "messages_update":
+            from gateways.tasks import process_message_update_task
+            process_message_update_task.delay(payload)
+            logger.info("Webhook messages_update enqueued for async processing.")
+        else:
+            from gateways.tasks import process_evolution_webhook_task
+            process_evolution_webhook_task.delay(payload)
+            logger.info(
+                "Webhook payload enqueued for async processing (event=%s).",
+                event or "default",
+            )
     except Exception as exc:
         logger.exception("Failed to enqueue webhook task: %s", exc)
         return JsonResponse(

@@ -148,3 +148,46 @@ class DynamicFormForm(forms.ModelForm):
             "requires_login": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
             "show_on_portal": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
         }
+
+class UserAdminForm(forms.ModelForm):
+    """
+    Form for creating/editing users in the User Management section.
+    """
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(attrs={
+            "class": "jk-input",
+            "placeholder": "Leave blank to keep current, or type a new one",
+        }),
+        help_text="For new users, if left blank, it will default to 'RoCDesk123!'."
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "login_username", "username", "email", "nik", "role_access", 
+            "initials", "can_handle_confidential"
+        ]
+        widgets = {
+            "login_username": forms.TextInput(attrs={"class": "jk-input"}),
+            "username": forms.TextInput(attrs={"class": "jk-input"}),
+            "email": forms.EmailInput(attrs={"class": "jk-input"}),
+            "nik": forms.TextInput(attrs={"class": "jk-input"}),
+            "role_access": forms.Select(attrs={"class": "jk-input"}),
+            "initials": forms.TextInput(attrs={"class": "jk-input", "maxlength": "5"}),
+            "can_handle_confidential": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
+        }
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get("password")
+        
+        if password:
+            user.set_password(password)
+        elif not user.pk:
+            # If creating a new user and no password provided, set default
+            user.set_password("RoCDesk123!")
+            
+        if commit:
+            user.save()
+        return user

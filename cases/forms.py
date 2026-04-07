@@ -53,13 +53,26 @@ class CaseCreateForm(forms.Form):
         }),
     )
     category = forms.ModelChoiceField(
-        queryset=CaseCategory.objects.exclude(slug__in=["whatsapp-general", "email-general"]),
+        queryset=CaseCategory.objects.none(),
         label="Category",
         widget=forms.Select(attrs={
             "class": "jk-select pointer-events-none bg-slate-50 opacity-90",
             "tabindex": "-1"
         }),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only show leaf categories (exclude parents that have children)
+        parent_ids = CaseCategory.objects.filter(
+            parent__isnull=False
+        ).values_list("parent_id", flat=True)
+        self.fields["category"].queryset = (
+            CaseCategory.objects
+            .exclude(slug__in=["whatsapp-general", "email-general"])
+            .exclude(id__in=parent_ids)
+        )
+        self.fields["category"].label_from_instance = lambda obj: obj.name
     subject = forms.CharField(
         max_length=500,
         label="Subject",

@@ -21,7 +21,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.db.models import Q, F, Value, BooleanField, Case as DBCase, When, Exists, OuterRef
-from django.http import HttpResponseForbidden, HttpResponse
+from django.http import HttpResponseForbidden, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -39,7 +39,8 @@ from .models import Attachment, CaseCategory, CaseRecord, Message, CaseComment, 
 def staff_required(view_func):
     """
     Decorator to ensure user is authenticated AND has staff-level
-    role_access (SuperAdmin, Manager, or SupportDesk).
+    role_access (SuperAdmin, Manager, SupportDesk, or Auditor).
+    Auditor has Read-Only access (GET requests only).
     """
     @wraps(view_func)
     @login_required
@@ -50,9 +51,15 @@ def staff_required(view_func):
             User.RoleAccess.SUPERADMIN,
             User.RoleAccess.MANAGER,
             User.RoleAccess.SUPPORTDESK,
+            User.RoleAccess.AUDITOR,
         }
         if request.user.role_access not in allowed_roles:
             return HttpResponseForbidden("Insufficient role access.")
+            
+        # Enforce read-only for Auditor
+        if request.user.role_access == User.RoleAccess.AUDITOR and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return HttpResponseForbidden("Access denied. Auditors have read-only access.")
+            
         return view_func(request, *args, **kwargs)
     return _wrapped
 
@@ -630,6 +637,134 @@ def client_dashboard(request):
     return render(request, "client/dashboard.html", {"categories": categories, "portal_forms": portal_forms})
 
 
+@login_required
+@require_POST
+def create_category(request):
+    """
+    AJAX endpoint to create a new CaseCategory.
+    Only accessible by SuperAdmin users.
+    """
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return JsonResponse({"error": "Access denied."}, status=403)
+
+    name = request.POST.get("name", "").strip()
+    description = request.POST.get("description", "").strip()
+    icon = request.POST.get("icon", "").strip()
+    prefix_code = request.POST.get("prefix_code", "RQ").strip()[:2]
+    parent_id = request.POST.get("parent", "").strip()
+    is_confidential = request.POST.get("is_confidential") == "on"
+
+    if not name:
+        return JsonResponse({"error": "Category name is required."}, status=400)
+
+    parent = None
+    if parent_id:
+        parent = CaseCategory.objects.filter(id=parent_id).first()
+
+    try:
+        category = CaseCategory(
+            name=name,
+            description=description,
+            icon=icon or "📝",
+            prefix_code=prefix_code or "RQ",
+            parent=parent,
+            is_confidential=is_confidential,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        category.save()
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+    messages.success(request, f'Category "{name}" created successfully.')
+    return JsonResponse({"success": True, "id": str(category.id), "name": category.name})
+
+
+@login_required
+@require_POST
+def update_category(request, category_id):
+    """
+    AJAX endpoint to update a CaseCategory.
+    Only accessible by SuperAdmin users.
+    """
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return JsonResponse({"error": "Access denied."}, status=403)
+
+    category = get_object_or_404(CaseCategory, id=category_id)
+
+    name = request.POST.get("name", "").strip()
+    if not name:
+        return JsonResponse({"error": "Category name is required."}, status=400)
+
+    category.name = name
+    category.description = request.POST.get("description", "").strip()
+    category.icon = request.POST.get("icon", "").strip() or "📝"
+    category.prefix_code = request.POST.get("prefix_code", "RQ").strip()[:2] or "RQ"
+    category.is_confidential = request.POST.get("is_confidential") == "on"
+    category.updated_by = request.user
+
+    # Update parent
+    parent_id = request.POST.get("parent", "").strip()
+    if parent_id:
+        if str(category.id) == parent_id:
+            return JsonResponse({"error": "A category cannot be its own parent."}, status=400)
+        new_parent = CaseCategory.objects.filter(id=parent_id).first()
+        category.parent = new_parent
+    else:
+        category.parent = None
+
+    # Allow changing slug if name changed
+    new_slug = request.POST.get("slug", "").strip()
+    if new_slug and new_slug != category.slug:
+        if CaseCategory.objects.filter(slug=new_slug).exclude(id=category.id).exists():
+            return JsonResponse({"error": f'Slug "{new_slug}" is already in use.'}, status=400)
+        category.slug = new_slug
+
+    try:
+        category.save()
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+    messages.success(request, f'Category "{name}" updated successfully.')
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
+def delete_category(request, category_id):
+    """
+    AJAX endpoint to delete a CaseCategory.
+    Only accessible by SuperAdmin users.
+    Prevents deletion if category has associated tickets.
+    """
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return JsonResponse({"error": "Access denied."}, status=403)
+
+    category = get_object_or_404(CaseCategory, id=category_id)
+
+    # Check for associated tickets
+    ticket_count = CaseRecord.objects.filter(category=category).count()
+    if ticket_count > 0:
+        return JsonResponse({
+            "error": f'Cannot delete "{category.name}": {ticket_count} ticket(s) are using this category. '
+                     f'Please reassign them first.'
+        }, status=400)
+
+    # Check for children
+    children_count = category.children.count()
+    if children_count > 0:
+        return JsonResponse({
+            "error": f'Cannot delete "{category.name}": it has {children_count} sub-category(ies). '
+                     f'Please delete or move them first.'
+        }, status=400)
+
+    name = category.name
+    category.delete()
+
+    messages.success(request, f'Category "{name}" deleted successfully.')
+    return JsonResponse({"success": True})
+
+
 def category_children(request, slug):
     """
     Display sub-categories of a category at any level.
@@ -647,10 +782,18 @@ def category_children(request, slug):
         breadcrumbs.insert(0, node)
         node = node.parent
 
+    # All root categories for parent dropdown in edit modal
+    all_root_categories = (
+        CaseCategory.objects
+        .filter(parent__isnull=True)
+        .exclude(slug__in=["whatsapp-general", "email-general"])
+    )
+
     return render(request, "client/category_children.html", {
         "parent": parent,
         "children": children,
         "breadcrumbs": breadcrumbs,
+        "all_root_categories": all_root_categories,
     })
 
 
@@ -671,11 +814,15 @@ def create_case(request, slug=None):
             return redirect("cases:category_children", slug=slug)
         initial["category"] = selected_category
 
-    # Only show leaf categories (no children) in the form dropdown
+    # Only show leaf categories (no children) in the form dropdown.
+    # Exclude any category that has at least one child.
+    parent_ids = CaseCategory.objects.filter(
+        parent__isnull=False
+    ).values_list("parent_id", flat=True)
     categories_qs = (
         CaseCategory.objects
         .exclude(slug__in=["whatsapp-general", "email-general"])
-        .filter(children__isnull=True)
+        .exclude(id__in=parent_ids)
     )
     category_templates_json = json.dumps({
         str(c.id): c.template_text for c in categories_qs if c.template_text
@@ -1437,7 +1584,9 @@ def case_detail(request, case_id):
         "master_case": master,
         "company_units": CompanyUnit.objects.all(),
         "all_employees": Employee.objects.select_related("unit").all(),
-        "all_categories": CaseCategory.objects.select_related("parent").prefetch_related("children").all(),
+        "all_categories": CaseCategory.objects.select_related("parent").exclude(
+            id__in=CaseCategory.objects.filter(children__isnull=False).values("id")
+        ),
         "rca_templates": RCATemplate.objects.filter(
             Q(category=case.category) | Q(category__isnull=True)
         ).select_related("category"),

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}User Management | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_users %}jk-sidebar-link-active{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{
+    selected: [],
+    showImportModal: false,
+    checkAll: false,
+    toggleAll(event) {
+        const checkboxes = document.querySelectorAll('.user-row-check');
+        this.selected = event.target.checked ? [...checkboxes].map(cb => cb.value) : [];
+        checkboxes.forEach(cb => cb.checked = event.target.checked);
+    },
+    toggleOne(id, checked) {
+        if (checked) { if (!this.selected.includes(id)) this.selected.push(id); }
+        else { this.selected = this.selected.filter(v => v !== id); }
+    },
+    submitExport() {
+        const form = document.getElementById('bulk-action-export-form');
+        this.selected.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
+            form.appendChild(input);
+        });
+        form.submit();
+    },
+    submitBulkDelete() {
+        if (!confirm('Delete ' + this.selected.length + ' selected user(s)? This cannot be undone.')) return;
+        const form = document.getElementById('bulk-action-delete-form');
+        this.selected.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
+            form.appendChild(input);
+        });
+        form.submit();
+    }
+}">
+
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Header & Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-bold text-slate-900">User Management</h2>
+            <p class="text-sm text-slate-500 mt-1">Manage system users, access roles, and permissions.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- Download Template -->
+            <a href="{% url 'users_desk:user_import_template' %}"
+               class="jk-btn bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Template .xlsx
+            </a>
+            <!-- Import -->
+            <button @click="showImportModal = true"
+                    class="jk-btn bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                Import Excel
+            </button>
+            <!-- New User -->
+            <a href="{% url 'users_desk:user_create' %}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap">
+                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                New User
+            </a>
+        </div>
+    </div>
+
+    <!-- Bulk Action Bar (appears when rows selected) -->
+    <div x-show="selected.length > 0" x-cloak
+         class="flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-xl shadow-lg">
+        <span class="text-sm font-semibold" x-text="selected.length + ' user(s) selected'"></span>
+        <div class="flex items-center gap-2 ml-auto">
+            <!-- Export Selected -->
+            <button @click="submitExport()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Export Selected
+            </button>
+            <!-- Delete Selected -->
+            <button @click="submitBulkDelete()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete Selected
+            </button>
+            <button @click="selected = []; document.querySelectorAll('.user-row-check').forEach(cb => cb.checked = false);"
+                    class="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Clear selection">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden forms for bulk actions -->
+    <form id="bulk-action-export-form" method="post" action="{% url 'users_desk:user_export' %}" style="display:none">{% csrf_token %}</form>
+    <form id="bulk-action-delete-form" method="post" action="{% url 'users_desk:user_bulk_delete' %}" style="display:none">{% csrf_token %}</form>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <form method="get" class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1 w-full relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Search by username, email, NIK..." class="jk-input w-full pl-10">
+            </div>
+            <div class="w-full sm:w-48">
+                <select name="role" class="jk-input w-full">
+                    <option value="">All Roles</option>
+                    {% for value, label in role_choices %}
+                        <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="jk-btn jk-btn-secondary px-5 whitespace-nowrap">Filter</button>
+            {% if search_query or role_filter %}
+                <a href="{% url 'users_desk:user_list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 whitespace-nowrap">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto min-h-[50vh]">
+            <table class="jk-table">
+                <thead>
+                    <tr>
+                        <th class="w-10 px-4">
+                            <input type="checkbox" id="check-all"
+                                   class="rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                   @change="toggleAll($event)">
+                        </th>
+                        <th class="w-8"></th>
+                        <th>User</th>
+                        <th>Login ID &amp; NIK</th>
+                        <th>Role</th>
+                        <th>Confidential</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for u in users %}
+                    <tr class="hover:bg-slate-50/50 transition-colors" :class="selected.includes('{{ u.pk }}') ? 'bg-indigo-50/40' : ''">
+                        <td class="px-4 text-center">
+                            <input type="checkbox"
+                                   class="user-row-check rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                   value="{{ u.pk }}"
+                                   @change="toggleOne('{{ u.pk }}', $event.target.checked)">
+                        </td>
+                        <td class="text-center px-1">
+                            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-xs font-bold ring-2 ring-white">
+                                {{ u.initials|default:"?" }}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="font-semibold text-slate-900">{{ u.username }}</div>
+                            <div class="text-xs text-slate-500">{{ u.email }}</div>
+                        </td>
+                        <td>
+                            <div class="text-sm font-medium text-slate-700">{{ u.login_username }}</div>
+                            <div class="text-xs text-slate-500">NIK: {{ u.nik|default:"-" }}</div>
+                        </td>
+                        <td>
+                            {% if u.role_access == 'SuperAdmin' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">{{ u.get_role_access_display }}</span>
+                            {% elif u.role_access == 'Manager' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">{{ u.get_role_access_display }}</span>
+                            {% elif u.role_access == 'Auditor' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800 border border-sky-200">{{ u.get_role_access_display }}</span>
+                            {% elif u.role_access == 'PortalUser' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 border border-teal-200">{{ u.get_role_access_display }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">{{ u.get_role_access_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.can_handle_confidential %}
+                                <span class="text-green-600 text-sm font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Yes</span>
+                            {% else %}
+                                <span class="text-slate-400 text-sm">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <div class="flex items-center justify-end gap-2 pr-4">
+                                <a href="{% url 'users_desk:user_edit' pk=u.pk %}" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit User">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </a>
+                                {% if request.user != u %}
+                                <form method="post" action="{% url 'users_desk:user_delete' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete User">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-500">
+                            {% if search_query or role_filter %}
+                            No users found matching your filters.
+                            {% else %}
+                            No users available.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if users.has_other_pages %}
+        <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-sm text-slate-500">
+                Showing {{ users.start_index }} to {{ users.end_index }} of {{ users.paginator.count }} entries
+            </span>
+            <div class="flex items-center gap-1">
+                {% if users.has_previous %}
+                    <a href="?page={{ users.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-400 hover:text-indigo-600 rounded">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </a>
+                {% endif %}
+                {% for i in users.paginator.page_range %}
+                    {% if users.number == i %}
+                        <span class="px-3 py-1 bg-indigo-50 text-indigo-600 font-semibold rounded-lg text-sm">{{ i }}</span>
+                    {% elif i > users.number|add:'-3' and i < users.number|add:'3' %}
+                        <a href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="px-3 py-1 text-slate-500 hover:bg-slate-50 font-medium rounded-lg text-sm transition-colors">{{ i }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if users.has_next %}
+                    <a href="?page={{ users.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-400 hover:text-indigo-600 rounded">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Import Excel Modal — inside x-data scope so showImportModal is accessible -->
+    <div x-show="showImportModal" x-cloak
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md" @click.outside="showImportModal = false">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                    Import Users from Excel
+                </h3>
+                <button @click="showImportModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form method="post" action="{% url 'users_desk:user_import' %}" enctype="multipart/form-data" class="p-6 space-y-4">
+                {% csrf_token %}
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                    <p class="font-semibold mb-1">⚠️ Before importing:</p>
+                    <ul class="list-disc list-inside space-y-0.5 text-xs">
+                        <li>Use the <a href="{% url 'users_desk:user_import_template' %}" class="underline font-medium">Excel template (.xlsx)</a> to ensure correct column format.</li>
+                        <li>Duplicate <code>login_username</code>, <code>email</code>, or <code>nik</code> will cause the entire import to fail (no partial saves).</li>
+                        <li>New users will be assigned the default password: <code class="font-mono bg-amber-100 px-1 rounded">RoCDesk123!</code></li>
+                        <li>Valid roles: SuperAdmin, Manager, SupportDesk, Auditor, PortalUser.</li>
+                    </ul>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Select Excel File (.xlsx)</label>
+                    <input type="file" name="csv_file" accept=".xlsx" required
+                           class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-slate-200 rounded-xl p-1">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showImportModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                    <button type="submit" class="jk-btn jk-btn-primary">
+                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                        Import Now
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div><!-- end x-data -->
+{% endblock %}
+

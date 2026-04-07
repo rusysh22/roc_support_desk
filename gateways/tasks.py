@@ -63,6 +63,20 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             # The parser already logs the specific ignore reason
             return "ignored:parsed_none"
 
+        # Handle protocolMessage (delete/revoke) detected in messages_upsert
+        if parsed_data.get("protocol_action") == "delete":
+            target_id = parsed_data.get("protocol_target_id")
+            if target_id:
+                updated = Message.objects.filter(
+                    external_id=target_id,
+                    is_deleted=False,
+                ).update(is_deleted=True)
+                if updated:
+                    logger.info("Message %s marked as deleted via protocolMessage in upsert.", target_id)
+                    return f"processed:delete:{target_id}"
+                logger.debug("Delete target %s not found or already deleted.", target_id)
+            return "ignored:protocol_delete_no_target"
+
         sender_phone: str = parsed_data["sender_number"]
         sender_name: Optional[str] = parsed_data["sender_name"]
         message_body: str = parsed_data["message_text"] or ""
@@ -152,12 +166,37 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         quoted_msg_obj = None  # For storing the quoted_message FK
         # quoted_id is already extracted via the parser
 
+        # If parser didn't find quoted_id, try fetching from Evolution API
+        if not quoted_id and external_id:
+            remote_jid = parsed_data.get("remote_jid", "")
+            if remote_jid:
+                logger.info("No quoted_id from parser, fetching message %s from Evolution API...", external_id)
+                full_msg = svc.find_message_by_id(remote_jid, external_id)
+                if full_msg:
+                    full_message = full_msg.get("message", {})
+                    # Check extendedTextMessage.contextInfo
+                    ext_text = full_message.get("extendedTextMessage", {})
+                    if ext_text and "contextInfo" in ext_text:
+                        quoted_id = ext_text["contextInfo"].get("stanzaId")
+                    # Check media messages
+                    if not quoted_id:
+                        for mk in ("imageMessage", "videoMessage", "documentMessage", "audioMessage"):
+                            media_msg = full_message.get(mk, {})
+                            if media_msg and "contextInfo" in media_msg:
+                                quoted_id = media_msg["contextInfo"].get("stanzaId")
+                                break
+                    if quoted_id:
+                        logger.info("Quoted message found via Evolution API fetch: stanzaId=%s", quoted_id)
+
         if quoted_id:
+            logger.info("Looking up quoted message with external_id=%s", quoted_id)
             orig_msg = Message.objects.filter(external_id=quoted_id).first()
             if orig_msg:
                 active_case = orig_msg.case
                 quoted_msg_obj = orig_msg
                 logger.info("Threaded WA reply via quoted message %s to case %s.", quoted_id, active_case.case_number)
+            else:
+                logger.warning("Quoted message external_id=%s not found in database.", quoted_id)
         
         if not active_case:
             from django.db.models import Q
@@ -317,10 +356,22 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 
                 time.sleep(sleep_duration)
                 
-                svc.send_whatsapp_message(sender_phone, ack_text)
+                ack_response = svc.send_whatsapp_message(sender_phone, ack_text)
+                # Save auto-reply as Message so reply-quotes can find it
+                ack_ext_id = ""
+                if ack_response:
+                    ack_ext_id = ack_response.get("key", {}).get("id", "")
+                Message.objects.create(
+                    case=case,
+                    body=ack_text,
+                    direction=Message.Direction.OUTBOUND,
+                    channel=Message.Channel.WHATSAPP,
+                    external_id=ack_ext_id,
+                    delivery_status=Message.DeliveryStatus.SUCCESS if ack_response else Message.DeliveryStatus.FAILED,
+                )
                 logger.info(
-                    "Sent WA acknowledgment for case %s to %s",
-                    case.case_number, sender_phone,
+                    "Sent WA acknowledgment for case %s to %s (ext_id=%s)",
+                    case.case_number, sender_phone, ack_ext_id,
                 )
             except Exception as ack_exc:
                 logger.warning(
@@ -343,6 +394,67 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 "Payload external_id: %s",
                 payload.get("data", {}).get("key", {}).get("id", "unknown"),
             )
+            return "error:max_retries_exceeded"
+        return "error:retrying"
+
+
+# =====================================================================
+# Message Update Handler (Delete / Revoke from WhatsApp)
+# =====================================================================
+
+@shared_task(
+    bind=True,
+    name="gateways.process_message_update_task",
+    max_retries=2,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def process_message_update_task(self, payload: dict[str, Any]) -> str:
+    """
+    Process Evolution API ``messages_update`` webhook.
+
+    Handles:
+    - Message deleted/revoked by WhatsApp user → mark is_deleted=True
+    """
+    from cases.models import Message
+    from gateways.parsers import parse_message_update
+
+    try:
+        parsed = parse_message_update(payload)
+        if not parsed:
+            logger.debug("messages_update ignored — no actionable updates.")
+            return "ignored:no_updates"
+
+        processed = 0
+        for update in parsed.get("updates", []):
+            action = update.get("action")
+            msg_ext_id = update.get("message_id")
+
+            if action == "delete" and msg_ext_id:
+                updated = Message.objects.filter(
+                    external_id=msg_ext_id,
+                    is_deleted=False,
+                ).update(is_deleted=True)
+
+                if updated:
+                    logger.info(
+                        "Message %s marked as deleted (revoked by sender).",
+                        msg_ext_id,
+                    )
+                    processed += 1
+                else:
+                    logger.debug(
+                        "Message %s not found or already deleted.",
+                        msg_ext_id,
+                    )
+
+        return f"processed:{processed}_updates"
+
+    except Exception as exc:
+        logger.exception("Error processing messages_update: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
             return "error:max_retries_exceeded"
         return "error:retrying"
 
