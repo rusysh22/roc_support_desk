@@ -202,7 +202,7 @@ class CaseRCAForm(forms.ModelForm):
                 "placeholder": "Step-by-step solution applied...",
                 "maxlength": "1500",
             }),
-            "assigned_to": forms.Select(attrs={"class": "jk-select"}),
+            "assigned_to": forms.Select(attrs={"class": "jk-select jk-select-search w-full"}),
             "response_due_at": forms.DateTimeInput(attrs={
                 "class": "jk-input",
                 "type": "datetime-local",
@@ -215,6 +215,17 @@ class CaseRCAForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        # Scope the assigned_to field
+        if "assigned_to" in self.fields:
+            self.fields["assigned_to"].queryset = User.objects.filter(
+                is_staff=True, is_active=True
+            ).exclude(
+                role_access__in=[User.RoleAccess.AUDITOR, User.RoleAccess.PORTALUSER]
+            ).order_by("first_name", "username")
+
         # If the case is already Closed, make all fields read-only
         # UNLESS the edit permission status is 'Approved'
         if (self.instance and 

@@ -36,6 +36,10 @@
         {% else %}
         <span class="jk-badge jk-badge-web">Web</span>
         {% endif %}
+        
+        {% if case.hold_wa_session %}
+        <span class="jk-badge bg-amber-100 text-amber-800 border-amber-200 ml-1">⏸️ Held</span>
+        {% endif %}
     </td>
     <td class="jk-col-requester hidden">
         <span class="jk-col-requester__name">{{ case.requester.full_name|default:"Unknown" }}</span>
@@ -109,6 +113,10 @@
         <span class="jk-badge jk-badge-email">Email</span>
         {% else %}
         <span class="jk-badge jk-badge-web">Web</span>
+        {% endif %}
+        
+        {% if case.hold_wa_session %}
+        <span class="jk-badge bg-amber-100 text-amber-800 border-amber-200 ml-1">⏸️ Held</span>
         {% endif %}
     </td>
     <!-- Mobile-only requester row (visible in card layout, hidden in desktop table) -->

@@ -1209,7 +1209,9 @@ def case_list(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
     
-    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    assignees = User.objects.filter(is_staff=True, is_active=True).exclude(
+        role_access__in=[User.RoleAccess.AUDITOR, User.RoleAccess.PORTALUSER]
+    ).order_by("first_name", "username")
     all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
 
     return render(request, "admin/case_list.html", {
@@ -1491,8 +1493,9 @@ def case_bulk_action(request):
             try:
                 master = CaseRecord.objects.get(id=master_id)
                 # Exclude the master itself from being set as its own sub-ticket
-                sub_tickets = cases_qs.exclude(id=master_id)
-                sub_tickets.update(master_ticket=master)
+                # Also ensure only Open tickets can be merged into a master ticket
+                sub_tickets = cases_qs.exclude(id=master_id).filter(status=CaseRecord.Status.OPEN)
+                sub_tickets.update(master_ticket=master, status=master.status)
             except CaseRecord.DoesNotExist:
                 pass
 
@@ -1862,6 +1865,8 @@ def case_update_rca(request, case_id):
                         )
 
                 case.save()
+                if case.sub_tickets.exists():
+                    case.sub_tickets.update(status=case.status, updated_by=request.user)
                 form.save_m2m() # Important for followers
                 # Check if we should notify about assignment change during RCA save
 
@@ -1922,7 +1927,14 @@ def case_update_rca(request, case_id):
                         created_by=request.user,
                     )
 
+            if case.status == CaseRecord.Status.INVESTIGATING:
+                case.hold_wa_session = True
+            elif case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
+                case.hold_wa_session = False
+
             case.save()
+            if case.sub_tickets.exists():
+                case.sub_tickets.update(status=case.status, updated_by=request.user)
             form.save_m2m() # Important for followers
 
             if 'assigned_to' in form.changed_data and case.assigned_to:
@@ -2403,8 +2415,16 @@ def case_update_status(request, case_id):
         return render(request, "partials/closure_modal.html", {"case": case})
 
     case.status = new_status
+    if new_status == CaseRecord.Status.INVESTIGATING:
+        case.hold_wa_session = True
+    elif new_status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
+        case.hold_wa_session = False
+        
     case.updated_by = request.user
-    case.save(update_fields=["status", "updated_at", "updated_by"])
+    case.save(update_fields=["status", "hold_wa_session", "updated_at", "updated_by"])
+    
+    if case.sub_tickets.exists():
+        case.sub_tickets.update(status=new_status, updated_at=case.updated_at, updated_by=request.user)
 
     return HttpResponse(status=204)
 
@@ -2428,8 +2448,12 @@ def case_close_and_notify(request, case_id):
         
     # Mark the case as closed
     case.status = CaseRecord.Status.CLOSED
+    case.hold_wa_session = False
     case.updated_by = request.user
-    case.save(update_fields=["status", "updated_at", "updated_by"])
+    case.save(update_fields=["status", "hold_wa_session", "updated_at", "updated_by"])
+    
+    if case.sub_tickets.exists():
+        case.sub_tickets.update(status=CaseRecord.Status.CLOSED, updated_at=case.updated_at, updated_by=request.user)
     
     # Determine the reply channel based on the source
     reply_channel = Message.Channel.WEB

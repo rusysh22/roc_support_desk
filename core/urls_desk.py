@@ -17,4 +17,8 @@ urlpatterns = [
     path("import/template/", views_user.user_import_template, name="user_import_template"),
     path("import/", views_user.user_import, name="user_import"),
     path("bulk-delete/", views_user.user_bulk_delete, name="user_bulk_delete"),
+    path("bulk-archive/", views_user.user_bulk_archive, name="user_bulk_archive"),
+    path("bulk-unarchive/", views_user.user_bulk_unarchive, name="user_bulk_unarchive"),
+    path("<int:pk>/archive/", views_user.user_archive, name="user_archive"),
+    path("<int:pk>/unarchive/", views_user.user_unarchive, name="user_unarchive"),
 ]

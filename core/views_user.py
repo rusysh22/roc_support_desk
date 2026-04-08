@@ -41,8 +41,14 @@ def user_list(request):
     """List all users."""
     search = request.GET.get("q", "").strip()
     role_filter = request.GET.get("role", "")
+    status_filter = request.GET.get("status", "active") # Default to active
 
     qs = User.objects.all().order_by("login_username")
+
+    if status_filter == "active":
+        qs = qs.filter(is_active=True)
+    elif status_filter == "archived":
+        qs = qs.filter(is_active=False)
 
     if search:
         qs = qs.filter(
@@ -61,6 +67,7 @@ def user_list(request):
         "users": page,
         "search_query": search,
         "role_filter": role_filter,
+        "status_filter": status_filter,
         "role_choices": User.RoleAccess.choices,
     })
 
@@ -374,5 +381,68 @@ def user_bulk_delete(request):
     if skipped:
         msg += f" {skipped} skipped (your own account cannot be deleted)."
     messages.success(request, msg)
+    return redirect("users_desk:user_list")
+
+
+@superadmin_required
+@require_POST
+def user_bulk_archive(request):
+    """Bulk archive selected users."""
+    selected_ids = request.POST.getlist("selected_ids")
+    if not selected_ids:
+        messages.warning(request, "No users selected for archiving.")
+        return redirect("users_desk:user_list")
+
+    qs = User.objects.filter(pk__in=selected_ids).exclude(pk=request.user.pk)
+    count = qs.count()
+    qs.update(is_active=False)
+
+    skipped = len(selected_ids) - count
+    msg = f"Archived {count} user(s)."
+    if skipped:
+        msg += f" {skipped} skipped (you cannot archive yourself)."
+    messages.success(request, msg)
+    return redirect("users_desk:user_list")
+
+
+@superadmin_required
+@require_POST
+def user_bulk_unarchive(request):
+    """Bulk unarchive selected users."""
+    selected_ids = request.POST.getlist("selected_ids")
+    if not selected_ids:
+        messages.warning(request, "No users selected for unarchiving.")
+        return redirect("users_desk:user_list")
+
+    qs = User.objects.filter(pk__in=selected_ids)
+    count = qs.count()
+    qs.update(is_active=True)
+
+    messages.success(request, f"Unarchived {count} user(s).")
+    return redirect("users_desk:user_list")
+
+
+@superadmin_required
+@require_POST
+def user_archive(request, pk):
+    """Archive a single user."""
+    user_obj = get_object_or_404(User, pk=pk)
+    if user_obj == request.user:
+        messages.error(request, "You cannot archive your own account.")
+    else:
+        user_obj.is_active = False
+        user_obj.save()
+        messages.success(request, f'User "{user_obj.login_username}" archived.')
+    return redirect("users_desk:user_list")
+
+
+@superadmin_required
+@require_POST
+def user_unarchive(request, pk):
+    """Unarchive a single user."""
+    user_obj = get_object_or_404(User, pk=pk)
+    user_obj.is_active = True
+    user_obj.save()
+    messages.success(request, f'User "{user_obj.login_username}" unarchived.')
     return redirect("users_desk:user_list")
 

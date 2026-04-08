@@ -84,3 +84,16 @@ urlpatterns = [
     path("notifications/", views.notification_bell, name="notifications"),
     path("notifications/<str:notif_type>/<str:notif_id>/read/", views.mark_notification_read, name="mark_notification_read"),
 ]
+
+# Import the CompanyUnit CRUD from core.views
+from core.views import (
+    CompanyUnitListView, CompanyUnitCreateView, CompanyUnitUpdateView, CompanyUnitDeleteView
+)
+
+urlpatterns += [
+    # Company Units Master Data
+    path("company-units/", CompanyUnitListView.as_view(), name="company_unit_list"),
+    path("company-units/create/", CompanyUnitCreateView.as_view(), name="company_unit_create"),
+    path("company-units/<uuid:pk>/edit/", CompanyUnitUpdateView.as_view(), name="company_unit_edit"),
+    path("company-units/<uuid:pk>/delete/", CompanyUnitDeleteView.as_view(), name="company_unit_delete"),
+]

@@ -18,6 +18,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+    <!-- Tom Select (Searchable Dropdown) -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -135,6 +138,10 @@
             
             {% if user.role_access == 'SuperAdmin' %}
             <div class="jk-sidebar-section">Master Data</div>
+            <a href="{% url 'desk:company_unit_list' %}" class="jk-sidebar-link {% block nav_company_units %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">🏢</span>
+                <span>Company Units</span>
+            </a>
             <a href="{% url 'users_desk:user_list' %}" class="jk-sidebar-link {% block nav_users %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">👥</span>
                 <span>User Management</span>
@@ -402,6 +409,30 @@
     <script>
         document.body.addEventListener('htmx:configRequest', (event) => {
             event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+    
+    <!-- Tom Select Script & Initialization -->
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll('.jk-select-search').forEach((el) => {
+                new TomSelect(el, {
+                    create: false,
+                    sortField: {
+                        field: "text",
+                        direction: "asc"
+                    }
+                });
+            });
+            // Re-initialize for dynamically inserted forms via HTMX
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                evt.detail.target.querySelectorAll('.jk-select-search').forEach((el) => {
+                    if (!el.tomselect) {
+                        new TomSelect(el, { create: false, sortField: { field: "text", direction: "asc" } });
+                    }
+                });
+            });
         });
     </script>
 </body>

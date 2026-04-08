@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ object.code }} | {{ site_config.site_name }}{% endblock %}
+{% block page_title %}Delete Company Unit{% endblock %}
+{% block nav_company_units %}active{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-12 px-4 animate-fade-in-up flex items-center justify-center min-h-[50vh]">
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl border border-red-200 shadow-xl overflow-hidden text-center w-full max-w-lg p-8 space-y-6">
+        
+        <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center text-red-500 text-3xl">
+            ⚠️
+        </div>
+
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">Confirm Deletion</h2>
+            <p class="text-slate-500 mt-2">
+                Are you sure you want to delete the company unit 
+                <span class="font-bold text-slate-800">"{{ object.code }} - {{ object.name }}"</span>?
+            </p>
+            <p class="text-sm font-medium text-red-500 mt-2 bg-red-50 p-2 rounded border border-red-100">
+                This action cannot be undone. Make sure no users or cases are currently linked to this unit.
+            </p>
+        </div>
+
+        <form method="post" class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-3">
+            {% csrf_token %}
+            <a href="{% url 'desk:company_unit_list' %}" class="jk-button w-full sm:w-auto px-6 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium transition-colors">
+                Cancel, keep it
+            </a>
+            <button type="submit" class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2.5 border border-transparent font-medium rounded-xl text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-500/30 transition-all">
+                Yes, delete it
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

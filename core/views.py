@@ -183,3 +183,73 @@ def submit_feedback(request):
     )
     messages.success(request, "Thank you! Your feedback has been submitted.")
     return redirect("help_about")
+
+
+# =====================================================================
+# Company Units Management (SuperAdmin only)
+# =====================================================================
+
+from django.urls import reverse_lazy
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.messages.views import SuccessMessageMixin
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django import forms
+from .models import CompanyUnit
+
+class SuperAdminRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.role_access == 'SuperAdmin'
+
+class CompanyUnitForm(forms.ModelForm):
+    class Meta:
+        model = CompanyUnit
+        fields = ['name', 'code']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Information Technology'}),
+            'code': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
+        }
+
+class CompanyUnitListView(SuperAdminRequiredMixin, ListView):
+    model = CompanyUnit
+    template_name = 'core/company_unit_list.html'
+    context_object_name = 'company_units'
+    paginate_by = 50
+    
+    def get_queryset(self):
+        qs = CompanyUnit.objects.all().order_by('code')
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(name__icontains=q) | qs.filter(code__icontains=q)
+        return qs
+
+class CompanyUnitCreateView(SuperAdminRequiredMixin, SuccessMessageMixin, CreateView):
+    model = CompanyUnit
+    form_class = CompanyUnitForm
+    template_name = 'core/company_unit_form.html'
+    success_url = reverse_lazy('desk:company_unit_list')
+    success_message = "Company unit created successfully"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.updated_by = self.request.user
+        return super().form_valid(form)
+
+class CompanyUnitUpdateView(SuperAdminRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = CompanyUnit
+    form_class = CompanyUnitForm
+    template_name = 'core/company_unit_form.html'
+    success_url = reverse_lazy('desk:company_unit_list')
+    success_message = "Company unit updated successfully"
+
+    def form_valid(self, form):
+        form.instance.updated_by = self.request.user
+        return super().form_valid(form)
+
+class CompanyUnitDeleteView(SuperAdminRequiredMixin, DeleteView):
+    model = CompanyUnit
+    template_name = 'core/company_unit_confirm_delete.html'
+    success_url = reverse_lazy('desk:company_unit_list')
+    
+    def delete(self, request, *args, **kwargs):
+        messages.success(self.request, "Company unit deleted successfully")
+        return super().delete(request, *args, **kwargs)
