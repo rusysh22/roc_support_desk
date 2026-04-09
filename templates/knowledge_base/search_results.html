@@ -2,79 +2,189 @@
 {% load static %}
 {% load kb_tags %}
 
-{% block title %}Search Results for "{{ query }}" - Knowledge Base{% endblock %}
+{% block title %}{% if query %}Search Results for "{{ query }}"{% else %}Search Articles{% endif %} - Knowledge Base{% endblock %}
 
 {% block main_class %}bg-slate-50{% endblock %}
 
+{% block extra_head %}
+<style>
+    .kb-result-card:hover .kb-result-arrow { opacity: 1; transform: translateX(0); }
+    .kb-result-arrow { opacity: 0; transform: translateX(-6px); transition: all 0.2s; }
+    mark { background: #fef08a; color: #713f12; padding: 0.1rem 0.25rem; border-radius: 0.25rem; font-weight: 600; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    
-    <!-- Hero / Small Search Section -->
-    <div class="bg-indigo-900 rounded-3xl p-8 mb-8 shadow-md relative overflow-hidden">
-        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNykiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)] z-0"></div>
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ===== BREADCRUMBS ===== -->
+    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-500">
+        <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Knowledge Base
+        </a>
+        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+        <span class="text-slate-700 font-semibold">Pencarian</span>
+    </nav>
+
+    <!-- ===== SEARCH HERO ===== -->
+    <div class="bg-gradient-to-br from-[#170130] to-indigo-900 rounded-2xl p-6 md:p-8 mb-8 shadow-xl relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 transform translate-x-1/4 -translate-y-1/4 pointer-events-none"></div>
         <div class="relative z-10">
-            <h1 class="text-2xl font-bold text-white mb-6">Search Knowledge Base</h1>
-            <form action="{% url 'knowledge_base:search' %}" method="get" class="max-w-3xl relative group">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <h1 class="text-xl font-bold text-white mb-4">Search Knowledge Base</h1>
+            <form action="{% url 'knowledge_base:search' %}" method="get">
+                <div class="flex items-center bg-white rounded-xl shadow-lg overflow-hidden border-2 border-transparent focus-within:border-indigo-400 transition-all max-w-3xl">
+                    <div class="pl-4 pr-2 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <input type="text" name="q" value="{{ query }}" placeholder="Type a keyword to search..."
+                        class="flex-1 py-3.5 text-base text-slate-900 bg-transparent outline-none placeholder-slate-400">
+                    <button type="submit" class="m-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                        Search
+                    </button>
                 </div>
-                <input type="text" name="q" value="{{ query }}" placeholder="Search articles..." 
-                    class="w-full pl-11 pr-24 py-3 rounded-lg text-base text-slate-900 bg-white border-2 border-transparent focus:border-indigo-400 focus:ring-0 transition-all outline-none shadow-sm" required>
-                <button type="submit" class="absolute inset-y-1.5 right-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition-colors shadow-sm">
-                    Search
-                </button>
             </form>
+
+            <!-- Search tips -->
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-indigo-300">
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Tip: Use specific keywords for better results
+                </span>
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Search by title, problem description, or solution
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- Results Header -->
-    <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-slate-900">
-            {% if query %}
-                Results for "<span class="text-indigo-600">{{ query }}</span>"
-            {% else %}
-                Search Results
-            {% endif %}
-        </h2>
-        <span class="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{{ results|length }} found</span>
+    <!-- ===== RESULTS HEADER ===== -->
+    {% if query %}
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+            <h2 class="text-lg font-bold text-slate-900">
+                Results for &ldquo;<span class="text-indigo-600">{{ query }}</span>&rdquo;
+            </h2>
+            <p class="text-sm text-slate-500 mt-0.5">
+                {% if results %}
+                Found {{ results|length }} relevant article{{ results|length|pluralize }}
+                {% else %}
+                No articles found
+                {% endif %}
+            </p>
+        </div>
+        {% if results %}
+        <span class="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 rounded-xl text-sm font-bold">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            {{ results|length }} article{{ results|length|pluralize }}
+        </span>
+        {% endif %}
     </div>
+    {% endif %}
 
-    <!-- Search Results List -->
-    <div class="space-y-4">
+    <!-- ===== RESULTS LIST ===== -->
+    <div class="space-y-3">
         {% if results %}
             {% for article in results %}
-            <a href="{% url 'knowledge_base:article_detail' article.slug %}" class="block group">
-                <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-200">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">{{ article.category.name }}</span>
+            <a href="{% url 'knowledge_base:article_detail' article.slug %}" class="kb-result-card block group">
+                <div class="bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md shadow-sm transition-all duration-200 p-5 md:p-6">
+                    <!-- Category + Type badges -->
+                    <div class="flex flex-wrap items-center gap-2 mb-2.5">
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                            {{ article.category.name }}
+                        </span>
+                        {% if article.article_type == 'Announcement' %}
+                        <span class="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">Announcement</span>
+                        {% else %}
+                        <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">Issue Handling</span>
+                        {% endif %}
                     </div>
-                    <h3 class="text-lg font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-tight transition-colors">{{ article.title|highlight:query }}</h3>
-                    <p class="text-slate-600 text-sm mb-4 line-clamp-3 md:pr-12">
+
+                    <!-- Title with highlight -->
+                    <h3 class="text-base md:text-lg font-bold text-slate-800 group-hover:text-indigo-600 mb-2 leading-snug transition-colors">
+                        {{ article.title|highlight:query }}
+                    </h3>
+
+                    <!-- Snippet with highlight -->
+                    <p class="text-slate-500 text-sm leading-relaxed line-clamp-3">
                         {{ article.problem_summary|highlight:query }}
                     </p>
-                    <div class="flex items-center text-xs font-medium text-slate-400 gap-4">
-                        <span>Updated: {{ article.updated_at|date:"M d, Y" }}</span>
-                        <!-- Visual indicator that it's clickable -->
-                        <span class="text-indigo-600 ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                            Read full article <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+
+                    <!-- Footer row -->
+                    <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                            <span class="flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                {{ article.updated_at|date:"d M Y" }}
+                            </span>
+                            {% for tag in article.tags.all|slice:":3" %}
+                            <span class="bg-slate-100 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
+                            {% endfor %}
+                        </div>
+                        <span class="kb-result-arrow flex items-center gap-1 text-xs font-semibold text-indigo-600">
+                            Read article
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </span>
                     </div>
                 </div>
             </a>
             {% endfor %}
+
         {% else %}
             {% if query %}
-            <div class="bg-white rounded-xl p-12 text-center border border-slate-200 shadow-sm">
-                <div class="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-400">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <!-- Empty State -->
+            <div class="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
+                <div class="w-20 h-20 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center mb-5">
+                    <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
                 </div>
-                <h3 class="text-lg font-bold text-slate-900 mb-2">No matching articles</h3>
-                <p class="text-slate-500 max-w-md mx-auto">We couldn't find anything matching "{{ query }}". Try using different keywords, checking your spelling, or browsing by category.</p>
-                
-                <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 mt-6 px-6 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium rounded-lg transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    Back to Categories
-                </a>
+                <h3 class="text-xl font-bold text-slate-900 mb-2">No results found</h3>
+                <p class="text-slate-500 max-w-sm mx-auto text-sm leading-relaxed mb-6">
+                    We couldn't find any articles matching "<strong class="text-slate-700">{{ query }}</strong>". Try different keywords or check your spelling.
+                </p>
+
+                <!-- Suggestions -->
+                <div class="bg-slate-50 rounded-xl p-5 max-w-md mx-auto text-left mb-6">
+                    <p class="text-sm font-semibold text-slate-700 mb-3">Search suggestions:</p>
+                    <ul class="space-y-2 text-sm text-slate-500">
+                        <li class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            Try using more general keywords
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            Check the spelling of your keywords
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            Browse by category instead
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                    <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                        Browse Categories
+                    </a>
+                    <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl transition-colors shadow-sm">
+                        Open a Support Ticket
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <!-- No query yet -->
+            <div class="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
+                <div class="w-16 h-16 bg-indigo-50 rounded-2xl mx-auto flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-800 mb-1">Start your search</h3>
+                <p class="text-slate-500 text-sm">Type a keyword in the search box above to find the articles you're looking for.</p>
             </div>
             {% endif %}
         {% endif %}
