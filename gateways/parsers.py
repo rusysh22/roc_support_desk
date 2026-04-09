@@ -278,65 +278,77 @@ def parse_message_update(payload: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Parse Evolution API ``messages_update`` webhook payload.
 
-    Handles message status changes such as:
-    - Message deleted by sender (protocolMessage REVOKE or status=5)
+    Handles message status changes:
+    - status=1  → sent (single checkmark)
+    - status=2  → delivered (double checkmark)
+    - status=3  → read (blue checkmark)
+    - status=4  → played (audio listened)
+    - status=5  → deleted/revoked
+    - protocolMessage REVOKE → deleted for everyone
 
-    Returns a dict with ``action`` and relevant IDs, or None if irrelevant.
+    Returns a dict with ``updates`` list, or None if irrelevant.
     """
+    # Map Evolution API numeric status → delivery action
+    STATUS_MAP = {
+        1: "sent",
+        2: "delivered",
+        3: "read",
+        4: "played",
+        5: "delete",
+    }
+
+    def _classify_item(key: dict, update: dict, message: dict) -> Optional[dict]:
+        msg_id = key.get("id")
+        if not msg_id or not key.get("fromMe", False):
+            # Only track status updates for messages WE sent (fromMe=True)
+            # Ignore incoming message status changes
+            status_val = update.get("status")
+            if update.get("status") == 5:
+                # But always handle delete even for incoming
+                return {"action": "delete", "message_id": msg_id, "from_me": False}
+            return None
+
+        status_val = update.get("status")
+        action = STATUS_MAP.get(status_val)
+        if action:
+            return {"action": action, "message_id": msg_id, "from_me": True}
+
+        # Check for protocolMessage (delete for everyone)
+        protocol = message.get("protocolMessage", {})
+        if protocol.get("type") in (0, "REVOKE"):
+            deleted_msg_id = protocol.get("key", {}).get("id")
+            if deleted_msg_id:
+                return {
+                    "action": "delete",
+                    "message_id": deleted_msg_id,
+                    "from_me": protocol.get("key", {}).get("fromMe", False),
+                }
+
+        return None
+
     try:
         data = payload.get("data", payload)
 
         # --- Format 1: Array of updates (Evolution API v2) ---
-        # payload: { "data": [ { "key": {...}, "update": { "status": 5 } } ] }
         if isinstance(data, list):
             results = []
             for item in data:
                 key = item.get("key", {})
                 update = item.get("update", {})
-                msg_id = key.get("id")
-                if not msg_id:
-                    continue
-                # status=5 means message was deleted/revoked
-                if update.get("status") == 5:
-                    results.append({
-                        "action": "delete",
-                        "message_id": msg_id,
-                        "from_me": key.get("fromMe", False),
-                    })
+                message = item.get("message", {})
+                result = _classify_item(key, update, message)
+                if result:
+                    results.append(result)
             return {"updates": results} if results else None
 
         # --- Format 2: Single object with key + update ---
         key = data.get("key", {})
         update = data.get("update", {})
         message = data.get("message", {})
-        msg_id = key.get("id")
 
-        if not msg_id:
-            return None
-
-        # Check for status=5 (revoke/delete)
-        if update.get("status") == 5:
-            return {
-                "updates": [{
-                    "action": "delete",
-                    "message_id": msg_id,
-                    "from_me": key.get("fromMe", False),
-                }]
-            }
-
-        # Check for protocolMessage (delete for everyone)
-        protocol = message.get("protocolMessage", {})
-        if protocol.get("type") in (0, "REVOKE"):
-            # The deleted message ID is in protocol.key.id
-            deleted_msg_id = protocol.get("key", {}).get("id")
-            if deleted_msg_id:
-                return {
-                    "updates": [{
-                        "action": "delete",
-                        "message_id": deleted_msg_id,
-                        "from_me": protocol.get("key", {}).get("fromMe", False),
-                    }]
-                }
+        result = _classify_item(key, update, message)
+        if result:
+            return {"updates": [result]}
 
         return None
 

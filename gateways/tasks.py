@@ -430,23 +430,39 @@ def process_message_update_task(self, payload: dict[str, Any]) -> str:
             action = update.get("action")
             msg_ext_id = update.get("message_id")
 
-            if action == "delete" and msg_ext_id:
+            if not msg_ext_id:
+                continue
+
+            if action == "delete":
                 updated = Message.objects.filter(
                     external_id=msg_ext_id,
                     is_deleted=False,
                 ).update(is_deleted=True)
-
                 if updated:
-                    logger.info(
-                        "Message %s marked as deleted (revoked by sender).",
-                        msg_ext_id,
-                    )
+                    logger.info("Message %s marked as deleted (revoked by sender).", msg_ext_id)
                     processed += 1
                 else:
-                    logger.debug(
-                        "Message %s not found or already deleted.",
-                        msg_ext_id,
+                    logger.debug("Message %s not found or already deleted.", msg_ext_id)
+
+            elif action in ("sent", "delivered", "read", "played"):
+                # Map WA ACK action → DeliveryStatus
+                STATUS_MAP = {
+                    "sent": Message.DeliveryStatus.SUCCESS,
+                    "delivered": Message.DeliveryStatus.SUCCESS,
+                    "read": Message.DeliveryStatus.SUCCESS,
+                    "played": Message.DeliveryStatus.SUCCESS,
+                }
+                new_status = STATUS_MAP[action]
+                updated = Message.objects.filter(
+                    external_id=msg_ext_id,
+                    delivery_status=Message.DeliveryStatus.PENDING,
+                ).update(delivery_status=new_status)
+                if updated:
+                    logger.info(
+                        "Message %s delivery confirmed: %s → %s",
+                        msg_ext_id, action, new_status,
                     )
+                    processed += 1
 
         return f"processed:{processed}_updates"
 
@@ -958,8 +974,8 @@ def send_outbound_email_task(self, message_id: str) -> str:
 @shared_task(
     bind=True,
     name="gateways.send_outbound_whatsapp_task",
-    max_retries=2,
-    default_retry_delay=30,
+    max_retries=3,
+    default_retry_delay=60,
     acks_late=True,
 )
 def send_outbound_whatsapp_task(self, message_id: str) -> str:
@@ -1013,6 +1029,28 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 
 
         svc = EvolutionAPIService()
+
+        # --- Check WA instance is connected before attempting to send ---
+        instance_state_data = svc.get_instance_state()
+        instance_state = (
+            instance_state_data.get("instance", {}).get("state")
+            if instance_state_data
+            else None
+        )
+        if instance_state != "open":
+            error_msg = (
+                f"WhatsApp instance is not connected (state: {instance_state or 'unknown'}). "
+                "Message will be retried automatically."
+            )
+            logger.warning(
+                "Blocked WA send — instance not connected (state=%s) for case %s.",
+                instance_state, case.id,
+            )
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = error_msg
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            # Retry with longer delay to give time for reconnection
+            raise self.retry(exc=RuntimeError(error_msg), countdown=60)
 
         # Human-like delay: simulate typing/recording before sending staff reply
         import random

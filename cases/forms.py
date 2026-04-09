@@ -218,12 +218,15 @@ class CaseRCAForm(forms.ModelForm):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        # Scope the assigned_to field
+        # Scope the assigned_to field — only SupportDesk, Manager, SuperAdmin
         if "assigned_to" in self.fields:
             self.fields["assigned_to"].queryset = User.objects.filter(
-                is_staff=True, is_active=True
-            ).exclude(
-                role_access__in=[User.RoleAccess.AUDITOR, User.RoleAccess.PORTALUSER]
+                is_active=True,
+                role_access__in=[
+                    User.RoleAccess.SUPPORTDESK,
+                    User.RoleAccess.MANAGER,
+                    User.RoleAccess.SUPERADMIN,
+                ],
             ).order_by("first_name", "username")
 
         # If the case is already Closed, make all fields read-only
