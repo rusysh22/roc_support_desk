@@ -10,7 +10,22 @@
         background-color: #fef2f2 !important; /* Tailwind red-50 */
     }
 </style>
-<div class="jk-card" x-data="{ showRequestModal: false }">
+<div class="jk-card" x-data="{ 
+    showRequestModal: false,
+    initialStatus: '{{ case.status|escapejs }}',
+    status: '',
+    showSubmitOptions: false,
+    targetStatus: '{% if case.status == 'Open' %}Investigating{% elif case.status == 'Investigating' %}Resolved{% elif case.status == 'Resolved' %}Closed{% endif %}',
+    get buttonText() {
+        if (this.status === this.initialStatus && this.targetStatus) {
+            return 'Submit to ' + this.targetStatus;
+        }
+        {% if case.status == 'Closed' and case.edit_permission_status == 'Approved' %}
+        if (this.status === 'Closed') return 'Submit Amendment';
+        {% endif %}
+        return 'Submit';
+    }
+}" x-init="const el = document.getElementById('id_status'); if(el) { status = el.value; el.addEventListener('change', (e) => status = e.target.value); }">
     <div class="jk-card-header">
         <span>🔍 Root Cause Analysis & Solution</span>
         <div class="jk-spinner htmx-indicator" id="rca-spinner"></div>
@@ -36,14 +51,30 @@
             <!-- SLA Fields -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                 <div class="jk-form-group {% if rca_form.response_due_at.errors %}has-error{% endif %}">
-                    <label for="id_response_due_at" class="jk-label">Response SLA</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="id_response_due_at" class="jk-label mb-0">Response SLA</label>
+                        <button type="button" 
+                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_response_due_at').value = d.toISOString().slice(0,16);"
+                                class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Fill Date Now
+                        </button>
+                    </div>
                     {{ rca_form.response_due_at }}
                     {% if rca_form.response_due_at.errors %}
                     <div class="jk-form-error">{{ rca_form.response_due_at.errors.0 }}</div>
                     {% endif %}
                 </div>
                 <div class="jk-form-group {% if rca_form.resolution_due_at.errors %}has-error{% endif %}">
-                    <label for="id_resolution_due_at" class="jk-label">Resolution SLA</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="id_resolution_due_at" class="jk-label mb-0">Resolution SLA</label>
+                        <button type="button" 
+                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_resolution_due_at').value = d.toISOString().slice(0,16);"
+                                class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Fill Date Now
+                        </button>
+                    </div>
                     {{ rca_form.resolution_due_at }}
                     {% if rca_form.resolution_due_at.errors %}
                     <div class="jk-form-error">{{ rca_form.resolution_due_at.errors.0 }}</div>
@@ -406,9 +437,55 @@
                     </div>
                 </div>
 
-                <button type="submit" class="jk-btn bg-[#0f172a] hover:bg-[#1e293b] text-white w-full sm:w-auto sm:min-w-[200px] shadow-md hover:shadow-lg transition-all scale-100 hover:scale-105 active:scale-95 shrink-0">
-                    {% if case.status == 'Closed' and case.edit_permission_status == 'Approved' %}Submit Amendment{% else %}Submit{% endif %}
-                </button>
+                <!-- Split Submit Button Group -->
+                <div class="flex items-stretch shadow-md hover:shadow-lg transition-all scale-100 hover:scale-[1.02] active:scale-95 shrink-0 group">
+                    <!-- Main Action Button -->
+                    <button type="submit" 
+                            @click="if(status === initialStatus && targetStatus) { document.getElementById('id_status').value = targetStatus; }"
+                            class="bg-[#0f172a] hover:bg-[#1e293b] text-white px-6 py-2.5 text-sm font-bold transition-colors flex-1 sm:min-w-[180px] rounded-l-xl border-r border-white/10">
+                        <span x-text="buttonText"></span>
+                    </button>
+                    
+                    <!-- Dropdown Toggle -->
+                    <div class="relative flex" x-data="{ open: false }">
+                        <button type="button" 
+                                @click="open = !open"
+                                class="bg-[#0f172a] hover:bg-[#1e293b] text-white px-3 flex items-center justify-center transition-colors rounded-r-xl border-l border-white/5"
+                                title="More options">
+                            <svg class="w-4 h-4 transition-transform duration-200" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path>
+                            </svg>
+                        </button>
+                        
+                        <!-- Dropdown Menu (Anchored to open upwards) -->
+                        <div x-show="open" 
+                             @click.outside="open = false"
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+                             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                             x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+                             class="absolute bottom-full right-0 mb-4 w-60 bg-white rounded-2xl shadow-[0_-20px_50px_rgba(0,0,0,0.2)] border border-slate-200 overflow-hidden z-[9999]"
+                             style="display: none;">
+                            <div class="p-2">
+                                <button type="submit" 
+                                        @click="open = false; /* Form submits with current status dropdown value */"
+                                        class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-50 flex items-center gap-3 transition-all group/item">
+                                    <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover/item:bg-indigo-100 group-hover/item:text-indigo-600 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-slate-800">Save Changes</span>
+                                        <span class="text-[12px] text-slate-500">No status change</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- Notification Area Next to Submit Button -->
                 <div class="flex-1 w-full animate-[fade-in_0.3s_ease-out]">

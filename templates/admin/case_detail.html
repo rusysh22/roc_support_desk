@@ -284,7 +284,7 @@
 <!-- ============================================================= -->
 <div class="jk-split">
 
-    <!-- ========== LEFT PANEL — Conversation Thread & Internal Notes ========== -->
+    <!-- ========== LEFT PANEL — Conversation Thread & Internal Chat ========== -->
     <div class="flex flex-col gap-4 min-w-0">
         <div class="jk-chat-panel">
             <!-- Chat Header -->
@@ -1021,7 +1021,7 @@
         </div>
     </div> <!-- /jk-chat-panel -->
 
-    <!-- Internal Comments Section (Moved outside jk-chat-panel so chat doesn't squash) -->
+    <!-- Internal Chat Section (Moved outside jk-chat-panel so chat doesn't squash) -->
     <div id="internal-comments" class="bg-slate-50 border border-slate-200 rounded-xl shadow-sm overflow-hidden h-96 mb-4">
         {% include "partials/case_comments.html" with comments=case.internal_comments.all %}
     </div>
