@@ -12,16 +12,40 @@
 <!-- ================================================================== -->
 <div class="min-h-screen flex" style="background-color: #fafafa;">
 
-    <!-- Left Side: Big Image Panel (60%) — hidden on small screens -->
-    <div class="hidden lg:block lg:w-[60%] relative overflow-hidden flex-shrink-0">
-        {% if site_config.login_image %}
-        <img src="{{ site_config.login_image.url }}"
-             alt="Login Visual"
-             class="absolute inset-0 w-full h-full object-cover object-center">
+    <!-- Left Side: Slideshow Panel (60%) — hidden on small screens -->
+    <div class="hidden lg:block lg:w-[60%] relative overflow-hidden flex-shrink-0" id="loginSlideshow">
+
+        {% with slides=site_config.slide_images.all %}
+
+        {% if site_config.login_image or slides %}
+        <!-- Slides -->
+        <div id="slideContainer" class="absolute inset-0">
+            <!-- Primary image always first -->
+            {% if site_config.login_image %}
+            <div class="slide absolute inset-0 transition-opacity duration-1000 ease-in-out"
+                 style="opacity:1; z-index:2;">
+                <img src="{{ site_config.login_image.url }}" alt="Slide 1"
+                     class="w-full h-full object-cover object-center">
+            </div>
+            {% endif %}
+            <!-- Additional slides from LoginSlideImage -->
+            {% for slide in slides %}
+            <div class="slide absolute inset-0 transition-opacity duration-1000 ease-in-out"
+                 style="opacity:0; z-index:1;">
+                <img src="{{ slide.image.url }}" alt="Slide {{ forloop.counter|add:1 }}"
+                     class="w-full h-full object-cover object-center">
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Slide dots indicator -->
+        <div id="slideDots" class="absolute bottom-8 left-1/2 z-20 flex gap-2"
+             style="transform: translateX(-50%);"></div>
+
         {% else %}
+        <!-- Fallback gradient if no images uploaded -->
         <div class="absolute inset-0"
              style="background: linear-gradient(160deg, #1e1b4b 0%, #4c1d95 50%, #6d28d9 100%);">
-            <!-- Decorative circles -->
             <div class="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-10"
                  style="background: radial-gradient(circle, #ffffff 0%, transparent 70%);"></div>
             <div class="absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full opacity-10"
@@ -31,21 +55,23 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p class="text-sm tracking-wide">Upload a login image in Site Configuration</p>
+                    <p class="text-sm tracking-wide">Upload login images in Site Configuration</p>
                 </div>
             </div>
         </div>
         {% endif %}
 
+        {% endwith %}
+
         <!-- Vignette overlay -->
-        <div class="absolute inset-0 pointer-events-none"
-             style="background: linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 30%, transparent 65%, rgba(0,0,0,0.55) 100%);"></div>
-        <!-- Extra darkening patch — bottom-left corner for logo legibility -->
-        <div class="absolute bottom-0 left-0 pointer-events-none"
-             style="width:260px; height:160px; background: radial-gradient(ellipse at bottom left, rgba(0,0,0,0.45) 0%, transparent 75%);"></div>
+        <div class="absolute inset-0 pointer-events-none" style="z-index:3;
+             background: linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 30%, transparent 60%, rgba(0,0,0,0.55) 100%);"></div>
+        <!-- Bottom-left darkening patch -->
+        <div class="absolute bottom-0 left-0 pointer-events-none" style="z-index:3;
+             width:300px; height:180px; background: radial-gradient(ellipse at bottom left, rgba(0,0,0,0.40) 0%, transparent 70%);"></div>
 
         <!-- Copyright — bottom left -->
-        <div class="absolute bottom-8 left-8 z-10">
+        <div class="absolute bottom-8 left-8 z-20">
             <p class="text-white text-xs font-medium" style="opacity: 0.75; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">&copy; {{ site_config.site_name|default:"Support Desk" }}. All rights reserved.</p>
         </div>
     </div>
@@ -450,6 +476,65 @@
             update(false);
             setTimeout(function() { update(document.activeElement === input); }, 200);
         });
+
+        // ── Slideshow ──────────────────────────────────────────────
+        (function() {
+            const slides = document.querySelectorAll('#slideContainer .slide');
+            const dotsContainer = document.getElementById('slideDots');
+            if (!slides.length || slides.length < 2) return; // single image = no slideshow
+
+            let current = 0;
+            const INTERVAL = 5000;  // 5 seconds per slide
+            const FADE_MS  = 1000;  // must match CSS duration-1000
+
+            // Build dots
+            slides.forEach(function(_, i) {
+                const dot = document.createElement('button');
+                dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+                dot.style.cssText = [
+                    'width:8px', 'height:8px', 'border-radius:50%',
+                    'border:none', 'cursor:pointer', 'padding:0',
+                    'transition:all 0.3s ease',
+                    'background:' + (i === 0 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)'),
+                    'transform:' + (i === 0 ? 'scale(1.25)' : 'scale(1)'),
+                ].join(';');
+                dot.addEventListener('click', function() { goTo(i); });
+                dotsContainer.appendChild(dot);
+            });
+
+            function getDots() { return dotsContainer.querySelectorAll('button'); }
+
+            function goTo(next) {
+                const dots = getDots();
+                // Fade out current
+                slides[current].style.opacity = '0';
+                slides[current].style.zIndex  = '1';
+                dots[current].style.background = 'rgba(255,255,255,0.35)';
+                dots[current].style.transform  = 'scale(1)';
+
+                current = next;
+
+                // Fade in next
+                slides[current].style.zIndex  = '2';
+                slides[current].style.opacity = '1';
+                dots[current].style.background = 'rgba(255,255,255,0.9)';
+                dots[current].style.transform  = 'scale(1.25)';
+            }
+
+            // Auto-advance — pause on hover
+            let timer = setInterval(advance, INTERVAL);
+
+            function advance() {
+                goTo((current + 1) % slides.length);
+            }
+
+            const panel = document.getElementById('loginSlideshow');
+            if (panel) {
+                panel.addEventListener('mouseenter', function() { clearInterval(timer); });
+                panel.addEventListener('mouseleave', function() { timer = setInterval(advance, INTERVAL); });
+            }
+        })();
+        // ── End Slideshow ──────────────────────────────────────────
     });
 </script>
 {% endblock %}

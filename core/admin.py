@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken
+from .models import CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken, LoginSlideImage
 
 
 # =====================================================================
@@ -133,8 +133,18 @@ class EmployeeAdmin(ModelAdmin):
 # Configuration Admin
 # =====================================================================
 
+class LoginSlideImageInline(admin.TabularInline):
+    model = LoginSlideImage
+    extra = 1
+    fields = ("image", "order")
+    ordering = ("order",)
+    verbose_name = "Slide Image"
+    verbose_name_plural = "Login Slide Images (drag to reorder)"
+
+
 @admin.register(SiteConfig)
 class SiteConfigAdmin(ModelAdmin):
+    inlines = [LoginSlideImageInline]
     """Admin configuration for SiteConfig (Singleton)."""
 
     list_display = ("site_name", "login_theme", "updated_at")
@@ -148,8 +158,9 @@ class SiteConfigAdmin(ModelAdmin):
             "description": (
                 "Pilih tema halaman login. "
                 "<strong>Tema 1</strong>: Classic purple split panel (default). "
-                "<strong>Tema 2</strong>: Modern dark form dengan gambar besar di kiri. "
-                "Upload <em>Login Page Image</em> untuk digunakan di Tema 2."
+                "<strong>Tema 2</strong>: Modern — gambar besar di kiri dengan slideshow otomatis. "
+                "<em>Login Page Image</em> adalah gambar utama (fallback). "
+                "Tambahkan slide tambahan melalui <strong>Login Slide Images</strong> di bawah."
             ),
         }),
         ("Portal Settings", {

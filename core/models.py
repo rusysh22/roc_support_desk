@@ -304,7 +304,7 @@ class SiteConfig(AuditableModel):
         null=True,
         blank=True,
         verbose_name="Login Page Image (Theme 2)",
-        help_text="Large background/hero image displayed on the left panel of Theme 2 login. Recommended: portrait or square, min 800×1000px.",
+        help_text="Primary hero image for Theme 2 left panel. Add more slides via 'Login Slide Images' below.",
     )
     contact_info = models.TextField(
         blank=True,
@@ -567,6 +567,41 @@ class FormSubmission(models.Model):
         return f"Submission to {self.form.title} at {self.submitted_at.strftime('%Y-%m-%d %H:%M')}"
 # =====================================================================
 # OTP Tokens
+# =====================================================================
+# Login Slide Images
+# =====================================================================
+
+class LoginSlideImage(models.Model):
+    """
+    Ordered slideshow images for the Theme 2 login page left panel.
+    Multiple images can be uploaded and reordered via the admin inline.
+    """
+    site_config = models.ForeignKey(
+        SiteConfig,
+        on_delete=models.CASCADE,
+        related_name="slide_images",
+        verbose_name="Site Config",
+    )
+    image = models.ImageField(
+        upload_to="site_config/slides/",
+        verbose_name="Image",
+        help_text="Recommended portrait/square, min 800×1000px.",
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Order",
+        help_text="Lower numbers appear first.",
+    )
+
+    class Meta:
+        verbose_name = "Login Slide Image"
+        verbose_name_plural = "Login Slide Images"
+        ordering = ["order"]
+
+    def __str__(self):
+        return f"Slide {self.order} — {self.site_config.site_name}"
+
+
 # =====================================================================
 
 class OTPToken(models.Model):
