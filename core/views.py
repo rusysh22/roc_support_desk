@@ -128,6 +128,100 @@ class ResetPasswordOTPView(View):
         return render(request, self.template_name, {"form": form, "email": email})
 
 
+class RequestAccountView(View):
+    """
+    Public view — allows anyone to request a new account.
+    Creates a CaseRecord (source=WebForm) under a system category
+    and shows the requester their ticket number.
+    """
+    template_name = "registration/request_account.html"
+
+    def _get_or_create_category(self):
+        """Get or create the 'Account Request' system category."""
+        from cases.models import CaseCategory
+        cat, _ = CaseCategory.objects.get_or_create(
+            slug="account-request",
+            defaults={
+                "name": "Account Request",
+                "prefix_code": "AR",
+                "description": "System category for new account requests submitted via the login page.",
+                "icon": "👤",
+            },
+        )
+        return cat
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            return redirect("cases:dashboard")
+        return render(request, self.template_name)
+
+    def post(self, request):
+        if request.user.is_authenticated:
+            return redirect("cases:dashboard")
+
+        email = request.POST.get("email", "").strip()
+        description = request.POST.get("description", "").strip()
+        requester_name = request.POST.get("requester_name", "").strip()
+
+        errors = {}
+        if not email:
+            errors["email"] = "Email is required."
+        elif "@" not in email or "." not in email.split("@")[-1]:
+            errors["email"] = "Enter a valid email address."
+        if not description:
+            errors["description"] = "Please describe your request."
+
+        if errors:
+            return render(request, self.template_name, {
+                "field_errors": errors,
+                "email": email,
+                "requester_name": requester_name,
+                "description": description,
+            })
+
+        # Rate limiting
+        from django.core.cache import cache
+        client_ip = request.META.get("REMOTE_ADDR", "unknown")
+        cache_key = f"request_account_rate_{client_ip}"
+        attempts = cache.get(cache_key, 0)
+        if attempts >= 3:
+            return render(request, self.template_name, {
+                "global_error": "Too many requests. Please wait a few minutes and try again.",
+                "email": email,
+                "requester_name": requester_name,
+                "description": description,
+            })
+
+        from cases.models import CaseRecord, Message
+        category = self._get_or_create_category()
+
+        subject = f"Account Request — {email}"
+        case = CaseRecord.objects.create(
+            requester_email=email,
+            requester_name=requester_name or email,
+            category=category,
+            subject=subject,
+            problem_description=description,
+            source=CaseRecord.Source.WEBFORM,
+            status=CaseRecord.Status.OPEN,
+            has_unread_messages=True,
+        )
+        Message.objects.create(
+            case=case,
+            body=description,
+            direction=Message.Direction.INBOUND,
+            channel=Message.Channel.WEB,
+        )
+
+        cache.set(cache_key, attempts + 1, timeout=300)
+
+        return render(request, self.template_name, {
+            "success": True,
+            "ticket_number": case.case_number,
+            "email": email,
+        })
+
+
 def custom_404_view(request, exception=None):
     """
     Custom 404 Error Handler to display a branded, modern animated

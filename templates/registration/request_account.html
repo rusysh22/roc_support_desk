@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Request Account — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Request Account{% endblock %}
+{% block main_class %}full-width{% endblock %}
+
+{% block layout %}
+
+{% if site_config.login_theme == "theme2" %}
+<!-- ================================================================== -->
+<!-- TEMA 2 — Request Account: Light centered card                       -->
+<!-- ================================================================== -->
+<div class="min-h-screen flex items-center justify-center px-6 py-12" style="background-color: #f5f5f5;">
+    <div class="w-full max-w-md">
+
+        <!-- Logo -->
+        <div class="mb-8 text-center">
+            {% if site_config.logo %}
+            <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-11 mx-auto object-contain" style="max-width:180px;">
+            {% else %}
+            <span class="font-bold text-2xl text-slate-800">{{ site_config.site_name|default:"Support Desk" }}</span>
+            {% endif %}
+        </div>
+
+        <div class="rounded-3xl p-8 shadow-sm" style="background-color: #ffffff; border: 1px solid #f0f0f0;">
+
+            {% if success %}
+            <!-- ── Success State ── -->
+            <div class="text-center py-4">
+                <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-5 shadow-sm"
+                     style="background-color: #f0fdf4; border: 1px solid #bbf7d0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #16a34a;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-tight mb-2" style="color: #111111;">Request Submitted!</h1>
+                <p class="text-sm leading-relaxed mb-6" style="color: #888888;">
+                    Your account request has been received. Our team will review it and contact you at <strong style="color:#444;">{{ email }}</strong>.
+                </p>
+
+                <div class="rounded-2xl px-6 py-4 mb-6" style="background-color: #f8f8f8; border: 1.5px solid #e8e8e8;">
+                    <p class="text-xs font-semibold uppercase tracking-widest mb-1" style="color: #aaaaaa;">Your Ticket Number</p>
+                    <p class="text-2xl font-extrabold tracking-widest" style="color: #e11d48;">{{ ticket_number }}</p>
+                    <p class="text-xs mt-1" style="color: #bbbbbb;">Keep this number for follow-up inquiries</p>
+                </div>
+
+                <a href="{% url 'login' %}"
+                   class="inline-flex items-center gap-2 font-bold rounded-2xl px-6 py-3 text-sm tracking-wide transition-all"
+                   style="background-color: #e11d48; color: #ffffff; box-shadow: 0 4px 16px rgba(225,29,72,0.25);"
+                   onmouseover="this.style.backgroundColor='#be123c';" onmouseout="this.style.backgroundColor='#e11d48';">
+                    &larr; Back to Sign In
+                </a>
+            </div>
+
+            {% else %}
+            <!-- ── Form State ── -->
+
+            <!-- Icon + heading -->
+            <div class="mb-7 text-center">
+                <div class="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 shadow-sm"
+                     style="background-color: #fff1f2; border: 1px solid #fecdd3;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #e11d48;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-tight" style="color: #111111;">Request an Account</h1>
+                <p class="text-sm mt-2 leading-relaxed px-2" style="color: #888888;">
+                    Don't have an account yet? Fill in the form below and our team will get back to you.
+                </p>
+            </div>
+
+            {% if global_error %}
+            <div class="mb-5 px-4 py-3 rounded-xl text-sm border" style="background:#fff1f2; color:#be123c; border-color:#fecdd3;">
+                {{ global_error }}
+            </div>
+            {% endif %}
+
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+
+                <!-- Name -->
+                <div class="floating-field relative">
+                    <input type="text" name="requester_name" id="id_requester_name"
+                           value="{{ requester_name|default:'' }}"
+                           class="w-full rounded-2xl px-4 pt-[22px] pb-[10px] text-sm outline-none transition-all"
+                           style="background-color:#f6f6f6; border:1.5px solid {% if field_errors.requester_name %}#fca5a5{% else %}#ebebeb{% endif %}; color:#111111;"
+                           placeholder=" "
+                           onfocus="this.style.borderColor='#e11d48'; this.style.backgroundColor='#fff';"
+                           onblur="this.style.borderColor='{% if field_errors.requester_name %}#fca5a5{% else %}#ebebeb{% endif %}'; this.style.backgroundColor='#f6f6f6';">
+                    <label for="id_requester_name" class="absolute left-4 text-sm transition-all duration-200 pointer-events-none" style="top:14px; color:#b0b0b0;">
+                        Full Name <span style="color:#d0d0d0;">(optional)</span>
+                    </label>
+                </div>
+
+                <!-- Email -->
+                <div class="floating-field relative">
+                    <input type="email" name="email" id="id_email"
+                           value="{{ email|default:'' }}"
+                           class="w-full rounded-2xl px-4 pt-[22px] pb-[10px] text-sm outline-none transition-all"
+                           style="background-color:#f6f6f6; border:1.5px solid {% if field_errors.email %}#fca5a5{% else %}#ebebeb{% endif %}; color:#111111;"
+                           placeholder=" " autocomplete="email" required
+                           onfocus="this.style.borderColor='#e11d48'; this.style.backgroundColor='#fff';"
+                           onblur="this.style.borderColor='{% if field_errors.email %}#fca5a5{% else %}#ebebeb{% endif %}'; this.style.backgroundColor='#f6f6f6';">
+                    <label for="id_email" class="absolute left-4 text-sm transition-all duration-200 pointer-events-none" style="top:14px; color:#b0b0b0;">
+                        Work Email *
+                    </label>
+                    {% if field_errors.email %}
+                    <p class="text-xs mt-1.5 ml-1" style="color:#dc2626;">{{ field_errors.email }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-widest mb-2" style="color:#555555;">What do you need access to? *</label>
+                    <textarea name="description" id="id_description" rows="4" required
+                              class="w-full rounded-2xl px-4 py-3 text-sm outline-none transition-all resize-none"
+                              style="background-color:#f6f6f6; border:1.5px solid {% if field_errors.description %}#fca5a5{% else %}#ebebeb{% endif %}; color:#111111;"
+                              onfocus="this.style.borderColor='#e11d48'; this.style.backgroundColor='#fff';"
+                              onblur="this.style.borderColor='{% if field_errors.description %}#fca5a5{% else %}#ebebeb{% endif %}'; this.style.backgroundColor='#f6f6f6';"
+                              placeholder="Describe what you need access to and why...">{{ description|default:'' }}</textarea>
+                    {% if field_errors.description %}
+                    <p class="text-xs mt-1.5 ml-1" style="color:#dc2626;">{{ field_errors.description }}</p>
+                    {% endif %}
+                </div>
+
+                <button type="submit"
+                        class="w-full font-bold rounded-2xl py-[14px] text-sm tracking-wide transition-all"
+                        style="background-color:#e11d48; color:#ffffff; box-shadow: 0 4px 20px rgba(225,29,72,0.28);"
+                        onmouseover="this.style.backgroundColor='#be123c';"
+                        onmouseout="this.style.backgroundColor='#e11d48';">
+                    Submit Request
+                </button>
+            </form>
+
+            <div class="mt-5 text-center">
+                <a href="{% url 'login' %}" class="text-sm font-semibold transition-colors" style="color:#e11d48;">&larr; Back to Sign In</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Contact / Narahubung -->
+        <div class="mt-6 text-center">
+            {% if site_config.contact_info %}
+            <p class="text-xs leading-relaxed" style="color:#aaaaaa;">{{ site_config.contact_info|safe }}</p>
+            {% else %}
+            <p class="text-xs" style="color:#cccccc;">powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">Rusydani on Cloud</a> &middot; <a href="mailto:hello@rusydani.my.id" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">hello@rusydani.my.id</a></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ================================================================== -->
+<!-- TEMA 1 — Classic: Purple Split Panel                                -->
+<!-- ================================================================== -->
+<div class="min-h-screen flex items-center justify-center px-4"
+     style="background-color: #e2e8f0; background-image: radial-gradient(circle at center, #f8fafc 0%, #cbd5e1 100%);">
+
+    <div class="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[500px]">
+
+        <!-- Left: Form -->
+        <div class="w-full md:w-1/2 p-10 lg:p-14 flex flex-col justify-center">
+
+            {% if success %}
+            <!-- Success -->
+            <div class="text-center">
+                <div class="w-16 h-16 mx-auto bg-green-50 rounded-2xl flex items-center justify-center mb-5 border border-green-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-extrabold text-slate-800 mb-2">Request Submitted!</h1>
+                <p class="text-sm text-slate-500 mb-6">
+                    We'll reach out to <strong class="text-slate-700">{{ email }}</strong> soon.
+                </p>
+                <div class="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-100">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Your Ticket Number</p>
+                    <p class="text-3xl font-extrabold tracking-widest text-[#4c1d95]">{{ ticket_number }}</p>
+                    <p class="text-xs text-slate-400 mt-1">Keep this for follow-up inquiries</p>
+                </div>
+                <a href="{% url 'login' %}"
+                   class="inline-block bg-[#4c1d95] hover:bg-[#3b0764] text-white font-bold rounded-full px-8 py-3 tracking-wider transition-all shadow-lg">
+                    &larr; Back to Sign In
+                </a>
+            </div>
+
+            {% else %}
+            <!-- Form -->
+            <div class="mb-8 text-center">
+                <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">Request an Account</h1>
+                <p class="text-sm text-slate-500 mt-2 px-4">Fill in the form below and our team will review your request.</p>
+            </div>
+
+            {% if global_error %}
+            <div class="mb-5 px-4 py-3 rounded-xl text-sm text-center bg-red-50 text-red-700 border border-red-200">
+                {{ global_error }}
+            </div>
+            {% endif %}
+
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+
+                <div>
+                    <input type="text" name="requester_name" id="id_requester_name"
+                           value="{{ requester_name|default:'' }}"
+                           class="w-full bg-slate-100 border-none rounded-xl px-5 py-4 text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5b21b6] focus:bg-white transition-all outline-none"
+                           placeholder="Full Name (optional)">
+                </div>
+
+                <div>
+                    <input type="email" name="email" id="id_email"
+                           value="{{ email|default:'' }}"
+                           class="w-full bg-slate-100 border-none rounded-xl px-5 py-4 text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5b21b6] focus:bg-white transition-all outline-none {% if field_errors.email %}ring-2 ring-red-400{% endif %}"
+                           placeholder="Work Email *" required>
+                    {% if field_errors.email %}
+                    <p class="text-red-500 text-xs mt-1 ml-1">{{ field_errors.email }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <textarea name="description" rows="4" required
+                              class="w-full bg-slate-100 border-none rounded-xl px-5 py-4 text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5b21b6] focus:bg-white transition-all outline-none resize-none {% if field_errors.description %}ring-2 ring-red-400{% endif %}"
+                              placeholder="What do you need access to and why? *">{{ description|default:'' }}</textarea>
+                    {% if field_errors.description %}
+                    <p class="text-red-500 text-xs mt-1 ml-1">{{ field_errors.description }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="pt-2 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                    <a href="{% url 'login' %}" class="text-sm text-slate-500 hover:text-[#5b21b6] font-medium transition-colors order-2 sm:order-1">
+                        &larr; Back to Sign In
+                    </a>
+                    <button type="submit"
+                            class="bg-[#4c1d95] hover:bg-[#3b0764] text-white font-bold rounded-full px-8 py-3 tracking-wider transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full sm:w-auto order-1 sm:order-2">
+                        SUBMIT REQUEST
+                    </button>
+                </div>
+            </form>
+
+            {% if site_config.contact_info %}
+            <div class="mt-8 pt-6 border-t border-slate-100 text-center">
+                <p class="text-xs text-slate-400 leading-relaxed">{{ site_config.contact_info|safe }}</p>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Right: Purple decorative panel -->
+        <div class="hidden md:flex w-full md:w-1/2 p-10 lg:p-14 flex-col items-center justify-center text-center relative overflow-hidden"
+             style="background: linear-gradient(145deg, #6d28d9 0%, #4c1d95 100%); border-top-left-radius: 120px; border-bottom-left-radius: 10px;">
+
+            <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full filter blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+
+            <div class="relative z-10 space-y-6 max-w-sm">
+                <div class="text-6xl mb-6 opacity-90">👤</div>
+                <h2 class="text-3xl font-bold text-white tracking-wide">New Here?</h2>
+                <p class="text-purple-200 text-sm leading-relaxed px-4">
+                    Submit your request and a support team member will create your account and get back to you with your credentials.
+                </p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .floating-field input:not(:placeholder-shown) + label,
+    .floating-field input:focus + label {
+        top: 6px !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.09em !important;
+        text-transform: uppercase !important;
+        color: #b0b0b0 !important;
+    }
+    .floating-field input:focus + label {
+        color: #e11d48 !important;
+    }
+</style>
+{% endblock %}

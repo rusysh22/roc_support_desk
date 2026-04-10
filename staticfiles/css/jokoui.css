@@ -49,6 +49,16 @@
     margin: 0 auto;
 }
 
+/* Auth pages (login, forgot password, etc.) — no padding, no max-width constraint */
+.jk-main.full-width .jk-content {
+    padding: 0;
+    max-width: 100%;
+}
+
+.jk-main.full-width .jk-topbar {
+    display: none;
+}
+
 /* ----- Sidebar ----- */
 .jk-sidebar {
     position: fixed;
@@ -490,12 +500,20 @@
     background: linear-gradient(135deg, #1e293b, #334155);
     color: #f1f5f9;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .jk-chat-panel__header-info {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.jk-chat-panel__header-info > div {
+    min-width: 0;
 }
 
 .jk-chat-panel__header-avatar {
@@ -515,11 +533,17 @@
 .jk-chat-panel__header-name {
     font-weight: 700;
     font-size: 0.9375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .jk-chat-panel__header-meta {
     font-size: 0.75rem;
     opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* --- Panel Body (scrollable messages area) --- */
@@ -661,7 +685,7 @@
     line-height: 1.55;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    word-break: break-all;
+    word-break: normal;
     position: relative;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
     min-width: 0;
@@ -689,7 +713,7 @@
 .jk-msg__text {
     white-space: pre-wrap;
     overflow-wrap: break-word;
-    word-break: break-all;
+    word-break: normal;
 }
 
 .jk-msg__text a {
@@ -1294,8 +1318,8 @@
 
 .jk-msg__action-trigger {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 2px;
+    right: -28px;
     width: 24px;
     height: 24px;
     display: flex;
@@ -1322,11 +1346,18 @@
 
 .jk-msg__bubble--out .jk-msg__action-trigger {
     color: rgba(0, 0, 0, 0.35);
+    right: auto;
+    left: -28px;
 }
 
 .jk-msg__bubble--out .jk-msg__action-trigger:hover {
     background: rgba(0, 0, 0, 0.08);
     color: rgba(0, 0, 0, 0.7);
+}
+
+.jk-msg__bubble--out .jk-msg__action-menu {
+    right: auto;
+    left: -28px;
 }
 
 .jk-msg__action-menu {
@@ -1485,6 +1516,41 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* --- Escalate Selection Mode --- */
+.jk-escalate-select-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-basis: 100%;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    border-top: 1px solid #c7d2fe;
+    margin: 8px -1.25rem -0.875rem;
+    gap: 8px;
+    min-height: 38px;
+}
+
+/* Checkbox hidden by default, shown when parent #chat-thread has .escalate-selecting */
+.jk-msg__select-check {
+    display: none;
+    align-items: flex-start;
+    padding-top: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    z-index: 5;
+}
+
+.escalate-selecting .jk-msg__select-check {
+    display: flex;
+}
+
+.jk-msg__select-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #4f46e5;
+}
+
 /* --- Inline Delivery Status Indicators --- */
 .jk-msg__status {
     display: inline-flex;
@@ -1580,6 +1646,32 @@
     animation: jk-status-spin 1s linear infinite;
 }
 
+/* --- Tablet/Desktop Responsive Chat Header (in split panel) --- */
+@media (min-width: 769px) and (max-width: 1280px) {
+    .jk-chat-panel__header {
+        padding: 0.625rem 0.875rem;
+        gap: 0.375rem;
+    }
+
+    .jk-chat-panel__header-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.8125rem;
+    }
+
+    .jk-chat-panel__header-info {
+        gap: 0.5rem;
+    }
+
+    .jk-chat-panel__header-name {
+        font-size: 0.8125rem;
+    }
+
+    .jk-chat-panel__header-meta {
+        font-size: 0.6875rem;
+    }
+}
+
 /* --- Mobile Responsive Chat --- */
 @media (max-width: 1024px) {
     .jk-chat-panel {
@@ -1598,6 +1690,29 @@
         border-radius: 0;
         border-left: none;
         border-right: none;
+    }
+
+    .jk-chat-panel__header {
+        padding: 0.5rem 0.75rem;
+        gap: 0.375rem;
+    }
+
+    .jk-chat-panel__header-avatar {
+        width: 30px;
+        height: 30px;
+        font-size: 0.75rem;
+    }
+
+    .jk-chat-panel__header-info {
+        gap: 0.5rem;
+    }
+
+    .jk-chat-panel__header-name {
+        font-size: 0.8125rem;
+    }
+
+    .jk-chat-panel__header-meta {
+        font-size: 0.625rem;
     }
 
     .jk-msg {
@@ -1631,10 +1746,13 @@
     border-radius: var(--jk-radius);
     border: 1px solid var(--jk-border);
     background: var(--jk-surface);
+    -webkit-overflow-scrolling: touch;
+    position: relative;
 }
 
 .jk-table {
     width: 100%;
+    min-width: 600px;
     border-collapse: collapse;
     font-size: 0.875rem;
 }
@@ -1895,6 +2013,16 @@
         -webkit-overflow-scrolling: touch;
     }
 
+    .jk-table th,
+    .jk-table td {
+        padding: 0.5rem 0.625rem;
+        font-size: 0.8125rem;
+    }
+
+    .jk-table th {
+        font-size: 0.6875rem;
+    }
+
     .jk-topbar-title {
         font-size: 1rem;
         max-width: 180px;
@@ -1943,10 +2071,37 @@
         max-width: 140px;
     }
 
+    .jk-table th,
+    .jk-table td {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .jk-table th {
+        font-size: 0.625rem;
+        letter-spacing: 0.02em;
+    }
+
+    .jk-table-link {
+        font-size: 0.6875rem;
+    }
+
     /* --- Ultra-compact chat header --- */
     .jk-chat-panel__header {
         padding: 0.375rem 0.5rem;
         gap: 0.25rem;
+    }
+
+    .jk-escalate-select-bar {
+        margin: 4px -0.5rem -0.375rem;
+        padding: 6px 8px;
+        gap: 4px;
+        flex-wrap: wrap;
+        min-height: unset;
+    }
+
+    .jk-escalate-select-bar span[style*="font-size:13px"] {
+        font-size: 11px !important;
     }
 
     .jk-chat-panel__header-avatar {
@@ -2055,4 +2210,450 @@
         padding: 0.75rem;
         font-size: 0.75rem;
     }
+}
+
+/* =============================================================
+   CASE DETAIL — MOBILE RESPONSIVE
+   ============================================================= */
+
+@media (max-width: 768px) {
+    /* --- Ticket Header Card --- */
+    .jk-detail-header .jk-card-body {
+        padding: 0.75rem !important;
+    }
+
+    /* Compact status & source badges */
+    .jk-detail-badges > div {
+        padding: 0.25rem 0.625rem !important;
+        font-size: 0.6875rem !important;
+        gap: 0.25rem !important;
+    }
+
+    .jk-detail-badges > div svg {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    /* Meta row: stack vertically on mobile */
+    .jk-detail-meta {
+        flex-direction: column;
+        gap: 0.25rem !important;
+    }
+
+    .jk-detail-meta > div {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0.125rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .jk-detail-meta > div:last-child {
+        border-bottom: none;
+    }
+
+    /* Subject title smaller */
+    .jk-detail-subject {
+        font-size: 1rem !important;
+    }
+
+    /* Requester info line */
+    .jk-detail-requester {
+        font-size: 0.75rem !important;
+    }
+
+    /* Chat panel header buttons compact */
+    .jk-chat-panel__header .jk-btn-sm {
+        padding: 0.1875rem 0.375rem;
+        font-size: 0.625rem;
+    }
+
+    .jk-chat-panel__header .jk-btn-sm svg {
+        width: 0.75rem;
+        height: 0.75rem;
+        margin-right: 0.125rem;
+    }
+
+    /* Split panel gap reduction */
+    .jk-split {
+        gap: 0.75rem;
+    }
+
+    /* RCA form compact */
+    .jk-rca-section .jk-form-group {
+        margin-bottom: 0.75rem;
+    }
+
+    .jk-rca-section .jk-label {
+        font-size: 0.75rem;
+    }
+
+    .jk-rca-section .jk-textarea {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Even tighter on very small screens */
+    .jk-detail-header .jk-card-body {
+        padding: 0.5rem !important;
+    }
+
+    .jk-detail-subject {
+        font-size: 0.875rem !important;
+        line-height: 1.3;
+    }
+
+    .jk-detail-requester {
+        font-size: 0.6875rem !important;
+    }
+
+    .jk-detail-badges .jk-badge-pill {
+        padding: 0.1875rem 0.5rem;
+        font-size: 0.625rem;
+    }
+
+    .jk-detail-meta {
+        font-size: 0.625rem !important;
+    }
+
+    /* Chat header even more compact */
+    .jk-chat-panel__header .jk-btn-sm {
+        padding: 0.125rem 0.25rem;
+        font-size: 0.5625rem;
+    }
+}
+
+/* ===================================================================
+   Case List — Mobile Card Layout
+   On screens ≤ 768px the table rows become stacked cards.
+   =================================================================== */
+
+@media (max-width: 768px) {
+    /* Table wrapper — remove border so cards float freely */
+    .jk-case-list-wrapper {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    /* Remove min-width so table doesn't force horizontal scroll */
+    .jk-case-list-table {
+        min-width: 0 !important;
+        display: block;
+    }
+
+    .jk-case-list-table thead {
+        display: none;
+    }
+
+    .jk-case-list-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+
+    .jk-case-list-table tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-rows: auto auto auto auto auto;
+        gap: 0.125rem 0.5rem;
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.75rem;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        position: relative;
+    }
+
+    .jk-case-list-table tbody tr.bg-rose-50 {
+        box-shadow: inset 0 0 0 1px rgba(244,63,94,0.15), 0 2px 8px rgba(244,63,94,0.10);
+    }
+
+    /* Hide all cells by default, then show the ones we want */
+    .jk-case-list-table tbody td {
+        display: none;
+        padding: 0;
+        border: none;
+    }
+
+    /* Row 1: checkbox + ticket# + status badge */
+    .jk-case-list-table tbody td.jk-col-checkbox {
+        display: flex;
+        align-items: center;
+        grid-row: 1;
+        grid-column: 1;
+    }
+
+    .jk-case-list-table tbody td.jk-col-ticket {
+        display: flex;
+        align-items: center;
+        grid-row: 1;
+        grid-column: 2;
+        font-weight: 600;
+    }
+
+    .jk-case-list-table tbody td.jk-col-status {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        grid-row: 1;
+        grid-column: 3;
+    }
+
+    /* Row 2: subject spanning full width */
+    .jk-case-list-table tbody td.jk-col-subject {
+        display: block;
+        grid-row: 2;
+        grid-column: 1 / -1;
+        padding-top: 0.25rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-subject a {
+        max-width: 100% !important;
+        font-size: 0.8125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Row 3: requester info (name + phone/email) */
+    .jk-case-list-table tbody td.jk-col-requester {
+        display: flex !important;
+        align-items: center;
+        gap: 0.375rem;
+        grid-row: 3;
+        grid-column: 1 / -1;
+        padding-top: 0.25rem;
+        font-size: 0.75rem;
+        color: #475569;
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .jk-col-requester__name {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 45%;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+
+    .jk-col-requester__contact {
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 45%;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+
+    .jk-col-requester__contact::before {
+        content: "•";
+        margin-right: 0.375rem;
+        color: #cbd5e1;
+    }
+
+    /* Row 4: unit/company */
+    .jk-col-requester__unit {
+        display: none;
+    }
+
+    .jk-case-list-table tbody td.jk-col-requester .jk-col-requester__unit {
+        display: block;
+        grid-row: 4;
+        grid-column: 1 / -1;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: #4f46e5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* When unit exists, requester cell becomes a 2-line block */
+    .jk-case-list-table tbody td.jk-col-requester:has(.jk-col-requester__unit) {
+        flex-wrap: wrap;
+    }
+
+    .jk-case-list-table tbody td.jk-col-requester .jk-col-requester__unit {
+        width: 100%;
+        flex-basis: 100%;
+        padding-top: 0.0625rem;
+    }
+
+    /* Row 5: source + date */
+    .jk-case-list-table tbody td.jk-col-source {
+        display: inline-flex !important;
+        grid-row: 5;
+        grid-column: 1 / 2;
+        padding-top: 0.375rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-source .jk-badge {
+        font-size: 0.625rem;
+        padding: 0.125rem 0.375rem;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        grid-row: 5;
+        grid-column: 2 / -1;
+        padding-top: 0.375rem;
+        font-size: 0.6875rem;
+        color: #94a3b8;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created br {
+        display: none;
+    }
+
+    .jk-case-list-table tbody td.jk-col-created span {
+        margin-left: 0.25rem;
+    }
+
+    /* Badges inside cards */
+    .jk-case-list-table .jk-badge {
+        font-size: 0.6875rem;
+        padding: 0.125rem 0.5rem;
+    }
+
+    /* Status filter bar — smaller pills on mobile */
+    .jk-status-filter-bar {
+        gap: 0.375rem !important;
+    }
+
+    .jk-status-filter-bar button {
+        padding: 0.25rem 0.625rem;
+        font-size: 0.6875rem;
+    }
+
+    /* Pagination compact */
+    .jk-case-list-table + .px-6 {
+        padding: 0.75rem;
+    }
+
+    /* Live indicator — smaller on mobile */
+    #live-indicator {
+        bottom: 10px !important;
+        right: 10px !important;
+        padding: 4px 10px !important;
+        font-size: 10px !important;
+        border-radius: 8px !important;
+    }
+
+    /* Bulk action bar — compact on mobile */
+    .jk-bulk-bar {
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+        transform: none !important;
+        width: auto !important;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .jk-bulk-bar .px-5 {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .jk-bulk-bar .px-4 {
+        padding: 0.5rem 0.625rem;
+    }
+}
+
+/* =============================================================
+   CONFIDENTIAL TICKET STYLES
+   ============================================================= */
+
+/* Masked confidential row in table */
+.jk-confidential-masked {
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 8px,
+        rgba(245, 158, 11, 0.03) 8px,
+        rgba(245, 158, 11, 0.03) 16px
+    );
+}
+
+.jk-confidential-masked td {
+    user-select: none;
+}
+
+/* Confidential management panel in case detail */
+.jk-confidential-panel {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fcd34d;
+    border-radius: var(--jk-radius);
+    padding: 1rem 1.25rem;
+}
+
+.jk-confidential-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.jk-confidential-panel__title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #92400e;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.jk-confidential-panel__users {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+}
+
+.jk-confidential-panel__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    background: #ffffff;
+    border: 1px solid #fbbf24;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #78350f;
+}
+
+.jk-confidential-panel__chip button {
+    color: #dc2626;
+    font-size: 0.625rem;
+    line-height: 1;
+    padding: 0.125rem;
+    border-radius: 9999px;
+    transition: var(--jk-transition);
+}
+
+.jk-confidential-panel__chip button:hover {
+    background: #fecaca;
+}
+
+/* Confidential badge */
+.jk-badge-confidential {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
 }

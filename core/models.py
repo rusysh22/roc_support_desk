@@ -287,6 +287,32 @@ class SiteConfig(AuditableModel):
         verbose_name="Require Public Login",
         help_text="If enabled, all users must be logged in to access the public Ticket Portal and Knowledge Base."
     )
+
+    LOGIN_THEME_CHOICES = [
+        ("theme1", "Tema 1 — Classic (Purple Split Panel)"),
+        ("theme2", "Tema 2 — Modern (Full Image Left, Dark Form Right)"),
+    ]
+    login_theme = models.CharField(
+        max_length=20,
+        choices=LOGIN_THEME_CHOICES,
+        default="theme1",
+        verbose_name="Login Page Theme",
+        help_text="Select the visual theme for the login page and related auth screens.",
+    )
+    login_image = models.ImageField(
+        upload_to="site_config/",
+        null=True,
+        blank=True,
+        verbose_name="Login Page Image (Theme 2)",
+        help_text="Large background/hero image displayed on the left panel of Theme 2 login. Recommended: portrait or square, min 800×1000px.",
+    )
+    contact_info = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Contact Info (Narahubung)",
+        help_text="Contact details (narahubung) shown on the login page footer. Supports plain text or simple HTML.",
+    )
+
     terms_and_privacy = models.TextField(
         blank=True,
         default=(

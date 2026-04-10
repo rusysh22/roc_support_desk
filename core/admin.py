@@ -136,9 +136,34 @@ class EmployeeAdmin(ModelAdmin):
 @admin.register(SiteConfig)
 class SiteConfigAdmin(ModelAdmin):
     """Admin configuration for SiteConfig (Singleton)."""
-    
-    list_display = ("site_name", "updated_at")
+
+    list_display = ("site_name", "login_theme", "updated_at")
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    fieldsets = (
+        ("Branding", {
+            "fields": ("site_name", "logo", "favicon"),
+        }),
+        ("Login Page", {
+            "fields": ("login_theme", "login_image", "contact_info"),
+            "description": (
+                "Pilih tema halaman login. "
+                "<strong>Tema 1</strong>: Classic purple split panel (default). "
+                "<strong>Tema 2</strong>: Modern dark form dengan gambar besar di kiri. "
+                "Upload <em>Login Page Image</em> untuk digunakan di Tema 2."
+            ),
+        }),
+        ("Portal Settings", {
+            "fields": ("require_public_login", "max_upload_size_mb"),
+        }),
+        ("Terms & Privacy", {
+            "fields": ("terms_and_privacy",),
+            "classes": ("collapse",),
+        }),
+        ("Audit", {
+            "fields": ("id", "created_at", "updated_at", "created_by", "updated_by"),
+            "classes": ("collapse",),
+        }),
+    )
 
     def has_add_permission(self, request):
         # Prevent adding new instances if one already exists
@@ -149,11 +174,6 @@ class SiteConfigAdmin(ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Prevent deleting the single instance
         return False
-
-        if not change:
-            obj.created_by = request.user
-        obj.updated_by = request.user
-        super().save_model(request, obj, form, change)
 
 
 # =====================================================================
