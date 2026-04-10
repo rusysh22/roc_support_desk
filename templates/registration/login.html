@@ -514,25 +514,22 @@
             // Cubic ease-in-out
             function ease(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
 
-            // Build arch clip-path: sweeping curtain from left → right with arch bow
-            // t = 0: fully covering (next hidden), t = 1: fully revealed
+            // Arch curtain clip applied to PREV slide (which sits on top).
+            // t = 0: prev fully visible (clip covers 100% width)
+            // t = 1: prev fully gone   (clip width = 0, next slide shows beneath)
+            // The leading edge (right side of remaining prev area) bows inward like an arch.
             function archClip(t) {
-                const e  = ease(t);
-                const x  = e * 110; // sweep 0% → 110% (overshoot ensures full reveal)
-                // Arch bow: the leading edge bows outward, trailing edge follows flat
-                const bow = Math.sin(Math.PI * e) * 18; // peak bow of 18% at midpoint
-                // clip-path polygon: left strip that grows rightward, curved leading edge
-                // We reveal the slide from left, so the clip exposes left-to-right
-                // polygon points (clockwise): top-left, top-leading, mid-leading(bow), bottom-leading, bottom-left
-                return [
-                    'polygon(',
-                    '0% 0%, ',
-                    (x + bow) + '% 0%, ',
-                    (x + bow * 1.5) + '% 50%, ',
-                    (x + bow) + '% 100%, ',
-                    '0% 100%',
-                    ')'
-                ].join('');
+                const e   = ease(t);
+                // Right edge of the remaining prev area sweeps from 100% → -10% (overshoot)
+                const x   = (1 - e) * 110 - 10;
+                // Arch bow on the leading (right) edge — peaks at midpoint
+                const bow = Math.sin(Math.PI * e) * 16;
+                // polygon: left=0% always, right edge = x% with arch bow at midpoint
+                return 'polygon(0% 0%, ' +
+                       (x + bow) + '% 0%, ' +
+                       (x + bow * 1.6) + '% 50%, ' +
+                       (x + bow) + '% 100%, ' +
+                       '0% 100%)';
             }
 
             function goTo(next) {
@@ -543,25 +540,23 @@
                 current = next;
                 updateDots(next);
 
-                // Stack: prev on top (z3), next below (z2), others at z1
-                slides.forEach(function(s, i) { s.style.zIndex = '1'; });
-                slides[prev].style.zIndex = '3';
-                slides[next].style.zIndex = '2';
-
-                // Reset next clip to start (hidden)
-                slides[next].style.clipPath = archClip(0);
+                // Stack: prev on top (z3), next visible below (z2), rest at z1
+                slides.forEach(function(s) { s.style.zIndex = '1'; s.style.clipPath = ''; });
+                slides[prev].style.zIndex   = '3';
+                slides[prev].style.clipPath = archClip(0); // fully visible
+                slides[next].style.zIndex   = '2';
 
                 const startTime = performance.now();
 
                 function frame(now) {
                     const t = Math.min((now - startTime) / TRANS_MS, 1);
-                    slides[next].style.clipPath = archClip(t);
+                    slides[prev].style.clipPath = archClip(t);
 
                     if (t < 1) {
                         rafId = requestAnimationFrame(frame);
                     } else {
                         // Done — clean up
-                        slides[next].style.clipPath = '';
+                        slides[prev].style.clipPath = '';
                         slides[prev].style.zIndex   = '1';
                         slides[next].style.zIndex   = '2';
                         animating = false;
