@@ -22,34 +22,19 @@
         <div id="slideContainer" class="absolute inset-0">
             <!-- Primary image always first -->
             {% if site_config.login_image %}
-            <div class="slide absolute inset-0"
-                 style="opacity:1; z-index:2; transition: opacity 0.15s ease;">
+            <div class="slide absolute inset-0" style="z-index:2;">
                 <img src="{{ site_config.login_image.url }}" alt="Slide 1"
                      class="w-full h-full object-cover object-center">
             </div>
             {% endif %}
             <!-- Additional slides from LoginSlideImage -->
             {% for slide in slides %}
-            <div class="slide absolute inset-0"
-                 style="opacity:0; z-index:1; transition: opacity 0.15s ease;">
+            <div class="slide absolute inset-0" style="z-index:1;">
                 <img src="{{ slide.image.url }}" alt="Slide {{ forloop.counter|add:1 }}"
                      class="w-full h-full object-cover object-center">
             </div>
             {% endfor %}
         </div>
-
-        <!-- SVG Displacement Map filter (hidden) -->
-        <svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
-            <defs>
-                <filter id="dispFilter" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
-                    <feTurbulence id="dispTurb" type="turbulence" baseFrequency="0.015 0.012"
-                                  numOctaves="3" seed="2" result="turbOut"/>
-                    <feDisplacementMap in="SourceGraphic" in2="turbOut"
-                                       scale="0" xChannelSelector="R" yChannelSelector="G"
-                                       id="dispMap" result="dispOut"/>
-                </filter>
-            </defs>
-        </svg>
 
         <!-- Slide dots indicator -->
         <div id="slideDots" class="absolute bottom-8 left-1/2 z-20 flex gap-2"
@@ -490,26 +475,18 @@
             setTimeout(function() { update(document.activeElement === input); }, 200);
         });
 
-        // ── Displacement Map Slideshow ─────────────────────────────
+        // ── Arch Reveal Slideshow ──────────────────────────────────
         (function() {
-            const container   = document.getElementById('slideContainer');
-            const slides      = container ? container.querySelectorAll('.slide') : [];
+            const slides      = document.querySelectorAll('#slideContainer .slide');
             const dotsContainer = document.getElementById('slideDots');
             if (!slides.length || slides.length < 2) return;
 
-            const INTERVAL    = 5500;   // ms between slides
-            const DISP_MS     = 900;    // total transition duration (ms)
-            const PEAK_SCALE  = 180;    // max displacement scale (px) at halfway
-            const TURB_FREQ   = 0.014;  // turbulence base frequency
+            const INTERVAL = 5500;   // ms between slides
+            const TRANS_MS = 900;    // reveal duration (ms)
 
             let current   = 0;
             let animating = false;
-
-            const dispMap  = document.getElementById('dispMap');
-            const dispTurb = document.getElementById('dispTurb');
-
-            // Apply SVG filter to slideshow panel (affects whole container visually)
-            if (container) container.style.filter = 'url(#dispFilter)';
+            let rafId     = null;
 
             // Build dots
             slides.forEach(function(_, i) {
@@ -534,27 +511,28 @@
                 });
             }
 
-            // Animate displacement scale with easing (peak at midpoint, returns to 0)
-            function animateDisp(fromScale, toScale, duration, onDone) {
-                const start = performance.now();
-                function step(now) {
-                    const t = Math.min((now - start) / duration, 1);
-                    // bell-curve: peaks at t=0.5 using sin
-                    const scale = Math.sin(t * Math.PI) * PEAK_SCALE;
-                    if (dispMap) dispMap.setAttribute('scale', scale.toFixed(2));
-                    // Also animate turbulence seed slightly for organic feel
-                    if (dispTurb) {
-                        const seedShift = Math.round(t * 8);
-                        dispTurb.setAttribute('seed', seedShift);
-                    }
-                    if (t < 1) {
-                        requestAnimationFrame(step);
-                    } else {
-                        if (dispMap) dispMap.setAttribute('scale', '0');
-                        if (onDone) onDone();
-                    }
-                }
-                requestAnimationFrame(step);
+            // Cubic ease-in-out
+            function ease(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+            // Build arch clip-path: sweeping curtain from left → right with arch bow
+            // t = 0: fully covering (next hidden), t = 1: fully revealed
+            function archClip(t) {
+                const e  = ease(t);
+                const x  = e * 110; // sweep 0% → 110% (overshoot ensures full reveal)
+                // Arch bow: the leading edge bows outward, trailing edge follows flat
+                const bow = Math.sin(Math.PI * e) * 18; // peak bow of 18% at midpoint
+                // clip-path polygon: left strip that grows rightward, curved leading edge
+                // We reveal the slide from left, so the clip exposes left-to-right
+                // polygon points (clockwise): top-left, top-leading, mid-leading(bow), bottom-leading, bottom-left
+                return [
+                    'polygon(',
+                    '0% 0%, ',
+                    (x + bow) + '% 0%, ',
+                    (x + bow * 1.5) + '% 50%, ',
+                    (x + bow) + '% 100%, ',
+                    '0% 100%',
+                    ')'
+                ].join('');
             }
 
             function goTo(next) {
@@ -563,32 +541,34 @@
 
                 const prev = current;
                 current = next;
-
-                // Bring next slide up (invisible) behind current
-                slides[next].style.zIndex   = '2';
-                slides[next].style.opacity  = '0';
-                slides[prev].style.zIndex   = '3';
-                slides[prev].style.opacity  = '1';
                 updateDots(next);
 
-                // Phase 1 — distort + crossfade (midpoint: next appears, prev fades)
-                animateDisp(0, PEAK_SCALE, DISP_MS, function() {
-                    // Snap: prev hidden, next fully visible
-                    slides[prev].style.opacity = '0';
-                    slides[prev].style.zIndex  = '1';
-                    slides[next].style.opacity = '1';
-                    slides[next].style.zIndex  = '2';
-                    animating = false;
-                });
+                // Stack: prev on top (z3), next below (z2), others at z1
+                slides.forEach(function(s, i) { s.style.zIndex = '1'; });
+                slides[prev].style.zIndex = '3';
+                slides[next].style.zIndex = '2';
 
-                // Crossfade aligned to halfway through displacement
-                const halfMs = DISP_MS * 0.45;
-                setTimeout(function() {
-                    slides[next].style.transition  = 'opacity 0.4s ease';
-                    slides[next].style.opacity     = '1';
-                    slides[prev].style.transition  = 'opacity 0.4s ease';
-                    slides[prev].style.opacity     = '0';
-                }, halfMs);
+                // Reset next clip to start (hidden)
+                slides[next].style.clipPath = archClip(0);
+
+                const startTime = performance.now();
+
+                function frame(now) {
+                    const t = Math.min((now - startTime) / TRANS_MS, 1);
+                    slides[next].style.clipPath = archClip(t);
+
+                    if (t < 1) {
+                        rafId = requestAnimationFrame(frame);
+                    } else {
+                        // Done — clean up
+                        slides[next].style.clipPath = '';
+                        slides[prev].style.zIndex   = '1';
+                        slides[next].style.zIndex   = '2';
+                        animating = false;
+                    }
+                }
+
+                rafId = requestAnimationFrame(frame);
             }
 
             function advance() { goTo((current + 1) % slides.length); }
