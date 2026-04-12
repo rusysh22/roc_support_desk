@@ -1327,23 +1327,38 @@
     // Escalate selection mode flag (read by chat_thread.html Alpine.js)
     window._escalateSelectMode = false;
 
+    // Flag to scroll on reply sent (not on polling)
+    window._chatJustSentReply = false;
+
     // Auto-scroll chat to bottom on HTMX swap + reset interaction flag
     document.addEventListener('htmx:afterSwap', function (e) {
         if (e.detail.target.id === 'chat-thread') {
             // Don't reset if in escalate selection mode
             if (!window._escalateSelectMode) window._chatInteracting = false;
-            const container = e.detail.target;
-            if (container) {
-                container.scrollTop = container.scrollHeight;
+            // Only scroll to bottom when a reply was just sent, not on periodic polling
+            if (window._chatJustSentReply) {
+                window._chatJustSentReply = false;
+                const container = e.detail.target;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
             }
         }
-        
+
         if (e.detail.target.id === 'internal-comments') {
             initTribute();
         }
     });
 
-    // Initial load
+    // Set flag before reply form submit so afterSwap knows to scroll
+    document.addEventListener('htmx:beforeRequest', function (e) {
+        const form = e.detail.elt;
+        if (form && form.id === 'reply-form') {
+            window._chatJustSentReply = true;
+        }
+    });
+
+    // Initial load — scroll to bottom when first opening a ticket
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.getElementById('chat-thread');
         if (container) {

@@ -75,12 +75,380 @@
     </div>
 
     <!-- Right Side: Form Panel (40%) -->
-    <div class="w-full lg:w-[40%] flex flex-col items-center justify-center px-6 sm:px-10 xl:px-14 py-10 sm:py-14 min-h-screen relative" style="background-color: #ffffff;">
+    <div class="royal-panel w-full lg:w-[40%] flex flex-col items-center justify-center px-6 sm:px-10 xl:px-14 py-10 sm:py-14 min-h-screen relative" style="background-color: #ffffff; overflow: hidden;">
 
         <!-- Subtle left border on large screens -->
         <div class="hidden lg:block absolute inset-y-0 left-0 w-px" style="background: linear-gradient(to bottom, transparent, #f0f0f0 20%, #f0f0f0 80%, transparent);"></div>
 
-        <div class="w-full max-w-[400px]">
+        <!-- ===== Royal Hospitality Ornaments ===== -->
+        <style>
+            /* ---- Keyframes ---- */
+            @keyframes rSpin    { to { transform: rotate(360deg);  } }
+            @keyframes rSpinRev { to { transform: rotate(-360deg); } }
+            @keyframes rSpinMed { to { transform: rotate(360deg);  } }
+
+            @keyframes rFloat {
+                0%,100% { transform: translateY(0)   scale(1);    opacity: var(--op-lo); }
+                50%      { transform: translateY(-22px) scale(1.2); opacity: var(--op-hi); }
+            }
+            @keyframes rRise {
+                0%   { transform: translateY(0)   scale(1);   opacity: var(--op-lo); }
+                100% { transform: translateY(-120px) scale(0.4); opacity: 0; }
+            }
+            @keyframes rPulse {
+                0%,100% { opacity: 0.18; transform: scale(1); }
+                50%      { opacity: 0.38; transform: scale(1.06); }
+            }
+            @keyframes rShimmer {
+                0%   { stroke-dashoffset: 0; }
+                100% { stroke-dashoffset: -200; }
+            }
+            @keyframes rGlowPop {
+                0%,100% { filter: drop-shadow(0 0 0px #f0d080); }
+                50%      { filter: drop-shadow(0 0 8px #f0d08088); }
+            }
+            @keyframes rDiamondSpin {
+                0%   { transform: rotate(0deg)   scale(1);   opacity: 0.22; }
+                50%  { transform: rotate(180deg) scale(1.08); opacity: 0.38; }
+                100% { transform: rotate(360deg) scale(1);   opacity: 0.22; }
+            }
+            @keyframes rLineDraw {
+                from { stroke-dashoffset: 120; opacity: 0; }
+                to   { stroke-dashoffset: 0;   opacity: 1; }
+            }
+
+            /* ---- Particles ---- */
+            .rp { position:absolute; border-radius:50%; pointer-events:none;
+                  background: radial-gradient(circle, #f5e07a 0%, #c9a84c 55%, transparent 100%); }
+            .rp-float { --op-lo:.45; --op-hi:.85;
+                        animation: rFloat var(--dur,7s) ease-in-out infinite; }
+            .rp-rise  { animation: rRise  var(--dur,5s) ease-in    infinite; }
+
+            /* ---- Interactive glow on hover (panel level) ---- */
+            .royal-panel:hover .rp-float { --op-hi: 1; }
+            .royal-panel:hover .royal-ring-top    { filter: drop-shadow(0 0 10px #c9a84c55); }
+            .royal-panel:hover .royal-ring-bottom { filter: drop-shadow(0 0 8px  #c9a84c44); }
+            .royal-panel:hover .royal-corner      { opacity: 0.38 !important; }
+            .royal-panel:hover .royal-mid-diamond { animation-duration: 6s; }
+
+            /* ---- Powered-by links ---- */
+            .roc-link {
+                display: inline-block;
+                position: relative;
+                font-weight: 700;
+                letter-spacing: 0.01em;
+                background: linear-gradient(90deg, #c9a84c, #f0d080, #c9a84c);
+                background-size: 200% auto;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-decoration: none !important;
+                transition: background-position 0.4s ease, filter 0.3s ease;
+            }
+            .roc-link::after {
+                content: '';
+                position: absolute; left: 0; bottom: -1px;
+                width: 100%; height: 1px;
+                background: linear-gradient(90deg, #c9a84c, #f0d080);
+                transform: scaleX(0);
+                transform-origin: left;
+                transition: transform 0.3s ease;
+            }
+            .roc-link:hover {
+                background-position: right center;
+                filter: brightness(1.15) drop-shadow(0 0 6px #c9a84c55);
+            }
+            .roc-link:hover::after { transform: scaleX(1); }
+
+            .mail-link {
+                display: inline-block;
+                position: relative;
+                font-weight: 600;
+                color: #a78bfa !important;
+                text-decoration: none !important;
+                transition: color 0.3s ease, filter 0.3s ease;
+            }
+            .mail-link::after {
+                content: '';
+                position: absolute; left: 0; bottom: -1px;
+                width: 100%; height: 1px;
+                background: #a78bfa;
+                transform: scaleX(0);
+                transform-origin: left;
+                transition: transform 0.3s ease;
+            }
+            .mail-link:hover {
+                color: #7c3aed !important;
+                filter: drop-shadow(0 0 5px #a78bfa66);
+            }
+            .mail-link:hover::after { transform: scaleX(1); }
+        </style>
+
+        <!-- Top-right: large mandala — 3 concentric rings + 12-petal flower -->
+        <div class="royal-ring-top" aria-hidden="true" style="
+             position:absolute; top:-85px; right:-85px;
+             width:300px; height:300px; pointer-events:none; z-index:0;">
+            <svg viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;height:100%;animation:rSpin 36s linear infinite;transform-origin:center;">
+                <defs>
+                    <linearGradient id="gr1" x1="0" y1="0" x2="300" y2="300" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"  stop-color="#c9a84c"/>
+                        <stop offset="45%" stop-color="#f5e07a"/>
+                        <stop offset="100%" stop-color="#a0722a"/>
+                    </linearGradient>
+                    <linearGradient id="gr2" x1="300" y1="0" x2="0" y2="300" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"  stop-color="#e8c96a"/>
+                        <stop offset="100%" stop-color="#b8860b"/>
+                    </linearGradient>
+                    <linearGradient id="grPetal" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+                        <stop offset="0%"   stop-color="#f5e07a"/>
+                        <stop offset="100%" stop-color="#a0722a"/>
+                    </linearGradient>
+                </defs>
+                <!-- rings -->
+                <circle cx="150" cy="150" r="136" stroke="url(#gr1)" stroke-width="1.2" stroke-dasharray="6 5"   opacity="0.40"/>
+                <circle cx="150" cy="150" r="116" stroke="url(#gr2)" stroke-width="0.8" stroke-dasharray="3 7"   opacity="0.30"/>
+                <circle cx="150" cy="150" r="96"  stroke="url(#gr1)" stroke-width="1"   stroke-dasharray="1.5 6" opacity="0.22"/>
+                <circle cx="150" cy="150" r="76"  stroke="url(#gr2)" stroke-width="0.6" stroke-dasharray="4 4"   opacity="0.18"/>
+                <!-- 12 petals -->
+                <g opacity="0.38">
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(0   150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(30  150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(60  150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(90  150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(120 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(150 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(180 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(210 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(240 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(270 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(300 150 150)"/>
+                    <ellipse cx="150" cy="22" rx="5" ry="16" fill="url(#grPetal)" transform="rotate(330 150 150)"/>
+                </g>
+                <!-- center jewel -->
+                <circle cx="150" cy="150" r="7" fill="url(#gr1)" opacity="0.5"
+                        style="animation:rGlowPop 3s ease-in-out infinite;"/>
+                <circle cx="150" cy="150" r="3.5" fill="#f5e07a" opacity="0.7"/>
+            </svg>
+        </div>
+
+        <!-- Top-right: inner counter-ring (sits on top of mandala, spins opposite) -->
+        <div aria-hidden="true" style="
+             position:absolute; top:-30px; right:-30px;
+             width:180px; height:180px; pointer-events:none; z-index:0;">
+            <svg viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;height:100%;animation:rSpinRev 22s linear infinite;transform-origin:center;">
+                <defs>
+                    <linearGradient id="gr3" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"  stop-color="#f5e07a"/>
+                        <stop offset="100%" stop-color="#c9a84c"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="90" cy="90" r="78" stroke="url(#gr3)" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.35"
+                        style="animation:rShimmer 4s linear infinite;stroke-dashoffset:0;"/>
+                <!-- 8 short tick marks -->
+                <g stroke="#f0d080" stroke-width="1.2" opacity="0.45">
+                    <line x1="90" y1="14" x2="90" y2="24"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(45  90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(90  90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(135 90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(180 90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(225 90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(270 90 90)"/>
+                    <line x1="90" y1="14" x2="90" y2="24" transform="rotate(315 90 90)"/>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Bottom-left: mandala (slower, reverse) -->
+        <div class="royal-ring-bottom" aria-hidden="true" style="
+             position:absolute; bottom:-80px; left:-80px;
+             width:260px; height:260px; pointer-events:none; z-index:0;">
+            <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;height:100%;animation:rSpinRev 50s linear infinite;transform-origin:center;">
+                <defs>
+                    <linearGradient id="gr4" x1="0" y1="0" x2="260" y2="260" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"  stop-color="#c9a84c"/>
+                        <stop offset="100%" stop-color="#e8c96a"/>
+                    </linearGradient>
+                    <linearGradient id="grPetal2" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+                        <stop offset="0%"   stop-color="#f0d080"/>
+                        <stop offset="100%" stop-color="#c9a84c"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="130" cy="130" r="118" stroke="url(#gr4)" stroke-width="1"   stroke-dasharray="5 7"   opacity="0.28"/>
+                <circle cx="130" cy="130" r="100" stroke="url(#gr4)" stroke-width="0.7" stroke-dasharray="2 8"   opacity="0.20"/>
+                <circle cx="130" cy="130" r="82"  stroke="url(#gr4)" stroke-width="1.2" stroke-dasharray="1.5 5" opacity="0.15"/>
+                <!-- 10 petals -->
+                <g opacity="0.28">
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(0   130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(36  130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(72  130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(108 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(144 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(180 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(216 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(252 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(288 130 130)"/>
+                    <ellipse cx="130" cy="20" rx="4.5" ry="14" fill="url(#grPetal2)" transform="rotate(324 130 130)"/>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Center-left mid: floating diamond ornament -->
+        <div class="royal-mid-diamond" aria-hidden="true" style="
+             position:absolute; left:-16px; top:50%; transform:translateY(-50%);
+             width:80px; height:80px; pointer-events:none; z-index:0;
+             animation:rDiamondSpin 12s ease-in-out infinite;">
+            <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+                <defs>
+                    <linearGradient id="grDia" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"  stop-color="#f5e07a"/>
+                        <stop offset="100%" stop-color="#c9a84c"/>
+                    </linearGradient>
+                </defs>
+                <!-- diamond (rotated square) -->
+                <rect x="28" y="28" width="24" height="24" rx="2"
+                      fill="none" stroke="url(#grDia)" stroke-width="1.2"
+                      transform="rotate(45 40 40)" opacity="0.55"/>
+                <rect x="32" y="32" width="16" height="16" rx="1"
+                      fill="url(#grDia)" opacity="0.18"
+                      transform="rotate(45 40 40)"/>
+                <!-- radiating lines -->
+                <line x1="40" y1="4"  x2="40" y2="16" stroke="#c9a84c" stroke-width="0.8" opacity="0.35"/>
+                <line x1="40" y1="64" x2="40" y2="76" stroke="#c9a84c" stroke-width="0.8" opacity="0.35"/>
+                <line x1="4"  y1="40" x2="16" y2="40" stroke="#c9a84c" stroke-width="0.8" opacity="0.35"/>
+                <line x1="64" y1="40" x2="76" y2="40" stroke="#c9a84c" stroke-width="0.8" opacity="0.35"/>
+            </svg>
+        </div>
+
+        <!-- Corner accents — all 4 corners, larger & animated -->
+        <!-- Top-left -->
+        <div class="royal-corner" aria-hidden="true" style="
+             position:absolute; top:20px; left:20px; pointer-events:none; z-index:0;
+             animation:rPulse 5s ease-in-out infinite;">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <line x1="0"  y1="0"  x2="64" y2="0"  stroke="#c9a84c" stroke-width="1.2" opacity="0.5"/>
+                <line x1="0"  y1="0"  x2="0"  y2="64" stroke="#c9a84c" stroke-width="1.2" opacity="0.5"/>
+                <line x1="8"  y1="0"  x2="0"  y2="8"  stroke="#f0d080" stroke-width="0.8" opacity="0.4"/>
+                <line x1="18" y1="0"  x2="0"  y2="18" stroke="#c9a84c" stroke-width="0.5" opacity="0.3"/>
+                <line x1="28" y1="0"  x2="0"  y2="28" stroke="#c9a84c" stroke-width="0.3" opacity="0.2"/>
+                <circle cx="0" cy="0" r="4" fill="#f0d080" opacity="0.55"/>
+                <circle cx="0" cy="0" r="2" fill="#fff"    opacity="0.4"/>
+            </svg>
+        </div>
+        <!-- Top-right (inner corner, small) -->
+        <div class="royal-corner" aria-hidden="true" style="
+             position:absolute; top:20px; right:20px; pointer-events:none; z-index:0;
+             animation:rPulse 5s ease-in-out infinite 1.2s;">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                <line x1="40" y1="0"  x2="0"  y2="0"  stroke="#c9a84c" stroke-width="1" opacity="0.35"/>
+                <line x1="40" y1="0"  x2="40" y2="40" stroke="#c9a84c" stroke-width="1" opacity="0.35"/>
+                <circle cx="40" cy="0" r="3" fill="#f0d080" opacity="0.4"/>
+            </svg>
+        </div>
+        <!-- Bottom-right -->
+        <div class="royal-corner" aria-hidden="true" style="
+             position:absolute; bottom:20px; right:20px; pointer-events:none; z-index:0;
+             animation:rPulse 5s ease-in-out infinite 2.5s;">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <line x1="64" y1="64" x2="0"  y2="64" stroke="#c9a84c" stroke-width="1.2" opacity="0.5"/>
+                <line x1="64" y1="64" x2="64" y2="0"  stroke="#c9a84c" stroke-width="1.2" opacity="0.5"/>
+                <line x1="56" y1="64" x2="64" y2="56" stroke="#f0d080" stroke-width="0.8" opacity="0.4"/>
+                <line x1="46" y1="64" x2="64" y2="46" stroke="#c9a84c" stroke-width="0.5" opacity="0.3"/>
+                <line x1="36" y1="64" x2="64" y2="36" stroke="#c9a84c" stroke-width="0.3" opacity="0.2"/>
+                <circle cx="64" cy="64" r="4" fill="#f0d080" opacity="0.55"/>
+                <circle cx="64" cy="64" r="2" fill="#fff"    opacity="0.4"/>
+            </svg>
+        </div>
+        <!-- Bottom-left (inner corner, small) -->
+        <div class="royal-corner" aria-hidden="true" style="
+             position:absolute; bottom:20px; left:20px; pointer-events:none; z-index:0;
+             animation:rPulse 5s ease-in-out infinite 3.7s;">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                <line x1="0"  y1="40" x2="40" y2="40" stroke="#c9a84c" stroke-width="1" opacity="0.35"/>
+                <line x1="0"  y1="40" x2="0"  y2="0"  stroke="#c9a84c" stroke-width="1" opacity="0.35"/>
+                <circle cx="0" cy="40" r="3" fill="#f0d080" opacity="0.4"/>
+            </svg>
+        </div>
+
+        <!-- Horizontal divider line (mid-panel) with crown-like center motif -->
+        <div aria-hidden="true" style="
+             position:absolute; left:10%; right:10%; top:50%;
+             transform:translateY(-50%); pointer-events:none; z-index:0; opacity:0.12;">
+            <svg width="100%" height="16" viewBox="0 0 400 16" preserveAspectRatio="none" fill="none">
+                <line x1="0" y1="8" x2="170" y2="8" stroke="url(#grLine)" stroke-width="0.7"/>
+                <polygon points="196,2 200,8 204,2 208,8 212,2 216,8 220,2" fill="none" stroke="#c9a84c" stroke-width="0.8" transform="translate(-10,1)"/>
+                <line x1="230" y1="8" x2="400" y2="8" stroke="url(#grLine)" stroke-width="0.7"/>
+                <defs>
+                    <linearGradient id="grLine" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="400" y2="0">
+                        <stop offset="0%" stop-color="transparent"/>
+                        <stop offset="40%" stop-color="#c9a84c"/>
+                        <stop offset="60%" stop-color="#c9a84c"/>
+                        <stop offset="100%" stop-color="transparent"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+
+        <!-- Floating gold particles — float type -->
+        <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;">
+            <!-- float particles -->
+            <span class="rp rp-float" style="width:5px;height:5px; left:12%; top:22%; --dur:7s;  animation-delay:0s;"></span>
+            <span class="rp rp-float" style="width:4px;height:4px; left:68%; top:55%; --dur:9s;  animation-delay:1.5s;"></span>
+            <span class="rp rp-float" style="width:6px;height:6px; left:38%; top:75%; --dur:6s;  animation-delay:3s;"></span>
+            <span class="rp rp-float" style="width:3px;height:3px; left:82%; top:28%; --dur:8s;  animation-delay:0.7s;"></span>
+            <span class="rp rp-float" style="width:5px;height:5px; left:52%; top:10%; --dur:11s; animation-delay:2.2s;"></span>
+            <span class="rp rp-float" style="width:7px;height:7px; left:7%;  top:60%; --dur:7.5s;animation-delay:1s;"></span>
+            <span class="rp rp-float" style="width:4px;height:4px; left:88%; top:72%; --dur:10s; animation-delay:4s;"></span>
+            <span class="rp rp-float" style="width:3px;height:3px; left:25%; top:88%; --dur:8.5s;animation-delay:2.8s;"></span>
+            <span class="rp rp-float" style="width:5px;height:5px; left:60%; top:40%; --dur:6.5s;animation-delay:0.4s;"></span>
+            <span class="rp rp-float" style="width:4px;height:4px; left:45%; top:5%;  --dur:9.5s;animation-delay:1.8s;"></span>
+            <!-- rise particles (rise up and fade, loop) -->
+            <span class="rp rp-rise"  style="width:3px;height:3px; left:20%; top:90%; --dur:6s;  animation-delay:0s;"></span>
+            <span class="rp rp-rise"  style="width:2px;height:2px; left:55%; top:95%; --dur:8s;  animation-delay:2s;"></span>
+            <span class="rp rp-rise"  style="width:3px;height:3px; left:78%; top:92%; --dur:7s;  animation-delay:4s;"></span>
+            <span class="rp rp-rise"  style="width:2px;height:2px; left:35%; top:97%; --dur:5.5s;animation-delay:1s;"></span>
+        </div>
+
+        <!-- Mouse-parallax interactive layer (JS) -->
+        <div id="royal-parallax" aria-hidden="true" style="
+             position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;
+             transition:transform 0.1s ease-out;">
+            <!-- 4 soft glow blobs that shift on mouse move -->
+            <div class="r-blob" style="width:160px;height:160px;top:5%;left:5%;
+                 background:radial-gradient(circle,#f5e07a18 0%,transparent 70%);
+                 border-radius:50%;position:absolute;transition:transform 0.35s ease-out;" data-depth="0.04"></div>
+            <div class="r-blob" style="width:200px;height:200px;bottom:10%;right:5%;
+                 background:radial-gradient(circle,#c9a84c14 0%,transparent 70%);
+                 border-radius:50%;position:absolute;transition:transform 0.35s ease-out;" data-depth="0.07"></div>
+            <div class="r-blob" style="width:120px;height:120px;top:40%;right:8%;
+                 background:radial-gradient(circle,#f0d08012 0%,transparent 70%);
+                 border-radius:50%;position:absolute;transition:transform 0.35s ease-out;" data-depth="0.05"></div>
+        </div>
+        <script>
+        (function(){
+            var panel = document.currentScript.closest('.royal-panel');
+            if (!panel) return;
+            panel.addEventListener('mousemove', function(e){
+                var rect = panel.getBoundingClientRect();
+                var cx = e.clientX - rect.left - rect.width  / 2;
+                var cy = e.clientY - rect.top  - rect.height / 2;
+                panel.querySelectorAll('.r-blob').forEach(function(b){
+                    var d = parseFloat(b.dataset.depth) || 0.05;
+                    b.style.transform = 'translate(' + (cx * d) + 'px,' + (cy * d) + 'px)';
+                });
+            });
+            panel.addEventListener('mouseleave', function(){
+                panel.querySelectorAll('.r-blob').forEach(function(b){
+                    b.style.transform = 'translate(0,0)';
+                });
+            });
+        })();
+        </script>
+        <!-- ===== /Royal Hospitality Ornaments ===== -->
+
+        <div class="w-full max-w-[400px]" style="position:relative;z-index:1;">
 
             <!-- Logo -->
             <div class="mb-8 text-center">
@@ -218,7 +586,12 @@
                 {% if site_config.contact_info %}
                 <p class="text-xs text-center leading-relaxed" style="color:#bbbbbb;">{{ site_config.contact_info|safe }}</p>
                 {% else %}
-                <p class="text-xs text-center" style="color:#d0d0d0;">powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">Rusydani on Cloud</a> &middot; <a href="mailto:hello@rusydani.my.id" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">hello@rusydani.my.id</a></p>
+                <p class="text-xs text-center" style="color:#c8c8c8; letter-spacing:0.01em;">
+                    powered by
+                    <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="roc-link">Rusydani on Cloud</a>
+                    <span style="color:#ddd; margin:0 4px;">&middot;</span>
+                    <a href="mailto:hello@rusydani.my.id" class="mail-link">hello@rusydani.my.id</a>
+                </p>
                 {% endif %}
             </div>
 
