@@ -987,6 +987,7 @@ def public_form_view(request, slug):
     from django.core.files.storage import FileSystemStorage
     import os
     from django.conf import settings
+    from django.apps import apps
 
     form_obj = get_object_or_404(DynamicForm, slug=slug)
 
@@ -1016,6 +1017,7 @@ def public_form_view(request, slug):
                 "dynamic_form": form_obj,
                 "fields": fields,
                 "is_preview": is_preview,
+                "company_units": apps.get_model('core', 'CompanyUnit').objects.all()
             }, status=429)
 
         # Build the JSON response dict
@@ -1060,13 +1062,22 @@ def public_form_view(request, slug):
                     errors[str(field.id)] = "This field is required."
                 answers[str(field.id)] = val
 
+        if form_obj.collect_user:
+            answers['sys_user_login'] = request.POST.get('sys_user_login', '')
+        if form_obj.collect_company:
+            company_unit_val = request.POST.get('sys_company_unit', '')
+            if not company_unit_val:
+                errors['sys_company_unit'] = "Company Unit is required."
+            answers['sys_company_unit'] = company_unit_val
+
         if errors:
             messages.error(request, "Please fill out all required fields marked with *")
             return render(request, "client/public_form.html", {
                 "dynamic_form": form_obj,
                 "fields": fields,
                 "answers": answers,
-                "errors": errors
+                "errors": errors,
+                "company_units": apps.get_model('core', 'CompanyUnit').objects.all()
             })
         
         # Save submission
@@ -1084,13 +1095,15 @@ def public_form_view(request, slug):
         # Using a simple success flag in context or simply rendering directly
         return render(request, "client/public_form.html", {
             "dynamic_form": form_obj,
-            "success": True
+            "success": True,
+            "company_units": apps.get_model('core', 'CompanyUnit').objects.all()
         })
 
     return render(request, "client/public_form.html", {
         "dynamic_form": form_obj,
         "fields": fields,
         "is_preview": is_preview,
+        "company_units": apps.get_model('core', 'CompanyUnit').objects.all()
     })
 
 
@@ -3303,8 +3316,24 @@ def form_edit_view(request, pk):
             is_required = request.POST.get('is_required') == 'true'
             
             choices = []
+            field_settings = {}
             if field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO, FormField.FieldTypes.CHECKBOX, FormField.FieldTypes.SURVEY]:
                 choices = request.POST.getlist('choices[]')
+                if field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO]:
+                    logic_vals = request.POST.getlist('choice_logic[]')
+                    logic_dict = {}
+                    for ch, val in zip(choices, logic_vals):
+                        if ch.strip() and val.strip():
+                            logic_dict[ch.strip()] = val.strip()
+                    if logic_dict:
+                        field_settings['logic'] = logic_dict
+
+            if field_type == FormField.FieldTypes.NUMBER:
+                field_settings.update({
+                    'number_type': request.POST.get('settings_number_type', 'general'),
+                    'currency_type': request.POST.get('settings_currency_type', 'idr'),
+                    'phone_code': request.POST.get('settings_phone_code', '+62'),
+                })
                 
             # Put at bottom
             last_order = instance.fields.count()
@@ -3316,6 +3345,7 @@ def form_edit_view(request, pk):
                 help_text=help_text,
                 is_required=is_required,
                 choices=choices,
+                settings=field_settings,
                 order=last_order + 1,
                 created_by=request.user
             )
@@ -3364,12 +3394,31 @@ def form_edit_view(request, pk):
             if new_type:
                 field.field_type = new_type
             
+            if not field.settings: field.settings = {}
             if field.field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO, FormField.FieldTypes.CHECKBOX, FormField.FieldTypes.SURVEY]:
                 choices = request.POST.getlist('choices[]')
                 if choices:
                     field.choices = choices
+                
+                if field.field_type in [FormField.FieldTypes.DROPDOWN, FormField.FieldTypes.RADIO]:
+                    logic_vals = request.POST.getlist('choice_logic[]')
+                    logic_dict = {}
+                    for ch, val in zip(field.choices, logic_vals):
+                        if ch.strip() and val.strip():
+                            logic_dict[ch.strip()] = val.strip()
+                    if logic_dict:
+                        field.settings['logic'] = logic_dict
+                    elif 'logic' in field.settings:
+                        del field.settings['logic']
             else:
                 field.choices = []
+                if 'logic' in field.settings:
+                    del field.settings['logic']
+
+            if field.field_type == FormField.FieldTypes.NUMBER:
+                field.settings['number_type'] = request.POST.get('settings_number_type', 'general')
+                field.settings['currency_type'] = request.POST.get('settings_currency_type', 'idr')
+                field.settings['phone_code'] = request.POST.get('settings_phone_code', '+62')
             
             field.updated_by = request.user
             field.save()

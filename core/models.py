@@ -481,6 +481,8 @@ class DynamicForm(AuditableModel):
     
     is_published = models.BooleanField(default=False, verbose_name="Is Published")
     requires_login = models.BooleanField(default=False, verbose_name="Requires Login to Submit")
+    collect_user = models.BooleanField(default=False, verbose_name="Collect User Login")
+    collect_company = models.BooleanField(default=False, verbose_name="Collect Company Unit")
     
     # Styling
     background_color = models.CharField(max_length=50, blank=True, default="#f8fafc", verbose_name="Background Color", help_text="e.g. #f8fafc or a Tailwind class")
@@ -529,6 +531,9 @@ class FormField(AuditableModel):
     
     # Needs to store choices for dropdowns/radios as a list: ["Option A", "Option B"]
     choices = models.JSONField(default=list, blank=True, verbose_name="Choices (for Dropdowns/Radios)")
+
+    # Settings for advanced formatting (e.g. number formatting, currencies)
+    settings = models.JSONField(default=dict, blank=True, verbose_name="Field Settings")
 
     class Meta:
         verbose_name = "Form Field"

@@ -147,6 +147,8 @@ class DynamicFormForm(forms.ModelForm):
             "is_published": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
             "requires_login": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
             "show_on_portal": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
+            "collect_user": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
+            "collect_company": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
         }
 
 class UserAdminForm(forms.ModelForm):

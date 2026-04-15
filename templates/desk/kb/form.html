@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{% if is_edit %}Edit{% else %}Create{% endif %} Article | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block nav_kb_mgmt %}jk-sidebar-link-active{% endblock %}
+{% block nav_kb_mgmt %}active{% endblock %}
 {% block page_title %}{% if is_edit %}Edit Article{% else %}New Article{% endif %}{% endblock %}
 
 {% block extra_head %}

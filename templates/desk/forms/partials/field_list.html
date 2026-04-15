@@ -5,22 +5,59 @@
             editing: false,
             editLabel: '{{ field.label|escapejs }}',
             editHelp: '{{ field.help_text|escapejs }}',
+            editHelp: '{{ field.help_text|escapejs }}',
             editRequired: {{ field.is_required|yesno:'true,false' }},
             editType: ['text_short', 'short_text'].includes('{{ field.field_type }}') ? 'text' : (['text_long', 'long_text'].includes('{{ field.field_type }}') ? 'textarea' : '{{ field.field_type }}'),
             editChoices: {{ field.choices|safe|default:'[]' }},
+            editLogicList: (() => {
+                let choices = {{ field.choices|safe|default:'[]' }};
+                let logic = {};
+                {% if field.settings and field.settings.logic %}
+                   logic = {{ field.settings.logic|safe }};
+                {% endif %}
+                return choices.map(c => logic[c] || '');
+            })(),
+            numType: '{{ field.settings.number_type|default:"general" }}',
+            numCurrency: '{{ field.settings.currency_type|default:"idr" }}',
+            numPhoneCode: '{{ field.settings.phone_code|default:"+62" }}',
+            hasCollision: false,
             addEditChoice() { 
                 let max = 50; 
                 if(this.editType === 'survey') max = 7;
                 else if(this.editType === 'dropdown') max = 500;
                 
                 if (this.editChoices.length < max) {
-                    this.editChoices.push('Option ' + (this.editChoices.length + 1)); 
+                    this.editChoices.push(''); 
+                    this.editLogicList.push('');
                 } else {
                     alert('Maximum allowed options for this field type is ' + max);
                 }
             },
-            removeEditChoice(i) { if(this.editChoices.length > 1) this.editChoices.splice(i, 1); }
-        }" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}">
+            removeEditChoice(i) { 
+                if(this.editChoices.length > 1) {
+                    this.editChoices.splice(i, 1); 
+                    this.editLogicList.splice(i, 1);
+                }
+            },
+            checkLogicCollision() {
+                let el = this.$el;
+                let allFields = Array.from(document.querySelectorAll('#field-list-container .field-item'));
+                let idx = allFields.indexOf(el);
+                if(idx === -1) return false;
+                let hasCollision = false;
+                for(let i = idx - 1; i >= 0; i--) {
+                    let f = allFields[i];
+                    if(f.dataset.type === 'page_break') break;
+                    if(f.dataset.hasLogic === 'true') hasCollision = true;
+                }
+                for(let i = idx + 1; i < allFields.length; i++) {
+                    let f = allFields[i];
+                    if(f.dataset.type === 'page_break') break;
+                    if(f.dataset.hasLogic === 'true') hasCollision = true;
+                }
+                return hasCollision;
+            }
+        }" x-init="$watch('editing', val => { if(val) hasCollision = checkLogicCollision(); })" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}" data-type="{{ field.field_type }}" data-has-logic="{% if field.settings.logic %}true{% else %}false{% endif %}">
             
             <!-- Drag Handle (Left) -->
             <div x-show="!editing" class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-12 bg-white border border-slate-200 shadow-sm rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-move transition-all duration-300 z-10 text-slate-600 hover:text-indigo-500 hover:border-indigo-300 hover:shadow-md">
@@ -40,6 +77,17 @@
                                     <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
                                     Required
                                 </span>
+                            {% endif %}
+                            {% if field.field_type == 'number' %}
+                                {% if field.settings.number_type == 'currency' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded bg-green-50 border border-green-100 text-xs font-bold text-green-700 uppercase tracking-widest">
+                                        {{ field.settings.currency_type|upper|default:"IDR" }}
+                                    </span>
+                                {% elif field.settings.number_type == 'phone' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded bg-blue-50 border border-blue-100 text-xs font-bold text-blue-700 uppercase tracking-widest">
+                                        {{ field.settings.phone_code|default:"+62" }}
+                                    </span>
+                                {% endif %}
                             {% endif %}
                         </div>
                         
@@ -253,7 +301,11 @@
                     <div class="space-y-2">
                         <template x-for="(choice, idx) in editChoices" :key="idx">
                             <div class="flex items-center gap-2 group/choice">
-                                <input type="text" x-model="editChoices[idx]" maxlength="255" placeholder="Option" class="jk-input flex-1 bg-white text-sm py-2">
+                                <input type="text" x-model="editChoices[idx]" maxlength="255" :placeholder="'Option ' + (idx + 1)" @keydown.shift.enter.prevent="addEditChoice(); $nextTick(() => { const inputs = $el.closest('.space-y-2').querySelectorAll('input[type=\'text\'][maxlength=\'255\']'); if(inputs.length) inputs[inputs.length-1].focus(); })" class="jk-input flex-1 bg-white text-sm py-2">
+                                <div x-show="['dropdown', 'radio'].includes(editType)" class="w-32 shrink-0 relative" :title="hasCollision ? 'Locked: Another field in this section controls routing.' : 'Go to section (leave empty for Next)'">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none text-xs font-bold text-slate-400">Go to</div>
+                                    <input type="text" x-model="editLogicList[idx]" placeholder="Next" class="jk-input bg-slate-50 text-xs w-full py-2 pl-12" :disabled="hasCollision" :class="hasCollision ? 'cursor-not-allowed text-stone-400 bg-stone-100 border-stone-200' : ''">
+                                </div>
                                 <button type="button" @click="removeEditChoice(idx)" class="text-slate-300 hover:text-red-700 p-1.5 opacity-0 group-hover/choice:opacity-100 transition-all bg-red-50 hover:bg-red-100 rounded-lg">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
@@ -272,6 +324,41 @@
                     </div>
                 </div>
 
+                <!-- Number Settings (Edit) -->
+                <div x-show="editType === 'number'" x-transition class="pt-3 border-t border-slate-100 space-y-4">
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest">Number Format</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="border rounded-xl p-3 cursor-pointer transition-colors" :class="numType === 'general' ? 'border-indigo-500 bg-indigo-50/50 text-indigo-700' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'">
+                            <input type="radio" value="general" x-model="numType" class="hidden">
+                            <div class="font-bold text-sm mb-1">General</div>
+                        </label>
+                        <label class="border rounded-xl p-3 cursor-pointer transition-colors" :class="numType === 'currency' ? 'border-indigo-500 bg-indigo-50/50 text-indigo-700' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'">
+                            <input type="radio" value="currency" x-model="numType" class="hidden">
+                            <div class="font-bold text-sm mb-1">Currency</div>
+                        </label>
+                        <label class="border rounded-xl p-3 cursor-pointer transition-colors" :class="numType === 'phone' ? 'border-indigo-500 bg-indigo-50/50 text-indigo-700' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'">
+                            <input type="radio" value="phone" x-model="numType" class="hidden">
+                            <div class="font-bold text-sm mb-1">Phone</div>
+                        </label>
+                    </div>
+
+                    <div x-show="numType === 'currency'" x-transition>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Currency Type</label>
+                        <select x-model="numCurrency" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 transition-shadow">
+                            <option value="idr">Rp (Indonesian Rupiah)</option>
+                            <option value="usd">$ (US Dollar)</option>
+                        </select>
+                    </div>
+
+                    <div x-show="numType === 'phone'" x-transition>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Default Country Code</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 font-bold">+</span>
+                            <input type="text" x-model="numPhoneCode" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-indigo-500 transition-shadow">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Save / Cancel -->
                 <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
                     <button type="button" @click="editing = false" class="px-4 py-2 rounded-xl font-bold text-slate-600 hover:text-slate-700 hover:bg-slate-100 transition-colors text-sm">
@@ -279,6 +366,11 @@
                     </button>
                     <button type="button"
                             @click="
+                                let hasNewLogic = editLogicList.some(v => v.trim() && v.trim().toLowerCase() !== 'next');
+                                if (hasNewLogic && typeof checkLogicCollision === 'function' && checkLogicCollision()) {
+                                    alert('Navigation Logic Conflict!\n\nAnother field in this current Section already controls the \'Go To Section\' branching logic.\n\nPlease remove the logic from the other field first, or move this field to a different section below.');
+                                    return;
+                                }
                                 let fd = new FormData();
                                 fd.append('action', 'edit_field');
                                 fd.append('field_id', '{{ field.id }}');
@@ -286,7 +378,15 @@
                                 fd.append('help_text', editHelp);
                                 fd.append('is_required', editRequired ? 'true' : 'false');
                                 fd.append('field_type', editType);
-                                editChoices.forEach(c => fd.append('choices[]', c));
+                                if (editType === 'number') {
+                                    fd.append('settings_number_type', numType);
+                                    fd.append('settings_currency_type', numCurrency);
+                                    fd.append('settings_phone_code', numPhoneCode);
+                                }
+                                editChoices.forEach((c, idx) => {
+                                    fd.append('choices[]', c);
+                                    fd.append('choice_logic[]', editLogicList[idx] || '');
+                                });
                                 fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
                                 fetch('{% url 'desk:form_edit' dynamic_form.pk %}', {
                                     method: 'POST',

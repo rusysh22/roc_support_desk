@@ -2,9 +2,9 @@
 {% load static %}
 
 {% block title %}
-<span class="lang-id">Panduan SuperAdmin</span><span class="lang-en">SuperAdmin Guide</span>
- — {{ site_config.site_name|default:"RoC Support Desk" }}
+Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
 {% endblock %}
+{% block nav_admin_guide %}active{% endblock %}
 
 {% block page_title %}
 <span class="lang-id">Panduan SuperAdmin</span><span class="lang-en">SuperAdmin Guide</span>

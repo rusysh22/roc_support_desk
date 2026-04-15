@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{% if is_edit %}Edit{% else %}New{% endif %} User | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block nav_users %}jk-sidebar-link-active{% endblock %}
+{% block nav_users %}active{% endblock %}
 {% block page_title %}{% if is_edit %}Edit User{% else %}New User{% endif %}{% endblock %}
 
 {% block content %}

@@ -174,7 +174,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.5</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.6</div>
                     </div>
                 </div>
 
@@ -278,7 +278,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.5
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.6
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -316,23 +316,37 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.2.5 -->
+                <!-- v1.2.6 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="font-bold text-slate-800 text-xs">v1.2.5</span>
-                        <span class="text-xs text-slate-600">07 Apr 2026</span>
+                        <span class="font-bold text-slate-800 text-xs">v1.2.6</span>
+                        <span class="text-xs text-slate-600">15 Apr 2026</span>
                         <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
-                        <li>Role-Based Access Control — tambah role <strong>Auditor</strong> (read-only) & <strong>Portal User</strong></li>
-                        <li>Auditor: akses semua modul hanya baca, tombol aksi disembunyikan</li>
-                        <li>Portal User: hanya bisa akses Ticket Portal & Knowledge Base</li>
-                        <li>User Management: fitur checklist, bulk export & bulk delete</li>
-                        <li>Import data user dari file Excel (.xlsx) dengan validasi duplikasi</li>
-                        <li>Download template Excel untuk panduan import</li>
-                        <li>Sidebar Portal User disederhanakan (hanya 2 menu utama)</li>
-                        <li>Article Knowledge Base: tambah tipe artikel (Problem & Announcement)</li>
+                        <li><strong>Dynamic Form Builder Enhancements</strong> — Improved logic configuration with section-based navigation and collision detection.</li>
+                        <li><strong>Zen Mode</strong> — Added a high-focus full-screen mode for form building without distractions.</li>
+                        <li><strong>UI Consistency</strong> — Standardized sidebar navigation highlights across all internal modules.</li>
+                        <li><strong>Workflow Continuity</strong> — Documentation and Admin links updated to open in new tabs for cleaner task switching.</li>
+                        <li><strong>Navigation Feedback</strong> — Fixed missing active states on Admin Guide and Knowledge Base public home.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.2.5 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.2.5</span>
+                        <span class="text-xs text-slate-600">07 Apr 2026</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>Role-Based Access Control</strong> — Added **Auditor** (read-only) and **Portal User** roles.</li>
+                        <li>Auditor Access: Read-only access to all modules with protected management actions.</li>
+                        <li>Portal User Access: Lightweight interface for submitting and tracking personal tickets.</li>
+                        <li>User Management: Added bulk features for selection, export, and delete.</li>
+                        <li>Data Import: Integrated Excel (.xlsx) user import with robust duplication validation.</li>
+                        <li>Knowledge Base Expansion: Added article type categorization (Problem vs. Announcement).</li>
                     </ul>
                 </div>
 
