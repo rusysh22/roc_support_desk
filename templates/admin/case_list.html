@@ -176,7 +176,7 @@
 
                 <div class="flex items-center gap-1">
                     <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm flex-1 min-w-0" title="From">
-                    <span class="text-slate-400 text-xs">–</span>
+                    <span class="text-slate-600 text-xs">–</span>
                     <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm flex-1 min-w-0" title="To">
                 </div>
 
@@ -197,7 +197,7 @@
                 <!-- Advanced Filters Panel -->
                 <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2 pt-4 border-t border-slate-100" x-show="showAdvanced" x-transition.opacity style="display: none;">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Ticket Type</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ticket Type</label>
                         <select name="type" class="jk-select text-sm">
                             <option value="">All Types</option>
                             {% for value, label in types %}
@@ -206,11 +206,11 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Tags Contains</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tags Contains</label>
                         <input type="text" name="tags" value="{{ current_filters.tags }}" placeholder="e.g. bug, network" class="jk-input text-sm w-full">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Followers</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Followers</label>
                         <select name="followers" class="jk-select text-sm">
                             <option value="">All Followers</option>
                             {% for u in all_followers %}
@@ -219,7 +219,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Read Status</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Read Status</label>
                         <select name="read_status" class="jk-select text-sm">
                             <option value="">All Tickets</option>
                             <option value="unread" {% if current_filters.read_status == 'unread' %}selected{% endif %}>Unread Messages</option>
@@ -235,7 +235,7 @@
 
 <!-- Ticket Count -->
 <div class="flex items-center justify-between mb-4">
-    <p class="text-sm text-slate-500">
+    <p class="text-sm text-slate-600">
         <span class="font-semibold text-slate-700">{{ cases|length }}</span> case{{ cases|length|pluralize }}
     </p>
 </div>
@@ -325,13 +325,13 @@
                     <input type="checkbox" disabled class="w-4 h-4 rounded border-slate-200 bg-slate-100 cursor-not-allowed">
                 </td>
                 <td class="jk-col-ticket whitespace-nowrap">
-                    <span class="text-slate-400 text-xs sm:text-sm font-semibold">
+                    <span class="text-slate-600 text-xs sm:text-sm font-semibold">
                         <svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                         {{ case.case_number }}
                     </span>
                 </td>
                 <td class="jk-col-subject">
-                    <span class="text-slate-400 italic text-sm">Confidential Ticket</span>
+                    <span class="text-slate-600 italic text-sm">Confidential Ticket</span>
                 </td>
                 <td class="jk-col-status">
                     {% if case.status == "Open" %}
@@ -363,25 +363,25 @@
                 </td>
                 <td class="text-sm hidden lg:table-cell">
                     <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
-                    {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
-                    {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
+                    {% if case.requester.job_role %}<div class="text-xs text-slate-600">{{ case.requester.job_role }}</div>{% endif %}
+                    {% if case.requester.email %}<div class="text-xs text-slate-600">{{ case.requester.email }}</div>{% endif %}
                     {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
                 </td>
-                <td class="text-sm text-slate-500 hidden lg:table-cell">{{ case.category.name }}</td>
+                <td class="text-sm text-slate-600 hidden lg:table-cell">{{ case.category.name }}</td>
                 <td class="text-sm hidden xl:table-cell">
                     {% if case.assigned_to %}
                     <span class="font-medium">{{ case.assigned_to.username }}</span>
                     {% else %}
-                    <span class="text-slate-400">Unassigned</span>
+                    <span class="text-slate-600">Unassigned</span>
                     {% endif %}
                 </td>
-                <td class="jk-col-created text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+                <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
                     {{ case.created_at|date:"d M Y" }}<br>
-                    <span class="text-[10px] sm:text-xs text-slate-300">{{ case.created_at|time:"H:i" }}</span>
+                    <span class="text-xs sm:text-xs text-slate-300">{{ case.created_at|time:"H:i" }}</span>
                 </td>
-                <td class="text-sm text-slate-400 whitespace-nowrap hidden md:table-cell">—</td>
-                <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
-                <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
+                <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">—</td>
+                <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
+                <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
             </tr>
             {% else %}
             <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
@@ -435,28 +435,28 @@
                 </td>
                 <td class="text-sm hidden lg:table-cell">
                     <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
-                    {% if case.requester.job_role %}<div class="text-xs text-slate-500">{{ case.requester.job_role }}</div>{% endif %}
-                    {% if case.requester.email %}<div class="text-xs text-slate-500">{{ case.requester.email }}</div>{% endif %}
+                    {% if case.requester.job_role %}<div class="text-xs text-slate-600">{{ case.requester.job_role }}</div>{% endif %}
+                    {% if case.requester.email %}<div class="text-xs text-slate-600">{{ case.requester.email }}</div>{% endif %}
                     {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
                 </td>
-                <td class="text-sm text-slate-500 hidden lg:table-cell">{{ case.category.name }}</td>
+                <td class="text-sm text-slate-600 hidden lg:table-cell">{{ case.category.name }}</td>
                 <td class="text-sm hidden xl:table-cell">
                     {% if case.assigned_to %}
                     <span class="font-medium">{{ case.assigned_to.username }}</span>
                     {% else %}
-                    <span class="text-slate-400">Unassigned</span>
+                    <span class="text-slate-600">Unassigned</span>
                     {% endif %}
                 </td>
-                <td class="jk-col-created text-xs sm:text-sm text-slate-500 whitespace-nowrap">
+                <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
                     {{ case.created_at|date:"d M Y" }}<br>
-                    <span class="text-[10px] sm:text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
+                    <span class="text-xs sm:text-xs text-slate-600">{{ case.created_at|time:"H:i" }}</span>
                 </td>
-                <td class="text-sm text-slate-500 whitespace-nowrap hidden md:table-cell">
+                <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">
                     {% if case.last_viewed_at %}
                     {{ case.last_viewed_at|date:"d M Y" }}<br>
-                    <span class="text-xs text-slate-400">{{ case.last_viewed_at|time:"H:i" }}</span>
+                    <span class="text-xs text-slate-600">{{ case.last_viewed_at|time:"H:i" }}</span>
                     {% else %}
-                    <span class="text-xs text-slate-400 italic">Never</span>
+                    <span class="text-xs text-slate-600 italic">Never</span>
                     {% endif %}
                 </td>
                 <td class="hidden md:table-cell">
@@ -475,13 +475,13 @@
                             🟢 {{ case.last_viewed_at|idle_time }}
                         </span>
                         {% else %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             Please Open
                         </span>
                         {% endif %}
                         {% endwith %}
                     {% else %}
-                    <span class="text-xs text-slate-400">—</span>
+                    <span class="text-xs text-slate-600">—</span>
                     {% endif %}
                 </td>
                 <td class="hidden md:table-cell">
@@ -492,7 +492,7 @@
                     <span class="jk-badge jk-badge-sla-warn">{{ case.resolution_due_at|date:"d M H:i" }}</span>
                     {% endif %}
                     {% else %}
-                    <span class="text-xs text-slate-400">—</span>
+                    <span class="text-xs text-slate-600">—</span>
                     {% endif %}
                 </td>
             </tr>
@@ -504,14 +504,14 @@
     <!-- Pagination block -->
     {% if cases.has_other_pages %}
     <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex items-center justify-between flex-wrap gap-2 sm:gap-4">
-        <div class="text-sm text-slate-500">
+        <div class="text-sm text-slate-600">
             Showing <span class="font-medium text-slate-900">{{ cases.start_index }}</span> to <span class="font-medium text-slate-900">{{ cases.end_index }}</span> of <span class="font-medium text-slate-900">{{ cases.paginator.count }}</span> cases
         </div>
         <div class="flex items-center gap-1">
             {% if cases.has_previous %}
             <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
             {% else %}
-            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Prev</button>
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Prev</button>
             {% endif %}
 
             {% for i in cases.paginator.page_range %}
@@ -525,7 +525,7 @@
             {% if cases.has_next %}
             <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
             {% else %}
-            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Next</button>
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Next</button>
             {% endif %}
         </div>
     </div>
@@ -599,7 +599,7 @@
 
             <div class="w-px h-8 bg-slate-700/50 self-center mx-1"></div>
 
-            <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-400 hover:bg-slate-800 transition-colors border-l border-slate-700/50 ml-1">
+            <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-600 hover:bg-slate-800 transition-colors border-l border-slate-700/50 ml-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -614,7 +614,7 @@
                     <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                     Merge Tickets
                 </h3>
-                <button @click="showMergeModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                <button @click="showMergeModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
@@ -632,7 +632,7 @@
                     <div class="max-h-60 overflow-y-auto pr-2 space-y-2 mb-6 pointer-events-auto">
                         {% regroup cases|dictsort:"status" by status as status_groups %}
                         {% for group in status_groups %}
-                        <div class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 px-2 py-1 mb-1 mt-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider rounded border border-slate-200">
+                        <div class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 px-2 py-1 mb-1 mt-2 text-xs font-bold text-slate-600 uppercase tracking-wider rounded border border-slate-200">
                             {{ group.grouper }}
                         </div>
                         {% for case in group.list %}
@@ -643,7 +643,7 @@
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="font-medium text-slate-800 text-sm truncate">{{ case.case_number }}: {{ case.subject }}</div>
-                                <div class="text-xs text-slate-500 truncate mt-0.5">👤 {{ case.requester.full_name|default:"Unknown" }} • {{ case.created_at|date:"d M Y" }}</div>
+                                <div class="text-xs text-slate-600 truncate mt-0.5">👤 {{ case.requester.full_name|default:"Unknown" }} • {{ case.created_at|date:"d M Y" }}</div>
                             </div>
                         </label>
                         {% endfor %}
@@ -666,7 +666,7 @@
     <div class="jk-empty-state">
         <div class="jk-empty-state-icon">📭</div>
         <h3 class="text-lg font-semibold text-slate-700 mb-1">No Tickets Found</h3>
-        <p class="text-slate-500 text-sm">No cases match your current filters.</p>
+        <p class="text-slate-600 text-sm">No cases match your current filters.</p>
     </div>
 </div>
 {% endif %}

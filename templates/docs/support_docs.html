@@ -1,0 +1,1211 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Panduan Staf Support Desk — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+
+
+{% block page_title %}
+<span class="lang-id">Panduan Staf Support Desk</span><span class="lang-en">Staff Support Desk Guide</span>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:4px;background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:8px;padding:3px;">
+        <button data-set-lang="id" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="5.5" fill="#CE1126"/><rect y="5.5" width="16" height="5.5" fill="#FFFFFF"/></svg>
+            ID
+        </button>
+        <button data-set-lang="en" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="11" fill="#012169"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="3"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#C8102E" stroke-width="1.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#C8102E" stroke-width="2"/></svg>
+            EN
+        </button>
+    </div>
+    <button id="pdf-btn" onclick="downloadDocsPDF('support-desk')" class="jk-btn jk-btn-primary jk-btn-sm" style="gap:6px;">
+        <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="lang-id">Unduh PDF</span><span class="lang-en">Download PDF</span>
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<style>
+    /* ── Language switching ─────────────────────────────────── */
+    body.lang-en .lang-id { display: none !important; }
+    body.lang-id .lang-en { display: none !important; }
+
+    /* ── Docs layout ────────────────────────────────────────── */
+    .docs-section { scroll-margin-top: 88px; }
+
+    /* ── Steps ──────────────────────────────────────────────── */
+    .docs-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+    .docs-step-num {
+        flex-shrink: 0; width: 30px; height: 30px;
+        background: #10b981; color: #fff; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 13px;
+    }
+
+    /* ── Callouts ────────────────────────────────────────────── */
+    .docs-callout {
+        border-radius: 0 10px 10px 0; padding: 12px 16px;
+        margin: 14px 0; font-size: 13.5px; border-left: 4px solid;
+    }
+    .docs-callout-tip   { background: #f0fdf4; border-color: #22c55e; color: #166534; }
+    .docs-callout-warn  { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
+    .docs-callout-danger{ background: #fef2f2; border-color: #ef4444; color: #991b1b; }
+
+    /* ── TOC ─────────────────────────────────────────────────── */
+    .docs-toc-link {
+        display: block; padding: 5px 10px; border-radius: 8px;
+        font-size: 12.5px; color: var(--jk-text-muted);
+        text-decoration: none; transition: all .15s;
+    }
+    .docs-toc-link:hover, .docs-toc-link.active { background: #d1fae5; color: #065f46; }
+    .docs-toc-link.active { font-weight: 600; }
+    .docs-toc-sub { padding-left: 14px; }
+
+    /* ── Language button active state ────────────────────────── */
+    .lang-btn-active {
+        background: var(--jk-primary) !important;
+        color: #fff !important;
+        border-color: var(--jk-primary) !important;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .docs-hero {
+        background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%);
+        border-radius: var(--jk-radius);
+    }
+
+    /* ── Flow boxes ──────────────────────────────────────────── */
+    .flow-item {
+        padding: 5px 14px; border-radius: 8px;
+        font-size: 12.5px; font-weight: 600;
+    }
+
+    /* ── Tables ──────────────────────────────────────────────── */
+    .docs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .docs-table th {
+        background: var(--jk-surface-alt); padding: 9px 13px;
+        text-align: left; font-weight: 600; border-bottom: 2px solid var(--jk-border);
+    }
+    .docs-table td { padding: 9px 13px; border-bottom: 1px solid var(--jk-surface-alt); color: #4b5563; }
+    .docs-table tr:hover td { background: var(--jk-surface-alt); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================================================= -->
+<!-- HERO                                                           -->
+<!-- ============================================================= -->
+<div class="docs-hero text-white p-10 mb-6">
+    <div class="flex flex-wrap gap-2 mb-4">
+        <span class="jk-badge" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);">
+            🔒 <span class="lang-id">Khusus Staf</span><span class="lang-en">Staff Only</span>
+        </span>
+        <span class="jk-badge" style="background:rgba(255,255,255,0.15);color:#d1fae5;border:1px solid rgba(255,255,255,0.2);">
+            SupportDesk · Manager · Auditor · SuperAdmin
+        </span>
+    </div>
+    <h1 class="text-2xl font-bold mb-2">
+        <span class="lang-id">Panduan Staf Support Desk</span>
+        <span class="lang-en">Staff Support Desk Guide</span>
+    </h1>
+    <p class="lang-id" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        Panduan lengkap bagi staf dalam mengelola tiket, merespons permintaan, mengoperasikan semua fitur sistem, dan memastikan setiap keluhan tertangani dengan cepat, terukur, dan terdokumentasi.
+    </p>
+    <p class="lang-en" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        A comprehensive guide for staff to manage tickets, respond to requests, operate all system features, and ensure every complaint is handled quickly, measurably, and fully documented.
+    </p>
+</div>
+
+<!-- ============================================================= -->
+<!-- TWO-COLUMN LAYOUT: TOC sidebar + content                      -->
+<!-- ============================================================= -->
+<div id="docs-pdf-root" style="display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:start;">
+
+    <!-- ── TOC Sidebar ─────────────────────────────────────────── -->
+    <div id="docs-toc-sidebar" class="jk-card" style="position:sticky;top:88px;">
+        <div class="jk-card-header" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--jk-text-muted);">
+            <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
+        </div>
+        <div class="jk-card-body" style="padding:8px 10px;">
+            <nav>
+                <a href="#mengapa" class="docs-toc-link">
+                    <span class="lang-id">Mengapa Sistem Ini</span><span class="lang-en">Why This System</span>
+                </a>
+                <a href="#role" class="docs-toc-link">
+                    <span class="lang-id">Peran &amp; Hak Akses</span><span class="lang-en">Role &amp; Access</span>
+                </a>
+                <a href="#dashboard" class="docs-toc-link">Dashboard</a>
+                <a href="#daftar-tiket" class="docs-toc-link">
+                    <span class="lang-id">Daftar Tiket</span><span class="lang-en">Ticket List</span>
+                </a>
+                <div class="docs-toc-sub">
+                    <a href="#tabel" class="docs-toc-link">
+                        <span class="lang-id">Tampilan Tabel</span><span class="lang-en">Table View</span>
+                    </a>
+                    <a href="#kanban" class="docs-toc-link">Kanban</a>
+                    <a href="#kalender" class="docs-toc-link">
+                        <span class="lang-id">Kalender</span><span class="lang-en">Calendar</span>
+                    </a>
+                    <a href="#bulk" class="docs-toc-link">
+                        <span class="lang-id">Aksi Massal</span><span class="lang-en">Bulk Actions</span>
+                    </a>
+                </div>
+                <a href="#detail-tiket" class="docs-toc-link">
+                    <span class="lang-id">Detail Tiket</span><span class="lang-en">Ticket Detail</span>
+                </a>
+                <div class="docs-toc-sub">
+                    <a href="#thread" class="docs-toc-link">
+                        <span class="lang-id">Thread Percakapan</span><span class="lang-en">Conversation Thread</span>
+                    </a>
+                    <a href="#balas" class="docs-toc-link">
+                        <span class="lang-id">Membalas</span><span class="lang-en">Replying</span>
+                    </a>
+                    <a href="#komentar" class="docs-toc-link">
+                        <span class="lang-id">Komentar Internal</span><span class="lang-en">Internal Comments</span>
+                    </a>
+                    <a href="#rca" class="docs-toc-link">RCA</a>
+                    <a href="#status-alur" class="docs-toc-link">
+                        <span class="lang-id">Alur Status</span><span class="lang-en">Status Flow</span>
+                    </a>
+                    <a href="#forward" class="docs-toc-link">
+                        <span class="lang-id">Eskalasi</span><span class="lang-en">Escalation</span>
+                    </a>
+                    <a href="#close" class="docs-toc-link">
+                        <span class="lang-id">Tutup &amp; Notif</span><span class="lang-en">Close &amp; Notify</span>
+                    </a>
+                    <a href="#edit-closed" class="docs-toc-link">
+                        <span class="lang-id">Edit Tiket Closed</span><span class="lang-en">Edit Closed Ticket</span>
+                    </a>
+                    <a href="#wa-session" class="docs-toc-link">WA Session</a>
+                </div>
+                <a href="#kb" class="docs-toc-link">Knowledge Base</a>
+                <a href="#links" class="docs-toc-link">Short Links</a>
+                <a href="#forms" class="docs-toc-link">Form Builder</a>
+                <a href="#notifikasi" class="docs-toc-link">
+                    <span class="lang-id">Notifikasi</span><span class="lang-en">Notifications</span>
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- ── Main Content ─────────────────────────────────────────── -->
+    <div style="min-width:0;">
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #mengapa — Why This System                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="mengapa" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🎯 <span class="lang-id">Mengapa Sistem Ini Ada?</span><span class="lang-en">Why Does This System Exist?</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:10px;">
+                    Sebelum sistem ini, penanganan tiket dilakukan secara tidak terstruktur — melalui WhatsApp pribadi atau email yang tersebar. Akibatnya, histori percakapan hilang saat staf resign, tidak ada KPI yang terukur, dan tidak ada jejak audit.
+                </p>
+                <p class="lang-en" style="margin-bottom:10px;">
+                    Before this system, ticket handling was unstructured — done through personal WhatsApp or scattered emails. As a result, conversation history was lost when staff resigned, there were no measurable KPIs, and no audit trail.
+                </p>
+                <p class="lang-id" style="margin-bottom:16px;">
+                    Sebagai staf, kamu adalah garis terdepan. Sistem ini dirancang agar kamu bisa menangani lebih banyak permintaan dengan lebih cepat, lengkap dengan jejak audit penuh.
+                </p>
+                <p class="lang-en" style="margin-bottom:16px;">
+                    As staff, you are the frontline. This system is designed so you can handle more requests faster, with a full audit trail.
+                </p>
+
+                <!-- 4 benefit cards -->
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">⚡</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Penanganan Lebih Cepat</span><span class="lang-en">Faster Handling</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Template RCA, quick reply, dan filter cerdas mempercepat alur kerja.</span>
+                            <span class="lang-en">RCA templates, quick replies, and smart filters accelerate your workflow.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">📊</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Performa Terukur</span><span class="lang-en">Measurable Performance</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">SLA, tren volume tiket, dan dashboard analitik tersedia secara real-time.</span>
+                            <span class="lang-en">SLA, ticket volume trends, and analytics dashboard available in real-time.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">🧠</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Knowledge Sharing</span><span class="lang-en">Knowledge Sharing</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">RCA tiket bisa langsung dijadikan artikel KB — ilmu tidak hilang saat staf berganti.</span>
+                            <span class="lang-en">Ticket RCAs can be turned directly into KB articles — knowledge stays even when staff change.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">🔒</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Jejak Audit Penuh</span><span class="lang-en">Full Audit Trail</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Setiap perubahan status, pesan, dan komentar tercatat dengan timestamp dan nama pengguna.</span>
+                            <span class="lang-en">Every status change, message, and comment is recorded with timestamp and username.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #role — Role & Access                                  -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="role" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    👤 <span class="lang-id">Peran &amp; Hak Akses</span><span class="lang-en">Role &amp; Access Rights</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13px;">
+                <p class="lang-id" style="margin-bottom:12px;color:var(--jk-text-muted);">Tabel berikut merangkum fitur yang dapat diakses oleh masing-masing peran.</p>
+                <p class="lang-en" style="margin-bottom:12px;color:var(--jk-text-muted);">The following table summarizes what each role can access.</p>
+                <div style="overflow-x:auto;">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th><span class="lang-id">Fitur</span><span class="lang-en">Feature</span></th>
+                                <th>SupportDesk</th>
+                                <th>Manager</th>
+                                <th>Auditor</th>
+                                <th>SuperAdmin</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="lang-id">Lihat &amp; tangani tiket</span><span class="lang-en">View &amp; handle tickets</span></td>
+                                <td>✅</td><td>✅</td>
+                                <td><span class="lang-id">Hanya lihat</span><span class="lang-en">View only</span></td>
+                                <td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Tiket rahasia</span><span class="lang-en">Confidential tickets</span></td>
+                                <td><span class="lang-id">Jika diizinkan</span><span class="lang-en">If permitted</span></td>
+                                <td>✅</td>
+                                <td><span class="lang-id">Hanya lihat</span><span class="lang-en">View only</span></td>
+                                <td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Balas (semua channel)</span><span class="lang-en">Reply (all channels)</span></td>
+                                <td>✅</td><td>✅</td><td>❌</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Ubah status tiket</span><span class="lang-en">Change ticket status</span></td>
+                                <td>✅</td><td>✅</td><td>❌</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Isi RCA</span><span class="lang-en">Fill RCA</span></td>
+                                <td>✅</td><td>✅</td><td>❌</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Request edit Closed</span><span class="lang-en">Request edit Closed</span></td>
+                                <td>✅</td><td>✅</td><td>❌</td>
+                                <td>✅ <span style="font-size:11px;"><span class="lang-id">(langsung)</span><span class="lang-en">(direct)</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Approve/Tolak request edit</span><span class="lang-en">Approve/Reject edit request</span></td>
+                                <td>❌</td><td>✅</td><td>❌</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Kelola KB</span><span class="lang-en">Manage KB</span></td>
+                                <td><span class="lang-id">Draft &amp; Submit</span><span class="lang-en">Draft &amp; Submit</span></td>
+                                <td><span class="lang-id">Publish</span><span class="lang-en">Publish</span></td>
+                                <td><span class="lang-id">Hanya lihat</span><span class="lang-en">View only</span></td>
+                                <td>✅</td>
+                            </tr>
+                            <tr>
+                                <td>Form Builder</td>
+                                <td>✅</td><td>✅</td>
+                                <td><span class="lang-id">Hanya lihat</span><span class="lang-en">View only</span></td>
+                                <td>✅</td>
+                            </tr>
+                            <tr>
+                                <td>Short Links</td>
+                                <td>✅</td><td>✅</td>
+                                <td><span class="lang-id">Hanya lihat</span><span class="lang-en">View only</span></td>
+                                <td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Manajemen pengguna</span><span class="lang-en">User management</span></td>
+                                <td>❌</td><td>❌</td><td>❌</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Dashboard analitik</span><span class="lang-en">Dashboard analytics</span></td>
+                                <td>✅</td><td>✅</td><td>✅</td><td>✅</td>
+                            </tr>
+                            <tr>
+                                <td>Export Excel</td>
+                                <td>✅</td><td>✅</td><td>✅</td><td>✅</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #dashboard — Analytics Dashboard                       -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="dashboard" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📊 Dashboard <span class="lang-id">Analitik</span><span class="lang-en">Analytics</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">Dashboard memberikan gambaran real-time kondisi semua tiket di sistem.</p>
+                <p class="lang-en" style="margin-bottom:12px;">The dashboard gives a real-time overview of all ticket conditions in the system.</p>
+
+                <div style="font-weight:600;color:var(--jk-text);font-size:13px;margin-bottom:8px;">
+                    <span class="lang-id">Metrik Utama</span><span class="lang-en">Key Metrics</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">
+                            <span class="lang-id">Tiket Aktif</span><span class="lang-en">Active Tickets</span>
+                        </div>
+                        <div style="font-size:11.5px;">
+                            <span class="lang-id">Total tiket yang belum Closed</span><span class="lang-en">Total tickets not yet Closed</span>
+                        </div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;color:#ef4444;">
+                            <span class="lang-id">Tiket Kritis</span><span class="lang-en">Critical Tickets</span>
+                        </div>
+                        <div style="font-size:11.5px;">
+                            <span class="lang-id">Prioritas Critical yang masih terbuka</span><span class="lang-en">Critical priority tickets still open</span>
+                        </div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;color:#f59e0b;">
+                            <span class="lang-id">Menunggu Respons</span><span class="lang-en">Waiting Response</span>
+                        </div>
+                        <div style="font-size:11.5px;">
+                            <span class="lang-id">Tiket yang belum direspons staf</span><span class="lang-en">Tickets without staff response yet</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="font-weight:600;color:var(--jk-text);font-size:13px;margin-bottom:8px;">
+                    <span class="lang-id">Grafik &amp; Tabel</span><span class="lang-en">Charts &amp; Tables</span>
+                </div>
+                <ul style="list-style:disc;padding-left:18px;line-height:1.9;">
+                    <li><span class="lang-id">Tren volume tiket harian/mingguan</span><span class="lang-en">Daily/weekly ticket volume trend</span></li>
+                    <li><span class="lang-id">Distribusi status (pie chart)</span><span class="lang-en">Status distribution (pie chart)</span></li>
+                    <li><span class="lang-id">Top kategori tiket</span><span class="lang-en">Top ticket categories</span></li>
+                    <li><span class="lang-id">Daftar tiket terbaru</span><span class="lang-en">Recent tickets list</span></li>
+                    <li><span class="lang-id">Overview SLA (response &amp; resolution)</span><span class="lang-en">SLA overview (response &amp; resolution)</span></li>
+                </ul>
+
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Dashboard di-refresh otomatis via HTMX polling — tidak perlu reload halaman secara manual.</span>
+                    <span class="lang-en">Dashboard auto-refreshes via HTMX polling — no need to reload the page manually.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #daftar-tiket — Ticket List                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="daftar-tiket" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📋 <span class="lang-id">Daftar Tiket</span><span class="lang-en">Ticket List</span>
+                </h2>
+            </div>
+            <div class="jk-card-body">
+
+                <!-- #tabel -->
+                <div id="tabel" class="docs-section" style="margin-bottom:24px;">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">
+                        📋 <span class="lang-id">Tampilan Tabel</span><span class="lang-en">Table View</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Tampilan default daftar tiket. Tersedia berbagai filter:</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The default ticket list view. Various filters are available:</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;">🔍 <span class="lang-id">Pencarian</span><span class="lang-en">Search</span></span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;">Status</span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;"><span class="lang-id">Prioritas</span><span class="lang-en">Priority</span></span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;"><span class="lang-id">Kategori</span><span class="lang-en">Category</span></span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;"><span class="lang-id">Sumber</span><span class="lang-en">Source</span></span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;"><span class="lang-id">Rentang Tanggal</span><span class="lang-en">Date Range</span></span>
+                        <span style="background:var(--jk-primary-light);color:#3730a3;padding:3px 10px;border-radius:6px;font-size:12px;">Assigned To</span>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">
+                        👁 <strong>Quick View:</strong>
+                        <span class="lang-id">Klik ikon mata pada baris tiket untuk membuka panel pratinjau tanpa meninggalkan halaman daftar.</span>
+                        <span class="lang-en">Click the eye icon on a ticket row to open a preview panel without leaving the list page.</span>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">
+                        📥 <strong>Export Excel:</strong>
+                        <span class="lang-id">Atur filter yang diinginkan → klik tombol Export → file .xlsx otomatis terunduh berisi seluruh data tiket sesuai filter.</span>
+                        <span class="lang-en">Set desired filters → click Export button → .xlsx file automatically downloads with all ticket data matching the filters.</span>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #kanban -->
+                <div id="kanban" class="docs-section" style="margin-bottom:24px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        📊 Kanban
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Tampilan papan kanban memisahkan tiket berdasarkan statusnya secara visual.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The kanban board view separates tickets by status visually.</p>
+
+                    <!-- Status flow -->
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+                        <span class="flow-item" style="background:#dbeafe;color:#1e40af;">Open</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#fef3c7;color:#92400e;">Investigating</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#ede9fe;color:#5b21b6;">Pending Info</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#d1fae5;color:#065f46;">Resolved</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#f1f5f9;color:#475569;">Closed</span>
+                    </div>
+
+                    <ul style="font-size:13.5px;color:var(--jk-text-muted);list-style:disc;padding-left:18px;line-height:1.9;">
+                        <li><span class="lang-id">Setiap kartu menampilkan: nomor tiket, subjek, pemohon, prioritas</span><span class="lang-en">Each card shows: ticket number, subject, requester, priority</span></li>
+                        <li><span class="lang-id">Tiket kritis ditandai dengan badge merah</span><span class="lang-en">Critical tickets are marked with a red badge</span></li>
+                        <li><span class="lang-id">Papan di-refresh otomatis via HTMX</span><span class="lang-en">Board auto-refreshes via HTMX</span></li>
+                    </ul>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #kalender -->
+                <div id="kalender" class="docs-section" style="margin-bottom:24px;">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">
+                        📅 <span class="lang-id">Tampilan Kalender</span><span class="lang-en">Calendar View</span>
+                    </h3>
+                    <ul style="font-size:13.5px;color:var(--jk-text-muted);list-style:disc;padding-left:18px;line-height:1.9;">
+                        <li><span class="lang-id">Kalender bulanan berdasarkan tanggal pembuatan tiket</span><span class="lang-en">Monthly calendar by ticket creation date</span></li>
+                        <li><span class="lang-id">Warna berbeda per prioritas (Critical: merah, High: oranye, dll.)</span><span class="lang-en">Different colors per priority (Critical: red, High: orange, etc.)</span></li>
+                        <li><span class="lang-id">Klik tanggal untuk melihat tiket yang dibuat pada hari tersebut</span><span class="lang-en">Click a date to see tickets created on that day</span></li>
+                    </ul>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #bulk -->
+                <div id="bulk" class="docs-section">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">
+                        ☑ <span class="lang-id">Aksi Massal (Bulk Actions)</span><span class="lang-en">Bulk Actions</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Centang beberapa tiket sekaligus — toolbar Bulk Action akan muncul secara otomatis.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Check multiple tickets at once — the Bulk Action toolbar will appear automatically.</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+                        <span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;">
+                            <span class="lang-id">Ubah Status</span><span class="lang-en">Change Status</span>
+                        </span>
+                        <span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;">
+                            <span class="lang-id">Ubah Prioritas</span><span class="lang-en">Change Priority</span>
+                        </span>
+                        <span style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;">
+                            <span class="lang-id">Assign ke Staf</span><span class="lang-en">Assign to Staff</span>
+                        </span>
+                    </div>
+                    <div class="docs-callout docs-callout-warn">
+                        ⚠ <span class="lang-id">Aksi massal tidak dapat dibatalkan. Pastikan pilihan tiket sudah benar sebelum mengeksekusi.</span>
+                        <span class="lang-en">Bulk actions cannot be undone. Make sure the ticket selection is correct before executing.</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #detail-tiket — Ticket Detail                          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="detail-tiket" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🎫 <span class="lang-id">Detail Tiket</span><span class="lang-en">Ticket Detail</span>
+                </h2>
+            </div>
+            <div class="jk-card-body">
+
+                <!-- Info table -->
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Panel info tiket menampilkan semua atribut. Sebagian besar dapat diedit langsung (inline).</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The ticket info panel shows all attributes. Most can be edited directly (inline).</p>
+
+                <div style="overflow-x:auto;margin-bottom:14px;">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th>
+                                <th><span class="lang-id">Dapat Diedit?</span><span class="lang-en">Editable?</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="lang-id">Nomor Tiket</span><span class="lang-en">Ticket Number</span></td>
+                                <td><span class="lang-id">ID unik tiket</span><span class="lang-en">Unique ticket ID</span></td>
+                                <td>❌ <span class="lang-id">Tidak</span><span class="lang-en">No</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Subjek</span><span class="lang-en">Subject</span></td>
+                                <td><span class="lang-id">Judul singkat masalah</span><span class="lang-en">Brief title of the issue</span></td>
+                                <td>✅ <span class="lang-id">Inline edit</span><span class="lang-en">Inline edit</span></td>
+                            </tr>
+                            <tr>
+                                <td>Status</td>
+                                <td><span class="lang-id">Status saat ini</span><span class="lang-en">Current status</span></td>
+                                <td>✅ <span class="lang-id">Dropdown</span><span class="lang-en">Dropdown</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Prioritas</span><span class="lang-en">Priority</span></td>
+                                <td>Low / Medium / High / Critical</td>
+                                <td>✅ <span class="lang-id">Dropdown</span><span class="lang-en">Dropdown</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Tipe</span><span class="lang-en">Type</span></td>
+                                <td>Problem / Request / Announcement</td>
+                                <td>✅ <span class="lang-id">Dropdown</span><span class="lang-en">Dropdown</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Kategori</span><span class="lang-en">Category</span></td>
+                                <td><span class="lang-id">Kategori masalah</span><span class="lang-en">Issue category</span></td>
+                                <td>✅ <span class="lang-id">Inline edit</span><span class="lang-en">Inline edit</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Pemohon</span><span class="lang-en">Requester</span></td>
+                                <td><span class="lang-id">Pengguna yang mengajukan</span><span class="lang-en">User who submitted</span></td>
+                                <td>✅ <span class="lang-id">Editable + link ke profil karyawan</span><span class="lang-en">Editable + link to employee profile</span></td>
+                            </tr>
+                            <tr>
+                                <td>Assigned To</td>
+                                <td><span class="lang-id">Staf yang menangani</span><span class="lang-en">Staff handling the ticket</span></td>
+                                <td>✅ <span class="lang-id">Dropdown</span><span class="lang-en">Dropdown</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Sumber</span><span class="lang-en">Source</span></td>
+                                <td>Web / WhatsApp / Email</td>
+                                <td>❌ <span class="lang-id">Otomatis</span><span class="lang-en">Automatic</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="lang-id">Tanggal Dibuat</span><span class="lang-en">Created Date</span></td>
+                                <td><span class="lang-id">Waktu tiket masuk</span><span class="lang-en">Time ticket was created</span></td>
+                                <td>❌ <span class="lang-id">Otomatis</span><span class="lang-en">Automatic</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-callout docs-callout-tip">
+                    ✏ <span class="lang-id">Sebagian besar field dapat diedit langsung — klik pada nilainya untuk mulai mengedit, lalu simpan.</span>
+                    <span class="lang-en">Most fields are editable inline — click the value to start editing, then save.</span>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #thread -->
+                <div id="thread" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        💬 <span class="lang-id">Thread Percakapan</span><span class="lang-en">Conversation Thread</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Thread menampilkan semua pesan dari semua channel secara berurutan:</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The thread shows all messages from all channels in sequence:</p>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                        <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                            <span style="background:#dbeafe;color:#1e40af;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;">📱 WA Inbound</span>
+                            <span style="color:var(--jk-text-muted);"><span class="lang-id">Pesan masuk dari WhatsApp — bubble biru, tampil di kiri</span><span class="lang-en">Incoming WhatsApp messages — blue bubble, shown on left</span></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                            <span style="background:#d1fae5;color:#065f46;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;">📤 <span class="lang-id">Balasan Staf</span><span class="lang-en">Staff Reply</span></span>
+                            <span style="color:var(--jk-text-muted);"><span class="lang-id">Balasan staf — bubble hijau, tampil di kanan</span><span class="lang-en">Staff reply — green bubble, shown on right</span></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                            <span style="background:#fef3c7;color:#92400e;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;">✉ Email</span>
+                            <span style="color:var(--jk-text-muted);"><span class="lang-id">Pesan email — ikon amplop, latar kuning amber</span><span class="lang-en">Email messages — envelope icon, amber background</span></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                            <span style="background:#f1f5f9;color:#475569;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;">💬 <span class="lang-id">Komentar Internal</span><span class="lang-en">Internal Comment</span></span>
+                            <span style="color:var(--jk-text-muted);"><span class="lang-id">Latar abu garis-garis — TIDAK terlihat pemohon</span><span class="lang-en">Striped grey background — NOT visible to requester</span></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                            <span style="background:#ede9fe;color:#5b21b6;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;">📁 <span class="lang-id">Lampiran</span><span class="lang-en">Attachment</span></span>
+                            <span style="color:var(--jk-text-muted);"><span class="lang-id">File yang dilampirkan (gambar, dokumen)</span><span class="lang-en">Attached files (images, documents)</span></span>
+                        </div>
+                    </div>
+                    <p style="font-size:13px;color:var(--jk-text-muted);">
+                        <strong><span class="lang-id">Aksi pesan (hover):</span><span class="lang-en">Message actions (hover):</span></strong>
+                        <span class="lang-id"> Edit (pesan web/internal saja) · Hapus (dengan konfirmasi) · Reaksi emoji.</span>
+                        <span class="lang-en"> Edit (web/internal messages only) · Delete (with confirm) · Emoji reaction.</span>
+                    </p>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #balas -->
+                <div id="balas" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        📤 <span class="lang-id">Membalas &amp; Mengirim Pesan</span><span class="lang-en">Replying &amp; Sending Messages</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Kotak reply memiliki tiga tab channel:</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The reply box has three channel tabs:</p>
+
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+                        <div style="flex:1;min-width:150px;background:#d1fae5;border-radius:var(--jk-radius-sm);padding:10px 14px;">
+                            <div style="font-weight:700;font-size:12px;color:#065f46;margin-bottom:4px;">📱 WhatsApp</div>
+                            <div style="font-size:12px;color:#047857;"><span class="lang-id">Dikirim via Evolution API. Hanya untuk tiket sumber WA.</span><span class="lang-en">Sent via Evolution API. Only for WA source tickets.</span></div>
+                        </div>
+                        <div style="flex:1;min-width:150px;background:#fef3c7;border-radius:var(--jk-radius-sm);padding:10px 14px;">
+                            <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:4px;">✉ Email</div>
+                            <div style="font-size:12px;color:#b45309;"><span class="lang-id">Balasan formal via SMTP ke email pemohon.</span><span class="lang-en">Formal reply via SMTP to requester's email.</span></div>
+                        </div>
+                        <div style="flex:1;min-width:150px;background:#f1f5f9;border-radius:var(--jk-radius-sm);padding:10px 14px;">
+                            <div style="font-weight:700;font-size:12px;color:#475569;margin-bottom:4px;">🌐 Web Note</div>
+                            <div style="font-size:12px;color:#64748b;"><span class="lang-id">Hanya tampil di thread, tidak dikirim ke luar.</span><span class="lang-en">Only appears in thread, not sent externally.</span></div>
+                        </div>
+                    </div>
+
+                    <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Langkah-langkah:</span><span class="lang-en">Steps:</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Pilih tab channel (WhatsApp / Email / Web Note)</span><span class="lang-en">Choose the channel tab (WhatsApp / Email / Web Note)</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Ketik pesan</span><span class="lang-en">Type your message</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Lampirkan file jika diperlukan (opsional)</span><span class="lang-en">Attach files if needed (optional)</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik Send</span><span class="lang-en">Click Send</span></div></div>
+                    <div class="docs-callout docs-callout-warn">
+                        ⚠ <span class="lang-id">Sebelum membalas via WhatsApp, pastikan status WA Gateway adalah <strong>Connected</strong> di panel kanan.</span>
+                        <span class="lang-en">Before replying via WhatsApp, make sure the WA Gateway status is <strong>Connected</strong> in the right panel.</span>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #komentar -->
+                <div id="komentar" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        🔒 <span class="lang-id">Komentar Internal</span><span class="lang-en">Internal Comments</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Komentar internal adalah catatan khusus staf — <strong>tidak terlihat oleh pemohon</strong>.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Internal comments are staff-only notes — <strong>not visible to the requester</strong>.</p>
+                    <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">
+                        <strong><span class="lang-id">Gunakan untuk:</span><span class="lang-en">Use for:</span></strong>
+                        <span class="lang-id"> mendiskusikan langkah penanganan, mencatat temuan teknis, memberikan konteks saat handoff ke staf lain.</span>
+                        <span class="lang-en"> discussing handling steps, noting technical findings, providing context when handing off to another staff member.</span>
+                    </p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik tab "Internal Comment" di kotak reply</span><span class="lang-en">Click the "Internal Comment" tab in the reply box</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Ketik catatan</span><span class="lang-en">Type your note</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik "Add Comment"</span><span class="lang-en">Click "Add Comment"</span></div></div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #rca -->
+                <div id="rca" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        🔬 <span class="lang-id">RCA &amp; Langkah Penyelesaian</span><span class="lang-en">RCA &amp; Solving Steps</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">RCA (Root Cause Analysis) wajib diisi sebelum tiket bisa di-Resolve.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">RCA (Root Cause Analysis) is mandatory before a ticket can be Resolved.</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+                        <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;">Root Cause Analysis</div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Apa penyebab utama masalah ini?</span><span class="lang-en">What is the root cause of this issue?</span></div>
+                        </div>
+                        <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Langkah Penyelesaian</span><span class="lang-en">Solving Steps</span></div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Apa yang sudah dilakukan untuk menyelesaikan?</span><span class="lang-en">What was done to resolve the issue?</span></div>
+                        </div>
+                    </div>
+                    <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:10px;">
+                        <strong><span class="lang-id">Template RCA:</span><span class="lang-en">RCA Templates:</span></strong>
+                        <span class="lang-id"> Tersedia tombol quick-fill template global atau per kategori untuk mempercepat pengisian.</span>
+                        <span class="lang-en"> Global or per-category quick-fill template buttons are available to speed up filling.</span>
+                    </p>
+                    <div class="docs-callout docs-callout-danger">
+                        🚫 <span class="lang-id">Sistem akan memblokir perubahan status ke Resolved jika field RCA masih kosong.</span>
+                        <span class="lang-en">The system will block changing status to Resolved if RCA fields are still empty.</span>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Tulis RCA secara detail — konten ini bisa langsung dijadikan artikel Knowledge Base.</span>
+                        <span class="lang-en">Write detailed RCA — this content can be directly converted into a Knowledge Base article.</span>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #status-alur -->
+                <div id="status-alur" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        🔄 <span class="lang-id">Alur Status Tiket</span><span class="lang-en">Ticket Status Flow</span>
+                    </h3>
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+                        <span class="flow-item jk-badge-open">Open</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item jk-badge-investigating">Investigating</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item jk-badge-pending">Pending Info</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item jk-badge-resolved">Resolved</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item jk-badge-closed">Closed</span>
+                    </div>
+
+                    <div style="overflow-x:auto;">
+                        <table class="docs-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th><span class="lang-id">Arti</span><span class="lang-en">Meaning</span></th>
+                                    <th><span class="lang-id">Tindakan Staf</span><span class="lang-en">Staff Action Required</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="jk-badge jk-badge-open">Open</span></td>
+                                    <td><span class="lang-id">Tiket baru masuk</span><span class="lang-en">New ticket received</span></td>
+                                    <td><span class="lang-id">Klaim atau assign ke staf</span><span class="lang-en">Claim or assign to staff</span></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="jk-badge jk-badge-investigating">Investigating</span></td>
+                                    <td><span class="lang-id">Sedang dikerjakan</span><span class="lang-en">Being worked on</span></td>
+                                    <td><span class="lang-id">Investigasi &amp; dokumentasikan proses</span><span class="lang-en">Investigate &amp; document the process</span></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="jk-badge jk-badge-pending">Pending Info</span></td>
+                                    <td><span class="lang-id">Menunggu info dari pemohon</span><span class="lang-en">Waiting for info from requester</span></td>
+                                    <td><span class="lang-id">Kirim pertanyaan ke pemohon</span><span class="lang-en">Send question to requester</span></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="jk-badge jk-badge-resolved">Resolved</span></td>
+                                    <td><span class="lang-id">Solusi telah diterapkan</span><span class="lang-en">Solution has been applied</span></td>
+                                    <td><span class="lang-id">Isi RCA → ubah ke Resolved</span><span class="lang-en">Fill RCA → change to Resolved</span></td>
+                                </tr>
+                                <tr>
+                                    <td><span class="jk-badge jk-badge-closed">Closed</span></td>
+                                    <td><span class="lang-id">Selesai &amp; terarsip</span><span class="lang-en">Done &amp; archived</span></td>
+                                    <td><span class="lang-id">Pertimbangkan membuat artikel KB</span><span class="lang-en">Consider creating a KB article</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="font-size:12.5px;color:var(--jk-text-muted);margin-top:10px;">
+                        💡 <span class="lang-id">Status dapat dikembalikan ke sebelumnya, kecuali dari Closed.</span>
+                        <span class="lang-en">Status can be reverted to a previous state, except from Closed.</span>
+                    </p>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #forward -->
+                <div id="forward" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        ↗ <span class="lang-id">Forward &amp; Eskalasi</span><span class="lang-en">Forward &amp; Escalation</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Gunakan fitur ini untuk meneruskan tiket ke staf yang lebih sesuai atau ke level lebih tinggi.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Use this feature to forward the ticket to a more appropriate staff or escalate to a higher level.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Buka detail tiket</span><span class="lang-en">Open ticket detail</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik tombol Forward / Escalation</span><span class="lang-en">Click the Forward / Escalation button</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Pilih staf tujuan</span><span class="lang-en">Select target staff</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Tambahkan catatan konteks</span><span class="lang-en">Add a context note</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">5</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Konfirmasi — sistem otomatis mencatat sebagai komentar internal dengan timestamp</span><span class="lang-en">Confirm — system automatically logs it as an internal comment with timestamp</span></div></div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #close -->
+                <div id="close" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        ✅ <span class="lang-id">Tutup Tiket &amp; Notifikasi Penutupan</span><span class="lang-en">Close Ticket &amp; Closure Notification</span>
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:12px;">Ada dua opsi untuk menutup tiket:</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:12px;">There are two options to close a ticket:</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                        <div style="background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                            <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Tutup Saja</span><span class="lang-en">Close Only</span></div>
+                            <div style="font-size:12.5px;color:var(--jk-text-muted);"><span class="lang-id">Ubah status ke Closed via dropdown status</span><span class="lang-en">Change status to Closed via the status dropdown</span></div>
+                        </div>
+                        <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                            <div style="font-weight:700;font-size:13px;color:#065f46;margin-bottom:4px;"><span class="lang-id">Tutup &amp; Notifikasi</span><span class="lang-en">Close &amp; Notify</span></div>
+                            <div style="font-size:12.5px;color:#047857;"><span class="lang-id">Mengirim pesan penutupan ke pemohon sekaligus menutup tiket</span><span class="lang-en">Sends a closure message to requester while closing the ticket</span></div>
+                        </div>
+                    </div>
+                    <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Langkah Close &amp; Notify:</span><span class="lang-en">Close &amp; Notify Steps:</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik tombol "Close &amp; Notify"</span><span class="lang-en">Click the "Close &amp; Notify" button</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Modal terbuka — pilih channel (WA / Email / Keduanya)</span><span class="lang-en">Modal opens — choose channel (WA / Email / Both)</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Edit pesan jika perlu</span><span class="lang-en">Edit the message if needed</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik Send &amp; Close</span><span class="lang-en">Click Send &amp; Close</span></div></div>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Setelah tiket Closed, sistem menawarkan opsi untuk membuat artikel KB dari RCA tiket ini.</span>
+                        <span class="lang-en">After a ticket is Closed, the system offers an option to generate a KB article from this ticket's RCA.</span>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #edit-closed -->
+                <div id="edit-closed" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        ✏ <span class="lang-id">Request Edit Tiket Closed</span><span class="lang-en">Edit Closed Ticket Request</span>
+                    </h3>
+
+                    <div style="margin-bottom:14px;">
+                        <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Untuk SupportDesk:</span><span class="lang-en">For SupportDesk:</span></div>
+                        <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Buka tiket Closed</span><span class="lang-en">Open the Closed ticket</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik tombol "Request Edit"</span><span class="lang-en">Click the "Request Edit" button</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Isi alasan request</span><span class="lang-en">Fill in the reason for the request</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Submit — status berubah menjadi Requested, tunggu approval</span><span class="lang-en">Submit — status changes to Requested, wait for approval</span></div></div>
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Untuk Manager / SuperAdmin:</span><span class="lang-en">For Manager / SuperAdmin:</span></div>
+                        <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Terima notifikasi request edit</span><span class="lang-en">Receive the edit request notification</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Buka tiket — banner kuning menunjukkan ada request</span><span class="lang-en">Open the ticket — yellow banner indicates a pending request</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Klik Approve atau Reject (tambahkan alasan jika menolak)</span><span class="lang-en">Click Approve or Reject (add reason if rejecting)</span></div></div>
+                    </div>
+
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+                        <span class="flow-item" style="background:#f1f5f9;color:#475569;"><span class="lang-id">Tidak ada</span><span class="lang-en">None</span></span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#fef3c7;color:#92400e;">Requested</span>
+                        <span style="color:var(--jk-text-muted);">→</span>
+                        <span class="flow-item" style="background:#d1fae5;color:#065f46;">Approved</span>
+                        <span style="color:var(--jk-text-muted);">/</span>
+                        <span class="flow-item" style="background:#fef2f2;color:#991b1b;">Rejected</span>
+                    </div>
+                    <p style="font-size:12.5px;color:var(--jk-text-muted);">
+                        💡 <span class="lang-id">SuperAdmin dapat langsung mengedit tiket Closed tanpa melalui alur request.</span>
+                        <span class="lang-en">SuperAdmin can directly edit Closed tickets without going through the request flow.</span>
+                    </p>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin:20px 0;">
+
+                <!-- #wa-session -->
+                <div id="wa-session" class="docs-section">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        📱 WhatsApp Session Hold
+                    </h3>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Session Hold menjaga agar balasan WA masuk ke thread tiket yang sama selama 60 menit aktif.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Session Hold ensures WA replies stay within the same ticket thread for 60 active minutes.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Temukan status WA Session di panel kanan detail tiket</span><span class="lang-en">Find the WA Session status in the right panel of ticket detail</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Toggle untuk mengaktifkan — ikon 🔒 menandakan Active</span><span class="lang-en">Toggle to activate — the 🔒 icon indicates Active</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13.5px;color:var(--jk-text-muted);"><span class="lang-id">Session aktif selama 60 menit — akan auto-expire atau bisa di-toggle off</span><span class="lang-en">Session active for 60 minutes — will auto-expire or can be toggled off</span></div></div>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Aktifkan WA Session Hold saat sedang dalam sesi tanya-jawab aktif via WhatsApp.</span>
+                        <span class="lang-en">Activate WA Session Hold during an active Q&amp;A session via WhatsApp.</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #kb — Knowledge Base Management                        -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="kb" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📚 <span class="lang-id">Manajemen Knowledge Base</span><span class="lang-en">Knowledge Base Management</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+
+                <!-- Publication flow -->
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+                    <span class="flow-item" style="background:#f1f5f9;color:#475569;">Draft</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#fef3c7;color:#92400e;">Pending Review</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#d1fae5;color:#065f46;">Published</span>
+                </div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Membuat Artikel Baru:</span><span class="lang-en">Creating a New Article:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Knowledge Management di sidebar</span><span class="lang-en">Open Knowledge Management menu in sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik "Create Article"</span><span class="lang-en">Click "Create Article"</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Isi: Judul, Kategori, Konten artikel</span><span class="lang-en">Fill in: Title, Category, Article Content</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Pilih "Save Draft" atau "Submit for Review"</span><span class="lang-en">Choose "Save Draft" or "Submit for Review"</span></div></div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin:16px 0 8px;"><span class="lang-id">Review &amp; Publikasi (Manager/SuperAdmin):</span><span class="lang-en">Review &amp; Publish (Manager/SuperAdmin):</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka KB Desk → All Articles</span><span class="lang-en">Open KB Desk → All Articles</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Filter: Pending Review</span><span class="lang-en">Filter: Pending Review</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Baca &amp; evaluasi konten</span><span class="lang-en">Read &amp; evaluate content</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Klik Publish atau Return to Draft</span><span class="lang-en">Click Publish or Return to Draft</span></div></div>
+
+                <div class="docs-callout docs-callout-tip" style="margin-top:16px;">
+                    📝 <strong><span class="lang-id">Generate dari tiket:</span><span class="lang-en">Generate from ticket:</span></strong>
+                    <span class="lang-id"> Saat menutup tiket yang memiliki RCA, klik "Create KB Article from This Ticket" untuk membuat draft artikel secara otomatis.</span>
+                    <span class="lang-en"> When closing a ticket with RCA, click "Create KB Article from This Ticket" to automatically create a draft article.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #links — Short Links & QR Code                         -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="links" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🔗 Short Links &amp; QR Code
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Membuat Short Link:</span><span class="lang-en">Creating a Short Link:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Short Links di sidebar</span><span class="lang-en">Open Short Links menu in sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik "Create Link"</span><span class="lang-en">Click "Create Link"</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Isi Destination URL (URL tujuan)</span><span class="lang-en">Enter the Destination URL</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Tambahkan Label (nama deskriptif)</span><span class="lang-en">Add a Label (descriptive name)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">5</div><div><span class="lang-id">Opsional: isi custom slug (contoh: <code>panduan-onboarding</code>)</span><span class="lang-en">Optional: fill custom slug (e.g., <code>onboarding-guide</code>)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">6</div><div><span class="lang-id">Klik Create — dapatkan short URL &amp; QR code</span><span class="lang-en">Click Create — get your short URL &amp; QR code</span></div></div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+                    <div style="background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">📷 QR Code</div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Klik ikon QR → tampil QR ukuran penuh → download PNG untuk dicetak</span><span class="lang-en">Click QR icon → full-size QR appears → download PNG for printing</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">📊 <span class="lang-id">Statistik Klik</span><span class="lang-en">Click Statistics</span></div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Jumlah klik ditampilkan di daftar link</span><span class="lang-en">Click count is shown in the link list</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #forms — Form Builder & Responses                      -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="forms" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📝 <span class="lang-id">Form Builder &amp; Respons</span><span class="lang-en">Form Builder &amp; Responses</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Form Builder memungkinkan staf membuat formulir dinamis yang dapat diisi oleh pemohon.</p>
+                <p class="lang-en" style="margin-bottom:14px;">Form Builder allows staff to create dynamic forms that can be filled by requesters.</p>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Melihat Respons Formulir:</span><span class="lang-en">Viewing Form Responses:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Form Creator di sidebar</span><span class="lang-en">Open Form Creator menu in sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Pilih formulir dari daftar</span><span class="lang-en">Select a form from the list</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Klik ikon Responses — tabel semua submission muncul</span><span class="lang-en">Click the Responses icon — table of all submissions appears</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Klik Export to Excel untuk mengunduh semua data</span><span class="lang-en">Click Export to Excel to download all data</span></div></div>
+
+                <div class="docs-callout docs-callout-tip" style="margin-top:14px;">
+                    💡 <span class="lang-id">Respons formulir juga dapat dilihat di panel detail tiket terkait.</span>
+                    <span class="lang-en">Form responses are also viewable in the related ticket detail panel.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #notifikasi — Notifications                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="notifikasi" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🔔 <span class="lang-id">Notifikasi</span><span class="lang-en">Notifications</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">Ikon lonceng di pojok kanan atas menampilkan jumlah notifikasi yang belum dibaca.</p>
+                <p class="lang-en" style="margin-bottom:12px;">The bell icon in the top-right corner shows the count of unread notifications.</p>
+
+                <div style="overflow-x:auto;margin-bottom:14px;">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th><span class="lang-id">Tipe Notifikasi</span><span class="lang-en">Notification Type</span></th>
+                                <th><span class="lang-id">Diterima oleh</span><span class="lang-en">Received by</span></th>
+                                <th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>🎫 <span class="lang-id">Tiket Baru</span><span class="lang-en">New Ticket</span></td>
+                                <td><span class="lang-id">Semua staf</span><span class="lang-en">All staff</span></td>
+                                <td><span class="lang-id">Tiket baru masuk ke sistem</span><span class="lang-en">New ticket entered the system</span></td>
+                            </tr>
+                            <tr>
+                                <td>👤 Assigned to You</td>
+                                <td><span class="lang-id">Staf yang di-assign</span><span class="lang-en">Assigned staff</span></td>
+                                <td><span class="lang-id">Tiket baru di-assign ke kamu</span><span class="lang-en">A ticket has been assigned to you</span></td>
+                            </tr>
+                            <tr>
+                                <td>💬 <span class="lang-id">Pesan Baru</span><span class="lang-en">New Message</span></td>
+                                <td><span class="lang-id">Staf yang menangani</span><span class="lang-en">Handling staff</span></td>
+                                <td><span class="lang-id">Pemohon membalas di thread</span><span class="lang-en">Requester replied in thread</span></td>
+                            </tr>
+                            <tr>
+                                <td>🔒 <span class="lang-id">Komentar Internal</span><span class="lang-en">Internal Comment</span></td>
+                                <td><span class="lang-id">Staf lain di tiket</span><span class="lang-en">Other staff on ticket</span></td>
+                                <td><span class="lang-id">Ada komentar internal baru</span><span class="lang-en">New internal comment added</span></td>
+                            </tr>
+                            <tr>
+                                <td>↗ <span class="lang-id">Forward/Eskalasi</span><span class="lang-en">Forward/Escalate</span></td>
+                                <td><span class="lang-id">Staf tujuan</span><span class="lang-en">Target staff</span></td>
+                                <td><span class="lang-id">Tiket diteruskan ke kamu</span><span class="lang-en">Ticket forwarded to you</span></td>
+                            </tr>
+                            <tr>
+                                <td>📋 <span class="lang-id">Hasil Request Edit</span><span class="lang-en">Edit Request Result</span></td>
+                                <td><span class="lang-id">Staf yang request</span><span class="lang-en">Requesting staff</span></td>
+                                <td><span class="lang-id">Request edit disetujui atau ditolak</span><span class="lang-en">Edit request approved or rejected</span></td>
+                            </tr>
+                            <tr>
+                                <td>📚 <span class="lang-id">KB Perlu Review</span><span class="lang-en">KB Needs Review</span></td>
+                                <td>Manager / SuperAdmin</td>
+                                <td><span class="lang-id">Artikel KB menunggu review</span><span class="lang-en">KB article waiting for review</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Cara Menggunakan:</span><span class="lang-en">How to Use:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Klik ikon lonceng 🔔 di topbar</span><span class="lang-en">Click the bell icon 🔔 in the topbar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Panel notifikasi terbuka</span><span class="lang-en">Notification panel opens</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Klik notifikasi → langsung menuju tiket/artikel terkait</span><span class="lang-en">Click a notification → goes directly to the related ticket/article</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Notifikasi otomatis ditandai sudah dibaca</span><span class="lang-en">Notification is automatically marked as read</span></div></div>
+            </div>
+        </section>
+
+        <!-- Footer note -->
+        <div style="text-align:center;padding:16px 0 8px;font-size:12px;color:var(--jk-text-muted);">
+            {{ site_config.site_name|default:"RoC Desk" }} &mdash;
+            <span class="lang-id">Panduan ini diperbarui secara berkala. Hubungi SuperAdmin jika ada prosedur yang belum tercakup.</span>
+            <span class="lang-en">This guide is updated regularly. Contact SuperAdmin if any procedure is not yet covered.</span>
+        </div>
+
+    </div>{# end main content #}
+</div>{# end grid #}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const LANG_KEY = 'roc_docs_lang';
+    const saved = localStorage.getItem(LANG_KEY) || 'id';
+    applyLang(saved);
+
+    document.querySelectorAll('[data-set-lang]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            applyLang(this.dataset.setLang);
+            localStorage.setItem(LANG_KEY, this.dataset.setLang);
+        });
+    });
+
+    function applyLang(lang) {
+        document.body.classList.remove('lang-id', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+        document.querySelectorAll('[data-set-lang]').forEach(b => {
+            b.classList.toggle('lang-btn-active', b.dataset.setLang === lang);
+        });
+    }
+})();
+
+(function() {
+    const links = document.querySelectorAll('.docs-toc-link[href^="#"]');
+    const secs = [];
+    links.forEach(l => {
+        const t = document.querySelector(l.getAttribute('href'));
+        if (t) secs.push({ l, t });
+    });
+
+    function hl() {
+        let c = secs[0];
+        secs.forEach(s => { if (window.scrollY >= s.t.offsetTop - 100) c = s; });
+        links.forEach(l => l.classList.remove('active'));
+        if (c) c.l.classList.add('active');
+    }
+
+    window.addEventListener('scroll', hl, { passive: true });
+    hl();
+})();
+
+async function downloadDocsPDF(docKey) {
+    const btn = document.getElementById('pdf-btn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="width:14px;height:14px;animation:spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generating...';
+
+    const isEN = document.body.classList.contains('lang-en');
+    const lang = isEN ? 'en' : 'id';
+    const titles = {
+        'portal-user':  { id: 'Panduan Pengguna Portal', en: 'Portal User Guide' },
+        'support-desk': { id: 'Panduan Staf Support Desk', en: 'Staff Support Desk Guide' },
+        'superadmin':   { id: 'Panduan SuperAdmin', en: 'SuperAdmin Guide' }
+    };
+    const title = (titles[docKey] || titles['support-desk'])[lang];
+    const siteName = document.title.split('—').slice(-1)[0].trim() || 'RoC Support Desk';
+    const dateStr = new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'id-ID', { year:'numeric', month:'long', day:'numeric' });
+
+    const root = document.getElementById('docs-pdf-root');
+    const toc = document.getElementById('docs-toc-sidebar');
+
+    // Save original styles so we can restore after PDF generation
+    const origRootStyle = root.getAttribute('style') || '';
+    const origTocDisplay = toc ? toc.style.display : '';
+
+    // Build cover header element
+    const cover = document.createElement('div');
+    cover.id = '__pdf-cover';
+    cover.style.cssText = 'text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #10b981;font-family:Inter,system-ui,sans-serif;';
+    cover.innerHTML = `
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#10b981;margin-bottom:8px;">${siteName}</div>
+        <div style="font-size:26px;font-weight:900;color:#1e293b;margin-bottom:6px;">${title}</div>
+        <div style="font-size:11px;color:#64748b;">${lang === 'en' ? 'Generated' : 'Dibuat'}: ${dateStr}</div>
+    `;
+
+    // Temporarily transform layout: hide TOC, change grid to block, prepend cover
+    if (toc) toc.style.display = 'none';
+    root.style.cssText = 'display:block !important;';
+    root.insertBefore(cover, root.firstChild);
+
+    // Wait two frames for the browser to recalculate layout before capture
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: `${docKey}-guide-${lang}-${new Date().toISOString().slice(0,10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.97 },
+            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, scrollX: 0, scrollY: 0, windowWidth: document.body.scrollWidth },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['.jk-card', '.docs-step'] }
+        }).from(root).save();
+    } catch(e) {
+        console.error('PDF generation failed:', e);
+        window.print();
+    } finally {
+        // Restore the page to its original state
+        const c = document.getElementById('__pdf-cover');
+        if (c) root.removeChild(c);
+        if (toc) toc.style.display = origTocDisplay;
+        if (origRootStyle) root.setAttribute('style', origRootStyle);
+        else root.removeAttribute('style');
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    }
+}
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+@media print {
+    .jk-sidebar, .jk-topbar, #docs-toc-sidebar, #pdf-btn, [data-set-lang] { display: none !important; }
+    .jk-main { margin-left: 0 !important; }
+    #docs-pdf-root { display: block !important; }
+    .jk-card { break-inside: avoid; box-shadow: none !important; }
+}
+</style>
+{% endblock %}

@@ -208,11 +208,11 @@
                     
                     <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">{{ dynamic_form.title }}</h1>
                     {% if dynamic_form.description %}
-                        <div class="mt-3 text-sm sm:text-base text-slate-500 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ dynamic_form.description|safe }}</div>
+                        <div class="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ dynamic_form.description|safe }}</div>
                     {% endif %}
                     
                     {% if fields %}
-                    <div class="mt-4 flex items-center gap-3 text-xs text-slate-400">
+                    <div class="mt-4 flex items-center gap-3 text-xs text-slate-600">
                         <span class="inline-flex items-center gap-1.5">
                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                             {{ fields|length }} question{{ fields|length|pluralize }}
@@ -302,7 +302,7 @@
                     {% if is_multipage %}
                     <div class="mb-8" x-show="totalPages > 1">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-bold text-slate-500" x-text="'Section ' + (currentPage + 1) + ' of ' + totalPages"></span>
+                            <span class="text-xs font-bold text-slate-600" x-text="'Section ' + (currentPage + 1) + ' of ' + totalPages"></span>
                             <span class="text-xs font-bold text-indigo-600" x-text="Math.round(((currentPage + 1) / totalPages) * 100) + '%'"></span>
                         </div>
                         <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -322,7 +322,7 @@
                             <div class="py-4 animate-fade-in" style="animation-delay: {{ forloop.counter0 }}00ms">
                                 <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">{{ field.label }}</h2>
                                 {% if field.help_text %}
-                                    <div class="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ field.help_text|safe }}</div>
+                                    <div class="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ field.help_text|safe }}</div>
                                 {% endif %}
                                 <div class="mt-3 h-px bg-gradient-to-r from-indigo-200 via-purple-200 to-transparent"></div>
                             </div>
@@ -345,7 +345,7 @@
                                 </label>
                                 
                                 {% if field.help_text %}
-                                    <div class="text-xs text-slate-400 mb-3 pl-5 sm:pl-5 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">
+                                    <div class="text-xs text-slate-600 mb-3 pl-5 sm:pl-5 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">
                                         {{ field.help_text|safe }}
                                     </div>
                                 {% endif %}
@@ -353,7 +353,7 @@
                             <div class="mt-2 pl-0 sm:pl-5">
                                 {% if field.field_type == 'text' or field.field_type == 'text_short' %}
                                     <input type="text" name="field_{{ field.id }}" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
                                         placeholder="Your answer"
                                         maxlength="255"
                                         {% if field.is_required %}required{% endif %}
@@ -361,7 +361,7 @@
                                         
                                 {% elif field.field_type == 'textarea' or field.field_type == 'text_long' %}
                                     <textarea name="field_{{ field.id }}" rows="4" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400 resize-none"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600 resize-none"
                                         placeholder="Type your answer here..."
                                         maxlength="5000"
                                         {% if field.is_required %}required{% endif %}>{{ answers|get_item:field.id|default:'' }}</textarea>
@@ -369,10 +369,10 @@
                                 {% elif field.field_type == 'email' %}
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                                            <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                            <svg class="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                                         </div>
                                         <input type="email" name="field_{{ field.id }}" 
-                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
+                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
                                             placeholder="email@example.com"
                                             maxlength="254"
                                             {% if field.is_required %}required{% endif %}
@@ -381,7 +381,7 @@
                                         
                                 {% elif field.field_type == 'number' %}
                                     <input type="number" name="field_{{ field.id }}" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-400"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
                                         placeholder="0"
                                         {% if field.is_required %}required{% endif %}
                                         value="{{ answers|get_item:field.id|default:'' }}">
@@ -415,10 +415,10 @@
                                                     <svg class="h-4 w-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
                                                 </div>
                                                 <!-- Label -->
-                                                <span class="mt-2 text-[11px] sm:text-xs font-semibold text-slate-500 group-hover:text-indigo-600 peer-checked:text-indigo-600 peer-checked:font-bold transition-colors text-center leading-tight max-w-[70px]">{{ forloop.counter }}. {{ choice }}</span>
+                                                <span class="mt-2 text-xs sm:text-xs font-semibold text-slate-600 group-hover:text-indigo-600 peer-checked:text-indigo-600 peer-checked:font-bold transition-colors text-center leading-tight max-w-[70px]">{{ forloop.counter }}. {{ choice }}</span>
                                             </label>
                                             {% empty %}
-                                                <p class="text-sm text-slate-400 italic">No choices configured.</p>
+                                                <p class="text-sm text-slate-600 italic">No choices configured.</p>
                                             {% endfor %}
                                         </div>
                                     </div>
@@ -460,7 +460,7 @@
                                                 <span class="text-sm font-bold text-indigo-600">
                                                     Click to upload {% if field.field_type == 'attachment_multiple' %}files{% else %}a file{% endif %}
                                                 </span>
-                                                <span class="text-xs text-slate-400 mt-1">or drag and drop • Max {{ site_config.max_upload_size_mb|default:'10' }}MB</span>
+                                                <span class="text-xs text-slate-600 mt-1">or drag and drop • Max {{ site_config.max_upload_size_mb|default:'10' }}MB</span>
                                             </label>
                                         </div>
                                         
@@ -468,8 +468,8 @@
                                         <template x-if="files.length > 0">
                                             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                                                 <div class="flex items-center justify-between mb-3">
-                                                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected Files</h4>
-                                                    <span class="text-xs text-slate-400 font-medium" x-text="files.length + ' file' + (files.length > 1 ? 's' : '')"></span>
+                                                    <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wider">Selected Files</h4>
+                                                    <span class="text-xs text-slate-600 font-medium" x-text="files.length + ' file' + (files.length > 1 ? 's' : '')"></span>
                                                 </div>
                                                 <ul class="space-y-2">
                                                     <template x-for="(file, index) in files" :key="index">
@@ -479,16 +479,16 @@
                                                             </div>
                                                             <div class="flex-1 min-w-0">
                                                                 <p class="text-sm font-semibold text-slate-800 truncate" x-text="file.name"></p>
-                                                                <p class="text-[11px] text-slate-400" x-text="(file.size / 1024 / 1024).toFixed(2) + ' MB'"></p>
+                                                                <p class="text-xs text-slate-600" x-text="(file.size / 1024 / 1024).toFixed(2) + ' MB'"></p>
                                                             </div>
-                                                            <button type="button" @click="removeFile(index)" class="text-slate-300 hover:text-red-500 transition-colors ml-2" title="Remove file">
+                                                            <button type="button" @click="removeFile(index)" class="text-slate-300 hover:text-red-700 transition-colors ml-2" title="Remove file">
                                                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                                             </button>
                                                         </li>
                                                     </template>
                                                 </ul>
                                                 <div class="mt-3 flex justify-between items-center pt-3 border-t border-slate-200">
-                                                    <button type="button" @click="files = []; syncInput()" class="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1">
+                                                    <button type="button" @click="files = []; syncInput()" class="text-xs font-bold text-red-700 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1">
                                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                         Remove All
                                                     </button>
@@ -526,8 +526,8 @@
                                         <button type="button" @click="open = !open; $nextTick(() => { if(open) $refs['dd_{{ field.id }}'].focus() })"
                                             class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base cursor-pointer flex items-center justify-between transition-all"
                                             :class="open ? 'ring-2 ring-indigo-500 border-indigo-500' : ''">
-                                            <span :class="selected ? 'text-slate-900' : 'text-slate-400'" x-text="selected || 'Select an option'"></span>
-                                            <svg class="h-4 w-4 text-slate-400 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                            <span :class="selected ? 'text-slate-900' : 'text-slate-600'" x-text="selected || 'Select an option'"></span>
+                                            <svg class="h-4 w-4 text-slate-600 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                         </button>
 
                                         <!-- Dropdown Panel -->
@@ -537,7 +537,7 @@
                                             <!-- Search Input -->
                                             <div class="p-2 border-b border-slate-100">
                                                 <div class="relative">
-                                                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                                                     <input type="text" x-model="search" x-ref="dd_{{ field.id }}" placeholder="Search..." 
                                                         class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-slate-50"
                                                         @keydown.escape="open = false; search = ''">
@@ -554,7 +554,7 @@
                                                         <svg x-show="selected === choice" class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                                     </button>
                                                 </template>
-                                                <div x-show="filtered.length === 0" class="px-4 py-3 text-sm text-slate-400 text-center italic">
+                                                <div x-show="filtered.length === 0" class="px-4 py-3 text-sm text-slate-600 text-center italic">
                                                     No results found
                                                 </div>
                                             </div>
@@ -601,7 +601,7 @@
                             </div>
                             
                             {% if errors|get_item:field.id %}
-                                <p class="text-xs font-bold text-red-500 mt-2 pl-5 flex items-center gap-1">
+                                <p class="text-xs font-bold text-red-700 mt-2 pl-5 flex items-center gap-1">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                     This field is required
                                 </p>
@@ -613,7 +613,7 @@
                             <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                                 <svg class="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             </div>
-                            <p class="text-slate-400 font-medium">This form has no questions yet.</p>
+                            <p class="text-slate-600 font-medium">This form has no questions yet.</p>
                         </div>
                     {% endfor %}
                     </div>
@@ -640,14 +640,14 @@
                         <!-- Consent -->
                         <div class="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
                             <svg class="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                            <p class="text-[11px] sm:text-xs text-slate-400 leading-relaxed">
-                                By submitting this form, you consent to your data being securely recorded and processed by <span class="font-semibold text-slate-500">{{ site_config.site_name|default:'RoC Support Desk' }}</span>.
+                            <p class="text-xs sm:text-xs text-slate-600 leading-relaxed">
+                                By submitting this form, you consent to your data being securely recorded and processed by <span class="font-semibold text-slate-600">{{ site_config.site_name|default:'RoC Support Desk' }}</span>.
                             </p>
                         </div>
 
                         <!-- Submit -->
                         {% if is_preview %}
-                        <div class="w-full py-3.5 sm:py-4 px-6 rounded-2xl text-base sm:text-lg flex items-center justify-center gap-2 bg-slate-200 text-slate-500 font-bold cursor-not-allowed">
+                        <div class="w-full py-3.5 sm:py-4 px-6 rounded-2xl text-base sm:text-lg flex items-center justify-center gap-2 bg-slate-200 text-slate-600 font-bold cursor-not-allowed">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                             Preview Mode
                         </div>
@@ -666,7 +666,7 @@
 
             <!-- Footer branding -->
             <div class="text-center mt-6 animate-fade-in animate-delay-3">
-                <p class="text-xs font-medium {% if dynamic_form.background_color and not dynamic_form.background_image %}text-slate-400{% else %}text-white/50{% endif %}">
+                <p class="text-xs font-medium {% if dynamic_form.background_color and not dynamic_form.background_image %}text-slate-600{% else %}text-white/50{% endif %}">
                     Powered by {{ site_config.site_name|default:"RoC Desk" }}
                 </p>
             </div>

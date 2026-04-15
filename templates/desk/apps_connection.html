@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Apps Connection — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Apps Connection{% endblock %}
+{% block nav_apps_connection %}active{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <p class="text-sm text-slate-500">Manage external application connections used by the system to receive and send messages.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;">
+
+    <!-- ─── WhatsApp by Evolution API ─────────────────────── -->
+    <div class="jk-card" style="border:2px solid #25d366;">
+        <div class="jk-card-header" style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#25d366;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+                    📲
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#064e3b;">WhatsApp</div>
+                    <div style="font-size:11px;color:#065f46;font-weight:500;">via Evolution API</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;">
+                ✅ Active
+            </span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
+                Receive and reply to WhatsApp messages from requesters directly within the ticket system. Powered by Evolution API with QR Code pairing.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <a href="{% url 'desk:whatsapp_status' %}" class="jk-btn jk-btn-primary jk-btn-sm">
+                    ⚙️ Manage Connection
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Email (SMTP / IMAP) ────────────────────────────── -->
+    <div class="jk-card" style="border:2px solid #6366f1;">
+        <div class="jk-card-header" style="background:#f5f3ff;border-bottom:1px solid #c4b5fd;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+                    📧
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#312e81;">Email</div>
+                    <div style="font-size:11px;color:#4f46e5;font-weight:500;">SMTP · IMAP</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#ede9fe;color:#4f46e5;border:1px solid #a5b4fc;font-size:11px;">
+                ✅ Active
+            </span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
+                Send formal replies and receive new tickets via email. Configure the SMTP server for outgoing mail and IMAP for incoming messages.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <a href="{% url 'desk:email_settings' %}" class="jk-btn jk-btn-primary jk-btn-sm">
+                    ⚙️ Manage Configuration
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Telegram (Coming Soon) ───────────────────────────── -->
+    <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#2ca5e0;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+                    ✈️
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">Telegram</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">Telegram Bot API</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">
+                🔜 Coming Soon
+            </span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
+                Integrate a Telegram bot to receive and reply to support tickets directly through the Telegram platform.
+            </p>
+            <div>
+                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">
+                    🔒 Not Available Yet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Instagram (Coming Soon) ─────────────────────────── -->
+    <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
+                    📷
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">Instagram</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">Meta Graph API</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">
+                🔜 Coming Soon
+            </span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
+                Receive Instagram DMs and automatically convert them into support tickets via the Meta Graph API.
+            </p>
+            <div>
+                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">
+                    🔒 Not Available Yet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── X / Twitter (Coming Soon) ───────────────────────── -->
+    <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#000;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;color:#fff;font-weight:900;font-family:sans-serif;">
+                    𝕏
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">X (Twitter)</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">X API v2</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">
+                🔜 Coming Soon
+            </span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
+                Monitor mentions and DMs on the X (Twitter) platform and forward them into the ticket system automatically via X API v2.
+            </p>
+            <div>
+                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">
+                    🔒 Not Available Yet
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

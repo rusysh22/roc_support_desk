@@ -309,7 +309,7 @@
 
                 <div class="flex items-center gap-1">
                     <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm flex-1 min-w-0" title="From">
-                    <span class="text-slate-400 text-xs">–</span>
+                    <span class="text-slate-600 text-xs">–</span>
                     <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm flex-1 min-w-0" title="To">
                 </div>
 
@@ -330,7 +330,7 @@
                 <!-- Advanced Filters Panel -->
                 <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-4 gap-3 mt-2 pt-4 border-t border-slate-100" x-show="showAdvanced" x-transition.opacity style="display: none;">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Ticket Type</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ticket Type</label>
                         <select name="type" class="jk-select text-sm">
                             <option value="">All Types</option>
                             {% for value, label in types %}
@@ -339,11 +339,11 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Tags Contains</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tags Contains</label>
                         <input type="text" name="tags" value="{{ current_filters.tags }}" placeholder="e.g. bug, network" class="jk-input text-sm w-full">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Priority</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Priority</label>
                         <select name="priority" class="jk-select text-sm w-full">
                             <option value="">All Priorities</option>
                             {% for value, label in priorities %}
@@ -352,7 +352,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">Followers</label>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Followers</label>
                         <select name="followers" class="jk-select text-sm">
                             <option value="">All Followers</option>
                             {% for u in all_followers %}

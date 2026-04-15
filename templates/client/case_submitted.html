@@ -15,26 +15,26 @@
             </div>
 
             <h2 class="text-xl font-bold text-slate-800 mb-2">Ticket Submitted Successfully!</h2>
-            <p class="text-sm text-slate-500 mb-6">
+            <p class="text-sm text-slate-600 mb-6">
                 Your request has been received and is now being reviewed by our support team.
             </p>
 
             <!-- Ticket Details -->
             <div class="bg-slate-50 rounded-lg p-4 text-left mb-6">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs text-slate-400 font-medium">Ticket Number</span>
+                    <span class="text-xs text-slate-600 font-medium">Ticket Number</span>
                     <span class="text-sm font-bold text-indigo-600">{{ case.case_number }}</span>
                 </div>
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs text-slate-400 font-medium">Category</span>
+                    <span class="text-xs text-slate-600 font-medium">Category</span>
                     <span class="text-sm text-slate-700">{{ case.category.name }}</span>
                 </div>
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs text-slate-400 font-medium">Subject</span>
+                    <span class="text-xs text-slate-600 font-medium">Subject</span>
                     <span class="text-sm text-slate-700 jk-truncate max-w-[200px]">{{ case.subject }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-xs text-slate-400 font-medium">Status</span>
+                    <span class="text-xs text-slate-600 font-medium">Status</span>
                     <span class="jk-badge jk-badge-open">Open</span>
                 </div>
             </div>
@@ -45,7 +45,7 @@
                     {% csrf_token %}
                     <button type="submit" 
                             class="jk-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border-none w-full justify-center gap-2">
-                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                         </svg>
                         Email Ticket Info

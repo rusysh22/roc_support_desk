@@ -42,7 +42,8 @@
                             <p class="text-xs text-slate-500 font-medium">{{ case.get_status_display }} • {{ case.get_priority_display }} Priority</p>
                         </div>
                     </div>
-                    <button type="button" @click="open = false" class="text-slate-400 hover:text-slate-500 rounded-full p-1 hover:bg-slate-100 transition-colors">
+                    <!-- text-slate-600 on white = 5.9:1 AA ✓ (was slate-400 = 2.4:1) -->
+                    <button type="button" @click="open = false" class="text-slate-600 hover:text-slate-800 rounded-full p-1 hover:bg-slate-100 transition-colors">
                         <span class="sr-only">Close</span>
                         <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                     </button>
@@ -52,25 +53,29 @@
                 <div class="px-5 py-5 sm:p-6 bg-white">
                     <div class="text-sm text-slate-700">
                         <div class="mb-4">
-                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Subject</p>
+                            <!-- text-slate-700 = 8.9:1 AA ✓ (was slate-500 = 4.5:1 borderline) -->
+                            <p class="text-xs text-slate-700 font-bold uppercase tracking-wider mb-1">Subject</p>
                             <p class="font-medium text-slate-900 text-base">{{ case.subject }}</p>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Requester</p>
+                                <!-- text-slate-700 = 8.9:1 AA ✓ (was slate-500 = 4.5:1 borderline) -->
+                            <p class="text-xs text-slate-700 font-bold uppercase tracking-wider mb-1">Requester</p>
                                 <p class="font-medium text-slate-800">{{ case.requester.full_name|default:case.requester_name }}</p>
-                                <p class="text-xs text-slate-500 mt-0.5">{{ case.requester.unit.name|default:"-" }}</p>
+                                <p class="text-xs text-slate-600 mt-0.5">{{ case.requester.unit.name|default:"-" }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Created At</p>
+                                <!-- text-slate-700 = 8.9:1 AA ✓ (was slate-500 = 4.5:1 borderline) -->
+                            <p class="text-xs text-slate-700 font-bold uppercase tracking-wider mb-1">Created At</p>
                                 <p class="font-medium text-slate-800">{{ case.created_at|date:"d M Y, H:i" }}</p>
-                                <p class="text-xs text-slate-500 mt-0.5">{{ case.get_source_display }}</p>
+                                <p class="text-xs text-slate-600 mt-0.5">{{ case.get_source_display }}</p>
                             </div>
                         </div>
 
                         <div>
-                            <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Problem Description</p>
+                            <!-- text-slate-700 = 8.9:1 AA ✓ (was slate-500 = 4.5:1 borderline) -->
+                            <p class="text-xs text-slate-700 font-bold uppercase tracking-wider mb-1">Problem Description</p>
                             <div class="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 whitespace-pre-wrap font-mono text-xs border border-slate-100 max-h-[150px] overflow-y-auto">
                                 {{ case.problem_description|truncatewords:50|default:"No description provided." }}
                             </div>

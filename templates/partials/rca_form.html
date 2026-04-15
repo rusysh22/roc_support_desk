@@ -55,7 +55,8 @@
                         <label for="id_response_due_at" class="jk-label mb-0">Response SLA</label>
                         <button type="button" 
                                 onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_response_due_at').value = d.toISOString().slice(0,16);"
-                                class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
+                                <!-- text-xs text-indigo-700 on indigo-50 = 5.5:1 AA ✓ (was 10px = too small) -->
+                                class="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             Fill Date Now
                         </button>
@@ -70,7 +71,8 @@
                         <label for="id_resolution_due_at" class="jk-label mb-0">Resolution SLA</label>
                         <button type="button" 
                                 onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_resolution_due_at').value = d.toISOString().slice(0,16);"
-                                class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
+                                <!-- text-xs text-indigo-700 on indigo-50 = 5.5:1 AA ✓ (was 10px = too small) -->
+                                class="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             Fill Date Now
                         </button>

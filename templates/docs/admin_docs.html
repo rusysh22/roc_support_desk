@@ -1,0 +1,724 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+<span class="lang-id">Panduan SuperAdmin</span><span class="lang-en">SuperAdmin Guide</span>
+ — {{ site_config.site_name|default:"RoC Support Desk" }}
+{% endblock %}
+
+{% block page_title %}
+<span class="lang-id">Panduan SuperAdmin</span><span class="lang-en">SuperAdmin Guide</span>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:4px;background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:8px;padding:3px;">
+        <button data-set-lang="id" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="5.5" fill="#CE1126"/><rect y="5.5" width="16" height="5.5" fill="#FFFFFF"/></svg>
+            ID
+        </button>
+        <button data-set-lang="en" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="11" fill="#012169"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="3"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#C8102E" stroke-width="1.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#C8102E" stroke-width="2"/></svg>
+            EN
+        </button>
+    </div>
+    <button id="pdf-btn" onclick="downloadDocsPDF('superadmin')" class="jk-btn jk-btn-primary jk-btn-sm" style="gap:6px;">
+        <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="lang-id">Unduh PDF</span><span class="lang-en">Download PDF</span>
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<style>
+    body.lang-en .lang-id { display: none !important; }
+    body.lang-id .lang-en { display: none !important; }
+    .docs-section { scroll-margin-top: 88px; }
+    .docs-hero { background: linear-gradient(135deg, #1c1917 0%, #292524 55%, #57534e 100%); border-radius: var(--jk-radius); }
+    .docs-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+    .docs-step-num { flex-shrink:0; width:30px; height:30px; background:#57534e; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+    .docs-callout { border-radius:0 10px 10px 0; padding:12px 16px; margin:14px 0; font-size:13.5px; border-left:4px solid; line-height:1.6; }
+    .docs-callout-tip    { background:#f0fdf4; border-color:#22c55e; color:#166534; }
+    .docs-callout-warn   { background:#fffbeb; border-color:#f59e0b; color:#92400e; }
+    .docs-callout-danger { background:#fef2f2; border-color:#ef4444; color:#991b1b; }
+    .docs-callout-info   { background:#f0f9ff; border-color:#0ea5e9; color:#0c4a6e; }
+    .docs-toc-link { display:block; padding:5px 10px; border-radius:8px; font-size:12.5px; color:var(--jk-text-muted); text-decoration:none; transition:all .15s; }
+    .docs-toc-link:hover,.docs-toc-link.active { background:#f5f5f4; color:#292524; }
+    .docs-toc-link.active { font-weight:600; }
+    .docs-toc-sub { padding-left:14px; }
+    .lang-btn-active { background:var(--jk-primary) !important; color:#fff !important; border-color:var(--jk-primary) !important; }
+    .docs-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+    .docs-table th { background:var(--jk-surface-alt); padding:9px 13px; text-align:left; font-weight:600; color:#374151; border-bottom:2px solid var(--jk-border); }
+    .docs-table td { padding:9px 13px; border-bottom:1px solid var(--jk-surface-alt); color:#4b5563; vertical-align:top; }
+    .docs-table tr:hover td { background:var(--jk-surface-alt); }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @media print {
+        .jk-sidebar,.jk-topbar,#docs-toc-sidebar,#pdf-btn,[data-set-lang] { display:none !important; }
+        .jk-main { margin-left:0 !important; }
+        #docs-pdf-root { display:block !important; }
+        .jk-card { break-inside:avoid; box-shadow:none !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- HERO -->
+<div class="docs-hero text-white p-10 mb-6">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+        <span class="jk-badge" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);">
+            🔐 <span class="lang-id">Akses Terbatas</span><span class="lang-en">Restricted Access</span>
+        </span>
+        <span class="jk-badge" style="background:rgba(239,68,68,0.3);color:#fecaca;border:1px solid rgba(239,68,68,0.4);">
+            <span class="lang-id">Hanya SuperAdmin</span><span class="lang-en">SuperAdmin Only</span>
+        </span>
+    </div>
+    <h1 class="text-2xl font-bold mb-2">
+        <span class="lang-id">Panduan SuperAdmin</span>
+        <span class="lang-en">SuperAdmin Guide</span>
+    </h1>
+    <p class="lang-id" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        Dokumentasi lengkap administrasi dan konfigurasi sistem {{ site_config.site_name|default:"RoC Support Desk" }} — manajemen pengguna, kategori, email, WhatsApp, hingga tips keamanan operasional.
+    </p>
+    <p class="lang-en" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        Complete system administration and configuration reference for {{ site_config.site_name|default:"RoC Support Desk" }} — user management, categories, email, WhatsApp gateway, and operational security tips.
+    </p>
+    <div class="docs-callout-danger" style="margin-top:16px;border-radius:8px;padding:10px 14px;font-size:13px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#fecaca;">
+        ⚠️ <span class="lang-id">Tindakan administratif bersifat permanen dan mempengaruhi seluruh sistem. Selalu verifikasi sebelum mengkonfirmasi.</span>
+        <span class="lang-en">Administrative actions are permanent and affect the entire system. Always verify before confirming.</span>
+    </div>
+</div>
+
+<!-- TWO-COLUMN LAYOUT -->
+<div id="docs-pdf-root" style="display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:start;">
+
+    <!-- TOC Sidebar -->
+    <div id="docs-toc-sidebar" class="jk-card" style="position:sticky;top:88px;">
+        <div class="jk-card-header" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--jk-text-muted);">
+            <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
+        </div>
+        <div class="jk-card-body" style="padding:8px 10px;">
+            <nav>
+                <a href="#overview" class="docs-toc-link"><span class="lang-id">Overview SuperAdmin</span><span class="lang-en">SuperAdmin Overview</span></a>
+                <a href="#users" class="docs-toc-link"><span class="lang-id">Manajemen Pengguna</span><span class="lang-en">User Management</span></a>
+                <div class="docs-toc-sub">
+                    <a href="#user-crud" class="docs-toc-link"><span class="lang-id">↳ Buat / Edit / Nonaktif</span><span class="lang-en">↳ Create / Edit / Deactivate</span></a>
+                    <a href="#user-import" class="docs-toc-link"><span class="lang-id">↳ Import &amp; Export</span><span class="lang-en">↳ Import &amp; Export</span></a>
+                    <a href="#user-roles" class="docs-toc-link"><span class="lang-id">↳ Izin Confidential</span><span class="lang-en">↳ Confidential Permission</span></a>
+                </div>
+                <a href="#company-units" class="docs-toc-link"><span class="lang-id">Company Units</span><span class="lang-en">Company Units</span></a>
+                <a href="#kategori" class="docs-toc-link"><span class="lang-id">Kategori Layanan</span><span class="lang-en">Service Categories</span></a>
+                <div class="docs-toc-sub">
+                    <a href="#struktur" class="docs-toc-link"><span class="lang-id">↳ Hierarki</span><span class="lang-en">↳ Hierarchy</span></a>
+                    <a href="#setelan" class="docs-toc-link"><span class="lang-id">↳ Setelan</span><span class="lang-en">↳ Settings</span></a>
+                    <a href="#template-teks" class="docs-toc-link"><span class="lang-id">↳ Template Teks</span><span class="lang-en">↳ Text Templates</span></a>
+                </div>
+                <a href="#rca-template" class="docs-toc-link"><span class="lang-id">Template RCA</span><span class="lang-en">RCA Templates</span></a>
+                <a href="#form-builder" class="docs-toc-link">Form Builder</a>
+                <a href="#email" class="docs-toc-link"><span class="lang-id">Pengaturan Email</span><span class="lang-en">Email Settings</span></a>
+                <div class="docs-toc-sub">
+                    <a href="#imap" class="docs-toc-link">↳ IMAP</a>
+                    <a href="#smtp" class="docs-toc-link">↳ SMTP</a>
+                </div>
+                <a href="#whatsapp" class="docs-toc-link">WhatsApp Gateway</a>
+                <a href="#approve-edit" class="docs-toc-link"><span class="lang-id">Approve Edit Tiket</span><span class="lang-en">Approve Ticket Edits</span></a>
+                <a href="#kb-admin" class="docs-toc-link">Knowledge Base</a>
+                <a href="#tips" class="docs-toc-link"><span class="lang-id">Tips Keamanan</span><span class="lang-en">Security Tips</span></a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div style="min-width:0;display:flex;flex-direction:column;gap:24px;">
+
+        <!-- ═══ #overview ═══ -->
+        <section id="overview" class="docs-section jk-card">
+            <div class="jk-card-header">
+                🔐 <span class="lang-id">Peran &amp; Tanggung Jawab SuperAdmin</span><span class="lang-en">SuperAdmin Role &amp; Responsibilities</span>
+            </div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:16px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">SuperAdmin adalah peran tertinggi dalam sistem — memiliki akses penuh ke seluruh konfigurasi yang menentukan cara tim dan pengguna berinteraksi dengan platform ini.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">SuperAdmin is the highest role in the system — with full access to all configuration that determines how the team and users interact with the platform.</p>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                    {% for item in "12345678"|make_list %}{% endfor %}
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">👥</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;"><span class="lang-id">Manajemen Pengguna</span><span class="lang-en">User Management</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Buat, edit, nonaktifkan akun staf</span><span class="lang-en">Create, edit, deactivate staff accounts</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">🏷️</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;"><span class="lang-id">Kategori Layanan</span><span class="lang-en">Service Categories</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Atur hierarki kategori tiket</span><span class="lang-en">Manage ticket category hierarchy</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">✉️</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;">Email IMAP &amp; SMTP</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Konfigurasi integrasi email</span><span class="lang-en">Configure email integration</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">📱</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;">WhatsApp Gateway</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Kelola koneksi Evolution API</span><span class="lang-en">Manage Evolution API connection</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">✅</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;"><span class="lang-id">Approve Edit Tiket Closed</span><span class="lang-en">Approve Closed Ticket Edits</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Setujui/tolak permintaan edit</span><span class="lang-en">Approve or reject edit requests</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">📝</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;">Form Builder</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Buat form dinamis untuk tiket</span><span class="lang-en">Create dynamic forms for tickets</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">🏢</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;">Company Units</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Master data divisi perusahaan</span><span class="lang-en">Company division master data</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:20px;margin-bottom:6px;">🧠</div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:3px;"><span class="lang-id">Template RCA</span><span class="lang-en">RCA Templates</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Template analisis akar masalah</span><span class="lang-en">Root cause analysis templates</span></div>
+                    </div>
+                </div>
+                <div class="docs-callout docs-callout-danger">⛔ <strong><span class="lang-id">Peringatan:</span><span class="lang-en">Warning:</span></strong> <span class="lang-id">Tindakan administratif bersifat permanen. Menonaktifkan pengguna, menghapus kategori, atau mengubah konfigurasi email dapat mempengaruhi operasional seluruh tim. Selalu verifikasi sebelum mengkonfirmasi.</span><span class="lang-en">Administrative actions are permanent. Deactivating users, deleting categories, or changing email configuration can affect the entire team's operations. Always verify before confirming.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #users — User Management ═══ -->
+        <section id="users" class="docs-section">
+            <div class="jk-card mb-4">
+                <div class="jk-card-header">👥 <span class="lang-id">Manajemen Pengguna</span><span class="lang-en">User Management</span></div>
+                <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">
+                    <p class="lang-id">Akses melalui menu <strong>Staf → Manajemen Pengguna</strong>. Halaman ini menampilkan seluruh akun staf dan memungkinkan operasi CRUD lengkap.</p>
+                    <p class="lang-en">Access via <strong>Staff → User Management</strong> menu. This page lists all staff accounts and allows full CRUD operations.</p>
+                </div>
+            </div>
+
+            <!-- user-crud -->
+            <div id="user-crud" class="jk-card mb-4">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Buat, Edit &amp; Nonaktifkan Akun</span><span class="lang-en">Create, Edit &amp; Deactivate Accounts</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                    <div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Field Akun</span><span class="lang-en">Account Fields</span></div>
+                        <div class="overflow-x-auto">
+                            <table class="docs-table">
+                                <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th><th><span class="lang-id">Wajib</span><span class="lang-en">Required</span></th></tr></thead>
+                                <tbody>
+                                    <tr><td>Username</td><td><span class="lang-id">Nama login unik (tidak bisa diubah setelah dibuat)</span><span class="lang-en">Unique login name (cannot be changed after creation)</span></td><td>✅</td></tr>
+                                    <tr><td>Email</td><td><span class="lang-id">Alamat email aktif untuk notifikasi</span><span class="lang-en">Active email for notifications</span></td><td>✅</td></tr>
+                                    <tr><td><span class="lang-id">Nama Lengkap</span><span class="lang-en">Full Name</span></td><td><span class="lang-id">Nama yang ditampilkan di sistem</span><span class="lang-en">Name displayed in the system</span></td><td>✅</td></tr>
+                                    <tr><td>Role Access</td><td>SupportDesk / Manager / Auditor / SuperAdmin</td><td>✅</td></tr>
+                                    <tr><td>Company Unit</td><td><span class="lang-id">Divisi/unit kerja (dari master data)</span><span class="lang-en">Division/work unit (from master data)</span></td><td>❌</td></tr>
+                                    <tr><td>Password</td><td><span class="lang-id">Password awal — informasikan ke pengguna untuk diubah</span><span class="lang-en">Initial password — inform user to change it</span></td><td>✅</td></tr>
+                                    <tr><td>Is Active</td><td><span class="lang-id">Centang untuk mengaktifkan akun</span><span class="lang-en">Check to activate the account</span></td><td>✅</td></tr>
+                                    <tr><td>Can Handle Confidential</td><td><span class="lang-id">Izin akses tiket confidential</span><span class="lang-en">Permission to access confidential tickets</span></td><td>❌</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Menonaktifkan Akun (Bukan Hapus)</span><span class="lang-en">Deactivating Accounts (Not Deleting)</span></div>
+                        <p class="lang-id" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:10px;">Sangat disarankan untuk <strong>menonaktifkan</strong> akun staf yang resign, bukan menghapus — agar riwayat tiket yang pernah ditangani tetap terhubung.</p>
+                        <p class="lang-en" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:10px;"><strong>Deactivate</strong> rather than delete accounts for resigned staff — this preserves the ticket history they handled.</p>
+                        <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Edit akun pengguna yang bersangkutan</span><span class="lang-en">Edit the relevant user account</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Hilangkan centang pada field <strong>Is Active</strong></span><span class="lang-en">Uncheck the <strong>Is Active</strong> field</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Simpan. Pengguna tidak lagi bisa login, tapi data historis tetap ada.</span><span class="lang-en">Save. The user can no longer log in, but historical data is preserved.</span></div></div>
+                        <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Jangan hapus akun pengguna. Hapus akun akan merusak referensi di tiket lama.</span><span class="lang-en">Never delete user accounts. Deleting breaks references in old tickets.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- user-import -->
+            <div id="user-import" class="jk-card mb-4">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Import &amp; Export Pengguna via Excel</span><span class="lang-en">Import &amp; Export Users via Excel</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <div>
+                        <div style="font-weight:700;font-size:13px;margin-bottom:8px;"><span class="lang-id">Import Pengguna Massal</span><span class="lang-en">Bulk User Import</span></div>
+                        <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Unduh template Excel (klik <strong>Unduh Template</strong>)</span><span class="lang-en">Download the Excel template (click <strong>Download Template</strong>)</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Isi data pengguna. Kolom wajib: username, email, full_name, role_access, password_sementara</span><span class="lang-en">Fill in user data. Required columns: username, email, full_name, role_access, temp_password</span></div></div>
+                        <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>Import Excel</strong>, pilih file, konfirmasi. Sistem tampilkan ringkasan hasil.</span><span class="lang-en">Click <strong>Import Excel</strong>, select the file, confirm. System shows import summary.</span></div></div>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Import melewati (skip) baris dengan username yang sudah ada — aman jika re-import file yang sama.</span><span class="lang-en">Import skips rows with existing usernames — safe to re-import the same file.</span></div>
+                </div>
+            </div>
+
+            <!-- user-roles -->
+            <div id="user-roles" class="jk-card">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Izin Akses Tiket Confidential</span><span class="lang-en">Confidential Ticket Access Permission</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Kategori tiket yang ditandai <strong>Confidential</strong> hanya bisa diakses oleh staf dengan izin khusus ini. Gunakan untuk kategori sensitif seperti HR, Keuangan, atau Direksi.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Ticket categories marked <strong>Confidential</strong> are only accessible by staff with this special permission. Use for sensitive categories like HR, Finance, or Executive.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Edit akun staf yang ingin diberi izin</span><span class="lang-en">Edit the staff account to grant permission</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Centang <strong>Can Handle Confidential Cases</strong></span><span class="lang-en">Check <strong>Can Handle Confidential Cases</strong></span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Simpan. Staf kini bisa melihat dan menangani tiket confidential.</span><span class="lang-en">Save. The staff member can now view and handle confidential tickets.</span></div></div>
+                    <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Manager dan SuperAdmin secara default bisa mengakses semua tiket confidential tanpa pengaturan tambahan.</span><span class="lang-en">Manager and SuperAdmin can access all confidential tickets by default — no extra configuration needed.</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ #company-units ═══ -->
+        <section id="company-units" class="docs-section jk-card">
+            <div class="jk-card-header">🏢 <span class="lang-id">Master Data Company Units</span><span class="lang-en">Company Units Master Data</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units adalah master data divisi atau unit kerja perusahaan. Digunakan untuk mengkategorikan staf berdasarkan divisi, memudahkan filtering dan pelaporan per unit.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units are master data for company divisions or work units. Used to categorize staff by division, making filtering and per-unit reporting easier.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th><th><span class="lang-id">Contoh</span><span class="lang-en">Example</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="lang-id">Nama Unit</span><span class="lang-en">Unit Name</span></td><td><span class="lang-id">Nama lengkap divisi</span><span class="lang-en">Full division name</span></td><td>Information Technology</td></tr>
+                            <tr><td><span class="lang-id">Kode</span><span class="lang-en">Code</span></td><td><span class="lang-id">Kode singkat 2-5 huruf</span><span class="lang-en">Short 2-5 letter code</span></td><td>IT</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>+ Tambah Unit</strong></span><span class="lang-en">Click <strong>+ Add Unit</strong></span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Isi Nama Unit dan Kode → Simpan</span><span class="lang-en">Fill in Unit Name and Code → Save</span></div></div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Buat Company Units sebelum membuat akun pengguna agar bisa langsung mengisi kolom unit saat import massal.</span><span class="lang-en">Create Company Units before creating user accounts so the unit column can be filled during bulk import.</span></div>
+                <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Hapus unit hanya jika tidak ada pengguna yang terhubung ke unit tersebut.</span><span class="lang-en">Only delete units that have no linked users.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #kategori ═══ -->
+        <section id="kategori" class="docs-section">
+            <div class="jk-card mb-4">
+                <div class="jk-card-header">🏷️ <span class="lang-id">Kategori Layanan</span><span class="lang-en">Service Categories</span></div>
+                <div class="jk-card-body">
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Kategori adalah fondasi portal layanan. Pengguna memilih kategori saat mengajukan tiket, dan kategori menentukan bagaimana tiket diproses, prefix nomor tiket, dan tampilannya di portal.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Categories are the foundation of the service portal. Users select a category when submitting a ticket, and the category determines how tickets are processed, the ticket number prefix, and how they appear on the portal.</p>
+                </div>
+            </div>
+
+            <div id="struktur" class="jk-card mb-4">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Struktur Hierarki</span><span class="lang-en">Hierarchy Structure</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:6px;"><span class="lang-id">Kategori Utama (Parent)</span><span class="lang-en">Main Category (Parent)</span></div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Ditampilkan di grid portal utama. Bisa memiliki sub-kategori atau langsung mengarah ke form tiket.</span><span class="lang-en">Shown on the main portal grid. Can have sub-categories or lead directly to the ticket form.</span></div>
+                            <div style="font-size:11px;color:#94a3b8;margin-top:6px;"><span class="lang-id">Contoh:</span><span class="lang-en">Example:</span> "Layanan IT", "Layanan HR"</div>
+                        </div>
+                        <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:6px;"><span class="lang-id">Sub-Kategori (Child)</span><span class="lang-en">Sub-Category (Child)</span></div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Muncul setelah pengguna memilih kategori utama. Langsung mengarah ke form tiket.</span><span class="lang-en">Appears after user selects main category. Leads directly to ticket form.</span></div>
+                            <div style="font-size:11px;color:#94a3b8;margin-top:6px;"><span class="lang-id">Contoh:</span><span class="lang-en">Example:</span> "Layanan IT → Install Software"</div>
+                        </div>
+                    </div>
+                    <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Jangan buat kategori lebih dari 2 level — tidak didukung oleh sistem.</span><span class="lang-en">Do not create more than 2 category levels — not supported by the system.</span></div>
+                </div>
+            </div>
+
+            <div id="setelan" class="jk-card mb-4">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Setelan Kategori</span><span class="lang-en">Category Settings</span></div>
+                <div class="jk-card-body">
+                    <p class="lang-id" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Akses melalui Django Admin → Cases → Ticket Categories.</p>
+                    <p class="lang-en" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Access via Django Admin → Cases → Ticket Categories.</p>
+                    <div class="overflow-x-auto">
+                        <table class="docs-table">
+                            <thead><tr><th>Field</th><th><span class="lang-id">Fungsi</span><span class="lang-en">Function</span></th><th>Tips</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong><span class="lang-id">Nama Kategori</span><span class="lang-en">Category Name</span></strong></td><td><span class="lang-id">Label di portal dan dropdown staf</span><span class="lang-en">Label on portal and staff dropdowns</span></td><td><span class="lang-id">Gunakan nama yang mudah dipahami non-teknis</span><span class="lang-en">Use names that non-technical users can understand</span></td></tr>
+                                <tr><td><strong>Slug</strong></td><td><span class="lang-id">ID URL-friendly (auto dari nama)</span><span class="lang-en">URL-friendly ID (auto from name)</span></td><td><span class="lang-id">Tidak perlu diisi manual</span><span class="lang-en">No need to fill manually</span></td></tr>
+                                <tr><td><strong>Parent Category</strong></td><td><span class="lang-id">Kosong = kategori utama, isi = sub-kategori</span><span class="lang-en">Empty = main category, filled = sub-category</span></td><td><span class="lang-id">Maksimal 2 level</span><span class="lang-en">Maximum 2 levels</span></td></tr>
+                                <tr><td><strong>Icon</strong></td><td><span class="lang-id">Emoji atau class CSS icon</span><span class="lang-en">Emoji or CSS icon class</span></td><td>🖥️ <span class="lang-id">atau</span><span class="lang-en">or</span> fas fa-laptop</td></tr>
+                                <tr><td><strong>Prefix Code</strong></td><td><span class="lang-id">2 huruf untuk nomor tiket (IT → IT-00001)</span><span class="lang-en">2-char code for ticket number (IT → IT-00001)</span></td><td><span class="lang-id">Buat unik per kategori</span><span class="lang-en">Make unique per category</span></td></tr>
+                                <tr><td><strong>Is Confidential</strong></td><td><span class="lang-id">Sembunyikan tiket dari staf tanpa izin</span><span class="lang-en">Hide tickets from unauthorized staff</span></td><td><span class="lang-id">Untuk HR, Keuangan, Direksi</span><span class="lang-en">For HR, Finance, Executive</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="template-teks" class="jk-card">
+                <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Template Subjek &amp; Deskripsi</span><span class="lang-en">Subject &amp; Description Templates</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Setiap kategori bisa memiliki template teks default yang otomatis mengisi form tiket saat pengguna memilih kategori tersebut.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Each category can have default text templates that auto-fill the ticket form when users select that category.</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:6px;"><span class="lang-id">Template Subjek</span><span class="lang-en">Subject Template</span></div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);margin-bottom:8px;"><span class="lang-id">Mengisi field Subjek secara otomatis</span><span class="lang-en">Auto-fills the Subject field</span></div>
+                            <div style="background:var(--jk-surface-alt);border-radius:6px;padding:8px;font-size:11px;color:#64748b;">"<span class="lang-id">Permintaan Install Software - [Nama Software]</span><span class="lang-en">Software Install Request - [Software Name]</span>"</div>
+                        </div>
+                        <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                            <div style="font-weight:700;font-size:13px;margin-bottom:6px;"><span class="lang-id">Template Deskripsi</span><span class="lang-en">Description Template</span></div>
+                            <div style="font-size:12px;color:var(--jk-text-muted);margin-bottom:8px;"><span class="lang-id">Panduan pertanyaan untuk pengguna</span><span class="lang-en">Question guide for users</span></div>
+                            <div style="background:var(--jk-surface-alt);border-radius:6px;padding:8px;font-size:11px;color:#64748b;white-space:pre-line;">1. <span class="lang-id">Software:</span><span class="lang-en">Software:</span>
+2. <span class="lang-id">Versi:</span><span class="lang-en">Version:</span>
+3. <span class="lang-id">Alasan:</span><span class="lang-en">Reason:</span></div>
+                        </div>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Template yang baik mengurangi tiket dengan informasi tidak lengkap — staf tidak perlu bolak-balik menanyakan detail ke pemohon.</span><span class="lang-en">Good templates reduce incomplete tickets — staff spend less time asking follow-up questions from requesters.</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ #rca-template ═══ -->
+        <section id="rca-template" class="docs-section jk-card">
+            <div class="jk-card-header">🧠 <span class="lang-id">Template RCA</span><span class="lang-en">RCA Templates</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Template yang membantu staf mengisi field Analisis Akar Masalah dan Langkah Solusi dengan cepat menggunakan tombol quick-fill.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Templates that help staff quickly fill the Root Cause Analysis and Solving Steps fields using quick-fill buttons.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">🌐 <span class="lang-id">Template Global</span><span class="lang-en">Global Template</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Tidak terhubung kategori mana pun. Muncul di semua tiket.</span><span class="lang-en">Not linked to any category. Appears for all tickets.</span></div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;"><span class="lang-id">Cocok untuk:</span><span class="lang-en">Good for:</span> "Restart Service", "Reset Password"</div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">🏷️ <span class="lang-id">Per-Kategori</span><span class="lang-en">Per-Category</span></div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Hanya muncul di tiket dengan kategori yang cocok.</span><span class="lang-en">Only appears for tickets with the matching category.</span></div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;"><span class="lang-id">Contoh:</span><span class="lang-en">Example:</span> "Aktivasi Email Baru" <span class="lang-id">untuk kategori Email</span><span class="lang-en">for Email category</span></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Membuat Template RCA</span><span class="lang-en">Creating an RCA Template</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Di halaman detail tiket, klik <strong>+ Tambah Template RCA</strong> di bagian bawah form RCA</span><span class="lang-en">On the ticket detail page, click <strong>+ Add RCA Template</strong> below the RCA form</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Isi: Nama Template, Kategori (opsional), Teks RCA, Teks Langkah Solusi, Urutan Tampil</span><span class="lang-en">Fill in: Template Name, Category (optional), RCA Text, Solving Steps Text, Display Order</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Simpan. Template langsung tersedia di semua tiket yang sesuai.</span><span class="lang-en">Save. The template is immediately available for all matching tickets.</span></div></div>
+                </div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Tulis template seperti panduan kerja standar (SOP) — spesifik, terurut, bisa langsung diikuti staf baru. Gunakan placeholder [Nama User] atau [Tanggal].</span><span class="lang-en">Write templates like standard work guides (SOPs) — specific, ordered, immediately actionable for new staff. Use placeholders like [User Name] or [Date].</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #form-builder ═══ -->
+        <section id="form-builder" class="docs-section jk-card">
+            <div class="jk-card-header">📝 Form Builder</div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Buat formulir dinamis yang muncul saat pengguna mengajukan tiket di kategori tertentu. Data yang diisi tersimpan terpisah dan bisa diekspor ke Excel.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Create dynamic forms that appear when users submit tickets in specific categories. Submitted data is stored separately and can be exported to Excel.</p>
+                <div>
+                    <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Membuat Form Baru</span><span class="lang-en">Creating a New Form</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Form Builder → <strong>Buat Form Baru</strong> → isi Nama Form + pilih Kategori → Lanjut ke Builder</span><span class="lang-en">Form Builder → <strong>Create New Form</strong> → fill Form Name + select Category → Continue to Builder</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>+ Tambah Field</strong> → pilih tipe field:</span><span class="lang-en">Click <strong>+ Add Field</strong> → select field type:</span></div></div>
+                    <div style="overflow-x:auto;margin:8px 0 12px 44px;">
+                        <table class="docs-table">
+                            <thead><tr><th><span class="lang-id">Tipe Field</span><span class="lang-en">Field Type</span></th><th><span class="lang-id">Kegunaan</span><span class="lang-en">Use</span></th></tr></thead>
+                            <tbody>
+                                <tr><td><span class="lang-id">Teks Singkat</span><span class="lang-en">Short Text</span></td><td><span class="lang-id">Input satu baris — nama, nomor</span><span class="lang-en">Single-line input — name, number</span></td></tr>
+                                <tr><td><span class="lang-id">Teks Panjang</span><span class="lang-en">Long Text</span></td><td><span class="lang-id">Textarea — deskripsi atau keterangan</span><span class="lang-en">Textarea — description or notes</span></td></tr>
+                                <tr><td>Radio / Checkbox</td><td><span class="lang-id">Pilihan tunggal / pilihan ganda</span><span class="lang-en">Single choice / multiple choice</span></td></tr>
+                                <tr><td>Dropdown</td><td><span class="lang-id">Pilih satu dari daftar panjang</span><span class="lang-en">Select one from a long list</span></td></tr>
+                                <tr><td><span class="lang-id">Tanggal</span><span class="lang-en">Date</span></td><td>Date picker</td></tr>
+                                <tr><td><span class="lang-id">Upload File</span><span class="lang-en">File Upload</span></td><td><span class="lang-id">Pengguna lampirkan file</span><span class="lang-en">User can attach a file</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Atur Label, Placeholder, Wajib/Opsional, Urutan. Drag-and-drop untuk susun ulang.</span><span class="lang-en">Set Label, Placeholder, Required/Optional, Order. Drag-and-drop to reorder.</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>Simpan &amp; Publish</strong> untuk mengaktifkan, atau <strong>Simpan Draft</strong> untuk lanjutkan nanti.</span><span class="lang-en">Click <strong>Save &amp; Publish</strong> to activate, or <strong>Save Draft</strong> to continue later.</span></div></div>
+                </div>
+                <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Form yang dipublish langsung mempengaruhi portal. Test dengan <strong>Preview Mode</strong> sebelum publish.</span><span class="lang-en">Published forms immediately affect the portal. Test with <strong>Preview Mode</strong> before publishing.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #email ═══ -->
+        <section id="email" class="docs-section">
+            <div class="jk-card mb-4">
+                <div class="jk-card-header">✉️ <span class="lang-id">Pengaturan Email</span><span class="lang-en">Email Settings</span></div>
+                <div class="jk-card-body">
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);">Akses melalui <strong>desk/email-settings/</strong>. Konfigurasi IMAP memungkinkan sistem menerima tiket via email; SMTP memungkinkan mengirim balasan.</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);">Access via <strong>desk/email-settings/</strong>. IMAP configuration lets the system receive tickets via email; SMTP lets it send replies.</p>
+                </div>
+            </div>
+
+            <div id="imap" class="jk-card mb-4">
+                <div class="jk-card-header" style="font-size:14px;">📥 IMAP — <span class="lang-id">Email Masuk</span><span class="lang-en">Incoming Email</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <div class="overflow-x-auto">
+                        <table class="docs-table">
+                            <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th><th><span class="lang-id">Contoh</span><span class="lang-en">Example</span></th></tr></thead>
+                            <tbody>
+                                <tr><td>IMAP Host</td><td><span class="lang-id">Server IMAP provider</span><span class="lang-en">IMAP server of your provider</span></td><td>imap.gmail.com</td></tr>
+                                <tr><td>IMAP Port</td><td>993 (SSL) / 143</td><td>993</td></tr>
+                                <tr><td>Email</td><td><span class="lang-id">Alamat email yang dipantau sistem</span><span class="lang-en">Email address monitored by the system</span></td><td>support@company.com</td></tr>
+                                <tr><td>Password</td><td><span class="lang-id">Password atau App Password</span><span class="lang-en">Password or App Password</span></td><td>—</td></tr>
+                                <tr><td>Use SSL</td><td><span class="lang-id">Koneksi aman (direkomendasikan)</span><span class="lang-en">Secure connection (recommended)</span></td><td>✅</td></tr>
+                                <tr><td>Polling Interval</td><td><span class="lang-id">Seberapa sering cek email (menit)</span><span class="lang-en">How often to check email (minutes)</span></td><td>5</td></tr>
+                                <tr><td>Is Active</td><td><span class="lang-id">Aktifkan/nonaktifkan polling</span><span class="lang-en">Enable/disable polling</span></td><td>✅</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="docs-callout docs-callout-info">ℹ️ <strong>Gmail:</strong> <span class="lang-id">Aktifkan 2-Step Verification → buat App Password (16 karakter) di pengaturan Google Account. Gunakan App Password, bukan password Gmail biasa.</span><span class="lang-en">Enable 2-Step Verification → create an App Password (16 chars) in Google Account settings. Use the App Password, not your regular Gmail password.</span></div>
+                    <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Gunakan email khusus support (support@domain.com), bukan email pribadi. Email yang diproses ditandai "dibaca" — jangan gunakan untuk keperluan lain.</span><span class="lang-en">Use a dedicated support email (support@domain.com), not a personal email. Processed emails are marked as "read" — don't use it for anything else.</span></div>
+                </div>
+            </div>
+
+            <div id="smtp" class="jk-card">
+                <div class="jk-card-header" style="font-size:14px;">📤 SMTP — <span class="lang-id">Email Keluar</span><span class="lang-en">Outgoing Email</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:12px;">
+                    <div class="overflow-x-auto">
+                        <table class="docs-table">
+                            <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th><th><span class="lang-id">Contoh</span><span class="lang-en">Example</span></th></tr></thead>
+                            <tbody>
+                                <tr><td>SMTP Host</td><td><span class="lang-id">Server SMTP provider</span><span class="lang-en">SMTP server of your provider</span></td><td>smtp.gmail.com</td></tr>
+                                <tr><td>SMTP Port</td><td>587 (TLS) / 465 (SSL)</td><td>587</td></tr>
+                                <tr><td>Email From</td><td><span class="lang-id">Alamat pengirim yang terlihat penerima</span><span class="lang-en">Sender address visible to recipients</span></td><td>support@company.com</td></tr>
+                                <tr><td>From Name</td><td><span class="lang-id">Nama pengirim</span><span class="lang-en">Sender name</span></td><td>Tim Support PT. ABC</td></tr>
+                                <tr><td>Use TLS</td><td><span class="lang-id">Koneksi aman via TLS</span><span class="lang-en">Secure connection via TLS</span></td><td>✅</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="docs-callout docs-callout-info">ℹ️ <strong><span class="lang-id">Provider Populer:</span><span class="lang-en">Popular Providers:</span></strong><br>
+                        • <strong>Gmail:</strong> smtp.gmail.com:587 (TLS) — <span class="lang-id">perlu App Password</span><span class="lang-en">needs App Password</span><br>
+                        • <strong>Outlook/Office365:</strong> smtp.office365.com:587<br>
+                        • <strong>Yahoo:</strong> smtp.mail.yahoo.com:587<br>
+                        • <strong><span class="lang-id">Hosting Custom:</span><span class="lang-en">Custom Hosting:</span></strong> <span class="lang-id">cek panel hosting email perusahaan</span><span class="lang-en">check your company's email hosting panel</span>
+                    </div>
+                    <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Gunakan tombol <strong>Test Kirim Email</strong> setelah mengisi konfigurasi untuk memverifikasi koneksi sebelum menyimpan.</span><span class="lang-en">Use the <strong>Test Send Email</strong> button after filling the config to verify the connection before saving.</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ #whatsapp ═══ -->
+        <section id="whatsapp" class="docs-section jk-card">
+            <div class="jk-card-header">📱 WhatsApp Gateway</div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Sistem mengintegrasikan WhatsApp melalui <strong>Evolution API</strong> — gateway self-hosted yang memungkinkan tiket masuk dan keluar via WhatsApp tanpa biaya per-pesan dari Meta.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">The system integrates WhatsApp via <strong>Evolution API</strong> — a self-hosted gateway that allows tickets to enter and exit via WhatsApp without per-message fees from Meta.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Status</th><th><span class="lang-id">Arti</span><span class="lang-en">Meaning</span></th><th><span class="lang-id">Tindakan</span><span class="lang-en">Action</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="jk-badge jk-badge-resolved">🟢 Connected</span></td><td><span class="lang-id">Gateway aktif</span><span class="lang-en">Gateway active</span></td><td><span class="lang-id">Tidak perlu tindakan</span><span class="lang-en">No action needed</span></td></tr>
+                            <tr><td><span class="jk-badge jk-badge-investigating">🟡 Connecting</span></td><td><span class="lang-id">Sedang menghubungkan</span><span class="lang-en">Connecting</span></td><td><span class="lang-id">Tunggu 30-60 detik, refresh</span><span class="lang-en">Wait 30-60s, refresh</span></td></tr>
+                            <tr><td><span class="jk-badge jk-badge-open">🔴 Disconnected</span></td><td><span class="lang-id">Tidak terhubung</span><span class="lang-en">Not connected</span></td><td><span class="lang-id">Klik Reconnect atau scan QR</span><span class="lang-en">Click Reconnect or scan QR</span></td></tr>
+                            <tr><td><span class="jk-badge jk-badge-pending">🟣 QR Required</span></td><td><span class="lang-id">Perlu scan QR</span><span class="lang-en">QR scan needed</span></td><td><span class="lang-id">Scan QR dengan HP</span><span class="lang-en">Scan QR with phone</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Cara Reconnect</span><span class="lang-en">How to Reconnect</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Buka halaman <strong>WhatsApp Gateway</strong></span><span class="lang-en">Open the <strong>WhatsApp Gateway</strong> page</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Klik tombol <strong>Reconnect</strong>. Jika muncul QR:</span><span class="lang-en">Click <strong>Reconnect</strong>. If a QR appears:</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Buka WhatsApp di HP → Linked Devices → Link a Device → Scan QR</span><span class="lang-en">Open WhatsApp on phone → Linked Devices → Link a Device → Scan QR</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13px;"><span class="lang-id">Status berubah menjadi 🟢 Connected.</span><span class="lang-en">Status changes to 🟢 Connected.</span></div></div>
+                </div>
+                <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Saat Disconnected, pesan WA dari pengguna tidak masuk sistem. Segera reconnect dan pastikan tim aware.</span><span class="lang-en">While Disconnected, WA messages from users don't enter the system. Reconnect immediately and ensure the team is aware.</span></div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Gunakan nomor WhatsApp Business khusus untuk support desk — bukan nomor pribadi staf. Jika nomor logout dari HP, perlu scan QR ulang.</span><span class="lang-en">Use a dedicated WhatsApp Business number for the support desk — not personal staff numbers. If the number logs out from a phone, a new QR scan is needed.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #approve-edit ═══ -->
+        <section id="approve-edit" class="docs-section jk-card">
+            <div class="jk-card-header">✅ <span class="lang-id">Approve &amp; Reject Request Edit Tiket Closed</span><span class="lang-en">Approve &amp; Reject Closed Ticket Edit Requests</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Ketika staf SupportDesk mengajukan permintaan edit tiket Closed, SuperAdmin (dan Manager) menerima notifikasi untuk meninjau dan memutuskan.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">When a SupportDesk staff submits an edit request for a Closed ticket, SuperAdmin (and Manager) receives a notification to review and decide.</p>
+                <div>
+                    <div style="font-weight:700;font-size:13px;margin-bottom:10px;"><span class="lang-id">Menyetujui Request</span><span class="lang-en">Approving a Request</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Klik notifikasi atau buka tiket Closed yang diminta edit</span><span class="lang-en">Click the notification or open the Closed ticket requested for edit</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Baca alasan edit di banner kuning yang tampil di halaman tiket</span><span class="lang-en">Read the edit reason shown in the yellow banner on the ticket page</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>Setujui</strong> → staf mendapat notifikasi dan bisa mengedit tiket</span><span class="lang-en">Click <strong>Approve</strong> → staff gets notified and can now edit the ticket</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13px;"><span class="lang-id">Atau klik <strong>Tolak</strong> → isi alasan penolakan (dianjurkan) → konfirmasi</span><span class="lang-en">Or click <strong>Reject</strong> → fill in rejection reason (recommended) → confirm</span></div></div>
+                </div>
+                <div class="docs-callout docs-callout-info">ℹ️ <span class="lang-id"><strong>SuperAdmin bypass:</strong> Anda bisa langsung mengedit tiket Closed kapan saja tanpa perlu mengajukan request. Alur request hanya berlaku untuk staf SupportDesk.</span><span class="lang-en"><strong>SuperAdmin bypass:</strong> You can directly edit any Closed ticket at any time without going through the request flow. The request flow only applies to SupportDesk staff.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #kb-admin ═══ -->
+        <section id="kb-admin" class="docs-section jk-card">
+            <div class="jk-card-header">📚 <span class="lang-id">Knowledge Base — Akses SuperAdmin</span><span class="lang-en">Knowledge Base — SuperAdmin Access</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Kontrol penuh atas Knowledge Base — kelola kategori KB, publish artikel dari semua staf, dan hapus artikel usang.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Full control over the Knowledge Base — manage KB categories, publish articles from all staff, and delete outdated articles.</p>
+                <div>
+                    <div style="font-weight:700;font-size:13px;margin-bottom:8px;"><span class="lang-id">Publikasi Massal</span><span class="lang-en">Bulk Publishing</span></div>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">KB Desk → <strong>Semua Artikel</strong> → filter status "Menunggu Review"</span><span class="lang-en">KB Desk → <strong>All Articles</strong> → filter by "Pending Review" status</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Baca setiap artikel → klik <strong>Publish</strong> atau <strong>Kembalikan ke Draft</strong></span><span class="lang-en">Read each article → click <strong>Publish</strong> or <strong>Return to Draft</strong></span></div></div>
+                </div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Jadwalkan review KB bulanan. Artikel dengan informasi yang salah lebih berbahaya dari tidak ada artikel sama sekali.</span><span class="lang-en">Schedule monthly KB reviews. An article with wrong information is worse than having no article at all.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #tips ═══ -->
+        <section id="tips" class="docs-section">
+            <div class="jk-card mb-4">
+                <div class="jk-card-header">🛡️ <span class="lang-id">Tips Keamanan &amp; Operasional</span><span class="lang-en">Security &amp; Operational Tips</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="font-weight:700;font-size:13px;"><span class="lang-id">Keamanan Akun</span><span class="lang-en">Account Security</span></div>
+                    <ul style="font-size:13px;color:var(--jk-text-muted);line-height:1.8;padding-left:4px;list-style:none;display:flex;flex-direction:column;gap:6px;">
+                        <li>🔑 <span class="lang-id">Ganti password secara berkala (minimal setiap 3 bulan)</span><span class="lang-en">Change passwords regularly (at least every 3 months)</span></li>
+                        <li>🚪 <span class="lang-id">Selalu logout saat meninggalkan komputer, terutama di komputer bersama</span><span class="lang-en">Always log out when leaving a computer, especially shared ones</span></li>
+                        <li>👤 <span class="lang-id">Jangan berbagi akun — setiap staf harus memiliki akun sendiri</span><span class="lang-en">Never share accounts — each staff member must have their own account</span></li>
+                        <li>⚡ <span class="lang-id">Nonaktifkan segera akun staf yang resign pada hari terakhir kerja</span><span class="lang-en">Immediately deactivate accounts of resigned staff on their last day</span></li>
+                        <li>🔒 <span class="lang-id">Batasi jumlah SuperAdmin (idealnya maksimal 2-3 orang)</span><span class="lang-en">Limit SuperAdmin count (ideally 2-3 people maximum)</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="jk-card mb-4">
+                <div class="jk-card-header"><span class="lang-id">Checklist Operasional</span><span class="lang-en">Operational Checklist</span></div>
+                <div class="jk-card-body">
+                    <div class="overflow-x-auto">
+                        <table class="docs-table">
+                            <thead><tr><th><span class="lang-id">Frekuensi</span><span class="lang-en">Frequency</span></th><th><span class="lang-id">Tugas</span><span class="lang-en">Tasks</span></th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight:700;white-space:nowrap;"><span class="lang-id">Harian</span><span class="lang-en">Daily</span></td>
+                                    <td>
+                                        <ul style="font-size:12.5px;list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:3px;">
+                                            <li>• <span class="lang-id">Cek status WhatsApp Gateway (pastikan Connected)</span><span class="lang-en">Check WhatsApp Gateway status (ensure Connected)</span></li>
+                                            <li>• <span class="lang-id">Pantau dashboard — ada tiket kritis belum tertangani?</span><span class="lang-en">Monitor dashboard — any critical unhandled tickets?</span></li>
+                                            <li>• <span class="lang-id">Tinjau request edit tiket yang menunggu approval</span><span class="lang-en">Review ticket edit requests awaiting approval</span></li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight:700;white-space:nowrap;"><span class="lang-id">Mingguan</span><span class="lang-en">Weekly</span></td>
+                                    <td>
+                                        <ul style="font-size:12.5px;list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:3px;">
+                                            <li>• <span class="lang-id">Review kinerja tim dari dashboard analitik</span><span class="lang-en">Review team performance from analytics dashboard</span></li>
+                                            <li>• <span class="lang-id">Tinjau artikel KB yang menunggu review/publish</span><span class="lang-en">Review KB articles pending review/publish</span></li>
+                                            <li>• <span class="lang-id">Cek koneksi email IMAP — ada error polling?</span><span class="lang-en">Check IMAP connection — any polling errors?</span></li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight:700;white-space:nowrap;"><span class="lang-id">Bulanan</span><span class="lang-en">Monthly</span></td>
+                                    <td>
+                                        <ul style="font-size:12.5px;list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:3px;">
+                                            <li>• <span class="lang-id">Export data tiket untuk laporan manajemen</span><span class="lang-en">Export ticket data for management reports</span></li>
+                                            <li>• <span class="lang-id">Audit daftar pengguna aktif — perlu dinonaktifkan?</span><span class="lang-en">Audit active user list — any that need deactivating?</span></li>
+                                            <li>• <span class="lang-id">Review kategori layanan &amp; template RCA</span><span class="lang-en">Review service categories &amp; RCA templates</span></li>
+                                            <li>• <span class="lang-id">Update artikel KB yang sudah usang</span><span class="lang-en">Update outdated KB articles</span></li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="jk-card">
+                <div class="jk-card-header"><span class="lang-id">Panduan Troubleshooting</span><span class="lang-en">Troubleshooting Guide</span></div>
+                <div class="jk-card-body" style="display:flex;flex-direction:column;gap:10px;">
+                    <div class="jk-card" style="padding:14px;border:1px solid #fecaca;background:#fef2f2;">
+                        <div style="font-weight:700;font-size:13px;color:#991b1b;margin-bottom:4px;">🔴 <span class="lang-id">WhatsApp tidak bisa kirim/terima pesan</span><span class="lang-en">WhatsApp can't send/receive messages</span></div>
+                        <div style="font-size:12.5px;color:#7f1d1d;"><span class="lang-id">→ Cek halaman WA Gateway. Jika Disconnected, klik Reconnect. Jika perlu QR, scan dengan HP yang terhubung ke nomor WA support desk.</span><span class="lang-en">→ Check WA Gateway page. If Disconnected, click Reconnect. If QR is needed, scan with the phone connected to the support desk's WA number.</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid #fde68a;background:#fffbeb;">
+                        <div style="font-weight:700;font-size:13px;color:#92400e;margin-bottom:4px;">🟡 <span class="lang-id">Email masuk tidak jadi tiket</span><span class="lang-en">Incoming email not creating tickets</span></div>
+                        <div style="font-size:12.5px;color:#78350f;"><span class="lang-id">→ Cek konfigurasi IMAP. Pastikan Is Active dicentang dan autentikasi ke server IMAP berhasil.</span><span class="lang-en">→ Check IMAP configuration. Ensure Is Active is checked and authentication to the IMAP server succeeds.</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid #bfdbfe;background:#eff6ff;">
+                        <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:4px;">🔵 <span class="lang-id">Staf tidak bisa login</span><span class="lang-en">Staff can't log in</span></div>
+                        <div style="font-size:12.5px;color:#1e3a8a;"><span class="lang-id">→ Cek akun di Manajemen Pengguna. Pastikan Is Active dicentang dan reset password jika diperlukan.</span><span class="lang-en">→ Check account in User Management. Ensure Is Active is checked and reset the password if needed.</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid #e9d5ff;background:#faf5ff;">
+                        <div style="font-weight:700;font-size:13px;color:#6b21a8;margin-bottom:4px;">🟣 <span class="lang-id">Tiket tidak terlihat oleh staf</span><span class="lang-en">Ticket not visible to staff</span></div>
+                        <div style="font-size:12.5px;color:#581c87;"><span class="lang-id">→ Jika dari kategori Confidential, pastikan staf memiliki izin "Can Handle Confidential" di pengaturan akun mereka.</span><span class="lang-en">→ If from a Confidential category, ensure staff has "Can Handle Confidential" permission in their account settings.</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div><!-- end main content -->
+</div><!-- end grid -->
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const LANG_KEY = 'roc_docs_lang';
+    const saved = localStorage.getItem(LANG_KEY) || 'id';
+    applyLang(saved);
+    document.querySelectorAll('[data-set-lang]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            applyLang(this.dataset.setLang);
+            localStorage.setItem(LANG_KEY, this.dataset.setLang);
+        });
+    });
+    function applyLang(lang) {
+        document.body.classList.remove('lang-id', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+        document.querySelectorAll('[data-set-lang]').forEach(b => {
+            b.classList.toggle('lang-btn-active', b.dataset.setLang === lang);
+        });
+    }
+})();
+
+(function() {
+    const links = document.querySelectorAll('.docs-toc-link[href^="#"]');
+    const secs = [];
+    links.forEach(l => { const t = document.querySelector(l.getAttribute('href')); if (t) secs.push({ l, t }); });
+    function hl() {
+        let c = secs[0];
+        secs.forEach(s => { if (window.scrollY >= s.t.offsetTop - 100) c = s; });
+        links.forEach(l => l.classList.remove('active'));
+        if (c) c.l.classList.add('active');
+    }
+    window.addEventListener('scroll', hl, { passive: true });
+    hl();
+})();
+
+async function downloadDocsPDF(docKey) {
+    const btn = document.getElementById('pdf-btn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="width:14px;height:14px;animation:spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generating...';
+
+    const isEN = document.body.classList.contains('lang-en');
+    const lang = isEN ? 'en' : 'id';
+    const titles = {
+        'portal-user':  { id: 'Panduan Pengguna Portal', en: 'Portal User Guide' },
+        'support-desk': { id: 'Panduan Staf Support Desk', en: 'Staff Support Desk Guide' },
+        'superadmin':   { id: 'Panduan SuperAdmin', en: 'SuperAdmin Guide' }
+    };
+    const title = (titles[docKey] || titles['superadmin'])[lang];
+    const siteName = '{{ site_config.site_name|default:"RoC Support Desk" }}';
+    const dateStr = new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const root = document.getElementById('docs-pdf-root');
+    const toc = document.getElementById('docs-toc-sidebar');
+
+    // Save original styles so we can restore after PDF generation
+    const origRootStyle = root.getAttribute('style') || '';
+    const origTocDisplay = toc ? toc.style.display : '';
+
+    // Build cover header element
+    const cover = document.createElement('div');
+    cover.id = '__pdf-cover';
+    cover.style.cssText = 'text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #57534e;font-family:Inter,system-ui,sans-serif;';
+    cover.innerHTML = `
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#57534e;margin-bottom:8px;">${siteName}</div>
+        <div style="font-size:26px;font-weight:900;color:#1e293b;margin-bottom:6px;">${title}</div>
+        <div style="font-size:11px;color:#64748b;">${lang === 'en' ? 'Generated' : 'Dibuat'}: ${dateStr}</div>
+    `;
+
+    // Temporarily transform layout: hide TOC, change grid to block, prepend cover
+    if (toc) toc.style.display = 'none';
+    root.style.cssText = 'display:block !important;';
+    root.insertBefore(cover, root.firstChild);
+
+    // Wait two frames for the browser to recalculate layout before capture
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: `${docKey}-guide-${lang}-${new Date().toISOString().slice(0, 10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.97 },
+            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, scrollX: 0, scrollY: 0, windowWidth: document.body.scrollWidth },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['.jk-card', '.docs-step'] }
+        }).from(root).save();
+    } catch (e) {
+        console.error('PDF error:', e);
+        window.print();
+    } finally {
+        // Restore the page to its original state
+        const c = document.getElementById('__pdf-cover');
+        if (c) root.removeChild(c);
+        if (toc) toc.style.display = origTocDisplay;
+        if (origRootStyle) root.setAttribute('style', origRootStyle);
+        else root.removeAttribute('style');
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

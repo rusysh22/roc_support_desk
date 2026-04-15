@@ -20,15 +20,15 @@
     <form method="get" class="jk-card-body py-3 px-4">
         <div class="flex flex-wrap items-end gap-3">
             <div class="flex-1 min-w-[140px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">From</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">From</label>
                 <input type="date" name="date_from" value="{{ filter_date_from }}" class="jk-input text-sm w-full">
             </div>
             <div class="flex-1 min-w-[140px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">To</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">To</label>
                 <input type="date" name="date_to" value="{{ filter_date_to }}" class="jk-input text-sm w-full">
             </div>
             <div class="flex-1 min-w-[140px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Agent</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Agent</label>
                 <select name="assigned_to" class="jk-select text-sm w-full">
                     <option value="">All Agents</option>
                     <option value="unassigned" {% if filter_assigned == "unassigned" %}selected{% endif %}>Unassigned</option>
@@ -38,7 +38,7 @@
                 </select>
             </div>
             <div class="flex-1 min-w-[140px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Category</label>
                 <select name="category" class="jk-select text-sm w-full">
                     <option value="">All Categories</option>
                     {% for cat in categories %}
@@ -47,7 +47,7 @@
                 </select>
             </div>
             <div class="flex-1 min-w-[120px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Source</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Source</label>
                 <select name="source" class="jk-select text-sm w-full">
                     <option value="">All Sources</option>
                     <option value="EvolutionAPI_WA" {% if filter_source == "EvolutionAPI_WA" %}selected{% endif %}>WhatsApp</option>
@@ -56,7 +56,7 @@
                 </select>
             </div>
             <div class="flex-1 min-w-[120px]">
-                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Priority</label>
                 <select name="priority" class="jk-select text-sm w-full">
                     <option value="">All Priorities</option>
                     <option value="Low" {% if filter_priority == "Low" %}selected{% endif %}>Low</option>
@@ -75,7 +75,7 @@
                 </a>
             </div>
         </div>
-        <div class="mt-2 text-[10px] text-slate-400 font-medium">{{ date_range_label }}</div>
+        <div class="mt-2 text-xs text-slate-600 font-medium">{{ date_range_label }}</div>
     </form>
 </div>
 
@@ -85,44 +85,44 @@
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
     <!-- Total Tickets -->
     <div class="jk-card jk-card-body p-4 flex flex-col">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Tickets</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Total Tickets</div>
         <div class="text-2xl font-extrabold text-slate-800 mt-1">{{ total_in_range }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">In selected range</div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">In selected range</div>
     </div>
 
     <!-- Active -->
     <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(99,102,241,0.15), 0 4px 12px rgba(99,102,241,0.12);">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Active</div>
         <div class="text-2xl font-extrabold text-indigo-600 mt-1">{{ total_active }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">Open + Investigating + Pending</div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">Open + Investigating + Pending</div>
     </div>
 
     <!-- Unassigned -->
     <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(245,158,11,0.15), 0 4px 12px rgba(245,158,11,0.12);">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unassigned</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unassigned</div>
         <div class="text-2xl font-extrabold text-amber-600 mt-1">{{ total_unassigned }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">Need attention</div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">Need attention</div>
     </div>
 
     <!-- Resolved -->
     <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(16,185,129,0.15), 0 4px 12px rgba(16,185,129,0.12);">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Resolved</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Resolved</div>
         <div class="text-2xl font-extrabold text-emerald-600 mt-1">{{ resolved_in_range }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">Today: <span class="font-bold text-emerald-600">{{ resolved_today }}</span></div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">Today: <span class="font-bold text-emerald-600">{{ resolved_today }}</span></div>
     </div>
 
     <!-- SLA Breached -->
     <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 4px 12px rgba(239,68,68,0.12);">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">SLA Breached</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">SLA Breached</div>
         <div class="text-2xl font-extrabold text-red-600 mt-1">{{ sla_breached }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">At risk: <span class="font-bold text-orange-500">{{ sla_at_risk }}</span></div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">At risk: <span class="font-bold text-orange-500">{{ sla_at_risk }}</span></div>
     </div>
 
     <!-- Unread -->
     <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(244,63,94,0.15), 0 4px 12px rgba(244,63,94,0.12);">
-        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unread Messages</div>
+        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unread Messages</div>
         <div class="text-2xl font-extrabold text-rose-600 mt-1">{{ unread_count }}</div>
-        <div class="text-[10px] text-slate-400 mt-auto pt-1">Awaiting response</div>
+        <div class="text-xs text-slate-600 mt-auto pt-1">Awaiting response</div>
     </div>
 </div>
 
@@ -138,15 +138,15 @@
                 <h3 class="text-sm font-bold text-slate-800">Ticket Trend</h3>
                 <div class="flex items-center gap-2">
                     {% if avg_resolution %}
-                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-medium">Avg: {{ avg_resolution }}</span>
+                    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-medium">Avg: {{ avg_resolution }}</span>
                     {% endif %}
                     <div class="flex bg-slate-100 rounded-lg p-0.5" x-data>
                         <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=daily"
-                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'daily' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Day</a>
+                           class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'daily' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Day</a>
                         <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=weekly"
-                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'weekly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Week</a>
+                           class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'weekly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Week</a>
                         <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=monthly"
-                           class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors {% if trend_granularity == 'monthly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Month</a>
+                           class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'monthly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Month</a>
                     </div>
                 </div>
             </div>
@@ -208,10 +208,10 @@
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center">
                         <span class="text-2xl font-extrabold {% if sla_pct >= 80 %}text-emerald-600{% elif sla_pct >= 60 %}text-amber-600{% else %}text-red-600{% endif %}">{{ sla_pct }}%</span>
-                        <span class="text-[9px] text-slate-400 font-medium">ON TIME</span>
+                        <span class="text-xs text-slate-600 font-medium">ON TIME</span>
                     </div>
                 </div>
-                <div class="text-[10px] text-slate-500 mt-2">{{ sla_met }} / {{ sla_total }} tickets met SLA</div>
+                <div class="text-xs text-slate-600 mt-2">{{ sla_met }} / {{ sla_total }} tickets met SLA</div>
             </div>
         </div>
     </div>
@@ -227,7 +227,7 @@
         <div class="jk-card-body p-4">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-800">Top Categories</h3>
-                <a href="{% url 'desk:case_list' %}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+                <a href="{% url 'desk:case_list' %}" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
             </div>
             <div style="max-height: 300px; overflow-y: auto; position: relative;">
                 <div id="catChartWrap"><canvas id="catChart"></canvas></div>
@@ -240,7 +240,7 @@
         <div class="jk-card-body p-4">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-800">Agent Workload (Active)</h3>
-                <a href="{% url 'desk:case_list' %}?status=Open,Investigating,PendingInfo" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+                <a href="{% url 'desk:case_list' %}?status=Open,Investigating,PendingInfo" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
             </div>
             <div style="max-height: 300px; overflow-y: auto; position: relative;">
                 <div id="agentChartWrap"><canvas id="agentChart"></canvas></div>
@@ -253,7 +253,7 @@
         <div class="jk-card-body p-4">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-800">By Company</h3>
-                <a href="{% url 'desk:case_list' %}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+                <a href="{% url 'desk:case_list' %}" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
             </div>
             <div style="max-height: 300px; overflow-y: auto; position: relative;">
                 <div id="unitChartWrap"><canvas id="unitChart"></canvas></div>
@@ -273,7 +273,7 @@
             <h3 class="text-sm font-bold text-slate-800 mb-3">Tags Cloud</h3>
             <div id="tagCloudContainer" style="height: 260px; position: relative;" class="flex items-center justify-center">
                 <canvas id="tagCloudCanvas"></canvas>
-                <div id="tagCloudEmpty" class="hidden text-xs text-slate-400 absolute">No tag data available</div>
+                <div id="tagCloudEmpty" class="hidden text-xs text-slate-600 absolute">No tag data available</div>
             </div>
         </div>
     </div>
@@ -284,7 +284,7 @@
             <h3 class="text-sm font-bold text-slate-800 mb-3">RCA & Solving Keywords</h3>
             <div id="rcaCloudContainer" style="height: 260px; position: relative;" class="flex items-center justify-center">
                 <canvas id="rcaCloudCanvas"></canvas>
-                <div id="rcaCloudEmpty" class="hidden text-xs text-slate-400 absolute">No RCA data available</div>
+                <div id="rcaCloudEmpty" class="hidden text-xs text-slate-600 absolute">No RCA data available</div>
             </div>
         </div>
     </div>
@@ -301,7 +301,7 @@
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h3 class="text-sm font-bold text-slate-800">First Response Time</h3>
                 {% if avg_frt %}
-                <span class="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-semibold">Avg: {{ avg_frt }}</span>
+                <span class="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-semibold">Avg: {{ avg_frt }}</span>
                 {% endif %}
             </div>
             <div style="height: 220px; position: relative;">
@@ -368,7 +368,7 @@
                     </div>
                     <div class="text-xs text-slate-500">
                         <div><span class="font-bold text-slate-700">{{ reopened_count }}</span> tickets reopened</div>
-                        <div class="text-[10px] text-slate-400 mt-1">out of {{ total_in_range }} in range</div>
+                        <div class="text-xs text-slate-600 mt-1">out of {{ total_in_range }} in range</div>
                     </div>
                 </div>
             </div>
@@ -386,12 +386,12 @@
         <div class="jk-card-body p-4">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-800">Recent Tickets</h3>
-                <a href="{% url 'desk:case_list' %}?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+                <a href="{% url 'desk:case_list' %}?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
             </div>
             <div class="overflow-x-auto" style="max-height: 340px; overflow-y: auto;">
                 <table class="w-full text-xs">
                     <thead>
-                        <tr class="border-b border-slate-200 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <tr class="border-b border-slate-200 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                             <th class="pb-2 pr-3">Ticket</th>
                             <th class="pb-2 pr-3">Subject</th>
                             <th class="pb-2 pr-3">Status</th>
@@ -415,10 +415,10 @@
                                 {% endif %}
                             </td>
                             <td class="py-2 pr-3 text-slate-600 truncate max-w-[120px]">{{ case.requester.full_name|default:"—" }}</td>
-                            <td class="py-2 text-slate-400 whitespace-nowrap">{{ case.created_at|date:"d M, H:i" }}</td>
+                            <td class="py-2 text-slate-600 whitespace-nowrap">{{ case.created_at|date:"d M, H:i" }}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="5" class="py-4 text-center text-slate-400">No tickets in this range</td></tr>
+                        <tr><td colspan="5" class="py-4 text-center text-slate-600">No tickets in this range</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -456,7 +456,7 @@
                     </a>
                     {% endfor %}
                     {% if not sla_breached_tickets and not sla_at_risk_tickets %}
-                    <div class="text-center py-3 text-slate-400 text-xs">No SLA alerts</div>
+                    <div class="text-center py-3 text-slate-600 text-xs">No SLA alerts</div>
                     {% endif %}
                 </div>
             </div>
@@ -471,12 +471,12 @@
                     <div class="flex items-center justify-between text-xs">
                         <div class="min-w-0">
                             <div class="font-medium text-slate-700 truncate">{{ r.requester__full_name }}</div>
-                            <div class="text-[10px] text-slate-400">{{ r.requester__unit__name|default:"—" }}</div>
+                            <div class="text-xs text-slate-600">{{ r.requester__unit__name|default:"—" }}</div>
                         </div>
                         <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold text-[10px] flex-shrink-0">{{ r.count }}</span>
                     </div>
                     {% empty %}
-                    <div class="text-center py-3 text-slate-400 text-xs">No data</div>
+                    <div class="text-center py-3 text-slate-600 text-xs">No data</div>
                     {% endfor %}
                 </div>
             </div>
@@ -492,13 +492,13 @@
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Stale Tickets <span class="text-[10px] text-slate-400 font-normal ml-1">(no activity &gt; 3 days)</span>
+                Stale Tickets <span class="text-xs text-slate-600 font-normal ml-1">(no activity &gt; 3 days)</span>
             </h3>
         </div>
         <div class="overflow-x-auto" style="max-height: 300px; overflow-y: auto;">
             <table class="w-full text-xs">
                 <thead>
-                    <tr class="border-b border-slate-200 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <tr class="border-b border-slate-200 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                         <th class="pb-2 pr-3">Ticket</th>
                         <th class="pb-2 pr-3">Subject</th>
                         <th class="pb-2 pr-3">Status</th>
@@ -522,12 +522,12 @@
                         </td>
                         <td class="py-2 pr-3 text-slate-600">{{ case.assigned_to.username|default:"Unassigned" }}</td>
                         <td class="py-2 pr-3 text-slate-500 whitespace-nowrap">{{ case.created_at|timesince }}</td>
-                        <td class="py-2 text-slate-400 whitespace-nowrap">
+                        <td class="py-2 text-slate-600 whitespace-nowrap">
                             {% if case.last_msg_at %}{{ case.last_msg_at|timesince }} ago{% else %}{{ case.created_at|timesince }} ago{% endif %}
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="py-4 text-center text-slate-400">No stale tickets — great job!</td></tr>
+                    <tr><td colspan="6" class="py-4 text-center text-slate-600">No stale tickets — great job!</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

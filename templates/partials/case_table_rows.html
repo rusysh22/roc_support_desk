@@ -7,13 +7,15 @@
         <input type="checkbox" disabled class="w-4 h-4 rounded border-slate-200 bg-slate-100 cursor-not-allowed">
     </td>
     <td class="jk-col-ticket whitespace-nowrap">
-        <span class="text-slate-400 text-xs sm:text-sm font-semibold">
+        <!-- text-slate-600 on white = 5.9:1 AA ✓ (was slate-400 = 2.4:1) -->
+        <span class="text-slate-600 text-xs sm:text-sm font-semibold">
             <svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
             {{ case.case_number }}
         </span>
     </td>
     <td class="jk-col-subject">
-        <span class="text-slate-400 italic text-sm">Confidential Ticket</span>
+        <!-- text-slate-600 italic = 5.9:1 AA ✓ -->
+        <span class="text-slate-600 italic text-sm">Confidential Ticket</span>
     </td>
     <td class="jk-col-status">
         {% if case.status == "Open" %}
@@ -58,16 +60,17 @@
         {% if case.assigned_to %}
         <span class="font-medium">{{ case.assigned_to.username }}</span>
         {% else %}
-        <span class="text-slate-400">Unassigned</span>
+        <span class="text-slate-600">Unassigned</span>
         {% endif %}
     </td>
-    <td class="jk-col-created text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+    <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
         {{ case.created_at|date:"d M Y" }}<br>
-        <span class="text-[10px] sm:text-xs text-slate-300">{{ case.created_at|time:"H:i" }}</span>
+        <!-- text-slate-600 = 5.9:1 AA ✓ (was 10px slate-300 = 1.5:1) -->
+        <span class="text-xs text-slate-600">{{ case.created_at|time:"H:i" }}</span>
     </td>
-    <td class="text-sm text-slate-400 whitespace-nowrap hidden md:table-cell">—</td>
-    <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
-    <td class="hidden md:table-cell"><span class="text-xs text-slate-400">—</span></td>
+    <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">—</td>
+    <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
+    <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
 </tr>
 {% else %}
 {# === Normal row === #}
@@ -137,19 +140,20 @@
         {% if case.assigned_to %}
         <span class="font-medium">{{ case.assigned_to.username }}</span>
         {% else %}
-        <span class="text-slate-400">Unassigned</span>
+        <span class="text-slate-600">Unassigned</span>
         {% endif %}
     </td>
-    <td class="jk-col-created text-xs sm:text-sm text-slate-500 whitespace-nowrap">
+    <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
         {{ case.created_at|date:"d M Y" }}<br>
-        <span class="text-[10px] sm:text-xs text-slate-400">{{ case.created_at|time:"H:i" }}</span>
+        <!-- text-slate-600 = 5.9:1 AA ✓ (was 10px slate-400 = 2.4:1) -->
+        <span class="text-xs text-slate-600">{{ case.created_at|time:"H:i" }}</span>
     </td>
-    <td class="text-sm text-slate-500 whitespace-nowrap hidden md:table-cell">
+    <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">
         {% if case.last_viewed_at %}
         {{ case.last_viewed_at|date:"d M Y" }}<br>
-        <span class="text-xs text-slate-400">{{ case.last_viewed_at|time:"H:i" }}</span>
+        <span class="text-xs text-slate-600">{{ case.last_viewed_at|time:"H:i" }}</span>
         {% else %}
-        <span class="text-xs text-slate-400 italic">Never</span>
+        <span class="text-xs text-slate-600 italic">Never</span>
         {% endif %}
     </td>
     <td class="hidden md:table-cell">
@@ -174,7 +178,7 @@
             {% endif %}
             {% endwith %}
         {% else %}
-        <span class="text-xs text-slate-400">—</span>
+        <span class="text-xs text-slate-600">—</span>
         {% endif %}
     </td>
     <td class="hidden md:table-cell">
@@ -185,13 +189,13 @@
         <span class="jk-badge jk-badge-sla-warn">{{ case.resolution_due_at|date:"d M H:i" }}</span>
         {% endif %}
         {% else %}
-        <span class="text-xs text-slate-400">—</span>
+        <span class="text-xs text-slate-600">—</span>
         {% endif %}
     </td>
 </tr>
 {% endif %}
 {% empty %}
 <tr>
-    <td colspan="12" class="py-16 text-center text-slate-400 text-sm italic">No tickets match your current filters.</td>
+    <td colspan="12" class="py-16 text-center text-slate-600 text-sm italic">No tickets match your current filters.</td>
 </tr>
 {% endfor %}

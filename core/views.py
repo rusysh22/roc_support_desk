@@ -230,12 +230,21 @@ def custom_404_view(request, exception=None):
     return render(request, "404.html", status=404)
 
 
+def custom_csrf_failure_view(request, reason=""):
+    """
+    Custom CSRF failure handler (403) — replaces Django's plain yellow page
+    with a branded session-expired page.
+    """
+    return render(request, "403_csrf.html", status=403)
+
+
 # =====================================================================
 # Help & About
 # =====================================================================
 
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
+from django.http import HttpResponseForbidden
 
 from .models import Feedback, SiteConfig, User
 import django
@@ -277,6 +286,40 @@ def submit_feedback(request):
     )
     messages.success(request, "Thank you! Your feedback has been submitted.")
     return redirect("help_about")
+
+
+# =====================================================================
+# Documentation Pages
+# =====================================================================
+
+def docs_portal_user(request):
+    """Public documentation page for Portal Users — no login required."""
+    config = SiteConfig.get_solo()
+    return render(request, "docs/portal_user_docs.html", {"config": config})
+
+
+@login_required
+def docs_support_desk(request):
+    """Documentation for Support Desk staff (SupportDesk, Manager, Auditor, SuperAdmin)."""
+    STAFF_ROLES = {
+        User.RoleAccess.SUPERADMIN,
+        User.RoleAccess.MANAGER,
+        User.RoleAccess.SUPPORTDESK,
+        User.RoleAccess.AUDITOR,
+    }
+    if getattr(request.user, "role_access", None) not in STAFF_ROLES:
+        return HttpResponseForbidden("Akses ditolak. Halaman ini hanya untuk staf.")
+    config = SiteConfig.get_solo()
+    return render(request, "docs/support_docs.html", {"config": config})
+
+
+@login_required
+def docs_superadmin(request):
+    """Documentation for SuperAdmin only."""
+    if getattr(request.user, "role_access", None) != User.RoleAccess.SUPERADMIN:
+        return HttpResponseForbidden("Akses ditolak. Halaman ini hanya untuk SuperAdmin.")
+    config = SiteConfig.get_solo()
+    return render(request, "docs/admin_docs.html", {"config": config})
 
 
 # =====================================================================

@@ -67,6 +67,9 @@ urlpatterns = [
     # Email Settings Dashboard
     path("email-settings/", views.email_settings_view, name="email_settings"),
 
+    # Apps Connection Hub (Master Data — SuperAdmin only)
+    path("apps-connection/", views.apps_connection_view, name="apps_connection"),
+
     # Dynamic Form Builder
     path("forms/", views.form_list_view, name="form_list"),
     path("forms/create/", views.form_create_view, name="form_create"),

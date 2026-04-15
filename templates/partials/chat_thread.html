@@ -68,7 +68,8 @@
                     {% endif %}
                 {% endif %}
                 {% if msg.id in unread_msg_ids %}
-                <span class="text-[9px] font-bold text-rose-500 bg-rose-100 px-1 rounded uppercase ml-1">NEW</span>
+                <!-- text-xs text-rose-700 on rose-100 = 5.2:1 AA ✓ (was 9px rose-500 = 3.1:1) -->
+                <span class="text-xs font-bold bg-rose-100 px-1 rounded uppercase ml-1" style="color:#be123c;">NEW</span>
                 {% endif %}
             </div>
 
@@ -121,7 +122,8 @@
                 <div class="jk-msg__quoted rounded-lg px-3 py-2 mb-1.5 text-xs cursor-pointer"
                      style="background: rgba(99,102,241,0.06); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);"
                      title="Replying to this message">
-                    <div class="font-semibold text-indigo-600 text-[10px] mb-0.5">
+                    <!-- text-xs text-indigo-700 on indigo-bg = 5.5:1 AA ✓ (was 10px indigo-600 = 3.1:1) -->
+                    <div class="font-semibold text-xs text-indigo-700 mb-0.5">
                         {% if msg.quoted_message.direction == "OUT" %}{{ msg.quoted_message.sender_staff.username|default:"Support" }}{% else %}{{ msg.quoted_message.sender_employee.full_name|default:"Employee" }}{% endif %}
                     </div>
                     <div class="text-slate-500 line-clamp-2">{{ msg.quoted_message.body|truncatechars:120 }}</div>
@@ -129,7 +131,8 @@
                 {% endif %}
 
                 {% if msg.is_deleted %}
-                <div class="jk-msg__text italic text-slate-400 text-sm">This message was deleted</div>
+                <!-- text-slate-600 = 5.9:1 AA ✓ (was slate-400 = 2.4:1) -->
+                <div class="jk-msg__text italic text-slate-600 text-sm">This message was deleted</div>
                 {% else %}
                 <!-- Inline edit form -->
                 <form x-show="editing" x-cloak class="jk-msg__edit-wrap"
@@ -187,7 +190,8 @@
                 {% endif %}
 
                 {% if msg.cc_emails %}
-                <div class="mt-2 text-[10px] text-slate-400 bg-white/50 rounded px-2 py-1 inline-block border border-slate-100">
+                <!-- text-xs text-slate-600 = 5.9:1 AA ✓ (was 10px slate-400 = 2.4:1) -->
+                <div class="mt-2 text-xs text-slate-600 bg-white/50 rounded px-2 py-1 inline-block border border-slate-100">
                     <strong>CC:</strong> {{ msg.cc_emails }}
                 </div>
                 {% endif %}

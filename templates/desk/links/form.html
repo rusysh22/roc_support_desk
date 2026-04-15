@@ -12,12 +12,12 @@
 
     <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-            <a href="{% url 'links_desk:list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+            <a href="{% url 'links_desk:list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </a>
             <div>
                 <h2 class="text-lg font-bold text-slate-900">{% if object %}Link Configuration{% else %}Create Custom URL{% endif %}</h2>
-                <p class="text-sm text-slate-500 mt-1">Shorten a URL and define how its thumbnail looks when shared.</p>
+                <p class="text-sm text-slate-600 mt-1">Shorten a URL and define how its thumbnail looks when shared.</p>
             </div>
         </div>
         
@@ -107,17 +107,17 @@
 
                 <!-- Target URL -->
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.target_url.label }} <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.target_url.label }} <span class="text-red-700">*</span></label>
                     {{ form.target_url }}
-                    <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">The long original link where users will be redirected.</p>
+                    <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">The long original link where users will be redirected.</p>
                 </div>
 
                 <!-- Custom Slug -->
                 <div class="relative">
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.slug.label }} <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.slug.label }} <span class="text-red-700">*</span></label>
                     
                     <div class="flex rounded-md shadow-sm relative">
-                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-sm font-medium">
+                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-600 text-sm font-medium">
                             /s/
                         </span>
                         
@@ -140,13 +140,13 @@
                             <svg x-show="isAvailable === true" class="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
-                            <svg x-show="isAvailable === false" class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
+                            <svg x-show="isAvailable === false" class="h-5 w-5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                             </svg>
                         </div>
                     </div>
                     
-                    <p class="text-[13px] mt-1 text-slate-500 flex items-center gap-1" x-show="isAvailable === null && !isChecking">We will automatically check for slug availability.</p>
+                    <p class="text-[13px] mt-1 text-slate-600 flex items-center gap-1" x-show="isAvailable === null && !isChecking">We will automatically check for slug availability.</p>
                     <p class="text-[13px] mt-1 text-green-600 font-medium flex items-center gap-1" style="display: none;" x-show="isAvailable === true && !isChecking">Great! This slug is available.</p>
                     <p class="text-[13px] mt-1 text-red-600 font-medium flex items-center gap-1" style="display: none;" x-show="isAvailable === false && !isChecking" x-text="errMsg"></p>
                 </div>
@@ -154,7 +154,7 @@
                 <!-- Divider -->
                 <div class="border-t border-slate-100 my-8 py-2">
                     <h3 class="text-base font-semibold text-slate-800 mb-1">Social Card Preview</h3>
-                    <p class="text-sm text-slate-500 mb-4">When someone shares this link in WhatsApp, Twitter, etc. these details will show.</p>
+                    <p class="text-sm text-slate-600 mb-4">When someone shares this link in WhatsApp, Twitter, etc. these details will show.</p>
                     
                     <div class="grid grid-cols-1 gap-6">
                         <div>
@@ -226,7 +226,7 @@
                             <img :src="linkData.qr" class="w-48 h-48 rounded-xl bg-white p-2 shadow-inner border border-slate-100" alt="QR Code">
                         </template>
                         <template x-if="!linkData.qr">
-                            <div class="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-2">
+                            <div class="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-600 gap-2">
                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
                                 <span class="text-xs">QR Generating...</span>
                             </div>
@@ -234,10 +234,10 @@
                     </div>
                     <div class="px-5 pb-4 pt-2 text-center border-t border-slate-100">
                         <h4 class="font-bold text-slate-800 text-sm leading-tight" x-text="linkData.title || linkData.slug"></h4>
-                        <p x-show="linkData.desc" class="text-xs text-slate-500 mt-1 line-clamp-2" x-text="linkData.desc"></p>
+                        <p x-show="linkData.desc" class="text-xs text-slate-600 mt-1 line-clamp-2" x-text="linkData.desc"></p>
                         <div class="mt-2 inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-                            <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                            <span class="text-[11px] text-slate-500 font-mono">/s/<span x-text="linkData.slug"></span>/</span>
+                            <svg class="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                            <span class="text-xs text-slate-600 font-mono">/s/<span x-text="linkData.slug"></span>/</span>
                         </div>
                     </div>
                 </div>

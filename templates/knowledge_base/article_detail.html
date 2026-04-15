@@ -184,7 +184,7 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     <!-- ===== BREADCRUMBS ===== -->
-    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-500 no-print flex-wrap">
+    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-600 no-print flex-wrap">
         <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             Knowledge Base
@@ -201,7 +201,7 @@
         <aside class="hidden xl:block w-60 flex-shrink-0 sticky top-6 no-print">
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest">In This Article</h3>
+                    <h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest">In This Article</h3>
                 </div>
                 <nav id="kb-toc" class="py-3 px-3">
                     <ul class="space-y-0.5" id="kb-toc-list">
@@ -231,7 +231,7 @@
             </div>
 
             <!-- Back to category -->
-            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="mt-4 flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors px-1">
+            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="mt-4 flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 font-medium transition-colors px-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 {{ category.name|default:article.category.name }}
             </a>
@@ -267,20 +267,20 @@
                                 {{ article.category.name }}
                             </span>
                             {% for tag in article.tags.all %}
-                            <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
                             {% endfor %}
                         </div>
 
                         <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight mb-5">{{ article.title }}</h1>
 
                         <!-- Meta row -->
-                        <div class="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                        <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
                             <span class="flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                                 {% if article.created_by %}{{ article.created_by.get_full_name|default:article.created_by.username }}{% else %}System{% endif %}
                             </span>
                             <span class="flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 Last updated: {{ article.updated_at|date:"F d, Y" }}
                             </span>
                             {% if article.reviewed_by %}
@@ -378,7 +378,7 @@
 
                     <!-- Feedback -->
                     <div class="flex items-center gap-3">
-                        <span class="text-sm text-slate-500">Was this article helpful?</span>
+                        <span class="text-sm text-slate-600">Was this article helpful?</span>
                         <button onclick="giveFeedback('yes', this)" class="kb-feedback-btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
                             Ya
@@ -392,7 +392,7 @@
             </article>
 
             <!-- Back link -->
-            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="no-print inline-flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors">
+            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="no-print inline-flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 font-medium transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 Back to {{ article.category.name }}
             </a>
@@ -427,7 +427,7 @@ function giveFeedback(type, btn) {
     btns.forEach(b => b.disabled = true);
 
     const msg = document.createElement('span');
-    msg.className = 'text-sm font-medium ' + (type === 'yes' ? 'text-emerald-600' : 'text-slate-500');
+    msg.className = 'text-sm font-medium ' + (type === 'yes' ? 'text-emerald-600' : 'text-slate-600');
     msg.textContent = type === 'yes' ? 'Thank you for your feedback!' : 'Sorry this article wasn\'t helpful.';
     btn.parentElement.innerHTML = '';
     btn.parentElement.appendChild(msg);

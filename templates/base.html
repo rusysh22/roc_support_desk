@@ -46,6 +46,19 @@
     <!-- Global Styles for Alpine.js -->
     <style>
         [x-cloak] { display: none !important; }
+
+        /* ── WCAG 2.4.7 Global Focus Visible ──────────────────────────────
+           Restores visible focus indicator for all interactive elements that
+           use outline-none / focus:outline-none, ensuring keyboard nav works.
+           3px indigo ring — contrast vs white bg > 3:1 ✓                  */
+        :focus-visible {
+            outline: 3px solid #4f46e5 !important;
+            outline-offset: 2px !important;
+        }
+        /* Suppress the ring on mouse clicks only (pointer devices) */
+        :focus:not(:focus-visible) {
+            outline: none !important;
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -102,42 +115,48 @@
                 <span class="jk-sidebar-link-icon">📊</span>
                 <span>Dashboard</span>
             </a>
-            <a href="{% url 'desk:case_list' %}" class="jk-sidebar-link {% block nav_cases %}{% endblock %}">
+            <div style="display:flex;align-items:center;">
+            <a href="{% url 'desk:case_list' %}" class="jk-sidebar-link {% block nav_cases %}{% endblock %}" style="flex:1;">
                 <span class="jk-sidebar-link-icon">📋</span>
                 <span>Task Management</span>
             </a>
+            <a href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" style="flex-shrink:0;padding:3px 7px;margin-right:4px;border-radius:6px;color:rgba(255,255,255,0.35);font-size:11px;font-weight:700;text-decoration:none;transition:all .15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='rgba(255,255,255,0.8)';" onmouseout="this.style.background='transparent';this.style.color='rgba(255,255,255,0.35)';">?</a>
+            </div>
             
-            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}">
+            <div style="display:flex;align-items:center;">
+            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}" style="flex:1;">
                 <span class="jk-sidebar-link-icon">📖</span>
                 <span>Knowledge Management</span>
             </a>
+            <a href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" style="flex-shrink:0;padding:3px 7px;margin-right:4px;border-radius:6px;color:rgba(255,255,255,0.35);font-size:11px;font-weight:700;text-decoration:none;transition:all .15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='rgba(255,255,255,0.8)';" onmouseout="this.style.background='transparent';this.style.color='rgba(255,255,255,0.35)';">?</a>
+            </div>
 
             {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
-            <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}">
+            <div style="display:flex;align-items:center;">
+            <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}" style="flex:1;">
                 <span class="jk-sidebar-link-icon">📝</span>
                 <span>Form Creator</span>
             </a>
+            <a href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" style="flex-shrink:0;padding:3px 7px;margin-right:4px;border-radius:6px;color:rgba(255,255,255,0.35);font-size:11px;font-weight:700;text-decoration:none;transition:all .15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='rgba(255,255,255,0.8)';" onmouseout="this.style.background='transparent';this.style.color='rgba(255,255,255,0.35)';">?</a>
+            </div>
             
-            <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}">
+            <div style="display:flex;align-items:center;">
+            <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}" style="flex:1;">
                 <span class="jk-sidebar-link-icon">🔗</span>
                 <span>Shorten Link</span>
             </a>
+            <a href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" style="flex-shrink:0;padding:3px 7px;margin-right:4px;border-radius:6px;color:rgba(255,255,255,0.35);font-size:11px;font-weight:700;text-decoration:none;transition:all .15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='rgba(255,255,255,0.8)';" onmouseout="this.style.background='transparent';this.style.color='rgba(255,255,255,0.35)';">?</a>
+            </div>
 
-            {% if user.role_access in 'SuperAdmin,Manager' %}
-            <a href="{% url 'desk:email_settings' %}" class="jk-sidebar-link {% block nav_email_settings %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📧</span>
-                <span>Email Settings</span>
-            </a>
+            {% endif %}
 
-            <a href="{% url 'desk:whatsapp_status' %}" class="jk-sidebar-link {% block nav_wa_status %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📲</span>
-                <span>WhatsApp Settings</span>
-            </a>
-            {% endif %}
-            {% endif %}
             
             {% if user.role_access == 'SuperAdmin' %}
             <div class="jk-sidebar-section">Master Data</div>
+            <a href="{% url 'desk:apps_connection' %}" class="jk-sidebar-link {% block nav_apps_connection %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">🔌</span>
+                <span>Apps Connection</span>
+            </a>
             <a href="{% url 'desk:company_unit_list' %}" class="jk-sidebar-link {% block nav_company_units %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">🏢</span>
                 <span>Company Units</span>
@@ -145,6 +164,10 @@
             <a href="{% url 'users_desk:user_list' %}" class="jk-sidebar-link {% block nav_users %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">👥</span>
                 <span>User Management</span>
+            </a>
+            <a href="{% url 'docs_admin' %}" class="jk-sidebar-link {% block nav_admin_guide %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">📘</span>
+                <span>Admin Guide</span>
             </a>
             {% endif %}
 
@@ -189,7 +212,8 @@
                         </div>
                         <div class="flex flex-col min-w-0">
                             <span class="text-slate-200 font-semibold text-sm truncate">{{ user.username }}</span>
-                            <span class="text-indigo-400 text-xs font-medium truncate">{{ user.role_access }}</span>
+                            <!-- text-indigo-300 on dark sidebar bg ≈ 5.5:1 AA ✓ (was indigo-400 ≈ 3.1:1) -->
+                            <span class="text-indigo-300 text-xs font-medium truncate">{{ user.role_access }}</span>
                         </div>
                     </div>
                 </div>
@@ -197,7 +221,8 @@
                 <div class="flex items-center gap-2 p-2">
                     <div class="flex flex-col flex-1 items-center justify-center text-center p-2 rounded-xl bg-black/10 border border-white/5">
                         <span class="text-slate-300 font-medium text-sm">{{ site_config.site_name|default:"RoC Desk" }}</span>
-                        <span class="text-slate-500 text-xs mt-0.5">Version 1.2.5</span>
+                        <!-- text-slate-400 on dark sidebar ≈ 4.6:1 AA ✓ (was slate-500 ≈ 2.5:1) -->
+                        <span class="text-slate-400 text-xs mt-0.5">Version 1.2.5</span>
                     </div>
                     <a href="{% url 'help_about' %}" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-all flex-shrink-0" title="Help & About">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -435,5 +460,38 @@
             });
         });
     </script>
+
+    {% if user.is_authenticated %}
+    <script>
+        /* ── Cross-tab auth sync ─────────────────────────────────────
+           • Login  in Tab A → other tabs on login page auto-redirect to dashboard
+           • Logout in Tab A → other tabs on dashboard auto-redirect to login      */
+        (function () {
+            const LOGOUT_KEY = 'roc_tab_logout';
+            const LOGIN_KEY  = 'roc_tab_login';
+
+            // 1. Broadcast LOGIN to other tabs (once per browser tab session)
+            if (!sessionStorage.getItem('roc_login_broadcast')) {
+                sessionStorage.setItem('roc_login_broadcast', '1');
+                localStorage.setItem(LOGIN_KEY, Date.now().toString());
+            }
+
+            // 2. Listen for LOGOUT signal from another tab
+            window.addEventListener('storage', function (e) {
+                if (e.key === LOGOUT_KEY && e.newValue) {
+                    window.location.replace('{% url "login" %}');
+                }
+            });
+
+            // 3. Broadcast LOGOUT when the form is submitted in THIS tab
+            var logoutForm = document.querySelector('form[action*="logout"]');
+            if (logoutForm) {
+                logoutForm.addEventListener('submit', function () {
+                    localStorage.setItem(LOGOUT_KEY, Date.now().toString());
+                });
+            }
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>

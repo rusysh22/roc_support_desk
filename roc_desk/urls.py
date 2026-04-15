@@ -38,12 +38,17 @@ urlpatterns = [
     path("auth/request-account/", core_views.RequestAccountView.as_view(), name="request_account"),
     path("auth/forgot-password/", core_views.ForgotPasswordView.as_view(), name="forgot_password"),
     path("auth/reset-password/", core_views.ResetPasswordOTPView.as_view(), name="reset_password_otp"),
-    path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm), name="login"),
+    path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm, redirect_authenticated_user=True), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
 
     # Help & About (any logged-in user)
     path("help/", core_views.help_and_about, name="help_about"),
     path("help/feedback/", core_views.submit_feedback, name="submit_feedback"),
+
+    # Documentation pages
+    path("docs/", core_views.docs_portal_user, name="docs_portal"),
+    path("supportdocs/", core_views.docs_support_desk, name="docs_support"),
+    path("superadmindocs/", core_views.docs_superadmin, name="docs_admin"),
 
     # Client portal (public)
     path("", include("cases.urls", namespace="cases")),
@@ -66,6 +71,7 @@ urlpatterns = [
 
 # Custom Error Handlers
 handler404 = 'core.views.custom_404_view'
+handler403 = 'core.views.custom_csrf_failure_view'
 
 # Serve media files in development
 if settings.DEBUG:
@@ -73,4 +79,5 @@ if settings.DEBUG:
     # Add a route to test the 404 page directly while in DEBUG mode
     urlpatterns += [
         path('404/', core_views.custom_404_view, name='test_404'),
+        path('403/', core_views.custom_csrf_failure_view, name='test_403'),
     ]

@@ -1,0 +1,849 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Panduan Pengguna Portal — {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
+
+{% block page_title %}
+<span class="lang-id">Panduan Pengguna Portal</span><span class="lang-en">Portal User Guide</span>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;align-items:center;gap:8px;">
+    <!-- Language switcher -->
+    <div style="display:flex;align-items:center;gap:4px;background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:8px;padding:3px;">
+        <button data-set-lang="id" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="5.5" fill="#CE1126"/><rect y="5.5" width="16" height="5.5" fill="#FFFFFF"/></svg>
+            ID
+        </button>
+        <button data-set-lang="en" class="jk-btn jk-btn-secondary jk-btn-sm" style="padding:4px 10px;border:none;border-radius:6px;display:flex;align-items:center;gap:5px;">
+            <svg width="16" height="11" viewBox="0 0 16 11" style="border-radius:2px;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="11" fill="#012169"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#fff" stroke-width="3"/><path d="M0,0 L16,11 M16,0 L0,11" stroke="#C8102E" stroke-width="1.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#fff" stroke-width="3.5"/><path d="M8,0 V11 M0,5.5 H16" stroke="#C8102E" stroke-width="2"/></svg>
+            EN
+        </button>
+    </div>
+    <!-- PDF Download -->
+    <button id="pdf-btn" onclick="downloadDocsPDF('portal-user')" class="jk-btn jk-btn-primary jk-btn-sm" style="gap:6px;">
+        <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="lang-id">Unduh PDF</span><span class="lang-en">Download PDF</span>
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- html2pdf.js for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<style>
+    /* ── Language switching ─────────────────────────────────── */
+    body.lang-en .lang-id { display: none !important; }
+    body.lang-id .lang-en { display: none !important; }
+
+    /* ── Docs layout ────────────────────────────────────────── */
+    .docs-section { scroll-margin-top: 88px; }
+
+    /* ── Steps ──────────────────────────────────────────────── */
+    .docs-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+    .docs-step-num {
+        flex-shrink: 0; width: 30px; height: 30px;
+        background: #6366f1; color: #fff; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 13px;
+    }
+
+    /* ── Callouts ────────────────────────────────────────────── */
+    .docs-callout {
+        border-radius: 10px; padding: 12px 16px;
+        margin: 14px 0; font-size: 13.5px; line-height: 1.6;
+    }
+    .docs-callout-tip   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .docs-callout-warn  { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .docs-callout-danger{ background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+    /* ── TOC ─────────────────────────────────────────────────── */
+    .docs-toc-link {
+        display: block; padding: 5px 10px; border-radius: 8px;
+        font-size: 12.5px; color: var(--jk-text-muted);
+        text-decoration: none; transition: all .15s;
+    }
+    .docs-toc-link:hover, .docs-toc-link.active { background: #ede9fe; color: #4f46e5; }
+    .docs-toc-link.active { font-weight: 600; }
+    .docs-toc-sub { padding-left: 14px; }
+
+    /* ── Language button active state ────────────────────────── */
+    .lang-btn-active {
+        background: var(--jk-primary) !important;
+        color: #fff !important;
+        border-color: var(--jk-primary) !important;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .docs-hero {
+        background: linear-gradient(135deg, #312e81 0%, #4338ca 50%, #6366f1 100%);
+        border-radius: var(--jk-radius);
+    }
+
+    /* ── Flow boxes ──────────────────────────────────────────── */
+    .flow-item {
+        padding: 5px 14px; border-radius: 8px;
+        font-size: 12.5px; font-weight: 600;
+    }
+
+    /* ── Tables ──────────────────────────────────────────────── */
+    .docs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .docs-table th {
+        background: var(--jk-surface-alt); padding: 9px 13px;
+        text-align: left; font-weight: 600; border-bottom: 2px solid var(--jk-border);
+    }
+    .docs-table td { padding: 9px 13px; border-bottom: 1px solid var(--jk-surface-alt); color: #4b5563; }
+    .docs-table tr:hover td { background: var(--jk-surface-alt); }
+
+    /* ── FAQ ─────────────────────────────────────────────────── */
+    .docs-faq-item {
+        border: 1px solid var(--jk-border); border-radius: 10px;
+        overflow: hidden; margin-bottom: 10px; transition: all .3s;
+    }
+    .docs-faq-item.open { border-color: #6366f1; }
+    .docs-faq-question {
+        width: 100%; text-align: left; padding: 12px 16px;
+        background: #fff; border: none; cursor: pointer;
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 13.5px; font-weight: 600; color: var(--jk-text);
+    }
+    .docs-faq-item.open .docs-faq-question { background: #ede9fe; color: #4f46e5; }
+    .docs-faq-answer {
+        display: none; padding: 12px 16px; background: #fff;
+        font-size: 13.5px; line-height: 1.7; color: var(--jk-text-muted);
+        border-top: 1px solid var(--jk-border);
+    }
+    .docs-faq-item.open .docs-faq-answer { display: block; }
+    .docs-faq-chevron { transition: transform .3s; }
+    .docs-faq-item.open .docs-faq-chevron { transform: rotate(180deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ============================================================= -->
+<!-- HERO                                                           -->
+<!-- ============================================================= -->
+<div class="docs-hero text-white p-10 mb-6">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+        <span class="jk-badge" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);">
+            🌐 <span class="lang-id">Semua Pengguna</span><span class="lang-en">All Users</span>
+        </span>
+        <span class="jk-badge" style="background:rgba(255,255,255,0.15);color:#c7d2fe;border:1px solid rgba(255,255,255,0.2);">
+            Portal Guide · v2.4
+        </span>
+    </div>
+    <h1 class="text-2xl font-bold mb-2">
+        <span class="lang-id">Panduan Pengguna Portal</span>
+        <span class="lang-en">Portal User Guide</span>
+    </h1>
+    <p class="lang-id" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        Pelajari cara menggunakan {{ site_config.site_name|default:"RoC Support Desk" }} — mulai dari mengajukan tiket, memantau status, hingga memanfaatkan seluruh fitur yang tersedia untuk Anda.
+    </p>
+    <p class="lang-en" style="opacity:.85;font-size:14.5px;max-width:640px;">
+        Learn how to use {{ site_config.site_name|default:"RoC Support Desk" }} — from submitting tickets and tracking status to making the most of every feature available to you.
+    </p>
+</div>
+
+<!-- ============================================================= -->
+<!-- TWO-COLUMN LAYOUT: TOC sidebar + content                      -->
+<!-- ============================================================= -->
+<div id="docs-pdf-root" style="display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:start;">
+
+    <!-- ── TOC Sidebar ─────────────────────────────────────────── -->
+    <div id="docs-toc-sidebar" class="jk-card" style="position:sticky;top:88px;">
+        <div class="jk-card-header" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--jk-text-muted);">
+            <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
+        </div>
+        <div class="jk-card-body" style="padding:8px 10px;">
+            <nav>
+                <a href="#mengapa" class="docs-toc-link">
+                    <span class="lang-id">Mengapa Sistem Ini</span><span class="lang-en">Why This System</span>
+                </a>
+                <a href="#memulai" class="docs-toc-link">
+                    <span class="lang-id">Memulai</span><span class="lang-en">Getting Started</span>
+                </a>
+                <div class="docs-toc-sub">
+                    <a href="#login" class="docs-toc-link">↳ Login</a>
+                    <a href="#request-akun" class="docs-toc-link">
+                        <span class="lang-id">↳ Request Akun</span><span class="lang-en">↳ Request Account</span>
+                    </a>
+                    <a href="#lupa-password" class="docs-toc-link">
+                        <span class="lang-id">↳ Lupa Password</span><span class="lang-en">↳ Forgot Password</span>
+                    </a>
+                </div>
+                <a href="#portal" class="docs-toc-link">
+                    <span class="lang-id">Portal Layanan</span><span class="lang-en">Service Portal</span>
+                </a>
+                <a href="#tiket" class="docs-toc-link">
+                    <span class="lang-id">Mengajukan Tiket</span><span class="lang-en">Submitting a Ticket</span>
+                </a>
+                <div class="docs-toc-sub">
+                    <a href="#qr-code" class="docs-toc-link">↳ QR Code</a>
+                    <a href="#setelah-submit" class="docs-toc-link">
+                        <span class="lang-id">↳ Setelah Submit</span><span class="lang-en">↳ After Submit</span>
+                    </a>
+                </div>
+                <a href="#form-dinamis" class="docs-toc-link">
+                    <span class="lang-id">Form Dinamis</span><span class="lang-en">Dynamic Form</span>
+                </a>
+                <a href="#status" class="docs-toc-link">
+                    <span class="lang-id">Status Tiket</span><span class="lang-en">Ticket Status</span>
+                </a>
+                <a href="#knowledge-base" class="docs-toc-link">Knowledge Base</a>
+                <a href="#faq" class="docs-toc-link">
+                    <span class="lang-id">FAQ &amp; Kondisi Khusus</span><span class="lang-en">FAQ &amp; Special Conditions</span>
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- ── Main Content ─────────────────────────────────────────── -->
+    <div style="min-width:0;">
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #mengapa — Why This System                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="mengapa" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🎯 <span class="lang-id">Mengapa Sistem Ini Ada?</span><span class="lang-en">Why Does This System Exist?</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:10px;">
+                    Sebelum sistem ini, permintaan ke departemen IT, HR, atau layanan lain dilakukan secara tidak terstruktur — melalui WhatsApp pribadi, email, atau bahkan lisan. Akibatnya, permintaan sering terlewat, tidak terpantau, dan tidak ada catatan penanganan.
+                </p>
+                <p class="lang-en" style="margin-bottom:10px;">
+                    Before this system, requests to IT, HR, or other departments were unstructured — made via personal WhatsApp, email, or even verbally. As a result, requests were often missed, untracked, and had no handling records.
+                </p>
+                <p class="lang-id" style="margin-bottom:16px;">
+                    Dengan sistem ini, setiap permintaan Anda tercatat, terlacak, dan ditangani secara terukur. Anda bisa memantau status tiket kapan saja.
+                </p>
+                <p class="lang-en" style="margin-bottom:16px;">
+                    With this system, every request is recorded, tracked, and handled measurably. You can monitor ticket status at any time.
+                </p>
+
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">📋</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Tercatat &amp; Terlacak</span><span class="lang-en">Recorded &amp; Tracked</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Setiap permintaan memiliki nomor tiket unik dan riwayat lengkap.</span>
+                            <span class="lang-en">Every request has a unique ticket number and a complete history.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">⚡</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Respons Lebih Cepat</span><span class="lang-en">Faster Response</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Tiket langsung masuk ke sistem dan terlihat oleh tim support.</span>
+                            <span class="lang-en">Tickets go directly into the system and are visible to the support team.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">🔍</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Pantau Status Real-time</span><span class="lang-en">Real-time Status</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Anda bisa melihat status tiket kapan saja dari dashboard portal.</span>
+                            <span class="lang-en">You can check your ticket status anytime from the portal dashboard.</span>
+                        </div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-size:22px;margin-bottom:6px;">📚</div>
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
+                            <span class="lang-id">Knowledge Base</span><span class="lang-en">Knowledge Base</span>
+                        </div>
+                        <div style="font-size:12px;">
+                            <span class="lang-id">Cari solusi mandiri sebelum mengajukan tiket — hemat waktu Anda.</span>
+                            <span class="lang-en">Find self-service solutions before submitting a ticket — save your time.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #memulai — Getting Started                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="memulai" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🚀 <span class="lang-id">Memulai</span><span class="lang-en">Getting Started</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+
+                <!-- #login -->
+                <div id="login" class="docs-section" style="margin-bottom:24px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        🔑 Login
+                    </h3>
+                    <p class="lang-id" style="margin-bottom:10px;">Akses portal menggunakan akun yang telah disiapkan oleh tim support.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">Access the portal using the account prepared by the support team.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka browser dan masuk ke URL portal yang diberikan</span><span class="lang-en">Open your browser and go to the portal URL provided</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Masukkan <strong>username</strong> dan <strong>password</strong> Anda</span><span class="lang-en">Enter your <strong>username</strong> and <strong>password</strong></span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Klik tombol <strong>Login</strong></span><span class="lang-en">Click the <strong>Login</strong> button</span></div></div>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Gunakan <strong>email kantor</strong> atau <strong>username</strong> yang telah didaftarkan. Jika belum memiliki akun, ikuti langkah Request Akun di bawah.</span>
+                        <span class="lang-en">Use your <strong>company email</strong> or registered <strong>username</strong>. If you don't have an account yet, follow the Account Request steps below.</span>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #request-akun -->
+                <div id="request-akun" class="docs-section" style="margin-bottom:24px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        👤 <span class="lang-id">Request Akun Baru</span><span class="lang-en">Request a New Account</span>
+                    </h3>
+                    <p class="lang-id" style="margin-bottom:10px;">Jika Anda belum memiliki akun, hubungi tim support untuk meminta pembuatan akun.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">If you don't have an account, contact the support team to request account creation.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Hubungi tim support via WhatsApp atau email</span><span class="lang-en">Contact the support team via WhatsApp or email</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Berikan: nama lengkap, email, dan departemen/divisi</span><span class="lang-en">Provide: full name, email, and department/division</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Tim support akan membuatkan akun dan mengirimkan kredensial</span><span class="lang-en">The support team will create the account and send you credentials</span></div></div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #lupa-password -->
+                <div id="lupa-password" class="docs-section">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        🔓 <span class="lang-id">Lupa Password</span><span class="lang-en">Forgot Password</span>
+                    </h3>
+                    <p class="lang-id" style="margin-bottom:10px;">Gunakan fitur reset password yang tersedia di halaman login.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">Use the password reset feature available on the login page.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Klik <strong>Lupa Password?</strong> di halaman login</span><span class="lang-en">Click <strong>Forgot Password?</strong> on the login page</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Masukkan email yang terdaftar</span><span class="lang-en">Enter your registered email</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Cek email — klik link reset yang dikirimkan</span><span class="lang-en">Check your email — click the reset link sent to you</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Buat password baru dan simpan</span><span class="lang-en">Create a new password and save</span></div></div>
+                    <div class="docs-callout docs-callout-warn">
+                        ⚠ <span class="lang-id">Link reset password hanya berlaku selama <strong>15 menit</strong>. Jika kadaluarsa, ulangi prosesnya.</span>
+                        <span class="lang-en">The reset link is only valid for <strong>15 minutes</strong>. If expired, repeat the process.</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #portal — Service Portal                               -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="portal" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🏠 <span class="lang-id">Portal Layanan</span><span class="lang-en">Service Portal</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">
+                    Setelah login, Anda akan melihat <strong>Portal Layanan</strong> — halaman utama yang menampilkan semua kategori layanan yang tersedia beserta daftar tiket Anda.
+                </p>
+                <p class="lang-en" style="margin-bottom:12px;">
+                    After logging in, you will see the <strong>Service Portal</strong> — the main page displaying all available service categories and your ticket list.
+                </p>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;">
+                    <span class="lang-id">Elemen di Dashboard</span><span class="lang-en">Dashboard Elements</span>
+                </div>
+                <div style="overflow-x:auto;margin-bottom:16px;">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th><span class="lang-id">Elemen</span><span class="lang-en">Element</span></th>
+                                <th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong><span class="lang-id">Sapaan</span><span class="lang-en">Greeting</span></strong></td>
+                                <td><span class="lang-id">Menyapa Anda berdasarkan nama atau username akun.</span><span class="lang-en">Greets you by name or account username.</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong><span class="lang-id">Kartu Kategori</span><span class="lang-en">Category Cards</span></strong></td>
+                                <td><span class="lang-id">Setiap layanan dikelompokkan dalam kategori dengan ikon dan deskripsi. Klik untuk mengajukan tiket.</span><span class="lang-en">Each service is grouped with an icon and description. Click to submit a ticket.</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong><span class="lang-id">Sub-Kategori</span><span class="lang-en">Sub-categories</span></strong></td>
+                                <td><span class="lang-id">Beberapa kategori memiliki sub-layanan. Klik kategori induk untuk memilih sub-layanan yang spesifik.</span><span class="lang-en">Some categories have sub-services. Click the parent to choose a specific sub-service.</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong><span class="lang-id">Tiket Saya</span><span class="lang-en">My Tickets</span></strong></td>
+                                <td><span class="lang-id">Daftar tiket yang pernah Anda ajukan beserta statusnya saat ini.</span><span class="lang-en">A list of tickets you have submitted along with their current status.</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="docs-callout docs-callout-tip">
+                    🔐 <span class="lang-id">Beberapa kategori ditandai <strong>Confidential</strong> — tiket yang diajukan di kategori ini hanya dapat dilihat isi dan subjeknya oleh staf berwenang.</span>
+                    <span class="lang-en">Some categories are marked <strong>Confidential</strong> — only authorised staff can view the content and subject of tickets in these categories.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #tiket — Submitting a Ticket                           -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="tiket" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📩 <span class="lang-id">Mengajukan Tiket</span><span class="lang-en">Submitting a Ticket</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">Ikuti langkah-langkah berikut untuk mengajukan tiket layanan baru.</p>
+                <p class="lang-en" style="margin-bottom:12px;">Follow these steps to submit a new service ticket.</p>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Langkah-langkah:</span><span class="lang-en">Steps:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Di halaman portal, klik <strong>kartu kategori</strong> yang sesuai dengan permintaan Anda</span><span class="lang-en">On the portal page, click the <strong>category card</strong> that matches your request</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Jika kategori memiliki sub-kategori, pilih sub-layanan yang paling tepat</span><span class="lang-en">If the category has sub-categories, select the most appropriate sub-service</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div>
+                    <span class="lang-id">Isi formulir tiket: <strong>Subyek</strong> (ringkasan singkat) + <strong>Deskripsi</strong> (detail masalah) + <strong>Lampiran</strong> (opsional)</span>
+                    <span class="lang-en">Fill in the ticket form: <strong>Subject</strong> (brief summary) + <strong>Description</strong> (detail) + <strong>Attachment</strong> (optional)</span>
+                </div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Klik <strong>Submit</strong> — halaman sukses akan menampilkan <strong>nomor tiket</strong> Anda (contoh: <code>IT-00042</code>)</span><span class="lang-en">Click <strong>Submit</strong> — the success page shows your <strong>ticket number</strong> (e.g., <code>IT-00042</code>)</span></div></div>
+
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Beberapa kategori memiliki <strong>teks template</strong> yang sudah diisi di kolom deskripsi. Edit sesuai kebutuhan — lengkapi informasi yang diminta dan hapus bagian yang tidak relevan.</span>
+                    <span class="lang-en">Some categories have a <strong>template text</strong> pre-filled in the description field. Edit as needed — fill in the requested information and remove irrelevant parts.</span>
+                </div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;margin-top:20px;"><span class="lang-id">Saluran Pengajuan:</span><span class="lang-en">Submission Channels:</span></div>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:20px;">
+                    <span class="flow-item" style="background:#d1fae5;color:#065f46;">📱 WhatsApp</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#dbeafe;color:#1e40af;">📧 Email</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#ede9fe;color:#4f46e5;">🌐 Web Portal</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#f3f4f6;color:#374151;">🎫 <span class="lang-id">Tiket Terpusat</span><span class="lang-en">Centralised Ticket</span></span>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #qr-code -->
+                <div id="qr-code" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        📷 <span class="lang-id">Mengajukan via QR Code</span><span class="lang-en">Submitting via QR Code</span>
+                    </h3>
+                    <p class="lang-id" style="margin-bottom:10px;">QR Code tersedia di portal atau pada material cetak yang dipasang di area tertentu.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">QR Codes are available on the portal or on printed materials posted in specific areas.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Scan QR Code menggunakan kamera ponsel Anda</span><span class="lang-en">Scan the QR Code with your phone camera</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Browser akan langsung membuka formulir kategori terkait</span><span class="lang-en">Your browser will directly open the relevant category form</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Isi dan submit formulir seperti biasa</span><span class="lang-en">Fill in and submit the form as usual</span></div></div>
+                </div>
+
+                <hr style="border-color:var(--jk-border);margin-bottom:20px;">
+
+                <!-- #setelah-submit -->
+                <div id="setelah-submit" class="docs-section">
+                    <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
+                        ✅ <span class="lang-id">Setelah Mengajukan Tiket</span><span class="lang-en">After Submitting a Ticket</span>
+                    </h3>
+                    <p class="lang-id" style="margin-bottom:10px;">Setelah tiket berhasil dibuat, staf akan merespons melalui saluran yang Anda gunakan — WhatsApp, Email, atau Web. Anda juga dapat memantau status tiket langsung dari dashboard portal.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">After a ticket is created, staff will respond through the channel you used — WhatsApp, Email, or Web. You can also track your ticket status directly from the portal dashboard.</p>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Simpan <strong>nomor tiket</strong> Anda sebagai referensi untuk follow-up di kemudian hari.</span>
+                        <span class="lang-en">Save your <strong>ticket number</strong> as a reference for future follow-ups.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #form-dinamis — Dynamic Form                           -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="form-dinamis" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📝 <span class="lang-id">Form Dinamis</span><span class="lang-en">Dynamic Form</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">
+                    Beberapa kategori layanan dilengkapi dengan <strong>Form Dinamis</strong> — formulir khusus dengan pertanyaan tambahan yang relevan (misalnya: survei, pendaftaran, atau form keluhan terstruktur).
+                </p>
+                <p class="lang-en" style="margin-bottom:12px;">
+                    Some service categories come with a <strong>Dynamic Form</strong> — a custom form with additional relevant questions (e.g. surveys, registrations, or structured complaint forms).
+                </p>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">📑 <span class="lang-id">Multi-halaman</span><span class="lang-en">Multi-page</span></div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Form dapat terdiri dari beberapa halaman. Navigasi dengan tombol Lanjut / Kembali.</span><span class="lang-en">Forms can have multiple pages. Navigate with the Next / Back buttons.</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">✅ <span class="lang-id">Validasi Wajib</span><span class="lang-en">Required Validation</span></div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Field wajib harus diisi sebelum bisa lanjut halaman berikutnya atau submit.</span><span class="lang-en">Required fields must be filled before proceeding or submitting.</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">👁 <span class="lang-id">Preview Jawaban</span><span class="lang-en">Answer Preview</span></div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Tinjau semua jawaban dalam satu tampilan ringkasan sebelum submit final.</span><span class="lang-en">Review all answers in a summary view before the final submission.</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">🔒 <span class="lang-id">Final Setelah Submit</span><span class="lang-en">Final After Submit</span></div>
+                        <div style="font-size:12.5px;"><span class="lang-id">Jawaban bersifat final setelah dikirim. Hubungi staf jika perlu koreksi.</span><span class="lang-en">Answers are final after submission. Contact staff for corrections.</span></div>
+                    </div>
+                </div>
+
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Tidak semua kategori memiliki form dinamis. Kategori dengan form dinamis biasanya ditandai dengan ikon atau label khusus di halaman portal.</span>
+                    <span class="lang-en">Not all categories have a dynamic form. Categories with one are usually marked with a special icon or label on the portal page.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #status — Ticket Status                                -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="status" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🔄 <span class="lang-id">Status Tiket</span><span class="lang-en">Ticket Status</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">Setiap tiket memiliki status yang menunjukkan tahap penanganannya. Pahami setiap status agar Anda tahu apa yang perlu dilakukan.</p>
+                <p class="lang-en" style="margin-bottom:12px;">Every ticket has a status indicating its current handling stage. Understanding each status helps you know what action is required.</p>
+
+                <!-- Status flow -->
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+                    <span class="flow-item" style="background:#dbeafe;color:#1e40af;">Open</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#fef3c7;color:#92400e;">Investigating</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#ede9fe;color:#5b21b6;">Pending Info</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#d1fae5;color:#065f46;">Resolved</span>
+                    <span style="color:var(--jk-text-muted);">→</span>
+                    <span class="flow-item" style="background:#f1f5f9;color:#475569;">Closed</span>
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th><span class="lang-id">Artinya</span><span class="lang-en">Meaning</span></th>
+                                <th><span class="lang-id">Yang Harus Anda Lakukan</span><span class="lang-en">What You Should Do</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="jk-badge jk-badge-open">Open</span></td>
+                                <td><span class="lang-id">Tiket baru masuk, menunggu staf memulai.</span><span class="lang-en">New ticket received, awaiting staff to begin.</span></td>
+                                <td><span class="lang-id">Tunggu — staf akan segera merespons.</span><span class="lang-en">Wait — staff will respond shortly.</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="jk-badge jk-badge-investigating">Investigating</span></td>
+                                <td><span class="lang-id">Staf sedang menyelidiki dan mengerjakan permintaan Anda.</span><span class="lang-en">Staff is actively investigating and working on your request.</span></td>
+                                <td><span class="lang-id">Tidak perlu tindakan — staf sedang mengerjakan.</span><span class="lang-en">No action needed — staff is already on it.</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="jk-badge jk-badge-pending">Pending Info</span></td>
+                                <td><span class="lang-id">Staf membutuhkan informasi tambahan dari Anda.</span><span class="lang-en">Staff needs additional information from you.</span></td>
+                                <td><span class="lang-id">⚠ Periksa WhatsApp/Email Anda segera dan balas pesan staf.</span><span class="lang-en">⚠ Check your WhatsApp/Email immediately and reply to staff.</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="jk-badge jk-badge-resolved">Resolved</span></td>
+                                <td><span class="lang-id">Staf telah menerapkan solusi.</span><span class="lang-en">Staff has applied a solution.</span></td>
+                                <td><span class="lang-id">Konfirmasi bahwa masalah sudah terselesaikan. Jika belum, hubungi staf lagi.</span><span class="lang-en">Confirm the issue is resolved. If not, contact staff again.</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="jk-badge jk-badge-closed">Closed</span></td>
+                                <td><span class="lang-id">Tiket selesai dan diarsipkan.</span><span class="lang-en">Ticket complete and archived.</span></td>
+                                <td><span class="lang-id">Tidak perlu tindakan. Jika masalah berulang, ajukan tiket baru.</span><span class="lang-en">No action needed. If the issue recurs, submit a new ticket.</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="docs-callout docs-callout-warn" style="margin-top:14px;">
+                    ⚠ <span class="lang-id">Jika tiket berstatus <strong>Pending Info</strong>, segera balas pesan staf. Tiket tidak dapat dilanjutkan tanpa jawaban Anda.</span>
+                    <span class="lang-en">If your ticket is in <strong>Pending Info</strong> status, reply to staff promptly. The ticket cannot proceed without your response.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #knowledge-base — Knowledge Base                       -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="knowledge-base" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📚 Knowledge Base
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">
+                    <strong>Knowledge Base</strong> adalah repositori artikel panduan dan solusi masalah umum yang dikurasi oleh tim support. Gunakan KB untuk mencari jawaban secara mandiri sebelum mengajukan tiket.
+                </p>
+                <p class="lang-en" style="margin-bottom:12px;">
+                    The <strong>Knowledge Base</strong> is a repository of how-to guides and common solutions curated by the support team. Use the KB to find answers independently before submitting a ticket.
+                </p>
+
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);text-align:center;">
+                        <div style="font-size:22px;margin-bottom:6px;">🔍</div>
+                        <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Cari Artikel</span><span class="lang-en">Search Articles</span></div>
+                        <div style="font-size:11.5px;"><span class="lang-id">Masukkan kata kunci di kolom pencarian.</span><span class="lang-en">Enter keywords in the search bar.</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);text-align:center;">
+                        <div style="font-size:22px;margin-bottom:6px;">🗂</div>
+                        <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Per Kategori</span><span class="lang-en">By Category</span></div>
+                        <div style="font-size:11.5px;"><span class="lang-id">Jelajahi artikel berdasarkan topik tematik.</span><span class="lang-en">Browse articles by topic theme.</span></div>
+                    </div>
+                    <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);text-align:center;">
+                        <div style="font-size:22px;margin-bottom:6px;">💡</div>
+                        <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;">Self-Service</div>
+                        <div style="font-size:11.5px;"><span class="lang-id">Banyak masalah umum sudah terjawab di sini.</span><span class="lang-en">Many common issues are already answered here.</span></div>
+                    </div>
+                </div>
+
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Akses Knowledge Base di <strong>/kb/</strong> dari menu sidebar. Tidak diperlukan login khusus untuk membaca artikel.</span>
+                    <span class="lang-en">Access the Knowledge Base at <strong>/kb/</strong> from the sidebar menu. No special login is required to read articles.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #faq — FAQ & Special Conditions                        -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="faq" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    ❓ <span class="lang-id">FAQ &amp; Kondisi Khusus</span><span class="lang-en">FAQ &amp; Special Conditions</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+
+                <!-- FAQ Items -->
+                <div class="docs-faq-item">
+                    <button class="docs-faq-question" onclick="toggleFaq(this)">
+                        <span class="lang-id">Saya lupa nomor tiket. Apa yang harus dilakukan?</span>
+                        <span class="lang-en">I forgot my ticket number. What should I do?</span>
+                        <svg class="docs-faq-chevron" style="width:16px;height:16px;flex-shrink:0;margin-left:8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="docs-faq-answer">
+                        <p class="lang-id">Hubungi staf support dan berikan <strong>alamat email</strong> yang Anda gunakan saat mendaftar. Staf dapat melacak tiket Anda menggunakan informasi tersebut. Anda juga bisa melihat daftar tiket di dashboard portal jika sudah login.</p>
+                        <p class="lang-en">Contact the support desk and provide the <strong>email address</strong> used when registering. Staff can trace your ticket using that information. You can also view your ticket list on the portal dashboard if logged in.</p>
+                    </div>
+                </div>
+
+                <div class="docs-faq-item">
+                    <button class="docs-faq-question" onclick="toggleFaq(this)">
+                        <span class="lang-id">Apakah saya bisa melampirkan lebih dari satu file?</span>
+                        <span class="lang-en">Can I attach more than one file?</span>
+                        <svg class="docs-faq-chevron" style="width:16px;height:16px;flex-shrink:0;margin-left:8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="docs-faq-answer">
+                        <p class="lang-id">Ya, Anda bisa melampirkan lebih dari satu file. Tambahkan satu per satu menggunakan tombol lampiran di formulir tiket. Pastikan ukuran setiap file tidak melebihi batas sistem.</p>
+                        <p class="lang-en">Yes, you can attach more than one file. Add them one at a time using the attachment button in the ticket form. Make sure each file does not exceed the system size limit.</p>
+                    </div>
+                </div>
+
+                <div class="docs-faq-item">
+                    <button class="docs-faq-question" onclick="toggleFaq(this)">
+                        <span class="lang-id">Tiket saya berstatus "Pending Info" — apa artinya?</span>
+                        <span class="lang-en">My ticket says "Pending Info" — what does that mean?</span>
+                        <svg class="docs-faq-chevron" style="width:16px;height:16px;flex-shrink:0;margin-left:8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="docs-faq-answer">
+                        <p class="lang-id">Status ini berarti staf membutuhkan <strong>informasi tambahan</strong> sebelum bisa melanjutkan. Periksa <strong>WhatsApp atau Email</strong> Anda — staf sudah mengirimkan pesan. Segera balas agar tiket dapat dilanjutkan.</p>
+                        <p class="lang-en">This means staff needs <strong>additional information</strong> from you before continuing. Check your <strong>WhatsApp or Email</strong> — staff has sent you a message. Reply promptly so the ticket can proceed.</p>
+                    </div>
+                </div>
+
+                <div class="docs-faq-item">
+                    <button class="docs-faq-question" onclick="toggleFaq(this)">
+                        <span class="lang-id">Kenapa tiket saya ditangani oleh staf yang berbeda?</span>
+                        <span class="lang-en">Why is my ticket handled by different staff members?</span>
+                        <svg class="docs-faq-chevron" style="width:16px;height:16px;flex-shrink:0;margin-left:8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="docs-faq-answer">
+                        <p class="lang-id">Tiket dapat <strong>diteruskan (forward)</strong> atau <strong>dieskalasi</strong> ke staf atau tim lain sesuai kebutuhan. Ini adalah proses normal — seluruh riwayat tiket tetap tersimpan sehingga staf manapun yang mengambil alih akan memiliki konteks lengkap.</p>
+                        <p class="lang-en">Tickets can be <strong>forwarded</strong> or <strong>escalated</strong> to other staff or teams as needed. This is normal — the full ticket history is preserved so any staff who takes over has full context.</p>
+                    </div>
+                </div>
+
+                <div class="docs-faq-item">
+                    <button class="docs-faq-question" onclick="toggleFaq(this)">
+                        <span class="lang-id">Apakah pesan WhatsApp saya aman dan privat?</span>
+                        <span class="lang-en">Are my WhatsApp messages safe and private?</span>
+                        <svg class="docs-faq-chevron" style="width:16px;height:16px;flex-shrink:0;margin-left:8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="docs-faq-answer">
+                        <p class="lang-id">Sistem hanya memproses pesan WhatsApp dalam konteks tiket yang aktif. Nomor WhatsApp Anda digunakan untuk identifikasi dan notifikasi. Data hanya dapat diakses oleh staf yang berwenang menangani tiket Anda.</p>
+                        <p class="lang-en">The system only processes WhatsApp messages in the context of an active ticket. Your number is used for identification and notifications. Data is only accessible by staff authorised to handle your ticket.</p>
+                    </div>
+                </div>
+
+                <!-- Special Conditions -->
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin:20px 0 10px;">
+                    <span class="lang-id">Kondisi Khusus</span><span class="lang-en">Special Conditions</span>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                        <div style="font-weight:700;font-size:13px;color:#991b1b;margin-bottom:4px;">🚨 <span class="lang-id">Tiket Kritis (Critical Priority)</span><span class="lang-en">Critical Tickets</span></div>
+                        <div style="font-size:12.5px;color:#7f1d1d;"><span class="lang-id">Tiket dengan prioritas kritis ditangani dengan prioritas tertinggi. Staf mungkin akan langsung menghubungi Anda melalui <strong>telepon</strong> — pastikan nomor Anda dapat dihubungi.</span><span class="lang-en">Critical priority tickets are handled with the highest urgency. Staff may contact you via <strong>phone call</strong> — ensure your number is reachable.</span></div>
+                    </div>
+                    <div style="background:#ede9fe;border:1px solid #c4b5fd;border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                        <div style="font-weight:700;font-size:13px;color:#4c1d95;margin-bottom:4px;">🔐 <span class="lang-id">Kategori Confidential</span><span class="lang-en">Confidential Categories</span></div>
+                        <div style="font-size:12.5px;color:#5b21b6;"><span class="lang-id">Tiket di kategori confidential bersifat pribadi — hanya staf berwenang yang dapat melihat isi tiket. Pengguna lain tidak dapat mengakses informasi Anda.</span><span class="lang-en">Tickets in confidential categories are private — only authorised staff can view the content. Other users cannot access your information.</span></div>
+                    </div>
+                    <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:var(--jk-radius-sm);padding:12px 14px;">
+                        <div style="font-weight:700;font-size:13px;color:#1e3a8a;margin-bottom:4px;">📧 <span class="lang-id">Tiket via Email</span><span class="lang-en">Email Tickets</span></div>
+                        <div style="font-size:12.5px;color:#1d4ed8;"><span class="lang-id">Email yang Anda kirim ke alamat support <strong>otomatis dikonversi menjadi tiket</strong>. Anda akan menerima konfirmasi berisi nomor tiket melalui email balasan.</span><span class="lang-en">Emails sent to the support address are <strong>automatically converted into tickets</strong>. You will receive a confirmation with a ticket number in the reply.</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer note -->
+        <div style="text-align:center;padding:16px 0 8px;font-size:12px;color:var(--jk-text-muted);">
+            {{ site_config.site_name|default:"RoC Support Desk" }} &mdash;
+            <span class="lang-id">Panduan ini diperbarui secara berkala. Hubungi tim support jika ada yang belum tercakup.</span>
+            <span class="lang-en">This guide is updated regularly. Contact the support team if anything is not yet covered.</span>
+        </div>
+
+    </div>{# end main content #}
+</div>{# end grid #}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const LANG_KEY = 'preferred_lang';
+    const saved = localStorage.getItem(LANG_KEY) || 'id';
+    applyLang(saved);
+
+    document.querySelectorAll('[data-set-lang]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            applyLang(this.dataset.setLang);
+            localStorage.setItem(LANG_KEY, this.dataset.setLang);
+        });
+    });
+
+    function applyLang(lang) {
+        document.body.classList.remove('lang-id', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+        document.querySelectorAll('[data-set-lang]').forEach(b => {
+            b.classList.toggle('lang-btn-active', b.dataset.setLang === lang);
+        });
+    }
+})();
+
+(function() {
+    const links = document.querySelectorAll('.docs-toc-link[href^="#"]');
+    const secs = [];
+    links.forEach(l => {
+        const t = document.querySelector(l.getAttribute('href'));
+        if (t) secs.push({ l, t });
+    });
+
+    function hl() {
+        let c = secs[0];
+        secs.forEach(s => { if (window.scrollY >= s.t.offsetTop - 100) c = s; });
+        links.forEach(l => l.classList.remove('active'));
+        if (c) c.l.classList.add('active');
+    }
+
+    window.addEventListener('scroll', hl, { passive: true });
+    hl();
+})();
+
+function toggleFaq(btn) {
+    const item = btn.closest('.docs-faq-item');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.docs-faq-item.open').forEach(el => el.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+}
+
+async function downloadDocsPDF(docKey) {
+    const btn = document.getElementById('pdf-btn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="width:14px;height:14px;animation:spin 1s linear infinite;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span>Generating...</span>';
+
+    const isEN = document.body.classList.contains('lang-en');
+    const lang = isEN ? 'en' : 'id';
+
+    const titles = {
+        'portal-user': { id: 'Panduan Pengguna Portal', en: 'Portal User Guide' },
+        'support-desk': { id: 'Panduan Staf Support Desk', en: 'Staff Support Desk Guide' },
+        'superadmin': { id: 'Panduan SuperAdmin', en: 'SuperAdmin Guide' }
+    };
+    const title = (titles[docKey] || titles['portal-user'])[lang];
+    const siteName = document.title.split('—').slice(-1)[0].trim() || 'RoC Support Desk';
+    const dateStr = new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'id-ID', { year:'numeric', month:'long', day:'numeric' });
+
+    const root = document.getElementById('docs-pdf-root');
+    const toc = document.getElementById('docs-toc-sidebar');
+
+    // Save original styles so we can restore after PDF generation
+    const origRootStyle = root.getAttribute('style') || '';
+    const origTocDisplay = toc ? toc.style.display : '';
+
+    // Build cover header element
+    const cover = document.createElement('div');
+    cover.id = '__pdf-cover';
+    cover.style.cssText = 'text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #6366f1;font-family:Inter,system-ui,sans-serif;';
+    cover.innerHTML = `
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6366f1;margin-bottom:8px;">${siteName}</div>
+        <div style="font-size:26px;font-weight:900;color:#1e293b;margin-bottom:6px;">${title}</div>
+        <div style="font-size:11px;color:#64748b;">${lang === 'en' ? 'Generated' : 'Dibuat'}: ${dateStr}</div>
+    `;
+
+    // Temporarily transform layout: hide TOC, change grid to block, prepend cover
+    if (toc) toc.style.display = 'none';
+    root.style.cssText = 'display:block !important;';
+    root.insertBefore(cover, root.firstChild);
+
+    // Wait two frames for the browser to recalculate layout before capture
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const filename = `${docKey}-guide-${lang}-${new Date().toISOString().slice(0,10)}.pdf`;
+    try {
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename,
+            image: { type: 'jpeg', quality: 0.97 },
+            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, scrollX: 0, scrollY: 0, windowWidth: document.body.scrollWidth },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['.jk-card', '.docs-step'] }
+        }).from(root).save();
+    } catch(e) {
+        console.error('PDF generation failed:', e);
+        window.print();
+    } finally {
+        // Restore the page to its original state
+        const c = document.getElementById('__pdf-cover');
+        if (c) root.removeChild(c);
+        if (toc) toc.style.display = origTocDisplay;
+        if (origRootStyle) root.setAttribute('style', origRootStyle);
+        else root.removeAttribute('style');
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    }
+}
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+@media print {
+    .jk-sidebar, .jk-topbar, #docs-toc-sidebar, #pdf-btn, [data-set-lang] { display: none !important; }
+    .jk-main { margin-left: 0 !important; }
+    #docs-pdf-root { display: block !important; }
+    .jk-card { break-inside: avoid; box-shadow: none !important; }
+}
+</style>
+{% endblock %}

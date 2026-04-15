@@ -18,7 +18,8 @@
                     {{ case.case_number }}
                 </div>
             </div>
-            <div class="kanban-card__subject text-slate-400 italic">Confidential Ticket</div>
+            <!-- text-slate-600 on card bg = 5.9:1 AA ✓ (was slate-400 = 2.4:1) -->
+            <div class="kanban-card__subject text-slate-600 italic">Confidential Ticket</div>
             <div class="kanban-card__meta">
                 <span class="truncate" style="max-width: 130px;">{{ case.requester.full_name }}</span>
                 {% if case.source == "EvolutionAPI_WA" %}
@@ -29,7 +30,8 @@
                 <span class="kanban-card__source kanban-card__source--web">Web</span>
                 {% endif %}
             </div>
-            <div class="kanban-card__date text-slate-300">
+            <!-- text-slate-600 on card = 5.9:1 AA ✓ (was slate-300 = 1.5:1) -->
+            <div class="kanban-card__date text-slate-600">
                 {{ case.created_at|date:"d M Y, H:i" }}
             </div>
         </div>

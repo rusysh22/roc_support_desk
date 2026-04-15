@@ -160,11 +160,12 @@
             }
             .roc-link:hover::after { transform: scaleX(1); }
 
+            /* #6d28d9 on #fff = 6.5:1 AA ✓ (was #a78bfa = 2.5:1) */
             .mail-link {
                 display: inline-block;
                 position: relative;
                 font-weight: 600;
-                color: #a78bfa !important;
+                color: #6d28d9 !important;
                 text-decoration: none !important;
                 transition: color 0.3s ease, filter 0.3s ease;
             }
@@ -172,14 +173,14 @@
                 content: '';
                 position: absolute; left: 0; bottom: -1px;
                 width: 100%; height: 1px;
-                background: #a78bfa;
+                background: #6d28d9;
                 transform: scaleX(0);
                 transform-origin: left;
                 transition: transform 0.3s ease;
             }
             .mail-link:hover {
-                color: #7c3aed !important;
-                filter: drop-shadow(0 0 5px #a78bfa66);
+                color: #4c1d95 !important;
+                filter: drop-shadow(0 0 5px #6d28d966);
             }
             .mail-link:hover::after { transform: scaleX(1); }
         </style>
@@ -463,7 +464,8 @@
             <!-- Heading -->
             <div class="mb-6 sm:mb-8">
                 <h1 class="font-extrabold tracking-tight leading-tight" style="font-size: clamp(1.6rem, 5vw, 2rem); color: #0f0f0f;">Let's go</h1>
-                <p class="text-sm mt-2" style="color: #9a9a9a;">Sign in to {{ site_config.site_name|default:"Support Desk" }}</p>
+                <!-- #595959 on #fff = 7.0:1 AA ✓ (was #9a9a9a = 3.0:1) -->
+                <p class="text-sm mt-2" style="color: #595959;">Sign in to {{ site_config.site_name|default:"Support Desk" }}</p>
             </div>
 
             <!-- Error -->
@@ -494,14 +496,15 @@
                 <!-- Username — notch label -->
                 <div class="notch-field relative mt-5">
                     <input type="text" name="username" id="id_username"
-                           class="w-full rounded-2xl px-4 pt-4 pb-4 text-sm outline-none transition-all"
-                           style="background-color:#f6f6f6; border:1.5px solid #ebebeb; color:#111111;"
+                           class="w-full rounded-2xl px-4 pt-4 pb-4 text-sm transition-all"
+                           style="background-color:#f6f6f6; border:1.5px solid #ebebeb; color:#111111; outline:none;"
                            placeholder=" " autocomplete="username" autofocus required
                            onfocus="this.style.borderColor='#5b21b6'; this.style.backgroundColor='#fff';"
                            onblur="this.style.borderColor='#ebebeb'; this.style.backgroundColor='#f6f6f6';">
+                    <!-- #595959 on bg = 7.0:1 AA ✓ (was #b0b0b0 = 2.0:1) -->
                     <label for="id_username"
                            class="notch-label absolute pointer-events-none transition-all duration-200"
-                           style="left: 14px; top: 14px; font-size: 14px; color:#b0b0b0; background: transparent; padding: 0 4px;">
+                           style="left: 14px; top: 14px; font-size: 14px; color:#595959; background: transparent; padding: 0 4px;">
                         Username
                     </label>
                 </div>
@@ -509,20 +512,20 @@
                 <!-- Password — notch label -->
                 <div class="notch-field relative mt-5">
                     <input type="password" name="password" id="id_password"
-                           class="w-full rounded-2xl px-4 pt-4 pb-4 pr-12 text-sm outline-none transition-all"
-                           style="background-color:#f6f6f6; border:1.5px solid #ebebeb; color:#111111;"
+                           class="w-full rounded-2xl px-4 pt-4 pb-4 pr-12 text-sm transition-all"
+                           style="background-color:#f6f6f6; border:1.5px solid #ebebeb; color:#111111; outline:none;"
                            placeholder=" " required
                            onfocus="this.style.borderColor='#5b21b6'; this.style.backgroundColor='#fff';"
                            onblur="this.style.borderColor='#ebebeb'; this.style.backgroundColor='#f6f6f6';">
                     <label for="id_password"
                            class="notch-label absolute pointer-events-none transition-all duration-200"
-                           style="left: 14px; top: 14px; font-size: 14px; color:#b0b0b0; background: transparent; padding: 0 4px;">
+                           style="left: 14px; top: 14px; font-size: 14px; color:#595959; background: transparent; padding: 0 4px;">
                         Password
                     </label>
                     <button type="button" id="togglePassword"
-                            class="absolute inset-y-0 right-0 pr-4 flex items-center focus:outline-none transition-colors"
-                            style="color:#c0c0c0;"
-                            onmouseover="this.style.color='#888';" onmouseout="this.style.color='#c0c0c0';">
+                            class="absolute inset-y-0 right-0 pr-4 flex items-center transition-colors"
+                            style="color:#767676;"
+                            onmouseover="this.style.color='#444';" onmouseout="this.style.color='#767676';">
                         <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-[18px] h-[18px]">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -584,12 +587,14 @@
             <!-- Contact / Narahubung -->
             <div class="mt-4 pt-4 border-t" style="border-color: #f0f0f0;">
                 {% if site_config.contact_info %}
-                <p class="text-xs text-center leading-relaxed" style="color:#bbbbbb;">{{ site_config.contact_info|safe }}</p>
+                <!-- #595959 on #fff = 7.0:1 AA ✓ (was #bbbbbb = 1.9:1) -->
+                <p class="text-xs text-center leading-relaxed" style="color:#595959;">{{ site_config.contact_info|safe }}</p>
                 {% else %}
-                <p class="text-xs text-center" style="color:#c8c8c8; letter-spacing:0.01em;">
+                <!-- #595959 on #fff = 7.0:1 AA ✓ (was #c8c8c8 = 1.7:1) -->
+                <p class="text-xs text-center" style="color:#595959; letter-spacing:0.01em;">
                     powered by
                     <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="roc-link">Rusydani on Cloud</a>
-                    <span style="color:#ddd; margin:0 4px;">&middot;</span>
+                    <span style="color:#999; margin:0 4px;">&middot;</span>
                     <a href="mailto:hello@rusydani.my.id" class="mail-link">hello@rusydani.my.id</a>
                 </p>
                 {% endif %}
@@ -597,6 +602,20 @@
 
         </div>
     </div>
+
+    <!-- Floating User Guide button (bottom-right of form panel) -->
+    <a href="{% url 'docs_portal' %}" target="_blank" rel="noopener"
+       title="User Guide"
+       style="position:fixed;bottom:24px;right:24px;z-index:50;
+              width:42px;height:42px;border-radius:50%;
+              background:rgba(91,33,182,0.12);border:1.5px solid rgba(91,33,182,0.25);
+              display:flex;align-items:center;justify-content:center;
+              color:#5b21b6;font-weight:700;font-size:17px;
+              text-decoration:none;transition:all .2s;
+              backdrop-filter:blur(4px);"
+       onmouseover="this.style.background='rgba(91,33,182,0.22)';this.style.borderColor='rgba(91,33,182,0.5)';this.style.transform='scale(1.08)';"
+       onmouseout="this.style.background='rgba(91,33,182,0.12)';this.style.borderColor='rgba(91,33,182,0.25)';this.style.transform='scale(1)';">?
+    </a>
 </div>
 
 <!-- ================================================================== -->
@@ -612,7 +631,7 @@
             <h2 class="text-base font-extrabold tracking-tight" style="color:#111111;">Terms &amp; Privacy Policy</h2>
             <button type="button" onclick="document.getElementById('termsModal').classList.add('hidden')"
                     class="flex items-center justify-center w-8 h-8 rounded-xl transition-colors"
-                    style="color:#aaaaaa; background:#f6f6f6;"
+                    style="color:#595959; background:#f6f6f6;"
                     onmouseover="this.style.background='#ebebeb';" onmouseout="this.style.background='#f6f6f6';">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -639,6 +658,17 @@
 <script>
     document.getElementById('termsModal').addEventListener('click', function(e) {
         if (e.target === this) this.classList.add('hidden');
+    });
+
+    // Clear cross-tab flags when landing on login page
+    localStorage.removeItem('roc_tab_logout');
+    localStorage.removeItem('roc_tab_login');
+
+    // If another tab logs in → redirect this tab to dashboard immediately
+    window.addEventListener('storage', function (e) {
+        if (e.key === 'roc_tab_login' && e.newValue) {
+            window.location.replace('/desk/cases/');
+        }
     });
 </script>
 {% endif %}
@@ -761,10 +791,30 @@
         </div>
 
     </div>
+
+    <!-- Floating User Guide button (bottom-right) -->
+    <a href="{% url 'docs_portal' %}" target="_blank" rel="noopener"
+       title="User Guide"
+       style="position:fixed;bottom:24px;right:24px;z-index:50;
+              width:42px;height:42px;border-radius:50%;
+              background:rgba(76,29,149,0.12);border:1.5px solid rgba(76,29,149,0.3);
+              display:flex;align-items:center;justify-content:center;
+              color:#4c1d95;font-weight:700;font-size:17px;
+              text-decoration:none;transition:all .2s;"
+       onmouseover="this.style.background='rgba(76,29,149,0.22)';this.style.transform='scale(1.08)';"
+       onmouseout="this.style.background='rgba(76,29,149,0.12)';this.style.transform='scale(1)';">?
+    </a>
 </div>
 {% endif %}
 
 <style>
+    Remove ALL browser focus rings from notch inputs
+    .notch-field input:focus,
+    .notch-field input:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
     /* Notch label — base transition only; all state managed by JS */
     .notch-label {
         transition: top 0.18s ease, font-size 0.18s ease,
@@ -815,7 +865,9 @@
                 label.style.textTransform = 'uppercase';
                 label.style.padding       = '2px 8px';
                 label.style.borderRadius  = '6px';
-                label.style.color         = focused ? '#5b21b6' : '#b0b0b0';
+                /* floated focused: #5b21b6 on #fff = 6.5:1 AA ✓
+                   floated unfocused: #595959 on #f0f0f0 = 6.2:1 AA ✓ */
+                label.style.color         = focused ? '#5b21b6' : '#595959';
                 label.style.background    = focused ? '#ffffff' : '#f0f0f0';
             }
 
@@ -827,7 +879,8 @@
                 label.style.textTransform = 'none';
                 label.style.padding       = '0 4px';
                 label.style.borderRadius  = '0';
-                label.style.color         = '#b0b0b0';
+                /* resting: #595959 on #f6f6f6 = 6.8:1 AA ✓ (was #b0b0b0 = 2.0:1) */
+                label.style.color         = '#595959';
                 label.style.background    = 'transparent';
             }
 

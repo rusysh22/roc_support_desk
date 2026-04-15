@@ -81,7 +81,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h2 class="text-lg font-bold text-slate-900">User Management</h2>
-            <p class="text-sm text-slate-500 mt-1">Manage system users, access roles, and permissions.</p>
+            <p class="text-sm text-slate-600 mt-1">Manage system users, access roles, and permissions.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <!-- Download Template -->
@@ -151,7 +151,7 @@
         <form method="get" class="flex flex-col sm:flex-row gap-3">
             <div class="flex-1 w-full relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </div>
@@ -214,11 +214,11 @@
                         </td>
                         <td>
                             <div class="font-semibold text-slate-900">{{ u.username }}</div>
-                            <div class="text-xs text-slate-500">{{ u.email }}</div>
+                            <div class="text-xs text-slate-600">{{ u.email }}</div>
                         </td>
                         <td>
                             <div class="text-sm font-medium text-slate-700">{{ u.login_username }}</div>
-                            <div class="text-xs text-slate-500">NIK: {{ u.nik|default:"-" }}</div>
+                            <div class="text-xs text-slate-600">NIK: {{ u.nik|default:"-" }}</div>
                         </td>
                         <td>
                             {% if u.role_access == 'SuperAdmin' %}
@@ -237,33 +237,33 @@
                             {% if u.can_handle_confidential %}
                                 <span class="text-green-600 text-sm font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Yes</span>
                             {% else %}
-                                <span class="text-slate-400 text-sm">-</span>
+                                <span class="text-slate-600 text-sm">-</span>
                             {% endif %}
                         </td>
                         <td class="text-right">
                             <div class="flex items-center justify-end gap-2 pr-4">
-                                <a href="{% url 'users_desk:user_edit' pk=u.pk %}" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit User">
+                                <a href="{% url 'users_desk:user_edit' pk=u.pk %}" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit User">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 </a>
                                 {% if request.user != u %}
                                     {% if u.is_active %}
                                     <form method="post" action="{% url 'users_desk:user_archive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Archive User: {{ u.login_username }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Archive User">
+                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Archive User">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
                                         </button>
                                     </form>
                                     {% else %}
                                     <form method="post" action="{% url 'users_desk:user_unarchive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Unarchive User: {{ u.login_username }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Unarchive User">
+                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Unarchive User">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                         </button>
                                     </form>
                                     {% endif %}
                                 <form method="post" action="{% url 'users_desk:user_delete' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this user?');">
                                     {% csrf_token %}
-                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete User">
+                                    <button type="submit" class="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete User">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </form>
@@ -273,7 +273,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-slate-500">
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-600">
                             {% if search_query or role_filter %}
                             No users found matching your filters.
                             {% else %}
@@ -289,12 +289,12 @@
         <!-- Pagination -->
         {% if users.has_other_pages %}
         <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-            <span class="text-sm text-slate-500">
+            <span class="text-sm text-slate-600">
                 Showing {{ users.start_index }} to {{ users.end_index }} of {{ users.paginator.count }} entries
             </span>
             <div class="flex items-center gap-1">
                 {% if users.has_previous %}
-                    <a href="?page={{ users.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-400 hover:text-indigo-600 rounded">
+                    <a href="?page={{ users.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </a>
                 {% endif %}
@@ -302,11 +302,11 @@
                     {% if users.number == i %}
                         <span class="px-3 py-1 bg-indigo-50 text-indigo-600 font-semibold rounded-lg text-sm">{{ i }}</span>
                     {% elif i > users.number|add:'-3' and i < users.number|add:'3' %}
-                        <a href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="px-3 py-1 text-slate-500 hover:bg-slate-50 font-medium rounded-lg text-sm transition-colors">{{ i }}</a>
+                        <a href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="px-3 py-1 text-slate-600 hover:bg-slate-50 font-medium rounded-lg text-sm transition-colors">{{ i }}</a>
                     {% endif %}
                 {% endfor %}
                 {% if users.has_next %}
-                    <a href="?page={{ users.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-400 hover:text-indigo-600 rounded">
+                    <a href="?page={{ users.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </a>
                 {% endif %}
@@ -325,7 +325,7 @@
                     <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
                     Import Users from Excel
                 </h3>
-                <button @click="showImportModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200">
+                <button @click="showImportModal = false" class="text-slate-600 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
@@ -343,7 +343,7 @@
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Select Excel File (.xlsx)</label>
                     <input type="file" name="csv_file" accept=".xlsx" required
-                           class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-slate-200 rounded-xl p-1">
+                           class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-slate-200 rounded-xl p-1">
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">

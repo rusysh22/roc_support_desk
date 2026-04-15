@@ -4,7 +4,7 @@
 {% block title %}{{ case.case_number }} — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}
 <div class="flex items-center gap-2">
-    <a href="javascript:history.back()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100" title="Back">
+    <a href="javascript:history.back()" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100" title="Back">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
     </a>
     <span>{{ case.case_number }}</span>
@@ -61,7 +61,7 @@
                         <!-- Display mode -->
                         <h2 x-show="!editingSubject" class="text-xl font-bold text-slate-800 break-words jk-detail-subject" x-text="subjectVal"></h2>
                         {% if case.status != 'Closed' and user.role_access != 'Auditor' %}
-                        <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
+                        <button x-show="!editingSubject" @click="editingSubject = true; $nextTick(() => $refs.subjectInput.focus())" class="text-slate-600 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-slate-100 shrink-0" title="Edit subject">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
                         <!-- Edit mode -->
@@ -71,14 +71,14 @@
                             <button type="submit" class="text-emerald-600 hover:text-emerald-700 p-1 rounded-md hover:bg-emerald-50 transition-colors" title="Save">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                             </button>
-                            <button type="button" @click="editingSubject = false; subjectVal = '{{ case.subject|escapejs }}'" class="text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors" title="Cancel">
+                            <button type="button" @click="editingSubject = false; subjectVal = '{{ case.subject|escapejs }}'" class="text-slate-600 hover:text-red-700 p-1 rounded-md hover:bg-red-50 transition-colors" title="Cancel">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </form>
                         {% endif %}
                     </div>
                     {% if case.requester %}
-                    <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500 jk-detail-requester">
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-slate-600 jk-detail-requester">
                         <span class="font-medium text-slate-700">{{ case.requester.full_name }}</span>
                         <span class="text-slate-300">•</span>
                         <span>{{ case.requester.email|default:"No Email" }}</span>
@@ -168,13 +168,13 @@
         </div>
 
         <!-- Meta Row -->
-        <div class="jk-detail-meta flex flex-wrap gap-3 sm:gap-6 mt-3 pt-3 border-t border-slate-100 text-[11px] sm:text-xs text-slate-400">
+        <div class="jk-detail-meta flex flex-wrap gap-3 sm:gap-6 mt-3 pt-3 border-t border-slate-100 text-xs sm:text-xs text-slate-600">
             <div x-data="{ editingCat: false }">
-                <span class="font-medium text-slate-500">Category:</span>
+                <span class="font-medium text-slate-600">Category:</span>
                 <span x-show="!editingCat" class="inline-flex items-center gap-1">
                     {% if case.category.parent %}{{ case.category.parent.name }} &rsaquo; {% endif %}{{ case.category.name }}
                     {% if case.status != 'Closed' %}
-                    <button type="button" @click="editingCat = true" class="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 rounded" title="Change Category">
+                    <button type="button" @click="editingCat = true" class="text-slate-600 hover:text-indigo-600 transition-colors p-0.5 rounded" title="Change Category">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     </button>
                     {% endif %}
@@ -183,13 +183,13 @@
                 <form x-show="editingCat" x-cloak class="inline-flex items-center gap-1"
                       action="{% url 'desk:case_update_category' case.id %}" method="post">
                     {% csrf_token %}
-                    <select name="category_id" class="text-[11px] sm:text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+                    <select name="category_id" class="text-xs sm:text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
                             onchange="this.form.submit()">
                         {% for cat in all_categories %}
                         <option value="{{ cat.id }}" {% if cat.id == case.category_id %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
-                    <button type="button" @click="editingCat = false" class="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded" title="Cancel">
+                    <button type="button" @click="editingCat = false" class="text-slate-600 hover:text-slate-600 transition-colors p-0.5 rounded" title="Cancel">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </form>
@@ -197,34 +197,34 @@
             </div>
             {% if case.requester and case.requester.unit %}
             <div>
-                <span class="font-medium text-slate-500">Company Unit:</span>
+                <span class="font-medium text-slate-600">Company Unit:</span>
                 <span class="text-indigo-600 font-medium">{{ case.requester.unit.name }}</span>
             </div>
             {% elif case.requester_unit_name %}
             <div>
-                <span class="font-medium text-slate-500">Company Unit:</span>
+                <span class="font-medium text-slate-600">Company Unit:</span>
                 <span class="text-indigo-600 font-medium">{{ case.requester_unit_name }}</span>
             </div>
             {% endif %}
             <div>
-                <span class="font-medium text-slate-500">Created:</span>
+                <span class="font-medium text-slate-600">Created:</span>
                 {{ case.created_at|date:"d M Y H:i" }}
             </div>
             {% if case.assigned_to %}
             <div>
-                <span class="font-medium text-slate-500">Assigned:</span>
+                <span class="font-medium text-slate-600">Assigned:</span>
                 {{ case.assigned_to.username }}
             </div>
             {% endif %}
             {% if case.response_due_at %}
             <div>
-                <span class="font-medium text-slate-500">Response SLA:</span>
+                <span class="font-medium text-slate-600">Response SLA:</span>
                 {{ case.response_due_at|date:"d M Y H:i" }}
             </div>
             {% endif %}
             {% if case.resolution_due_at %}
             <div>
-                <span class="font-medium text-slate-500">Resolution SLA:</span>
+                <span class="font-medium text-slate-600">Resolution SLA:</span>
                 {{ case.resolution_due_at|date:"d M Y H:i" }}
             </div>
             {% endif %}
@@ -243,23 +243,23 @@
             bg-white text-indigo-700 border-slate-200 z-10 
             before:absolute before:-bottom-[2px] before:left-0 before:right-0 before:h-[2px] before:bg-white
        {% else %}
-            bg-slate-50 text-slate-500 border-slate-200/60 hover:bg-slate-100 hover:text-slate-700
+            bg-slate-50 text-slate-600 border-slate-200/60 hover:bg-slate-100 hover:text-slate-700
        {% endif %}"
        x-data="{ showMenu: false }">
         
         <a href="{% url 'desk:case_detail' case_id=r_case.id %}" class="flex items-center gap-2 outline-none">
         {% if r_case.id == master_case.id %}
-        <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-500{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+        <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-500{% else %}text-slate-600{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
         <span class="truncate max-w-[150px]" title="Master: {{ r_case.subject }}">MSTR: {{ r_case.case_number }}</span>
         {% else %}
-        <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-400{% else %}text-slate-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-400{% else %}text-slate-600{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
         <span class="truncate max-w-[150px]" title="Sub: {{ r_case.subject }}">SUB: {{ r_case.case_number }}</span>
         {% endif %}
         </a>
 
         {% if r_case.id != master_case.id %}
         <!-- 3 dots menu -->
-        <button type="button" @click.stop="showMenu = !showMenu" class="text-slate-400 hover:text-slate-600 focus:outline-none p-[2px] rounded hover:bg-slate-200 transition-colors ml-1 relative z-10">
+        <button type="button" @click.stop="showMenu = !showMenu" class="text-slate-600 hover:text-slate-600 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 p-[2px] rounded hover:bg-slate-200 transition-colors ml-1 relative z-10">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg>
         </button>
         <div x-show="showMenu" @click.outside="showMenu = false" x-transition.opacity style="display: none;" class="absolute top-[100%] right-0 mt-1 w-44 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-[100]">
@@ -334,7 +334,7 @@
                 <div class="jk-chat-panel__header-avatar relative">
                     {{ case.requester.full_name|slice:":1"|upper }}
                     {% if case.requester and case.status != 'Closed' %}
-                    <button type="button" @click="showEditRequesterModal = true" class="absolute -bottom-1 -right-1 bg-white border border-slate-200 rounded-full p-1 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 shadow-sm transition-all" title="Edit Requester Info">
+                    <button type="button" @click="showEditRequesterModal = true" class="absolute -bottom-1 -right-1 bg-white border border-slate-200 rounded-full p-1 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 shadow-sm transition-all" title="Edit Requester Info">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     </button>
                     {% endif %}
@@ -412,7 +412,7 @@
                             <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                             Requester Info
                         </h3>
-                        <button @click="showEditRequesterModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                        <button @click="showEditRequesterModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -421,13 +421,13 @@
                     <div class="flex border-b border-slate-200 px-6 bg-white">
                         <button type="button" @click="activeTab = 'edit'; showConfirm = false;"
                                 class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
-                                :class="activeTab === 'edit' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
+                                :class="activeTab === 'edit' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-700'">
                             <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                             Edit Info
                         </button>
                         <button type="button" @click="activeTab = 'change'; showConfirm = false;"
                                 class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
-                                :class="activeTab === 'change' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'">
+                                :class="activeTab === 'change' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-600 hover:text-slate-700'">
                             <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             Change Requester
                         </button>
@@ -484,8 +484,8 @@
                                 <button type="button" @click="open = !open"
                                         class="jk-select w-full text-left flex items-center justify-between"
                                         :class="{'border-indigo-500 ring-1 ring-indigo-500': open}">
-                                    <span x-text="selectedText || 'Select a Company Unit...'" :class="{'text-slate-400': !selectedValue}" class="truncate"></span>
-                                    <svg class="w-4 h-4 text-slate-400 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="{'rotate-180': open}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <span x-text="selectedText || 'Select a Company Unit...'" :class="{'text-slate-600': !selectedValue}" class="truncate"></span>
+                                    <svg class="w-4 h-4 text-slate-600 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="{'rotate-180': open}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
 
                                 <!-- Popup Overlay Dropdown -->
@@ -502,14 +502,14 @@
                                         <!-- Header -->
                                         <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
                                             <h4 class="text-sm font-bold text-slate-700">Select Company Unit</h4>
-                                            <button type="button" @click="open = false; search = '';" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200 transition-colors">
+                                            <button type="button" @click="open = false; search = '';" class="text-slate-600 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200 transition-colors">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </div>
                                         <!-- Search -->
                                         <div class="p-3 border-b border-slate-100 shrink-0">
                                             <div class="relative">
-                                                <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                                <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                                                 <input type="text" x-model="search" x-ref="unitSearch" placeholder="Search units..."
                                                        class="w-full text-sm border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 rounded-lg pl-9 pr-3 py-2.5 text-slate-700 placeholder-slate-400 transition-colors"
                                                        @click.stop @keydown.enter.prevent @keydown.escape="open = false; search = '';">
@@ -530,7 +530,7 @@
                                                     </div>
                                                 </div>
                                             </template>
-                                            <div x-show="filteredOptions.length === 0" class="px-3 py-6 text-sm text-center text-slate-400 italic">
+                                            <div x-show="filteredOptions.length === 0" class="px-3 py-6 text-sm text-center text-slate-600 italic">
                                                 No units found matching your search.
                                             </div>
                                         </div>
@@ -557,15 +557,15 @@
                                 </div>
                                 <!-- Current Requester -->
                                 <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Current Requester</p>
+                                    <p class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Current Requester</p>
                                     <p class="text-sm font-medium text-slate-800">{{ case.requester.full_name }}</p>
-                                    <p class="text-xs text-slate-500">{{ case.requester.unit.name|default:"-" }} &middot; {{ case.requester.job_role|default:"-" }}</p>
+                                    <p class="text-xs text-slate-600">{{ case.requester.unit.name|default:"-" }} &middot; {{ case.requester.job_role|default:"-" }}</p>
                                 </div>
                                 <!-- Search Input -->
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Search New Requester</label>
                                     <div class="relative">
-                                        <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                        <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                                         <input type="text" x-model="empSearch" placeholder="Search by name, email, unit, or phone number..."
                                                class="w-full text-sm border border-slate-200 bg-white focus:ring-2 focus:ring-amber-100 focus:border-amber-400 rounded-lg pl-9 pr-3 py-2.5 text-slate-700 placeholder-slate-400 transition-colors">
                                     </div>
@@ -583,10 +583,10 @@
                                                      x-text="emp.name.charAt(0).toUpperCase()"></div>
                                                 <div class="min-w-0 flex-1">
                                                     <p class="text-sm font-medium text-slate-800 truncate" x-text="emp.name"></p>
-                                                    <p class="text-xs text-slate-500 truncate">
+                                                    <p class="text-xs text-slate-600 truncate">
                                                         <span x-text="emp.unit || '-'"></span> &middot; <span x-text="emp.role || '-'"></span>
                                                     </p>
-                                                    <p x-show="emp.phone" class="text-xs text-slate-400 truncate" x-text="emp.phone"></p>
+                                                    <p x-show="emp.phone" class="text-xs text-slate-600 truncate" x-text="emp.phone"></p>
                                                 </div>
                                                 <div x-show="selectedEmployeeId === emp.id" class="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
                                                     <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
@@ -594,7 +594,7 @@
                                             </div>
                                         </div>
                                     </template>
-                                    <div x-show="filteredEmployees.length === 0" class="px-3 py-6 text-sm text-center text-slate-400 italic">
+                                    <div x-show="filteredEmployees.length === 0" class="px-3 py-6 text-sm text-center text-slate-600 italic">
                                         No matching requester found.
                                     </div>
                                 </div>
@@ -626,13 +626,13 @@
                                             {{ case.requester.full_name|slice:":1"|upper }}
                                         </div>
                                         <div class="min-w-0 flex-1">
-                                            <p class="text-xs text-red-500 font-semibold uppercase tracking-wide">From</p>
+                                            <p class="text-xs text-red-700 font-semibold uppercase tracking-wide">From</p>
                                             <p class="text-sm font-medium text-slate-800">{{ case.requester.full_name }}</p>
-                                            <p class="text-xs text-slate-500">{{ case.requester.unit.name|default:"-" }}</p>
+                                            <p class="text-xs text-slate-600">{{ case.requester.unit.name|default:"-" }}</p>
                                         </div>
                                     </div>
                                     <div class="flex justify-center">
-                                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                        <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-sm font-bold text-green-600 shrink-0"
@@ -640,7 +640,7 @@
                                         <div class="min-w-0 flex-1">
                                             <p class="text-xs text-green-600 font-semibold uppercase tracking-wide">To</p>
                                             <p class="text-sm font-medium text-slate-800" x-text="selectedEmployeeName"></p>
-                                            <p class="text-xs text-slate-500" x-text="selectedEmployeeUnit || '-'"></p>
+                                            <p class="text-xs text-slate-600" x-text="selectedEmployeeUnit || '-'"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -669,7 +669,7 @@
                             <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                             Escalate Ticket
                         </h3>
-                        <button @click="showEscalateModal = false; exitSelectMode();" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                        <button @click="showEscalateModal = false; exitSelectMode();" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -737,20 +737,20 @@
                                                     x-show="(escalateChannel === 'EMAIL' && c.email) || (escalateChannel === 'WHATSAPP' && c.phone)"
                                                     class="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0">
                                                 <div class="text-sm font-medium text-slate-800" x-text="c.name + (c.unit ? ' — ' + c.unit : '')"></div>
-                                                <div class="text-xs text-slate-500">
+                                                <div class="text-xs text-slate-600">
                                                     <span x-show="escalateChannel === 'EMAIL'" x-text="c.email"></span>
                                                     <span x-show="escalateChannel === 'WHATSAPP'" x-text="c.phone"></span>
                                                 </div>
                                             </button>
                                         </template>
-                                        <div x-show="filteredContacts().length === 0" class="px-3 py-2 text-sm text-slate-400 text-center">No contacts found</div>
+                                        <div x-show="filteredContacts().length === 0" class="px-3 py-2 text-sm text-slate-600 text-center">No contacts found</div>
                                     </div>
                                 </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">To (Destination)</label>
                                 <input type="text" name="forward_to" x-ref="forwardTo" class="jk-input" :placeholder="escalateChannel === 'EMAIL' ? 'e.g. vendor@odoo.com' : 'e.g. +6281234567'" required>
-                                <p class="text-xs text-slate-500 mt-1">Pick from contacts above, or type manually. Replies will thread back into this ticket.</p>
+                                <p class="text-xs text-slate-600 mt-1">Pick from contacts above, or type manually. Replies will thread back into this ticket.</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Notes / Instructions for 3rd Party</label>
@@ -782,7 +782,7 @@
                             <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Delivery Log
                         </h3>
-                        <button @click="showLogModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                        <button @click="showLogModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -790,7 +790,7 @@
                         <div class="text-xs font-mono text-slate-600 space-y-0">
                             {% for msg in chat_messages %}
                             <div class="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors">
-                                <div class="whitespace-nowrap text-slate-400">[{{ msg.sent_at|date:"Y-m-d H:i:s" }}]</div>
+                                <div class="whitespace-nowrap text-slate-600">[{{ msg.sent_at|date:"Y-m-d H:i:s" }}]</div>
                                 <div class="whitespace-nowrap font-bold {% if msg.direction == 'IN' %}text-blue-500{% else %}text-emerald-500{% endif %}">[{{ msg.direction }}]</div>
                                 <div class="flex-1 truncate" title="{{ msg.body }}">{{ msg.body }}</div>
                                 {% if msg.delivery_status == 'Failed' %}
@@ -811,7 +811,7 @@
                                 {% endif %}
                             </div>
                             {% empty %}
-                            <div class="text-slate-400 italic py-4 text-center">No messages recorded yet.</div>
+                            <div class="text-slate-600 italic py-4 text-center">No messages recorded yet.</div>
                             {% endfor %}
                         </div>
                     </div>
@@ -824,7 +824,7 @@
             <!-- Escalate Selection Mode Bar -->
             <div x-show="escalateSelectMode" x-cloak class="jk-escalate-select-bar">
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <button type="button" @click="exitSelectMode()" class="text-slate-500 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-white/60" title="Cancel selection">
+                    <button type="button" @click="exitSelectMode()" class="text-slate-600 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-white/60" title="Cancel selection">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                     <span style="font-size:13px;font-weight:600;color:#4338ca;">Select messages to escalate</span>
@@ -945,13 +945,13 @@
 
                 <div class="mb-2 px-2 flex justify-end items-center gap-4">
                     {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
-                    <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-500 hover:text-indigo-600 select-none transition-colors">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-600 hover:text-indigo-600 select-none transition-colors">
                         <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" checked>
                         <span>Send Reply via Email</span>
                     </label>
                     {% endif %}
                     
-                    <button type="button" @click="showCc = !showCc; if(showCc) $nextTick(() => $refs.ccInput.focus())" class="text-[11px] font-medium text-slate-500 hover:text-indigo-600 transition-colors">
+                    <button type="button" @click="showCc = !showCc; if(showCc) $nextTick(() => $refs.ccInput.focus())" class="text-xs font-medium text-slate-600 hover:text-indigo-600 transition-colors">
                         <span x-text="showCc ? '- Remove CC' : '+ Add CC'"></span>
                     </button>
                 </div>
@@ -963,10 +963,10 @@
                 <!-- Quote reply preview -->
                 <div id="quoteReplyBar" class="hidden mx-2 mb-2 px-3 py-2 rounded-lg text-xs flex items-center gap-2" style="background: rgba(99,102,241,0.06); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="flex-1 min-w-0">
-                        <div class="font-semibold text-indigo-600 text-[10px]" id="quoteReplyName"></div>
-                        <div class="text-slate-500 truncate" id="quoteReplyText"></div>
+                        <div class="font-semibold text-indigo-600 text-xs" id="quoteReplyName"></div>
+                        <div class="text-slate-600 truncate" id="quoteReplyText"></div>
                     </div>
-                    <button type="button" onclick="window._clearQuoteReply()" class="text-slate-400 hover:text-red-500 flex-shrink-0 transition-colors" title="Cancel reply">
+                    <button type="button" onclick="window._clearQuoteReply()" class="text-slate-600 hover:text-red-700 flex-shrink-0 transition-colors" title="Cancel reply">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
@@ -1016,9 +1016,9 @@
                     <div x-show="isRecording" x-cloak class="jk-reply-bar__recording">
                         <span class="jk-reply-bar__rec-dot"></span>
                         <span class="text-sm font-mono text-red-600 font-semibold" x-text="formatDuration(recordingDuration)"></span>
-                        <span class="text-xs text-slate-500">Recording...</span>
+                        <span class="text-xs text-slate-600">Recording...</span>
                         <div class="flex-1"></div>
-                        <button type="button" @click="cancelRecording()" class="text-xs text-slate-500 hover:text-red-600 px-2 py-1 rounded transition-colors" title="Cancel">
+                        <button type="button" @click="cancelRecording()" class="text-xs text-slate-600 hover:text-red-600 px-2 py-1 rounded transition-colors" title="Cancel">
                             Cancel
                         </button>
                         <button type="button" @click="stopRecording()" class="jk-reply-bar__rec-send" title="Send voice note">
@@ -1046,7 +1046,7 @@
                 </div>
                 {% else %}
                 <div class="p-3 text-center bg-slate-50 border border-slate-200 rounded-lg mx-2 mb-2">
-                    <p class="text-xs font-semibold text-slate-500">🔒 This ticket has been closed. Replies are disabled.</p>
+                    <p class="text-xs font-semibold text-slate-600">🔒 This ticket has been closed. Replies are disabled.</p>
                 </div>
                 {% endif %}
             </form>
@@ -1071,7 +1071,7 @@
                         <a href="{{ file.file.url }}" target="_blank" rel="noopener noreferrer" 
                            class="flex items-center gap-2 p-2 px-3 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm rounded-lg transition-all group max-w-full">
                             
-                            <div class="w-8 h-8 rounded shrink-0 bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500 flex items-center justify-center">
+                            <div class="w-8 h-8 rounded shrink-0 bg-slate-100 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-500 flex items-center justify-center">
                                 <!-- Generic File Icon -->
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -1086,14 +1086,14 @@
                                 <span class="text-xs font-semibold text-slate-700 truncate max-w-[150px]" title="{{ file.original_filename }}">
                                     {{ file.original_filename|default:"Attachment" }}
                                 </span>
-                                <span class="text-[10px] text-slate-400">
+                                <span class="text-xs text-slate-600">
                                     {{ message.created_at|date:"d M Y, H:i" }}
                                 </span>
                             </div>
                         </a>
                     {% endfor %}
                 {% empty %}
-                    <div class="w-full text-sm text-slate-400 text-center py-4">No attachments uploaded yet.</div>
+                    <div class="w-full text-sm text-slate-600 text-center py-4">No attachments uploaded yet.</div>
                 {% endfor %}
             </div>
         </div>
@@ -1107,8 +1107,8 @@
         <div class="jk-card-body max-h-64 overflow-y-auto p-0">
             {% if case.audit_logs.all %}
             <div class="overflow-x-auto">
-            <table class="w-full text-xs text-left text-slate-500">
-                <thead class="text-[10px] uppercase bg-slate-50 text-slate-700 sticky top-0 shadow-sm">
+            <table class="w-full text-xs text-left text-slate-600">
+                <thead class="text-xs uppercase bg-slate-50 text-slate-700 sticky top-0 shadow-sm">
                     <tr>
                         <th class="px-3 sm:px-4 py-2.5 sm:py-3 font-bold border-b border-slate-200 whitespace-nowrap">Date/Time</th>
                         <th class="px-3 sm:px-4 py-2.5 sm:py-3 font-bold border-b border-slate-200">User</th>
@@ -1121,10 +1121,10 @@
                 <tbody class="divide-y divide-slate-100">
                     {% for log in case.audit_logs.all %}
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-3 sm:px-4 py-2.5 sm:py-3 whitespace-nowrap text-[10px] sm:text-xs">{{ log.created_at|date:"d M H:i" }}</td>
+                        <td class="px-3 sm:px-4 py-2.5 sm:py-3 whitespace-nowrap text-xs sm:text-xs">{{ log.created_at|date:"d M H:i" }}</td>
                         <td class="px-3 sm:px-4 py-2.5 sm:py-3 font-medium text-slate-700">{{ log.created_by.username|default:"System" }}</td>
                         <td class="px-3 sm:px-4 py-2.5 sm:py-3">
-                            <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600 font-medium">
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600 font-medium">
                                 {{ log.action }}
                             </span>
                         </td>
@@ -1149,7 +1149,7 @@
             </table>
             </div>
             {% else %}
-            <div class="text-sm text-slate-400 text-center py-8">No changes recorded yet. Update the ticket to see audit logs.</div>
+            <div class="text-sm text-slate-600 text-center py-8">No changes recorded yet. Update the ticket to see audit logs.</div>
             {% endif %}
         </div>
 
@@ -1164,7 +1164,7 @@
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" @click.outside="showModal = false">
                 <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                     <h3 class="text-base font-semibold text-slate-800" x-text="modalTitle"></h3>
-                    <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
+                    <button @click="showModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -1204,7 +1204,7 @@
 
                 {% if case.form_data %}
                 <details class="mt-4">
-                    <summary class="text-xs font-semibold text-slate-500 cursor-pointer hover:text-indigo-500">
+                    <summary class="text-xs font-semibold text-slate-600 cursor-pointer hover:text-indigo-500">
                         Dynamic Form Data (JSON)
                     </summary>
                     <pre
@@ -1299,7 +1299,7 @@
                 },
                 requireLeadingSpace: true,
                 menuItemTemplate: function(item) {
-                    return '<div class="px-3 py-2 text-sm border-b border-slate-50 last:border-0"><span class="font-semibold text-slate-700">' + item.original.key + '</span> <span class="text-slate-400 text-xs ml-1">@' + item.original.value + '</span></div>';
+                    return '<div class="px-3 py-2 text-sm border-b border-slate-50 last:border-0"><span class="font-semibold text-slate-700">' + item.original.key + '</span> <span class="text-slate-600 text-xs ml-1">@' + item.original.value + '</span></div>';
                 }
             });
             

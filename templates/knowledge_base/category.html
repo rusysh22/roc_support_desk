@@ -17,7 +17,7 @@
 <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     <!-- ===== BREADCRUMBS ===== -->
-    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-500">
+    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-600">
         <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             Knowledge Base
@@ -38,7 +38,7 @@
                     <div>
                         <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 mb-1">{{ category.name }}</h1>
                         {% if category.description %}
-                        <p class="text-slate-500 text-base max-w-2xl leading-relaxed">{{ category.description }}</p>
+                        <p class="text-slate-600 text-base max-w-2xl leading-relaxed">{{ category.description }}</p>
                         {% endif %}
                     </div>
                     <span class="flex-shrink-0 inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 rounded-xl text-sm font-bold">
@@ -70,10 +70,10 @@
                 <input type="hidden" name="type" value="{{ request.GET.type }}">
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     </div>
                     <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search in this category..."
-                        class="pl-9 pr-4 py-1.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all w-52">
+                        class="pl-9 pr-4 py-1.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all w-52">
                 </div>
             </form>
         </div>
@@ -109,13 +109,13 @@
                         </div>
 
                         <h2 class="text-base md:text-lg font-bold text-slate-800 group-hover:text-indigo-600 leading-snug transition-colors mb-1.5">{{ article.title }}</h2>
-                        <p class="text-slate-500 text-sm line-clamp-2 leading-relaxed">{{ article.problem_summary|striptags|truncatewords:25 }}</p>
+                        <p class="text-slate-600 text-sm line-clamp-2 leading-relaxed">{{ article.problem_summary|striptags|truncatewords:25 }}</p>
 
                         <!-- Tags row -->
                         {% if article.tags.exists %}
                         <div class="flex flex-wrap gap-1.5 mt-3">
                             {% for tag in article.tags.all|slice:":4" %}
-                            <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
                             {% endfor %}
                         </div>
                         {% endif %}
@@ -123,8 +123,8 @@
 
                     <!-- Right meta -->
                     <div class="flex-shrink-0 flex flex-col items-end justify-between py-5 pr-5 pl-2 self-stretch">
-                        <div class="text-xs text-slate-400 text-right">
-                            <div class="font-medium text-slate-500">{{ article.updated_at|date:"d M Y" }}</div>
+                        <div class="text-xs text-slate-600 text-right">
+                            <div class="font-medium text-slate-600">{{ article.updated_at|date:"d M Y" }}</div>
                         </div>
                         <span class="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs font-semibold mt-4">
                             Read
@@ -137,12 +137,12 @@
         {% else %}
         <div class="bg-white rounded-2xl p-14 text-center border border-dashed border-slate-300 shadow-sm">
             <div class="w-16 h-16 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center mb-4">
-                <svg class="h-8 w-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="h-8 w-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
             </div>
             <h3 class="text-base font-semibold text-slate-800 mb-1">No articles found</h3>
-            <p class="text-slate-500 text-sm max-w-sm mx-auto">There are no published articles in this category yet.</p>
+            <p class="text-slate-600 text-sm max-w-sm mx-auto">There are no published articles in this category yet.</p>
             <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 mt-5 px-5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-sm rounded-xl transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 Back to Knowledge Base
@@ -154,7 +154,7 @@
     <!-- ===== BACK LINK ===== -->
     {% if articles %}
     <div class="mt-8 flex items-center justify-between text-sm">
-        <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-medium transition-colors">
+        <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             Back to Knowledge Base
         </a>

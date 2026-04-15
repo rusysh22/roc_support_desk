@@ -121,16 +121,16 @@
 
     <!-- Header -->
     <div class="flex items-center gap-4">
-        <a href="{% url 'kb_desk:article_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors">
+        <a href="{% url 'kb_desk:article_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
         </a>
         <div>
             <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit Article{% else %}Create New Article{% endif %}</h2>
-            <p class="text-sm text-slate-500 mt-1">
+            <p class="text-sm text-slate-600 mt-1">
                 {% if is_edit %}
                     Update the knowledge base article content.
                     {% if article.status == "Rejected" and article.rejection_reason %}
-                        <span class="text-red-500 font-medium">Rejected: {{ article.rejection_reason }}</span>
+                        <span class="text-red-700 font-medium">Rejected: {{ article.rejection_reason }}</span>
                     {% endif %}
                 {% else %}
                     Fill in the details below. The article will be saved as a Draft.
@@ -167,19 +167,19 @@
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Basic Information</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Title <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Title <span class="text-red-700">*</span></label>
                             {{ form.title }}
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Article Type <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Article Type <span class="text-red-700">*</span></label>
                             {{ form.article_type }}
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Category <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Category <span class="text-red-700">*</span></label>
                             {{ form.category }}
                         </div>
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Source Case <span class="text-slate-400 font-normal">(optional)</span></label>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Source Case <span class="text-slate-600 font-normal">(optional)</span></label>
                             {{ form.source_case }}
                         </div>
                         <div class="md:col-span-2">
@@ -199,13 +199,13 @@
                                     <template x-for="(tag, index) in tags" :key="index">
                                         <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-sm font-medium">
                                             <span x-text="tag"></span>
-                                            <button type="button" @click="removeTag(index)" class="text-indigo-400 hover:text-indigo-600 focus:outline-none">
+                                            <button type="button" @click="removeTag(index)" class="text-indigo-400 hover:text-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
                                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                             </button>
                                         </div>
                                     </template>
                                 </div>
-                                <p class="text-xs text-slate-400 mt-1">{{ form.tags_input.help_text }}</p>
+                                <p class="text-xs text-slate-600 mt-1">{{ form.tags_input.help_text }}</p>
                             </div>
                         </div>
                     </div>
@@ -215,7 +215,7 @@
                 <div>
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
                         <span x-text="articleType === 'Announcement' ? 'Announcement Content' : 'Problem Summary'"></span> 
-                        <span class="text-red-500">*</span>
+                        <span class="text-red-700">*</span>
                     </h3>
                     {{ form.problem_summary }}
                     <div id="editor-problem-summary" class="quill-editor"></div>
@@ -223,14 +223,14 @@
 
                 <!-- Root Cause -->
                 <div x-show="articleType === 'Issue'" x-transition>
-                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Root Cause <span class="text-red-500">*</span></h3>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Root Cause <span class="text-red-700">*</span></h3>
                     {{ form.root_cause }}
                     <div id="editor-root-cause" class="quill-editor"></div>
                 </div>
 
                 <!-- Solution -->
                 <div x-show="articleType === 'Issue'" x-transition>
-                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-500">*</span></h3>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-700">*</span></h3>
                     {{ form.solution }}
                     <div id="editor-solution" class="quill-editor"></div>
                 </div>

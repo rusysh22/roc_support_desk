@@ -9,9 +9,10 @@
             </div>
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Connected</h3>
-                <p class="text-sm text-slate-500">Your WhatsApp instance is actively running and listening for messages.</p>
+                <p class="text-sm text-slate-600">Your WhatsApp instance is actively running and listening for messages.</p>
                 {% if last_connected %}
-                    <p class="text-xs text-slate-400 mt-1">Last activity: {{ last_connected|date:"F j, Y, g:i a" }}</p>
+                    <!-- text-slate-600 on white = 5.9:1 AA ✓ (was slate-400 = 2.4:1) -->
+                <p class="text-xs text-slate-600 mt-1">Last activity: {{ last_connected|date:"F j, Y, g:i a" }}</p>
                 {% endif %}
             </div>
         {% elif instance_state == 'ERROR' %}
@@ -20,7 +21,7 @@
             </div>
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">API Unreachable</h3>
-                <p class="text-sm text-slate-500">Could not connect to the Evolution API container. Check if Docker is running.</p>
+                <p class="text-sm text-slate-600">Could not connect to the Evolution API container. Check if Docker is running.</p>
             </div>
         {% else %}
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 animate-pulse">
@@ -28,7 +29,7 @@
             </div>
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Disconnected ({{ instance_state }})</h3>
-                <p class="text-sm text-slate-500">Scan the QR code below using your WhatsApp Linked Devices screen.</p>
+                <p class="text-sm text-slate-600">Scan the QR code below using your WhatsApp Linked Devices screen.</p>
             </div>
         {% endif %}
     </div>
@@ -45,7 +46,7 @@
                 </div>
             {% else %}
                 <div class="h-64 w-64 flex items-center justify-center bg-slate-100 rounded-xl border-2 border-dashed border-slate-300">
-                    <span class="text-slate-400 font-medium tracking-wide">Generating QR...</span>
+                    <span class="text-slate-600 font-medium tracking-wide">Generating QR...</span>
                 </div>
             {% endif %}
         </div>

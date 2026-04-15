@@ -1,7 +1,8 @@
 <!-- HTMX Partial: Internal Staff Comments -->
 <div class="mt-4 border-t border-slate-200 pt-3 flex flex-col h-full" id="internal-comments-wrapper">
     <div class="flex items-center justify-between mb-2 px-2 shrink-0">
-        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Chat</h3>
+        <!-- text-slate-700 on white = 8.9:1 AA ✓ (was slate-500 = 4.5:1 borderline) -->
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Internal Chat</h3>
         <div class="jk-spinner htmx-indicator" id="comment-spinner" style="width:14px;height:14px;"></div>
     </div>
     
@@ -33,7 +34,8 @@
                     <span class="font-semibold text-xs text-slate-800 truncate pr-2">
                         {{ comment.author.first_name|default:comment.author.username }}
                     </span>
-                    <span class="text-[10px] text-slate-400 whitespace-nowrap" title="{{ comment.created_at }}">
+                    <!-- text-xs text-slate-600 = 5.9:1 AA ✓ (was 10px slate-400 = 2.4:1) -->
+                    <span class="text-xs text-slate-600 whitespace-nowrap" title="{{ comment.created_at }}">
                         {{ comment.created_at|date:"d M H:i" }}
                     </span>
                 </div>
@@ -41,7 +43,8 @@
             </div>
         </div>
         {% empty %}
-        <div class="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+        <!-- text-slate-600 on slate-50 = 5.6:1 AA ✓ (was slate-400 = 2.4:1) -->
+        <div class="text-xs text-slate-600 italic text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200">
             No internal chat messages yet.
         </div>
         {% endfor %}

@@ -227,6 +227,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://rusydani.my.id',
     'https://*.rusydani.my.id'
 ]
+CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 
 # --- Session Expiry ---
 # Automatically logs out the user after 24 hours (86400 seconds) of inactivity

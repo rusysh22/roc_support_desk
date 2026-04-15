@@ -3117,6 +3117,22 @@ def whatsapp_status_view(request):
 
 
 # =====================================================================
+# Apps Connection Hub
+# =====================================================================
+
+@login_required
+def apps_connection_view(request):
+    """
+    Hub page listing all external app integrations (WhatsApp, Email, etc.).
+    SuperAdmin only.
+    """
+    if request.user.role_access != 'SuperAdmin':
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied
+    return render(request, "desk/apps_connection.html")
+
+
+# =====================================================================
 # Email Settings Dashboard
 # =====================================================================
 

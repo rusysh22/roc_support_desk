@@ -65,7 +65,7 @@
             <form action="{% url 'knowledge_base:search' %}" method="get" class="max-w-2xl mx-auto">
                 <div class="flex items-center bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-transparent focus-within:border-indigo-400 transition-all">
                     <div class="pl-5 pr-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
@@ -84,7 +84,7 @@
     {% if recent_articles %}
     <div class="mb-10 kb-animate kb-animate-1">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-base font-semibold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+            <h2 class="text-base font-semibold text-slate-600 uppercase tracking-widest flex items-center gap-2">
                 <span class="inline-block w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                 Featured Articles
             </h2>
@@ -99,10 +99,10 @@
                 </div>
                 <!-- Prev/Next -->
                 <button onclick="kbPrevSlide()" class="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm">
-                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </button>
                 <button onclick="kbNextSlide()" class="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm">
-                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </button>
                 <a href="{% url 'knowledge_base:search' %}?q=" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 ml-1">
                     View all
@@ -136,7 +136,7 @@
                                 {% endif %}
 
                                 <!-- Category -->
-                                <div class="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-3">
+                                <div class="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-3">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                                     {{ article.category.name }}
                                 </div>
@@ -150,21 +150,21 @@
                                     </div>
                                     <div>
                                         <div class="text-xs font-semibold text-slate-700">{{ article.created_by.get_full_name|default:article.created_by.username|default:"Team" }}</div>
-                                        <div class="text-xs text-slate-400">Author</div>
+                                        <div class="text-xs text-slate-600">Author</div>
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2 text-xs text-slate-400">
+                                <div class="flex items-center gap-2 text-xs text-slate-600">
                                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                     {{ article.created_at|date:"M d, Y" }}
                                 </div>
                                 {% if article.updated_at != article.created_at %}
-                                <div class="flex items-center gap-2 text-xs text-slate-400">
+                                <div class="flex items-center gap-2 text-xs text-slate-600">
                                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                                     Updated {{ article.updated_at|date:"M d, Y" }}
                                 </div>
                                 {% endif %}
                                 <!-- Slide counter -->
-                                <div class="pt-1 text-xs text-slate-400 font-medium">
+                                <div class="pt-1 text-xs text-slate-600 font-medium">
                                     {{ forloop.counter }} / {{ recent_articles|length }}
                                 </div>
                             </div>
@@ -187,7 +187,7 @@
                             {% if article.tags.exists %}
                             <div class="flex flex-wrap gap-1.5 mt-3 mb-4">
                                 {% for tag in article.tags.all|slice:":4" %}
-                                <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
+                                <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
                                 {% endfor %}
                             </div>
                             {% else %}
@@ -229,7 +229,7 @@
                     </span>
                     Browse by Category
                 </h2>
-                <span class="text-sm text-slate-400 font-medium">{{ categories|length }} categories available</span>
+                <span class="text-sm text-slate-600 font-medium">{{ categories|length }} categories available</span>
             </div>
 
             {% if categories %}
@@ -239,7 +239,7 @@
                     <div class="p-6">
                         <!-- Icon + Article count row -->
                         <div class="flex items-start justify-between mb-4">
-                            <div class="kb-cat-icon w-12 h-12 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <div class="kb-cat-icon w-12 h-12 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center flex-shrink-0">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                             </div>
                             <span class="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full">
@@ -249,11 +249,11 @@
                         </div>
                         <!-- Title & description -->
                         <h3 class="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-1.5 leading-snug">{{ cat.name }}</h3>
-                        <p class="text-slate-500 text-sm leading-relaxed line-clamp-2">{{ cat.description|default:"Browse articles in this category." }}</p>
+                        <p class="text-slate-600 text-sm leading-relaxed line-clamp-2">{{ cat.description|default:"Browse articles in this category." }}</p>
                     </div>
                     <!-- Footer bar -->
                     <div class="border-t border-slate-100 px-6 py-3 bg-slate-50 group-hover:bg-indigo-50 flex items-center justify-between transition-colors">
-                        <span class="text-xs font-medium text-slate-500 group-hover:text-indigo-600 transition-colors">View Category</span>
+                        <span class="text-xs font-medium text-slate-600 group-hover:text-indigo-600 transition-colors">View Category</span>
                         <svg class="kb-cat-arrow w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </div>
                 </a>
@@ -262,10 +262,10 @@
             {% else %}
             <div class="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-300 shadow-sm">
                 <div class="w-16 h-16 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center mb-4">
-                    <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 </div>
                 <h3 class="font-semibold text-slate-700 mb-1">No categories yet</h3>
-                <p class="text-slate-400 text-sm">No published articles are available yet.</p>
+                <p class="text-slate-600 text-sm">No published articles are available yet.</p>
             </div>
             {% endif %}
         </div>
@@ -295,8 +295,8 @@
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-slate-800 group-hover:text-indigo-600 line-clamp-2 leading-snug transition-colors">{{ article.title }}</p>
                                     <div class="flex items-center gap-2 mt-1.5">
-                                        <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[100px]">{{ article.category.name }}</span>
-                                        <span class="text-xs text-slate-400">{{ article.created_at|date:"M d, Y" }}</span>
+                                        <span class="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[100px]">{{ article.category.name }}</span>
+                                        <span class="text-xs text-slate-600">{{ article.created_at|date:"M d, Y" }}</span>
                                     </div>
                                 </div>
                             </a>
@@ -304,10 +304,10 @@
                         {% endfor %}
                     </ul>
                     <div class="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-center">
-                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">{{ recent_articles|length }} Most Recent Articles</span>
+                        <span class="text-xs font-semibold text-slate-600 uppercase tracking-wider">{{ recent_articles|length }} Most Recent Articles</span>
                     </div>
                     {% else %}
-                    <div class="p-8 text-center text-slate-400 text-sm">No published articles yet.</div>
+                    <div class="p-8 text-center text-slate-600 text-sm">No published articles yet.</div>
                     {% endif %}
                 </div>
             </div>

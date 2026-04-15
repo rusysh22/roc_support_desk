@@ -16,7 +16,7 @@
             {% if message.tags == 'success' %}
                 <svg class="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             {% else %}
-                <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <svg class="h-5 w-5 text-red-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             {% endif %}
             {{ message }}
         </div>
@@ -37,10 +37,10 @@
                     </div>
                     <div>
                         <h2 class="text-xl font-bold text-slate-900 tracking-tight">Active Mail Gateways</h2>
-                        <p class="text-sm text-slate-500 mt-1">Manage outbound SMPT replies and inbound IMAP ticket creation.</p>
+                        <p class="text-sm text-slate-600 mt-1">Manage outbound SMPT replies and inbound IMAP ticket creation.</p>
                     </div>
                 </div>
-                <button @click="showConfig = !showConfig" type="button" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2 px-5 rounded-lg transition-colors border border-slate-300 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <button @click="showConfig = !showConfig" type="button" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2 px-5 rounded-lg transition-colors border border-slate-300 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
                     <svg x-show="!showConfig" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     <svg x-show="showConfig" class="h-4 w-4" style="display: none;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
                     <span x-text="showConfig ? 'Hide Configuration' : 'Edit Configuration'">Edit Configuration</span>
@@ -50,14 +50,14 @@
             <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 border border-slate-100 rounded-xl p-6">
                 <!-- Current Summary (Status) -->
                 <div>
-                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">Incoming Provider (IMAP)</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-600 mb-1">Incoming Provider (IMAP)</div>
                     <div class="flex items-center gap-2">
                         <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
                         <span class="text-slate-800 font-medium">{{ form.imap_host.value|default:"Not Configured" }}:{{ form.imap_port.value }}</span>
                     </div>
                 </div>
                 <div>
-                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">Outgoing Provider (SMTP)</div>
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-600 mb-1">Outgoing Provider (SMTP)</div>
                     <div class="flex items-center gap-2">
                         <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
                         <span class="text-slate-800 font-medium">{{ form.smtp_host.value|default:"Not Configured" }}:{{ form.smtp_port.value }}</span>
@@ -114,7 +114,7 @@
                         <div class="relative">
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.imap_password.label }}</label>
                             {{ form.imap_password }}
-                            <p class="text-[11px] font-medium text-slate-400 mt-2 uppercase tracking-wider">{{ form.imap_password.help_text }}</p>
+                            <p class="text-xs font-medium text-slate-600 mt-2 uppercase tracking-wider">{{ form.imap_password.help_text }}</p>
                         </div>
                     </div>
                 </div>
@@ -159,7 +159,7 @@
                         <div>
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ form.default_from_email.label }}</label>
                             {{ form.default_from_email }}
-                            <p class="text-[11px] font-medium text-slate-400 mt-2 uppercase tracking-wider">{{ form.default_from_email.help_text }}</p>
+                            <p class="text-xs font-medium text-slate-600 mt-2 uppercase tracking-wider">{{ form.default_from_email.help_text }}</p>
                         </div>
                     </div>
                 </div>

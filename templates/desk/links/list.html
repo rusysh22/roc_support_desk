@@ -12,12 +12,12 @@
     <div class="flex flex-col sm:flex-row gap-4 sm:items-center justify-between bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm">
         <div>
             <h2 class="text-lg font-bold text-slate-900">All Short Links</h2>
-            <p class="text-sm text-slate-500 mt-1">Manage, search, and monitor traffic for your shortened URLs.</p>
+            <p class="text-sm text-slate-600 mt-1">Manage, search, and monitor traffic for your shortened URLs.</p>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center w-full sm:w-auto">
             <form method="get" class="relative flex-1 sm:flex-none">
                 <input type="text" name="q" value="{{ search_query }}" placeholder="Search links..." class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 bg-slate-50 transition-all shadow-sm">
-                <svg class="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <svg class="h-4 w-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </form>
             <a href="{% url 'links_desk:create' %}" class="jk-btn-primary flex justify-center items-center gap-2 px-4 py-2 rounded-2xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all whitespace-nowrap text-sm">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -31,7 +31,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm text-left text-slate-600">
-                <thead class="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
+                <thead class="text-xs text-slate-600 uppercase bg-slate-50/50 border-b border-slate-200">
                     <tr>
                         <th scope="col" class="px-6 py-4 font-semibold">Short Link & Target</th>
                         <th scope="col" class="px-6 py-4 font-semibold text-center w-24">Clicks</th>
@@ -49,7 +49,7 @@
                                     {{ request.scheme }}://{{ request.get_host }}/s/{{ link.slug }}
                                     <svg class="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                 </a>
-                                <div class="text-xs text-slate-400 truncate max-w-[280px]" title="{{ link.target_url }}">
+                                <div class="text-xs text-slate-600 truncate max-w-[280px]" title="{{ link.target_url }}">
                                     Target: <a href="{{ link.target_url }}" target="_blank" class="hover:underline">{{ link.target_url }}</a>
                                 </div>
                             </div>
@@ -67,10 +67,10 @@
                             {% if link.title or link.description %}
                             <div class="max-w-[240px]">
                                 <h4 class="text-xs font-semibold text-slate-800 truncate" title="{{ link.title }}">{{ link.title|default:"(No Title)" }}</h4>
-                                <p class="text-[11px] text-slate-500 truncate" title="{{ link.description }}">{{ link.description|default:"(No Description)" }}</p>
+                                <p class="text-xs text-slate-600 truncate" title="{{ link.description }}">{{ link.description|default:"(No Description)" }}</p>
                             </div>
                             {% else %}
-                            <span class="text-xs text-slate-400 italic">No card metadata</span>
+                            <span class="text-xs text-slate-600 italic">No card metadata</span>
                             {% endif %}
                         </td>
 
@@ -78,17 +78,17 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
                                 <!-- View Card Modal Button -->
-                                <button type="button" x-data @click="$dispatch('open-card-modal', { slug: '{{ link.slug }}', target: '{{ link.target_url }}', title: '{{ link.title|escapejs }}', desc: '{{ link.description|escapejs }}', qr: '{% if link.qr_code %}{{ link.qr_code.url }}{% else %}{% endif %}'})" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors" title="View Card & QR">
+                                <button type="button" x-data @click="$dispatch('open-card-modal', { slug: '{{ link.slug }}', target: '{{ link.target_url }}', title: '{{ link.title|escapejs }}', desc: '{{ link.description|escapejs }}', qr: '{% if link.qr_code %}{{ link.qr_code.url }}{% else %}{% endif %}'})" class="p-1.5 text-slate-600 hover:text-indigo-600 rounded bg-indigo-50 hover:bg-indigo-100 transition-colors" title="View Card & QR">
                                     <svg class="w-4 h-4 fill-current flex items-center justify-center" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M160 224L224 224L224 160L160 160L160 224zM96 144C96 117.5 117.5 96 144 96L240 96C266.5 96 288 117.5 288 144L288 240C288 266.5 266.5 288 240 288L144 288C117.5 288 96 266.5 96 240L96 144zM160 480L224 480L224 416L160 416L160 480zM96 400C96 373.5 117.5 352 144 352L240 352C266.5 352 288 373.5 288 400L288 496C288 522.5 266.5 544 240 544L144 544C117.5 544 96 522.5 96 496L96 400zM416 160L416 224L480 224L480 160L416 160zM400 96L496 96C522.5 96 544 117.5 544 144L544 240C544 266.5 522.5 288 496 288L400 288C373.5 288 352 266.5 352 240L352 144C352 117.5 373.5 96 400 96zM384 416C366.3 416 352 401.7 352 384C352 366.3 366.3 352 384 352C401.7 352 416 366.3 416 384C416 401.7 401.7 416 384 416zM384 480C401.7 480 416 494.3 416 512C416 529.7 401.7 544 384 544C366.3 544 352 529.7 352 512C352 494.3 366.3 480 384 480zM480 512C480 494.3 494.3 480 512 480C529.7 480 544 494.3 544 512C544 529.7 529.7 544 512 544C494.3 544 480 529.7 480 512zM512 416C494.3 416 480 401.7 480 384C480 366.3 494.3 352 512 352C529.7 352 544 366.3 544 384C544 401.7 529.7 416 512 416zM480 448C480 465.7 465.7 480 448 480C430.3 480 416 465.7 416 448C416 430.3 430.3 416 448 416C465.7 416 480 430.3 480 448z"/></svg>
                                 </button>
                                 
-                                <a href="{% url 'links_desk:edit' pk=link.pk %}" class="p-1.5 text-slate-400 hover:text-blue-600 rounded bg-blue-50 hover:bg-blue-100 transition-colors" title="Edit Link">
+                                <a href="{% url 'links_desk:edit' pk=link.pk %}" class="p-1.5 text-slate-600 hover:text-blue-600 rounded bg-blue-50 hover:bg-blue-100 transition-colors" title="Edit Link">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                 </a>
                                 
                                 <form method="post" action="{% url 'links_desk:delete' pk=link.pk %}" class="inline-block" onsubmit="return confirm('Delete this short link? This cannot be undone.');">
                                     {% csrf_token %}
-                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded bg-red-50 hover:bg-red-100 transition-colors" title="Delete Link">
+                                    <button type="submit" class="p-1.5 text-slate-600 hover:text-red-600 rounded bg-red-50 hover:bg-red-100 transition-colors" title="Delete Link">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </form>
@@ -107,7 +107,7 @@
             <svg class="h-8 w-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
         </div>
         <h3 class="text-lg font-bold text-slate-900 mb-1">No Links Yet</h3>
-        <p class="text-slate-500 text-sm mb-6 text-center max-w-sm">Create trackable short links to easily share resources with your team or customers.</p>
+        <p class="text-slate-600 text-sm mb-6 text-center max-w-sm">Create trackable short links to easily share resources with your team or customers.</p>
         <a href="{% url 'links_desk:create' %}" class="jk-btn jk-btn-primary px-6">
             Create First Link
         </a>
@@ -167,7 +167,7 @@
                             <img :src="linkData.qr" class="w-48 h-48 rounded-xl bg-white p-2 shadow-inner border border-slate-100" alt="QR Code">
                         </template>
                         <template x-if="!linkData.qr">
-                            <div class="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-2">
+                            <div class="w-48 h-48 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-600 gap-2">
                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
                                 <span class="text-xs">QR Generating...</span>
                             </div>
@@ -176,10 +176,10 @@
                     <!-- Link Info -->
                     <div class="px-5 pb-4 pt-2 text-center border-t border-slate-100">
                         <h4 class="font-bold text-slate-800 text-sm leading-tight" x-text="linkData.title || linkData.slug"></h4>
-                        <p x-show="linkData.desc" class="text-xs text-slate-500 mt-1 line-clamp-2" x-text="linkData.desc"></p>
+                        <p x-show="linkData.desc" class="text-xs text-slate-600 mt-1 line-clamp-2" x-text="linkData.desc"></p>
                         <div class="mt-2 inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-                            <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                            <span class="text-[11px] text-slate-500 font-mono">/s/<span x-text="linkData.slug"></span>/</span>
+                            <svg class="w-3 h-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                            <span class="text-xs text-slate-600 font-mono">/s/<span x-text="linkData.slug"></span>/</span>
                         </div>
                     </div>
                 </div>
