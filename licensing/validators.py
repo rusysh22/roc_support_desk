@@ -177,9 +177,9 @@ def verify_license_online(license_obj) -> bool:
 
     try:
         resp = requests.get(
-            f"{marketplace_url}/api/license/verify/",
+            f"{marketplace_url}/api/v1/validate-token",
             params={
-                'key':        raw_key,
+                'token':      raw_key,
                 'fingerprint': generate_fingerprint(),
                 'product_id': cfg.get('PRODUCT_ID', 'roc-support-desk'),
             },
@@ -206,11 +206,14 @@ def verify_license_online(license_obj) -> bool:
             # Sync marketplace data to local record
             if data.get('expires_at'):
                 license_obj.expires_at = parse_datetime(data['expires_at'])
-            if data.get('plan'):
-                license_obj.plan_tier = data['plan']
+            
+            # Map plan/tier from new licese_type or old plan field
+            plan = data.get('license_type') or data.get('plan')
+            if plan:
+                license_obj.plan_tier = plan
                 # Update features based on plan if not explicitly provided
                 if 'features' not in data:
-                    license_obj.features_json = TIER_DEFAULT_FEATURES.get(data['plan'], {})
+                    license_obj.features_json = TIER_DEFAULT_FEATURES.get(plan, {})
             if data.get('max_agents'):
                 license_obj.max_agents = data['max_agents']
 
@@ -269,9 +272,9 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
 
     try:
         resp = requests.get(
-            f"{marketplace_url}/api/license/verify/",
+            f"{marketplace_url}/api/v1/validate-token",
             params={
-                'key':        license_key_raw,
+                'token':      license_key_raw,
                 'fingerprint': fingerprint,
                 'product_id': cfg.get('PRODUCT_ID', 'roc-support-desk'),
             },
@@ -307,12 +310,15 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
 
         # Key is valid — store and activate
         signed_key = signing.dumps(license_key_raw, salt='roc-license-v1')
-        plan = data.get('plan', 'starter')
+        
+        # Mapping: API v1 uses 'license_type', legacy used 'plan'
+        plan = data.get('license_type') or data.get('plan', 'starter')
         features = data.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
+        issued_to = data.get('user_id') or data.get('issued_to', '')
 
         record = LicenseRecord.get_current()
         record.license_key          = signed_key
-        record.issued_to            = data.get('issued_to', '')
+        record.issued_to            = issued_to
         record.plan_tier            = plan
         record.status               = 'active'
         record.expires_at           = parse_datetime(data['expires_at']) if data.get('expires_at') else None
