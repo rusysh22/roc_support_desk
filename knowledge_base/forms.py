@@ -41,6 +41,7 @@ class ArticleForm(forms.ModelForm):
             "problem_summary",
             "root_cause",
             "solution",
+            "allow_comments",
         ]
         widgets = {
             "title": forms.TextInput(attrs={
@@ -53,6 +54,7 @@ class ArticleForm(forms.ModelForm):
             "problem_summary": NoRequireTextarea(attrs={"class": "hidden", "id": "id_problem_summary"}),
             "root_cause": NoRequireTextarea(attrs={"class": "hidden", "id": "id_root_cause"}),
             "solution": NoRequireTextarea(attrs={"class": "hidden", "id": "id_solution"}),
+            "allow_comments": forms.CheckboxInput(attrs={"class": "jk-checkbox", "id": "id_allow_comments"}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -14,7 +14,7 @@ from cases.models import CaseCategory, CaseRecord
 from core.models import User
 
 from .forms import ArticleForm
-from .models import Article, ArticleImage
+from .models import Article, ArticleComment, ArticleImage
 
 
 # =====================================================================
@@ -91,9 +91,35 @@ def kb_category(request, slug):
 def kb_article_detail(request, slug):
     """Full article detail page (public, published only)."""
     article = get_object_or_404(Article, slug=slug, is_published=True)
+    comments = article.comments.select_related("user").order_by("created_at")
     return render(request, "knowledge_base/article_detail.html", {
         "article": article,
+        "comments": comments,
     })
+
+
+@login_required
+@require_POST
+def kb_article_comment(request, slug):
+    """Submit a comment on a published KB article. Login required."""
+    article = get_object_or_404(Article, slug=slug, is_published=True)
+    body = request.POST.get("body", "").strip()
+
+    if not body:
+        messages.error(request, "Komentar tidak boleh kosong.")
+    elif len(body) > 250:
+        messages.error(request, "Komentar maksimal 250 karakter.")
+    else:
+        ArticleComment.objects.create(
+            article=article,
+            user=request.user,
+            body=body,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        messages.success(request, "Komentar berhasil dikirim.")
+
+    return redirect("knowledge_base:article_detail", slug=slug)
 
 
 def kb_search(request):

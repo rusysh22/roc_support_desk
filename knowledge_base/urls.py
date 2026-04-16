@@ -16,4 +16,7 @@ urlpatterns = [
     
     # Article details view
     path("a/<slug:slug>/", views.kb_article_detail, name="article_detail"),
+
+    # Article comment submission (POST, login required)
+    path("a/<slug:slug>/comment/", views.kb_article_comment, name="article_comment"),
 ]

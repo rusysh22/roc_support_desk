@@ -63,8 +63,31 @@
     .kb-content tr:hover td { background: #f8fafc; }
 
     /* ====== TOC Sidebar ====== */
-    .kb-toc-link { transition: all 0.15s; }
-    .kb-toc-link:hover, .kb-toc-link.active { color: #6366f1; padding-left: 0.5rem; border-left-color: #6366f1; }
+    .kb-toc-link { 
+        position: relative;
+        transition: all 0.2s; 
+        padding-left: 1rem !important;
+        border-radius: 0 !important;
+    }
+    .kb-toc-link:hover {
+        background: #f8fafc;
+        color: #6366f1;
+    }
+    .kb-toc-link.active { 
+        color: #6366f1; 
+        background: #f5f3ff;
+        font-weight: 600;
+    }
+    .kb-toc-link.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #4f46e5;
+        border-radius: 0;
+    }
 
     /* ====== Section styling ====== */
     .kb-section { scroll-margin-top: 80px; }
@@ -183,17 +206,24 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-    <!-- ===== BREADCRUMBS ===== -->
-    <nav class="flex items-center gap-2 text-sm mb-6 text-slate-600 no-print flex-wrap">
-        <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-            Knowledge Base
+    <!-- ===== BREADCRUMBS & TOP ACTIONS ===== -->
+    <div class="flex items-center justify-between gap-4 mb-6 no-print flex-wrap">
+        <nav class="flex items-center gap-2 text-sm text-slate-600">
+            <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                Knowledge Base
+            </a>
+            <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="hover:text-indigo-600 transition-colors">{{ article.category.name }}</a>
+            <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            <span class="text-slate-700 font-semibold truncate max-w-xs">{{ article.title }}</span>
+        </nav>
+
+        <a href="{% url 'knowledge_base:category' article.category.slug %}" class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors" style="border-radius: 0;">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Back to {{ article.category.name }}
         </a>
-        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-        <a href="{% url 'knowledge_base:category' article.category.slug %}" class="hover:text-indigo-600 transition-colors">{{ article.category.name }}</a>
-        <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-        <span class="text-slate-700 font-semibold truncate max-w-xs">{{ article.title }}</span>
-    </nav>
+    </div>
 
     <div class="flex gap-8 items-start">
 
@@ -207,21 +237,21 @@
                     <ul class="space-y-0.5" id="kb-toc-list">
                         {% if article.problem_summary %}
                         <li>
-                            <a href="#section-summary" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3 rounded-lg border-l-2 border-transparent hover:bg-slate-50">
+                            <a href="#section-summary" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3">
                                 {% if article.article_type == 'Announcement' %}Announcement{% else %}Problem Summary{% endif %}
                             </a>
                         </li>
                         {% endif %}
                         {% if article.root_cause %}
                         <li>
-                            <a href="#section-cause" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3 rounded-lg border-l-2 border-transparent hover:bg-slate-50">
+                            <a href="#section-cause" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3">
                                 {% if article.article_type == 'Announcement' %}Details{% else %}Root Cause{% endif %}
                             </a>
                         </li>
                         {% endif %}
                         {% if article.solution %}
                         <li>
-                            <a href="#section-solution" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3 rounded-lg border-l-2 border-transparent hover:bg-slate-50">
+                            <a href="#section-solution" class="kb-toc-link block text-sm text-slate-600 py-1.5 px-3">
                                 {% if article.article_type == 'Announcement' %}Additional Info{% else %}Resolution Steps{% endif %}
                             </a>
                         </li>
@@ -230,11 +260,7 @@
                 </nav>
             </div>
 
-            <!-- Back to category -->
-            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="mt-4 flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 font-medium transition-colors px-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                {{ category.name|default:article.category.name }}
-            </a>
+
         </aside>
 
         <!-- ===== MAIN ARTICLE ===== -->
@@ -391,11 +417,78 @@
                 </div>
             </article>
 
-            <!-- Back link -->
-            <a href="{% url 'knowledge_base:category' article.category.slug %}" class="no-print inline-flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 font-medium transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                Back to {{ article.category.name }}
-            </a>
+            <!-- ===== COMMENTS SECTION ===== -->
+            {% if article.allow_comments %}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6 no-print">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    <h2 class="text-sm font-bold text-slate-700">Komentar
+                        <span class="ml-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{{ comments.count }}</span>
+                    </h2>
+                </div>
+
+                <!-- Comment list -->
+                <div class="divide-y divide-slate-100">
+                    {% for comment in comments %}
+                    <div class="px-6 py-4 flex gap-3 items-start">
+                        <!-- Avatar -->
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center uppercase select-none">
+                            {{ comment.user.initials|default:comment.user.username|slice:":2" }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-wrap items-baseline gap-2 mb-1">
+                                <span class="text-sm font-semibold text-slate-800">{{ comment.user.get_full_name|default:comment.user.username }}</span>
+                                <span class="text-xs text-slate-400">{{ comment.created_at|date:"d M Y, H:i" }}</span>
+                            </div>
+                            <p class="text-sm text-slate-700 leading-relaxed break-words">{{ comment.body }}</p>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="px-6 py-8 text-center text-slate-400 text-sm">
+                        Belum ada komentar. Jadilah yang pertama!
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Comment form -->
+                <div class="px-6 py-5 border-t border-slate-100 bg-slate-50">
+                    {% if request.user.is_authenticated %}
+                    <form method="post" action="{% url 'knowledge_base:article_comment' article.slug %}" class="flex gap-3 items-start">
+                        {% csrf_token %}
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center uppercase select-none">
+                            {{ request.user.initials|default:request.user.username|slice:":2" }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            {% if messages %}
+                            {% for msg in messages %}
+                            <div class="mb-2 text-xs px-3 py-2 rounded-lg {% if 'success' in msg.tags %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-rose-50 text-rose-700 border border-rose-200{% endif %}">
+                                {{ msg }}
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                            <textarea name="body" maxlength="250" rows="2" placeholder="Tulis komentar..." required
+                                class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition"></textarea>
+                            <div class="flex items-center justify-between mt-2">
+                                <span id="comment-chars" class="text-xs text-slate-400">0 / 250</span>
+                                <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                                    Kirim
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    {% else %}
+                    <p class="text-sm text-slate-500 text-center py-2">
+                        <a href="{% url 'login' %}?next={{ request.path }}" class="text-indigo-600 font-semibold hover:underline">Masuk</a> untuk mengirim komentar.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            </div>
+            {% endif %}
+            <!-- ===== END COMMENTS ===== -->
+
+
         </div>
 
     </div>
@@ -408,6 +501,20 @@
 </div>
 
 <script>
+// ====== Comment char counter ======
+(function() {
+    const ta = document.querySelector('textarea[name="body"]');
+    const counter = document.getElementById('comment-chars');
+    if (ta && counter) {
+        ta.addEventListener('input', function() {
+            const len = this.value.length;
+            counter.textContent = len + ' / 250';
+            counter.classList.toggle('text-rose-500', len >= 240);
+            counter.classList.toggle('text-slate-400', len < 240);
+        });
+    }
+})();
+
 // ====== Copy Link ======
 function copyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {

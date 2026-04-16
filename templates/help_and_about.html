@@ -82,9 +82,12 @@
                 <p class="text-xs text-slate-600">For technical issues or system bugs, please contact:</p>
                 {% for admin in superadmins %}
                 <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
-                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold uppercase">
-                        {{ admin.initials|default:"SA" }}
+                    {% with ini=admin.initials|default:"SA" %}
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold uppercase overflow-hidden"
+                         style="font-size:{% if ini|length > 3 %}8px;letter-spacing:-0.5px{% elif ini|length > 2 %}10px{% else %}12px{% endif %};">
+                        {{ ini }}
                     </div>
+                    {% endwith %}
                     <div>
                         <div class="font-semibold text-slate-800 text-sm">{{ admin.username }}</div>
                         <div class="text-xs text-slate-600">{{ admin.email }}</div>

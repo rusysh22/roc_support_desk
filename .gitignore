@@ -43,3 +43,6 @@ out*.json
 test_out.json
 
 media/
+
+#LICENSE_SYSTEM
+LICENSE_SYSTEM.md

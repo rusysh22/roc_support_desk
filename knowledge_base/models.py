@@ -118,6 +118,13 @@ class Article(AuditableModel):
         help_text="Step-by-step resolution procedure.",
     )
 
+    # Comments
+    allow_comments = models.BooleanField(
+        default=True,
+        verbose_name="Allow Comments",
+        help_text="Allow logged-in users to post comments on this article.",
+    )
+
     # Tags
     tags = models.ManyToManyField(
         ArticleTag,
@@ -186,3 +193,32 @@ class Article(AuditableModel):
         }
         icon = status_icons.get(self.status, "")
         return f"{icon} {self.title}"
+
+
+class ArticleComment(AuditableModel):
+    """
+    User comment on a published KB article.
+    Only authenticated users may submit; max 250 characters.
+    """
+
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        verbose_name="Article",
+    )
+    user = models.ForeignKey(
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="kb_comments",
+        verbose_name="User",
+    )
+    body = models.CharField(max_length=250, verbose_name="Comment")
+
+    class Meta:
+        verbose_name = "Article Comment"
+        verbose_name_plural = "Article Comments"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} on '{self.article.title}': {self.body[:50]}"

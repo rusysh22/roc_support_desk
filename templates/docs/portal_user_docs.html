@@ -59,12 +59,22 @@
 
     /* ── TOC ─────────────────────────────────────────────────── */
     .docs-toc-link {
-        display: block; padding: 5px 10px; border-radius: 8px;
+        display: block; padding: 7px 12px; border-radius: 0 !important;
+        position: relative;
         font-size: 12.5px; color: var(--jk-text-muted);
         text-decoration: none; transition: all .15s;
     }
-    .docs-toc-link:hover, .docs-toc-link.active { background: #ede9fe; color: #4f46e5; }
-    .docs-toc-link.active { font-weight: 600; }
+    .docs-toc-link:hover { background: rgba(0,0,0,0.03); color: var(--jk-text); }
+    .docs-toc-link.active { background: rgba(0,0,0,0.05); color: #4f46e5; font-weight: 700; }
+    .docs-toc-link.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #6366f1;
+    }
     .docs-toc-sub { padding-left: 14px; }
 
     /* ── Language button active state ────────────────────────── */

@@ -208,9 +208,12 @@
                                    @change="toggleOne('{{ u.pk }}', $event.target.checked)">
                         </td>
                         <td class="text-center px-1">
-                            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-xs font-bold ring-2 ring-white">
-                                {{ u.initials|default:"?" }}
+                            {% with ini=u.initials|default:"?" %}
+                            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold ring-2 ring-white overflow-hidden uppercase"
+                                 style="font-size:{% if ini|length > 3 %}8px;letter-spacing:-0.5px{% elif ini|length > 2 %}10px{% else %}12px{% endif %};">
+                                {{ ini }}
                             </div>
+                            {% endwith %}
                         </td>
                         <td>
                             <div class="font-semibold text-slate-900">{{ u.username }}</div>
