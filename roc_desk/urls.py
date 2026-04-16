@@ -67,6 +67,9 @@ urlpatterns = [
 
     # Knowledge base
     path("kb/", include("knowledge_base.urls", namespace="knowledge_base")),
+
+    # License management
+    path("license/", include("licensing.urls", namespace="licensing")),
 ]
 
 # Custom Error Handlers

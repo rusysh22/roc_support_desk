@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}License Suspended — {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
+{% block page_title %}License Suspended{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[70vh] px-4">
+    <div class="max-w-lg w-full">
+
+        <!-- Icon -->
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 mx-auto bg-rose-100 flex items-center justify-center mb-4" style="border-radius:0;">
+                <svg class="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900">License Suspended</h1>
+            <p class="text-slate-500 mt-2 text-sm">
+                Your license has been suspended.<br>
+                Access to the application is temporarily restricted.
+            </p>
+        </div>
+
+        <!-- Details -->
+        <div class="bg-white border border-slate-200 shadow-sm mb-5" style="border-radius:0;">
+            <div class="px-5 py-4 border-b border-slate-100 text-sm font-bold text-slate-700">
+                📋 Details
+            </div>
+            <div class="px-5 py-4 space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-slate-500">Plan</span>
+                    <span class="font-semibold">{{ license.get_plan_tier_display }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500">Issued To</span>
+                    <span class="font-semibold">{{ license.issued_to|default:"—" }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500">Status</span>
+                    <span class="font-bold text-rose-600 uppercase">Suspended</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning box -->
+        <div class="p-4 bg-rose-50 border border-rose-200 text-sm text-rose-800 mb-5 leading-relaxed" style="border-radius:0;">
+            <strong>⚠ Why is my license suspended?</strong><br>
+            Common reasons: payment dispute (chargeback), terms of service violation, or failed periodic verification.
+            Please contact the marketplace to resolve this issue.
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col gap-3">
+            {% if marketplace_url %}
+            <a href="{{ marketplace_url }}" target="_blank"
+               class="w-full text-center jk-btn jk-btn-primary py-3 font-bold" style="border-radius:0;">
+                🛒 Contact Marketplace Support
+            </a>
+            {% endif %}
+            {% if user.role_access == 'SuperAdmin' or user.is_superuser %}
+            <a href="{% url 'licensing:activate' %}"
+               class="w-full text-center jk-btn jk-btn-secondary py-3" style="border-radius:0;">
+                🔑 Re-Enter License Key
+            </a>
+            <a href="{% url 'licensing:status' %}"
+               class="w-full text-center jk-btn jk-btn-secondary py-3" style="border-radius:0;">
+                📋 View License Status
+            </a>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

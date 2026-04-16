@@ -21,6 +21,9 @@ class ArticleImageAdmin(ModelAdmin):
     search_fields = ("alt_text",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
+    def has_module_permission(self, request):
+        return False
+
 
 @admin.register(Article)
 class ArticleAdmin(ModelAdmin):

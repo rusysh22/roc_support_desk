@@ -71,8 +71,28 @@
     display: flex;
     flex-direction: column;
     z-index: 40;
-    transition: transform 0.3s ease;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom Sleek Scrollbar for Sidebar */
+.jk-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+.jk-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.jk-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+.jk-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.jk-sidebar--collapsed {
+    width: 72px;
 }
 
 .jk-sidebar-brand {
@@ -81,6 +101,10 @@
     align-items: center;
     gap: 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    position: sticky;
+    top: 0;
+    background: var(--jk-sidebar-bg);
+    z-index: 50;
 }
 
 .jk-sidebar-brand-icon {
@@ -105,19 +129,20 @@
 
 .jk-sidebar-nav {
     flex: 1;
-    padding: 1rem 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 2px;
 }
+/* Scrollbar handled by sidebar parent */
 
 .jk-sidebar-section {
     font-size: 0.625rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #475569;
-    padding: 1rem 0.75rem 0.5rem;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 1.25rem 0.75rem 0.5rem;
+    white-space: nowrap;
 }
 
 .jk-sidebar-link {
@@ -128,9 +153,15 @@
     border-radius: var(--jk-radius-sm);
     color: var(--jk-sidebar-text);
     text-decoration: none;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     transition: var(--jk-transition);
+    white-space: nowrap;
+}
+
+.jk-sidebar--collapsed .jk-sidebar-link {
+    justify-content: center;
+    padding: 0.625rem 0;
 }
 
 .jk-sidebar-link:hover {

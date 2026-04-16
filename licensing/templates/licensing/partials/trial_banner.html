@@ -1,0 +1,124 @@
+{% load license_tags %}
+{# Trial banner — shown when license_status == 'trial' #}
+{% if license_status == 'trial' %}
+
+{% trial_seconds_left as secs_left %}
+
+<div id="trial-banner"
+     class="flex items-center justify-between gap-3 px-4 py-2 text-sm font-medium transition-colors"
+     style="background:#fffbeb; border-bottom:2px solid #f59e0b; color:#92400e; {% if trial_blocked or secs_left <= 0 %}background:#fef2f2; border-color:#ef4444; color:#991b1b;{% endif %}">
+    <div class="flex items-center gap-2">
+        <span class="text-base">⏱</span>
+        <span class="font-bold">Trial Mode</span>
+        <span class="hidden sm:inline">— {% if trial_blocked or secs_left <= 0 %}Time's up for today!{% else %}Time remaining today:{% endif %}</span>
+        <span id="trial-countdown"
+              class="font-mono font-extrabold px-2 py-0.5"
+              style="background:#fef3c7; border:1px solid #fde68a; border-radius:0; min-width:52px; display:inline-block; text-align:center; {% if trial_blocked or secs_left <= 0 %}background:#fee2e2; border-color:#fca5a5; color:#991b1b;{% endif %}"
+              data-seconds="{{ secs_left }}"
+              data-is-exempt="{{ is_license_exempt|yesno:'true,false' }}">
+            {% if trial_blocked or secs_left <= 0 %}00:00{% else %}--:--{% endif %}
+        </span>
+    </div>
+    {% if not trial_blocked and secs_left > 0 %}
+    <a href="{% url 'licensing:upgrade' %}"
+       class="flex-shrink-0 text-xs font-extrabold px-3 py-1.5 text-white"
+       style="background:#d97706; border-radius:0; text-decoration:none;"
+       onmouseover="this.style.background='#b45309'" onmouseout="this.style.background='#d97706'">
+        Get License →
+    </a>
+    {% else %}
+    <a href="{% url 'licensing:upgrade' %}"
+       class="flex-shrink-0 text-xs font-extrabold px-3 py-1.5 text-white"
+       style="background:#b91c1c; border-radius:0; text-decoration:none;">
+        UPGRADE NOW →
+    </a>
+    {% endif %}
+</div>
+
+{% if not is_license_exempt %}
+<div id="trial-block-modal"
+     class="{% if not trial_blocked and secs_left > 0 %}hidden{% endif %} fixed inset-0 z-50 flex items-center justify-center"
+     style="background:rgba(0,0,0,.6); backdrop-filter:blur(4px);">
+    <div class="max-w-md w-full mx-4 bg-white shadow-2xl" style="border-radius:0; border-top:4px solid #f59e0b;">
+        <div class="p-6 text-center">
+            <div class="w-14 h-14 mx-auto mb-4 flex items-center justify-center"
+                 style="background:#fef3c7; border-radius:0;">
+                <span class="text-3xl">⏱</span>
+            </div>
+            <h2 class="text-xl font-extrabold text-slate-900 mb-2">Trial Time's Up for Today</h2>
+            <p class="text-slate-500 text-sm mb-6">
+                Your 15-minute trial for today has ended.<br>
+                Upgrade to continue using RoC Support Desk without interruption.
+            </p>
+            <div class="flex flex-col gap-3">
+                <a href="{% url 'licensing:upgrade' %}"
+                   class="w-full py-3 text-center text-white font-bold text-sm"
+                   style="background:#4f46e5; border-radius:0;">
+                    🛒 View Plans & Pricing
+                </a>
+                <a href="{% url 'licensing:activate' %}"
+                   class="w-full py-3 text-center text-slate-600 font-medium text-sm"
+                   style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0;">
+                    🔑 Already Have a Key? Activate
+                </a>
+            </div>
+            <p class="text-xs text-slate-400 mt-4">Trial resets tomorrow (if within trial period).</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    var el = document.getElementById('trial-countdown');
+    if (!el) return;
+
+    var remaining = parseInt(el.getAttribute('data-seconds'), 10) || 0;
+    var modal = document.getElementById('trial-block-modal');
+    var isExempt = el.getAttribute('data-is-exempt') === 'true';
+
+    function fmt(secs) {
+        var m = Math.floor(secs / 60).toString().padStart(2, '0');
+        var s = (secs % 60).toString().padStart(2, '0');
+        return m + ':' + s;
+    }
+
+    function tick() {
+        if (remaining <= 0) {
+            el.style.color = '#991b1b';
+            el.textContent = "00:00";
+            
+            // Show block modal and disable all interactive elements ONLY if not exempt
+            if (!isExempt && modal) {
+                modal.classList.remove('hidden');
+                document.querySelectorAll('a[href]:not([href^="#"]):not([href*="/license/"]):not([href*="/auth/"]), button[type="submit"]').forEach(function(navEl) {
+                    navEl.style.pointerEvents = 'none';
+                    navEl.style.opacity = '0.3';
+                });
+            }
+            return;
+        }
+
+        el.textContent = fmt(remaining);
+
+        // Warning color when < 2 minutes left
+        if (remaining <= 120) {
+            var banner = document.getElementById('trial-banner');
+            if (banner) {
+                banner.style.background = '#fef2f2';
+                banner.style.borderColor = '#ef4444';
+                banner.style.color = '#991b1b';
+            }
+            el.style.background = '#fee2e2';
+            el.style.borderColor = '#fca5a5';
+            el.style.color = '#991b1b';
+        }
+
+        remaining--;
+        setTimeout(tick, 1000);
+    }
+
+    tick();
+})();
+</script>
+{% endif %}

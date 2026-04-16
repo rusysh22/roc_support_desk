@@ -12,6 +12,8 @@ from django.views import View
 from .forms import ForgotPasswordForm, ResetPasswordOTPForm
 from .models import OTPToken
 
+from licensing.decorators import FeatureRequiredMixin
+
 User = get_user_model()
 
 
@@ -346,7 +348,8 @@ class CompanyUnitForm(forms.ModelForm):
             'code': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
         }
 
-class CompanyUnitListView(SuperAdminRequiredMixin, ListView):
+class CompanyUnitListView(FeatureRequiredMixin, SuperAdminRequiredMixin, ListView):
+    feature_required = 'company_units'
     model = CompanyUnit
     template_name = 'core/company_unit_list.html'
     context_object_name = 'company_units'
@@ -359,7 +362,8 @@ class CompanyUnitListView(SuperAdminRequiredMixin, ListView):
             qs = qs.filter(name__icontains=q) | qs.filter(code__icontains=q)
         return qs
 
-class CompanyUnitCreateView(SuperAdminRequiredMixin, SuccessMessageMixin, CreateView):
+class CompanyUnitCreateView(FeatureRequiredMixin, SuperAdminRequiredMixin, SuccessMessageMixin, CreateView):
+    feature_required = 'company_units'
     model = CompanyUnit
     form_class = CompanyUnitForm
     template_name = 'core/company_unit_form.html'
@@ -371,7 +375,8 @@ class CompanyUnitCreateView(SuperAdminRequiredMixin, SuccessMessageMixin, Create
         form.instance.updated_by = self.request.user
         return super().form_valid(form)
 
-class CompanyUnitUpdateView(SuperAdminRequiredMixin, SuccessMessageMixin, UpdateView):
+class CompanyUnitUpdateView(FeatureRequiredMixin, SuperAdminRequiredMixin, SuccessMessageMixin, UpdateView):
+    feature_required = 'company_units'
     model = CompanyUnit
     form_class = CompanyUnitForm
     template_name = 'core/company_unit_form.html'
@@ -382,7 +387,8 @@ class CompanyUnitUpdateView(SuperAdminRequiredMixin, SuccessMessageMixin, Update
         form.instance.updated_by = self.request.user
         return super().form_valid(form)
 
-class CompanyUnitDeleteView(SuperAdminRequiredMixin, DeleteView):
+class CompanyUnitDeleteView(FeatureRequiredMixin, SuperAdminRequiredMixin, DeleteView):
+    feature_required = 'company_units'
     model = CompanyUnit
     template_name = 'core/company_unit_confirm_delete.html'
     success_url = reverse_lazy('desk:company_unit_list')

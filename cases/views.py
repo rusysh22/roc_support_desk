@@ -31,6 +31,8 @@ from core.models import CompanyUnit, Employee, User
 from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
 from .models import Attachment, CaseCategory, CaseRecord, Message, CaseComment, CaseAuditLog, RCATemplate
 
+from licensing.decorators import feature_required
+
 
 # =====================================================================
 # Access Control Decorators
@@ -111,6 +113,7 @@ def manager_or_admin_required(view_func):
 # =====================================================================
 
 @staff_required
+@feature_required('analytics')
 def dashboard(request):
     """
     Analytics dashboard for staff — summary cards, charts, tables.
@@ -2754,6 +2757,7 @@ def case_calendar(request):
 # =====================================================================
 
 @staff_required
+@feature_required('audit_export')
 def case_export_excel(request):
     """
     Export all cases to Excel (.xlsx) with all fields.
@@ -3080,6 +3084,7 @@ def case_add_comment(request, case_id):
 # =====================================================================
 
 @staff_required
+@feature_required('whatsapp')
 def whatsapp_status_view(request):
     """
     Dashboard view for monitoring Evolution API WhatsApp connection.
@@ -3150,6 +3155,7 @@ def apps_connection_view(request):
 # =====================================================================
 
 @staff_required
+@feature_required('email_settings')
 def email_settings_view(request):
     """
     Dashboard view for monitoring and updating global Email Settings.
@@ -3182,6 +3188,7 @@ def email_settings_view(request):
 # =====================================================================
 
 @staff_required
+@feature_required('form_builder')
 def form_list_view(request):
     """
     List of all Dynamic Forms.
@@ -3211,6 +3218,7 @@ def form_list_view(request):
 
 
 @staff_required
+@feature_required('form_builder')
 def form_create_view(request):
     """
     Create a new DynamicForm (Settings only).
@@ -3237,6 +3245,7 @@ def form_create_view(request):
 
 
 @staff_required
+@feature_required('form_builder')
 @require_POST
 def form_delete_view(request, pk):
     """Delete a DynamicForm and all related fields/submissions."""
@@ -3251,6 +3260,7 @@ def form_delete_view(request, pk):
 
 
 @staff_required
+@feature_required('form_builder')
 @require_POST
 def form_duplicate_view(request, pk):
     """
@@ -3292,6 +3302,7 @@ def form_duplicate_view(request, pk):
 
 
 @staff_required
+@feature_required('form_builder')
 def form_edit_view(request, pk):
     """
     Drag and drop builder to edit form fields and form settings.
@@ -3619,6 +3630,7 @@ def form_responses_export(request, pk):
 # =====================================================================
 
 @login_required
+@feature_required('api_access')
 def api_users_list(request):
     """
     Returns a JSON list of active users to power the @mention autocomplete.
@@ -3642,6 +3654,7 @@ def api_users_list(request):
     return JsonResponse(data, safe=False)
 
 @login_required
+@feature_required('whatsapp')
 @require_POST
 def toggle_wa_session(request, case_id):
     """

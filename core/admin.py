@@ -199,6 +199,9 @@ class OTPTokenAdmin(ModelAdmin):
     list_filter = ("is_used", "created_at")
     search_fields = ("user__username", "user__email", "token")
     readonly_fields = ("created_at",)
+
+    def has_module_permission(self, request):
+        return False
     
     def is_valid_token(self, obj):
         return obj.is_valid()

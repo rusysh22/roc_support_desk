@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     "gateways.apps.GatewaysConfig",
     "knowledge_base.apps.KnowledgeBaseConfig",
     "links.apps.LinksConfig",
+    # License management
+    "licensing.apps.LicensingConfig",
 ]
 
 from django.utils.functional import lazy
@@ -106,6 +108,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.PublicLoginRestrictionMiddleware",
+    # License gate — routes by effective license status
+    "licensing.middleware.LicenseGateMiddleware",
+    # Trial timer — tracks daily usage; blocks when quota exhausted
+    "licensing.middleware.TrialTimerMiddleware",
 ]
 
 ROOT_URLCONF = "roc_desk.urls"
@@ -122,6 +128,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.site_config",
+                "licensing.context_processors.license_context",
             ],
         },
     },
@@ -233,3 +240,22 @@ CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 # Automatically logs out the user after 24 hours (86400 seconds) of inactivity
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# -----------------------------------------------------------------
+# License System
+# -----------------------------------------------------------------
+# MARKETPLACE_URL defaults to the production marketplace (tokowebjaya.com).
+# Dev environments should override LICENSE_MARKETPLACE_URL in .env.
+LICENSE_SETTINGS = {
+    # Production default = https://tokowebjaya.com
+    # Dev override via .env: LICENSE_MARKETPLACE_URL=https://dev-tokowebjaya.roc.web.id
+    'MARKETPLACE_URL':        env('LICENSE_MARKETPLACE_URL', default='https://tokowebjaya.com'),
+    'PRODUCT_ID':             env('LICENSE_PRODUCT_ID', default='roc-support-desk'),
+    'WEBHOOK_SECRET':         env('LICENSE_WEBHOOK_SECRET', default=''),
+    'VERIFY_INTERVAL_HOURS':  env.int('LICENSE_VERIFY_INTERVAL_HOURS', default=24),
+    'TRIAL_MAX_DAYS':         env.int('LICENSE_TRIAL_MAX_DAYS', default=1),
+    'TRIAL_DURATION_SECONDS': env.int('LICENSE_TRIAL_DURATION_SECONDS', default=900),
+    'GRACE_PERIOD_HOURS':     env.int('LICENSE_GRACE_PERIOD_HOURS', default=48),
+    'GRACE_DAYS':             env.int('LICENSE_GRACE_DAYS', default=3),
+    'PARTIAL_LOCK_DAYS':      env.int('LICENSE_PARTIAL_LOCK_DAYS', default=7),
+}

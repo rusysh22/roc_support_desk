@@ -160,6 +160,9 @@ class MessageAdmin(ModelAdmin):
         "id", "external_id", "sent_at",
         "created_at", "updated_at", "created_by", "updated_by",
     )
+
+    def has_module_permission(self, request):
+        return False
     inlines = [AttachmentInline]
 
     @admin.display(description="Sender")
@@ -192,6 +195,9 @@ class AttachmentAdmin(ModelAdmin):
     list_display = ("original_filename", "mime_type", "file_size", "message", "created_at")
     search_fields = ("original_filename",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def has_module_permission(self, request):
+        return False
 
     def save_model(self, request, obj, form, change):
         if not change:

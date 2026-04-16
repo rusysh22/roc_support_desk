@@ -16,6 +16,8 @@ from core.models import User
 from .forms import ArticleForm
 from .models import Article, ArticleComment, ArticleImage
 
+from licensing.decorators import feature_required
+
 
 # =====================================================================
 # Access Decorators
@@ -146,6 +148,7 @@ def kb_search(request):
 # =====================================================================
 
 @staff_required
+@feature_required('kb_manage')
 def kb_article_list(request):
     """Staff list of all KB articles with search and filter."""
     search = request.GET.get("q", "").strip()
@@ -174,6 +177,7 @@ def kb_article_list(request):
 
 
 @staff_required
+@feature_required('kb_manage')
 def kb_article_create(request):
     """Create a new KB article (saved as Draft)."""
     if request.method == "POST":
@@ -197,6 +201,7 @@ def kb_article_create(request):
 
 
 @staff_required
+@feature_required('kb_manage')
 def kb_create_from_case(request, case_id):
     """Create a KB article pre-filled from a CaseRecord's RCA data."""
     case = get_object_or_404(CaseRecord, id=case_id)
@@ -236,6 +241,7 @@ def kb_create_from_case(request, case_id):
 
 
 @staff_required
+@feature_required('kb_manage')
 def kb_article_edit(request, pk):
     """Edit an existing KB article."""
     article = get_object_or_404(Article, pk=pk)
@@ -271,6 +277,7 @@ def kb_article_edit(request, pk):
 
 
 @staff_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_delete(request, pk):
     """Delete a KB article."""
@@ -288,6 +295,7 @@ def kb_article_delete(request, pk):
 
 
 @staff_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_submit_review(request, pk):
     """Submit a Draft article for Manager/SuperAdmin review."""
@@ -303,6 +311,7 @@ def kb_article_submit_review(request, pk):
 
 
 @manager_or_admin_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_approve(request, pk):
     """Approve and publish a pending article."""
@@ -320,6 +329,7 @@ def kb_article_approve(request, pk):
 
 
 @manager_or_admin_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_reject(request, pk):
     """Reject a pending article with a reason."""
@@ -339,6 +349,7 @@ def kb_article_reject(request, pk):
 
 
 @manager_or_admin_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_unpublish(request, pk):
     """Unpublish a published article (revert to Draft)."""
@@ -354,6 +365,7 @@ def kb_article_unpublish(request, pk):
 
 
 @staff_required
+@feature_required('kb_manage')
 @require_POST
 def kb_image_upload(request):
     """Handle image upload from Quill.js editor. Returns JSON with URL."""

@@ -8,3 +8,6 @@ class ShortLinkAdmin(admin.ModelAdmin):
     search_fields = ("slug", "title", "target_url")
     readonly_fields = ("id", "clicks", "created_at", "updated_at", "created_by", "updated_by")
     list_per_page = 25
+
+    def has_module_permission(self, request):
+        return False

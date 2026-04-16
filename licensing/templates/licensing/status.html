@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}License Status — {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
+{% block page_title %}License Status{% endblock %}
+
+{% block topbar_actions %}
+<div class="flex items-center gap-2">
+    <a href="{% url 'licensing:activate' %}" class="jk-btn jk-btn-secondary jk-btn-sm" style="border-radius:0;">
+        🔑 Enter Key
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .lic-card { background:#fff; border:1px solid var(--jk-border); box-shadow:0 1px 6px rgba(0,0,0,.05); }
+    .lic-header { padding:14px 20px; border-bottom:1px solid var(--jk-border); font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:8px; }
+    .lic-body { padding:20px; }
+    .lic-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px; }
+    .lic-stat { background:var(--jk-surface-alt); border:1px solid var(--jk-border); padding:14px 16px; }
+    .lic-stat-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--jk-text-muted); margin-bottom:4px; }
+    .lic-stat-value { font-size:16px; font-weight:800; color:var(--jk-text); }
+    .lic-stat-sub { font-size:11.5px; color:var(--jk-text-muted); margin-top:2px; }
+
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:5px 14px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; border-radius:0; }
+    .status-active      { background:#d1fae5; color:#065f46; border:2px solid #34d399; }
+    .status-trial       { background:#fef3c7; color:#92400e; border:2px solid #fbbf24; }
+    .status-grace       { background:#fffbeb; color:#b45309; border:2px solid #fcd34d; }
+    .status-partial_lock{ background:#fee2e2; color:#991b1b; border:2px solid #f87171; }
+    .status-expired     { background:#fee2e2; color:#991b1b; border:2px solid #ef4444; }
+    .status-suspended   { background:#fce7f3; color:#9d174d; border:2px solid #f472b6; }
+    .status-unlicensed  { background:#f1f5f9; color:#475569; border:2px solid #94a3b8; }
+
+    .feature-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--jk-border); font-size:13px; }
+    .feature-row:last-child { border-bottom:none; }
+    .feature-on  { color:#059669; font-weight:700; }
+    .feature-off { color:#94a3b8; }
+
+    .audit-row { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--jk-surface-alt); font-size:12.5px; }
+    .audit-row:last-child { border-bottom:none; }
+    .audit-badge { flex-shrink:0; padding:2px 8px; font-size:10.5px; font-weight:700; text-transform:uppercase; background:var(--jk-surface-alt); border:1px solid var(--jk-border); }
+    .audit-ok    { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
+    .audit-fraud { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+    .audit-warn  { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+    <!-- Header row -->
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+            <h1 class="text-xl font-extrabold text-slate-900">License Status</h1>
+            <p class="text-sm text-slate-500 mt-0.5">Installation: {{ fingerprint|slice:":16" }}…</p>
+        </div>
+        <span class="status-badge status-{{ effective_status }}">
+            {% if effective_status == 'active' %}✅{% elif effective_status == 'trial' %}⏱{% elif effective_status == 'grace' %}⚠️{% elif effective_status in 'expired,suspended,partial_lock' %}🔒{% else %}❓{% endif %}
+            {{ effective_status|upper }}
+        </span>
+    </div>
+
+    <!-- Top stats -->
+    <div class="lic-card mb-6">
+        <div class="lic-header">📋 License Details</div>
+        <div class="lic-body">
+            <div class="lic-grid">
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Plan Tier</div>
+                    <div class="lic-stat-value">{{ license.get_plan_tier_display }}</div>
+                </div>
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Issued To</div>
+                    <div class="lic-stat-value" style="font-size:13px;">{{ license.issued_to|default:"—" }}</div>
+                </div>
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Max Agents</div>
+                    <div class="lic-stat-value">{{ license.max_agents }}</div>
+                </div>
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Expires</div>
+                    <div class="lic-stat-value" style="font-size:13px;">
+                        {% if license.expires_at %}{{ license.expires_at|date:"d M Y" }}{% else %}Perpetual{% endif %}
+                    </div>
+                </div>
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Last Verified</div>
+                    <div class="lic-stat-value" style="font-size:12px;">
+                        {% if license.last_verified_at %}{{ license.last_verified_at|date:"d M Y H:i" }}{% else %}Never{% endif %}
+                    </div>
+                </div>
+                <div class="lic-stat">
+                    <div class="lic-stat-label">Marketplace</div>
+                    <div class="lic-stat-value" style="font-size:11px; word-break:break-all;">
+                        {{ marketplace_url|default:"Not configured" }}
+                    </div>
+                </div>
+            </div>
+
+            {% if effective_status == 'trial' %}
+            <div class="mt-4 p-3 bg-amber-50 border border-amber-200 text-sm text-amber-800" style="border-radius:0;">
+                <strong>⏱ Trial Mode</strong> — {{ trial_days_used }}/{{ trial_max_days }} day(s) used.
+                Trial duration: {{ trial_duration_sec|floatformat:0 }}s ({{ trial_duration_sec|divisibleby:60|yesno:"15 min,varies" }}) per day.
+                {% if today_trial %} Today used: {{ today_trial.total_seconds_used }}s.{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Two-column: Features + Audit Log -->
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:16px;">
+
+        <!-- Feature Flags -->
+        <div class="lic-card">
+            <div class="lic-header">🎛 Feature Flags</div>
+            <div class="lic-body" style="padding:12px 16px;">
+                {% if license.features_json %}
+                    {% for key, val in license.features_json.items %}
+                    <div class="feature-row">
+                        <span class="text-slate-600">{{ key|title|cut:"_" }}</span>
+                        {% if val %}
+                        <span class="feature-on">✓ On</span>
+                        {% else %}
+                        <span class="feature-off">✗ Off</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-sm text-slate-400 text-center py-4">No features configured.<br>Activate a license to populate.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="lic-card">
+            <div class="lic-header">📜 Recent Audit Log
+                <span class="ml-auto text-xs font-normal text-slate-400">Last 30 events</span>
+            </div>
+            <div class="lic-body" style="padding:12px 16px; max-height:380px; overflow-y:auto;">
+                {% for entry in audit_logs %}
+                <div class="audit-row">
+                    <span class="audit-badge {% if entry.event in 'activated,verification_ok' %}audit-ok{% elif entry.event == 'fraud_attempt' or entry.signature_valid == False %}audit-fraud{% elif entry.event in 'expired,suspended' %}audit-warn{% endif %}">
+                        {{ entry.event|cut:"_"|upper }}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-slate-500">{{ entry.created_at|date:"d M H:i" }}</span>
+                        {% if entry.source_ip %}
+                        <span class="text-slate-400 ml-2">{{ entry.source_ip }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-400 text-center py-6">No audit events yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex items-center gap-3 flex-wrap">
+        <a href="{% url 'licensing:activate' %}" class="jk-btn jk-btn-primary" style="border-radius:0;">
+            🔑 Enter / Change License Key
+        </a>
+        {% if marketplace_url %}
+        <a href="{{ marketplace_url }}" target="_blank" class="jk-btn jk-btn-secondary" style="border-radius:0;">
+            🛒 Marketplace →
+        </a>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
