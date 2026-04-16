@@ -185,7 +185,22 @@ def verify_license_online(license_obj) -> bool:
             },
             timeout=10,
         )
-        data = resp.json()
+        
+        # Check if we got a success code before trying to parse JSON
+        if resp.status_code != 200:
+            LicenseAuditLog.objects.create(
+                event='verification_failed',
+                payload={'reason': 'marketplace_http_error', 'status_code': resp.status_code},
+                signature_valid=False,
+            )
+            return False
+
+        try:
+            data = resp.json()
+        except (json.JSONDecodeError, ValueError):
+            snippet = resp.text[:100] if resp.text else "Empty response"
+            logger.error(f"[License] Invalid JSON from marketplace ({resp.status_code}): {snippet}")
+            return False
 
         if data.get('valid'):
             # Sync marketplace data to local record
@@ -262,7 +277,24 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
             },
             timeout=10,
         )
-        data = resp.json()
+        
+        # Check HTTP status code
+        if resp.status_code != 200:
+            return {
+                'success': False, 
+                'error': f"Marketplace returned an error (HTTP {resp.status_code}). Please verify your MARKETPLACE_URL or try again later."
+            }
+
+        try:
+            data = resp.json()
+        except (json.JSONDecodeError, ValueError):
+            # Provide debug context if it's an HTML error page instead of JSON
+            content_type = resp.headers.get('Content-Type', 'unknown')
+            snippet = resp.text[:100] if resp.text else "Empty response"
+            return {
+                'success': False,
+                'error': f"Invalid response format from marketplace. Expected JSON but got {content_type}. (Preview: {snippet}...)"
+            }
 
         if not data.get('valid'):
             reason = data.get('reason', 'invalid_key')
