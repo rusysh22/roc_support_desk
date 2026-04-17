@@ -37,7 +37,7 @@
             {% if user.role_access == "SuperAdmin" %}
             <!-- Admin Actions -->
             <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onclick="event.stopPropagation(); openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}')"
+                <button onclick="event.stopPropagation(); openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}', {{ category.is_attachment_mandatory|yesno:'true,false' }}, '{{ category.template_subject|escapejs }}', '{{ category.template_text|escapejs }}')"
                         class="w-7 h-7 bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Edit">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </button>
@@ -48,22 +48,25 @@
             </div>
             {% endif %}
             <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
-                class="jk-card-body block jk-card-clickable">
-                <div class="jk-category-icon">
-                    {{ category.icon|default:"📝" }}
-                </div>
+                class="jk-card-body jk-card-clickable">
+                <div class="jk-category-icon">{{ category.icon|default:"📝" }}</div>
                 <h3 class="jk-category-name">{{ category.name }}</h3>
                 <p class="jk-category-desc">{{ category.description|default:"Submit a request for this category." }}</p>
-                <div class="mt-4 flex items-center text-indigo-500 text-sm font-semibold gap-1 group-hover:gap-2 transition-all">
-                    {% if category.children.all %}
-                    <span>View Services</span>
-                    <span class="text-xs font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-md">{{ category.children.count }}</span>
-                    {% else %}
-                    <span>Submit Request</span>
+                <div class="jk-category-action flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 text-indigo-500 text-xs font-bold group-hover:gap-2.5 transition-all">
+                        {% if category.children.all %}
+                        <span>View Services</span>
+                        <span class="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-md">{{ category.children.count }}</span>
+                        {% else %}
+                        <span>Submit Request</span>
+                        {% endif %}
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                    {% if category.is_confidential %}
+                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wide">Private</span>
                     {% endif %}
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
                 </div>
             </a>
         </div>
@@ -140,7 +143,7 @@
 
 {% if user.role_access == "SuperAdmin" %}
 <!-- Create Category Modal -->
-<div id="createCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()">
+<div id="createCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()" @keydown.escape.window="if(!templatePopupOpen) $el.classList.add('hidden')">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('createCategoryModal').classList.add('hidden')"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -173,8 +176,26 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon</label>
-                        <input type="text" name="icon" maxlength="100" placeholder="e.g. emoji or CSS class" class="jk-input text-sm w-full">
-                        <p class="text-xs text-slate-600 mt-1">Default: emoji</p>
+                        <input type="hidden" name="icon" :value="selectedIcon || '📝'">
+                        <div class="relative">
+                            <button type="button" @click.stop="iconPickerOpen = !iconPickerOpen"
+                                class="jk-input w-full flex items-center justify-center text-2xl py-1 cursor-pointer hover:bg-slate-50 transition-colors">
+                                <span x-text="selectedIcon || '📝'"></span>
+                            </button>
+                            <div x-show="iconPickerOpen" x-cloak @click.outside="iconPickerOpen = false"
+                                 class="absolute top-full left-0 z-[70] mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5" style="width:232px;">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-0.5">Choose Icon</p>
+                                <div class="grid grid-cols-8 gap-0.5">
+                                    <template x-for="e in ['📝','📋','🎫','🔧','💻','🖥️','🖨️','📱','🔒','🌐','📧','📂','📁','🗂️','💾','🖱️','⌨️','🔌','📡','🏢','👤','👥','💰','📊','📈','🔔','⚠️','✅','🚨','🛠️','⚙️','🔑','📞','💬','🧾','📄','🏷️','🎯','🚀','💡','🔍','📌','🧩','🖊️','📮','🗓️','💼','🏦','🏭','🏗️']" :key="e">
+                                        <button type="button" @click="selectedIcon = e; iconPickerOpen = false"
+                                            class="w-7 h-7 flex items-center justify-center text-base rounded-lg hover:bg-indigo-50 transition-colors"
+                                            :class="selectedIcon === e ? 'bg-indigo-100 ring-1 ring-indigo-400' : ''">
+                                            <span x-text="e"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1.5">Prefix Code</label>
@@ -182,9 +203,37 @@
                         <p class="text-xs text-slate-600 mt-1">2 chars for ticket numbering</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" name="is_confidential" id="catConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                    <label for="catConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="is_confidential" id="catConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <label for="catConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="is_attachment_mandatory" id="catMandatory" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <label for="catMandatory" class="text-xs font-medium text-slate-700">Attachment Mandatory</label>
+                    </div>
+                </div>
+
+                <!-- Ticket Template -->
+                <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700">Ticket Template</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Auto-fills subject &amp; description when user opens a ticket here</p>
+                        </div>
+                        <button type="button" @click="templatePopupOpen = true"
+                            class="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all"
+                            :class="(templateSubject || templateText) ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            <span x-text="(templateSubject || templateText) ? 'Template Set ✓' : 'Set Template'"></span>
+                        </button>
+                    </div>
+                    <div x-show="templateSubject || templateText" x-cloak class="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                        <p x-show="templateSubject" class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600">Subject:</span> <span x-text="templateSubject" class="truncate"></span></p>
+                        <p x-show="templateText" class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600">Body:</span> <span x-text="templateText.substring(0, 80) + (templateText.length > 80 ? '…' : '')"></span></p>
+                    </div>
+                    <input type="hidden" name="template_subject" :value="templateSubject">
+                    <input type="hidden" name="template_text" :value="templateText">
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
@@ -198,12 +247,81 @@
                 </button>
             </div>
         </form>
+
+        <!-- ── Template Popup (z-[60] di atas modal z-50) ── -->
+        <div x-show="templatePopupOpen" x-cloak
+             class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+             @keydown.escape.window="templatePopupOpen = false"
+             style="display:none;">
+            <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="templatePopupOpen = false"></div>
+            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100">
+                <!-- Header -->
+                <div class="flex items-start justify-between px-6 py-4 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm">📝</span>
+                            Ticket Template
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5 ml-9">Auto-fills when a user opens a ticket in this category</p>
+                    </div>
+                    <button type="button" @click="templatePopupOpen = false"
+                        class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <!-- Body -->
+                <div class="px-6 py-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                            Subject Template <span class="font-normal text-slate-400">(optional)</span>
+                        </label>
+                        <input type="text" x-model="templateSubject"
+                            placeholder="e.g. [Issue] Brief title of the problem..."
+                            class="jk-input text-sm w-full" maxlength="500">
+                        <p class="text-[11px] text-slate-400 mt-1">Pre-filled in the ticket subject field when user opens this category.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                            Description Template <span class="font-normal text-slate-400">(optional)</span>
+                        </label>
+                        <textarea x-model="templateText" rows="7"
+                            placeholder="e.g. Please provide the following information:&#10;&#10;1. Device / system affected:&#10;2. Error message (if any):&#10;3. Steps to reproduce:&#10;4. Expected vs actual behavior:&#10;5. Urgency level:"
+                            class="jk-input text-sm w-full" style="resize:vertical; font-family:ui-monospace,monospace; font-size:12px;"></textarea>
+                        <p class="text-[11px] text-slate-400 mt-1">Pre-filled in the problem description field. Use line breaks freely.</p>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-700">
+                        💡 <strong>Tip:</strong> Templates help users report issues consistently. Leave empty if no standard format is needed for this category.
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                    <button type="button" @click="templateSubject = ''; templateText = ''"
+                        class="text-xs text-rose-500 hover:text-rose-700 font-semibold transition-colors flex items-center gap-1"
+                        x-show="templateSubject || templateText">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Clear Template
+                    </button>
+                    <div x-show="!templateSubject && !templateText"></div>
+                    <div class="flex items-center gap-3">
+                        <button type="button" @click="templatePopupOpen = false"
+                            class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                        <button type="button" @click="templatePopupOpen = false"
+                            class="jk-btn jk-btn-primary jk-btn-sm">
+                            ✓ Apply Template
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Edit Category Modal -->
-<div id="editCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()">
-    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('editCategoryModal').classList.add('hidden')"></div>
+<div id="editCategoryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" x-data="categoryForm()" @keydown.escape.window="if(!templatePopupOpen) document.getElementById('editCategoryModal').classList.add('hidden')" @open-edit-template.window="templateSubject = $event.detail.subject; templateText = $event.detail.text" @open-edit-icon.window="selectedIcon = $event.detail.icon">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="if(!templatePopupOpen) document.getElementById('editCategoryModal').classList.add('hidden')"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <h3 class="text-lg font-bold text-slate-800">Edit Category</h3>
@@ -234,7 +352,26 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon</label>
-                        <input type="text" name="icon" id="editCatIcon" maxlength="100" class="jk-input text-sm w-full">
+                        <input type="hidden" name="icon" :value="selectedIcon || '📝'">
+                        <div class="relative">
+                            <button type="button" @click.stop="iconPickerOpen = !iconPickerOpen"
+                                class="jk-input w-full flex items-center justify-center text-2xl py-1 cursor-pointer hover:bg-slate-50 transition-colors">
+                                <span x-text="selectedIcon || '📝'"></span>
+                            </button>
+                            <div x-show="iconPickerOpen" x-cloak @click.outside="iconPickerOpen = false"
+                                 class="absolute top-full left-0 z-[70] mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5" style="width:232px;">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-0.5">Choose Icon</p>
+                                <div class="grid grid-cols-8 gap-0.5">
+                                    <template x-for="e in ['📝','📋','🎫','🔧','💻','🖥️','🖨️','📱','🔒','🌐','📧','📂','📁','🗂️','💾','🖱️','⌨️','🔌','📡','🏢','👤','👥','💰','📊','📈','🔔','⚠️','✅','🚨','🛠️','⚙️','🔑','📞','💬','🧾','📄','🏷️','🎯','🚀','💡','🔍','📌','🧩','🖊️','📮','🗓️','💼','🏦','🏭','🏗️']" :key="e">
+                                        <button type="button" @click="selectedIcon = e; iconPickerOpen = false"
+                                            class="w-7 h-7 flex items-center justify-center text-base rounded-lg hover:bg-indigo-50 transition-colors"
+                                            :class="selectedIcon === e ? 'bg-indigo-100 ring-1 ring-indigo-400' : ''">
+                                            <span x-text="e"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1.5">Prefix Code</label>
@@ -246,11 +383,76 @@
                     <input type="text" name="slug" id="editCatSlug" maxlength="220" class="jk-input text-sm w-full">
                     <p class="text-xs text-slate-600 mt-1">URL-safe identifier. Change with caution.</p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" name="is_confidential" id="editCatConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                    <label for="editCatConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="is_confidential" id="editCatConfidential" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <label for="editCatConfidential" class="text-xs font-medium text-slate-700">Confidential Category</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="is_attachment_mandatory" id="editCatMandatory" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <label for="editCatMandatory" class="text-xs font-medium text-slate-700">Attachment Mandatory</label>
+                    </div>
+                </div>
+                <!-- Ticket Template -->
+                <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700">Ticket Template</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Auto-fills subject &amp; description when user opens a ticket here</p>
+                        </div>
+                        <button type="button" @click="templatePopupOpen = true"
+                            class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+                            :class="(templateSubject || templateText) ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'">
+                            <span x-text="(templateSubject || templateText) ? 'Template Set ✓' : 'Set Template'"></span>
+                        </button>
+                    </div>
+                    <div x-show="templateSubject || templateText" x-cloak class="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                        <p x-show="templateSubject" class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600">Subject:</span> <span x-text="templateSubject" class="truncate"></span></p>
+                        <p x-show="templateText" class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600">Body:</span> <span x-text="templateText.substring(0, 80) + (templateText.length > 80 ? '…' : '')"></span></p>
+                    </div>
+                    <input type="hidden" name="template_subject" :value="templateSubject">
+                    <input type="hidden" name="template_text" :value="templateText">
                 </div>
             </div>
+
+            <!-- Template Popup (edit modal) -->
+            <div x-show="templatePopupOpen" x-cloak
+                 class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+                 @keydown.escape.window="templatePopupOpen = false">
+                <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="templatePopupOpen = false"></div>
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                        <h4 class="text-sm font-bold text-slate-800">📝 Ticket Template</h4>
+                        <button type="button" @click="templatePopupOpen = false" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div class="px-5 py-4 space-y-4">
+                        <div class="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-[11px] text-indigo-700">
+                            💡 This template will auto-fill the subject and description fields when a user opens a new ticket in this category.
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Subject Template</label>
+                            <input type="text" x-model="templateSubject" placeholder="e.g. [Issue] Brief description of the problem" class="jk-input text-sm w-full" maxlength="500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Description Template</label>
+                            <textarea x-model="templateText" rows="7" placeholder="e.g. Please describe your issue here:&#10;&#10;Steps to reproduce:&#10;1. &#10;2. &#10;&#10;Expected result:&#10;Actual result:" class="jk-input text-sm w-full" style="resize:vertical;"></textarea>
+                        </div>
+                    </div>
+                    <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
+                        <button type="button" @click="templateSubject = ''; templateText = ''"
+                            class="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                            x-show="templateSubject || templateText">Clear Template</button>
+                        <div x-show="!templateSubject && !templateText"></div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="templatePopupOpen = false" class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+                            <button type="button" @click="templatePopupOpen = false" class="jk-btn jk-btn-primary jk-btn-sm">Apply Template</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button type="button" onclick="document.getElementById('editCategoryModal').classList.add('hidden')" class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
                 <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm" :disabled="submitting">
@@ -294,6 +496,11 @@
 function categoryForm() {
     return {
         submitting: false,
+        templatePopupOpen: false,
+        templateSubject: '',
+        templateText: '',
+        iconPickerOpen: false,
+        selectedIcon: '',
         submitForm(e) {
             this.submitting = true;
             const form = e.target;
@@ -322,15 +529,17 @@ function categoryForm() {
 
 const categoryBaseUrl = '{% url "cases:dashboard" %}category/';
 
-function openEditModal(id, name, description, icon, prefixCode, slug, isConfidential, parentId) {
+function openEditModal(id, name, description, icon, prefixCode, slug, isConfidential, parentId, isMandatory, templateSubject, templateText) {
     document.getElementById('editCatParent').value = parentId || '';
     document.getElementById('editCatName').value = name;
     document.getElementById('editCatDesc').value = description;
-    document.getElementById('editCatIcon').value = icon;
     document.getElementById('editCatPrefix').value = prefixCode;
     document.getElementById('editCatSlug').value = slug;
     document.getElementById('editCatConfidential').checked = isConfidential;
+    document.getElementById('editCatMandatory').checked = isMandatory;
     document.getElementById('editCategoryForm').action = categoryBaseUrl + id + '/update/';
+    window.dispatchEvent(new CustomEvent('open-edit-icon', { detail: { icon: icon || '' } }));
+    window.dispatchEvent(new CustomEvent('open-edit-template', { detail: { subject: templateSubject || '', text: templateText || '' } }));
     document.getElementById('editCategoryModal').classList.remove('hidden');
 }
 

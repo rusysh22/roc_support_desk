@@ -10,9 +10,11 @@ import logging
 import time
 from datetime import date
 
+from urllib.parse import urlparse
 from django.db.models import F
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
-from django.urls import resolve
+from django.urls import resolve, reverse
 from django.core.management import call_command
 from django.core.cache import cache
 
@@ -30,6 +32,7 @@ LICENSE_EXEMPT_PREFIXES = (
     '/api/gateways/', # Evolution API / WhatsApp webhook
     '/s/',            # Short link redirects (public)
     '/favicon',       # Browser favicon
+    '/docs/',         # Public portal user documentation (no login required)
 )
 
 # Status groups for routing decisions
@@ -52,6 +55,18 @@ class LicenseGateMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    def _handle_redirect(self, request, view_name):
+        """
+        Helper to handle redirects that don't break HTMX partials.
+        If HTMX request, send HX-Redirect header. Else, standard redirect.
+        """
+        url = reverse(view_name)
+        if request.headers.get('HX-Request'):
+            response = HttpResponse()
+            response['HX-Redirect'] = url
+            return response
+        return redirect(url)
+
     def __call__(self, request):
         # Attach license info first so it's available even on exempt paths
         try:
@@ -68,6 +83,15 @@ class LicenseGateMiddleware:
         # Skip routing enforcement for exempt paths
         if self._is_exempt(request.path):
             return self.get_response(request)
+
+        # Skip if HTMX request originated from an exempt page (prevents loops)
+        current_url = request.headers.get('HX-Current-URL')
+        if current_url:
+            try:
+                if self._is_exempt(urlparse(current_url).path):
+                    return self.get_response(request)
+            except Exception:
+                pass
 
         # --- Route by status ---
         if status in FULL_ACCESS_STATUSES:
@@ -102,14 +126,14 @@ class LicenseGateMiddleware:
                 except Exception as e:
                     logger.error(f"[LicenseGate] Auto-enforcement failed: {e}")
             
-            return redirect('licensing:expired')
+            return self._handle_redirect(request, 'licensing:expired')
 
         elif status == 'suspended':
-            return redirect('licensing:suspended')
+            return self._handle_redirect(request, 'licensing:suspended')
 
         else:
             # 'unlicensed' or unknown → prompt activation
-            return redirect('licensing:activate')
+            return self._handle_redirect(request, 'licensing:activate')
 
     @staticmethod
     def _is_exempt(path: str) -> bool:
@@ -134,6 +158,15 @@ class TrialTimerMiddleware:
         if LicenseGateMiddleware._is_exempt(request.path):
             return self.get_response(request)
 
+        # Skip if HTMX request originated from an exempt page (prevents loops)
+        current_url = request.headers.get('HX-Current-URL')
+        if current_url:
+            try:
+                if LicenseGateMiddleware._is_exempt(urlparse(current_url).path):
+                    return self.get_response(request)
+            except Exception:
+                pass
+
         from django.conf import settings
         from .models import TrialRecord
 
@@ -153,7 +186,7 @@ class TrialTimerMiddleware:
                 # This new day exceeds the allowed trial period
                 today_trial.delete()
                 logger.info("[Trial] Max trial days exceeded — redirecting to upgrade")
-                return redirect('licensing:upgrade')
+                return LicenseGateMiddleware(self.get_response)._handle_redirect(request, 'licensing:upgrade')
 
         # ------------------------------------------------------------------
         # 2. Check if today's quota is already exhausted

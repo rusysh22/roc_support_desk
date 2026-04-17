@@ -131,6 +131,14 @@ class User(AbstractUser):
         help_text="User initials used as a signature (e.g., 'mrs').",
     )
 
+    phone_number = models.CharField(
+        max_length=30,
+        blank=True,
+        default='',
+        verbose_name="Phone Number",
+        help_text="User's phone/mobile number.",
+    )
+
     can_handle_confidential = models.BooleanField(
         default=False,
         verbose_name="Can Handle Confidential",

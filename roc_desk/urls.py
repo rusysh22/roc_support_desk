@@ -45,6 +45,9 @@ urlpatterns = [
     path("help/", core_views.help_and_about, name="help_about"),
     path("help/feedback/", core_views.submit_feedback, name="submit_feedback"),
 
+    # User profile
+    path("desk/profile/", core_views.profile_view, name="profile"),
+
     # Documentation pages
     path("docs/", core_views.docs_portal_user, name="docs_portal"),
     path("supportdocs/", core_views.docs_support_desk, name="docs_support"),

@@ -35,7 +35,11 @@ def feature_required(feature_name):
             # During trial or unlicensed, premium features are disabled
             has_access = False
             if status in ('active', 'grace'):
-                has_access = license_obj.features_json.get(feature_name, False)
+                # Empty features_json on an active license = full access (marketplace may not send feature list)
+                if not license_obj.features_json:
+                    has_access = True
+                else:
+                    has_access = license_obj.features_json.get(feature_name, False)
             elif status == 'partial_lock':
                 # Check if this feature is one that is specifically locked during partial_lock phase
                 if feature_name in PARTIAL_LOCK_DISABLED_FEATURES:
@@ -113,7 +117,11 @@ class FeatureRequiredMixin:
         
         has_access = False
         if status in ('active', 'grace'):
-            has_access = license_obj.features_json.get(self.feature_required, False)
+            # Empty features_json on an active license = full access (marketplace may not send feature list)
+            if not license_obj.features_json:
+                has_access = True
+            else:
+                has_access = license_obj.features_json.get(self.feature_required, False)
         elif status == 'partial_lock':
             if self.feature_required in PARTIAL_LOCK_DISABLED_FEATURES:
                 has_access = False

@@ -247,6 +247,96 @@ def activate_license(request):
 
 
 # ---------------------------------------------------------------------------
+# Start Trial — POST /license/start-trial/
+# ---------------------------------------------------------------------------
+
+@require_POST
+def start_trial(request):
+    """
+    Resets the license record to trial mode.
+    Only available when the system is unlicensed or already in trial.
+    SuperAdmin-only.
+    """
+    if not _is_superadmin(request.user):
+        return redirect('login')
+
+    record = LicenseRecord.get_current()
+    allowed_statuses = ('unlicensed', 'trial', 'expired')
+
+    effective = record.get_effective_status()
+    if effective not in allowed_statuses:
+        messages.error(
+            request,
+            f"Cannot start trial: current status is '{effective}'. "
+            "Trial can only be started when the system is unlicensed or expired."
+        )
+        return redirect('licensing:activate')
+
+    # Reset to trial
+    record.license_key      = ''
+    record.status           = 'trial'
+    record.plan_tier        = 'trial'
+    record.issued_to        = ''
+    record.expires_at       = None
+    record.features_json    = {}
+    record.last_verified_at = None
+    record.save()
+
+    # Reset trial usage counters so user gets fresh quota
+    TrialRecord.objects.all().delete()
+
+    LicenseAuditLog.objects.create(
+        event='trial_started',
+        payload={'started_by': request.user.username},
+        signature_valid=True,
+    )
+
+    messages.success(
+        request,
+        "✅ Trial mode activated! You have a limited daily quota to explore the system."
+    )
+    return redirect('desk:case_list')
+
+
+# ---------------------------------------------------------------------------
+# Deactivate License — POST /license/deactivate/
+# ---------------------------------------------------------------------------
+
+@require_POST
+def deactivate_license(request):
+    """
+    Clears the stored license key and resets the license record to 'unlicensed'.
+    SuperAdmin-only, requires confirmation via POST.
+    """
+    if not _is_superadmin(request.user):
+        return redirect('login')
+
+    confirm = request.POST.get('confirm', '').strip()
+    if confirm != 'DEACTIVATE':
+        messages.error(request, "Konfirmasi tidak valid. Ketik DEACTIVATE untuk melanjutkan.")
+        return redirect('licensing:status')
+
+    record = LicenseRecord.get_current()
+    record.license_key         = ''
+    record.status              = 'unlicensed'
+    record.plan_tier           = ''
+    record.issued_to           = ''
+    record.expires_at          = None
+    record.features_json       = {}
+    record.last_verified_at    = None
+    record.save()
+
+    LicenseAuditLog.objects.create(
+        event='deactivated',
+        payload={'deactivated_by': request.user.username},
+        signature_valid=True,
+    )
+
+    messages.success(request, "Lisensi berhasil dinonaktifkan. Sistem sekarang dalam mode unlicensed.")
+    return redirect('licensing:activate')
+
+
+# ---------------------------------------------------------------------------
 # License Status Dashboard — GET /license/status/
 # ---------------------------------------------------------------------------
 

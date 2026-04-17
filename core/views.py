@@ -252,6 +252,47 @@ from .models import Feedback, SiteConfig, User
 import django
 
 
+# =====================================================================
+# User Profile
+# =====================================================================
+
+@login_required
+def profile_view(request):
+    """Current user's profile — view and edit own info + change password."""
+    user = request.user
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'profile')
+
+        if action == 'profile':
+            user.username     = request.POST.get('display_name', user.username).strip()
+            user.phone_number = request.POST.get('phone_number', '').strip()
+            user.save(update_fields=['username', 'phone_number'])
+            messages.success(request, "Profile updated successfully.")
+            return redirect('profile')
+
+        elif action == 'password':
+            current = request.POST.get('current_password', '')
+            new_pw  = request.POST.get('new_password', '')
+            confirm = request.POST.get('confirm_password', '')
+
+            if not user.check_password(current):
+                messages.error(request, "Current password is incorrect.")
+            elif len(new_pw) < 8:
+                messages.error(request, "New password must be at least 8 characters.")
+            elif new_pw != confirm:
+                messages.error(request, "New passwords do not match.")
+            else:
+                user.set_password(new_pw)
+                user.save()
+                from django.contrib.auth import update_session_auth_hash
+                update_session_auth_hash(request, user)
+                messages.success(request, "Password changed successfully.")
+            return redirect('profile')
+
+    return render(request, 'core/profile.html', {'profile_user': user})
+
+
 def help_and_about(request):
     """Help & About page — accessible by anyone."""
     config = SiteConfig.get_solo()

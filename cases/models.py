@@ -68,6 +68,11 @@ class CaseCategory(AuditableModel):
         verbose_name="Confidential Category",
         help_text="Tickets in this category are confidential — only users with 'can handle confidential' permission can access them.",
     )
+    is_attachment_mandatory = models.BooleanField(
+        default=False,
+        verbose_name="Attachment Mandatory",
+        help_text="If checked, users must upload at least one attachment when submitting a ticket in this category.",
+    )
 
     class Meta:
         verbose_name = "Ticket Category"

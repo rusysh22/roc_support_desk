@@ -179,6 +179,7 @@ class LicenseAuditLog(models.Model):
     EVENT_CHOICES = [
         ('webhook_received',   'Webhook Received'),
         ('activated',          'License Activated'),
+        ('deactivated',        'License Deactivated'),
         ('expired',            'License Expired'),
         ('suspended',          'License Suspended'),
         ('trial_started',      'Trial Started'),
@@ -190,7 +191,7 @@ class LicenseAuditLog(models.Model):
         ('disconnected_email', 'Email Disconnected (License)'),
     ]
 
-    event           = models.CharField(max_length=30, choices=EVENT_CHOICES)
+    event           = models.CharField(max_length=32, choices=EVENT_CHOICES)
     payload         = models.JSONField(default=dict)
     source_ip       = models.GenericIPAddressField(null=True, blank=True)
     signature_valid = models.BooleanField(

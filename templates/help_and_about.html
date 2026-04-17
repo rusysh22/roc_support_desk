@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.6</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.8</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.6
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.8
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,47 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.2.6 -->
+                <!-- v1.2.8 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.2.8</span>
+                        <span class="text-xs text-slate-600">17 Apr 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>User Profile Page</strong> — New dedicated profile page at <code>/desk/profile/</code> for viewing and editing display name, phone number, NIK, email, and changing password with strength indicator.</li>
+                        <li><strong>Phone Number Field</strong> — Added <code>phone_number</code> field to the User model, editable from the profile page.</li>
+                        <li><strong>Sidebar Avatar</strong> — Clicking the user avatar in the sidebar footer now navigates to the My Profile page.</li>
+                        <li><strong>Start Free Trial</strong> — Added "Start Free Trial" button on the License Activation page for systems in unlicensed or expired state, with daily quota reset.</li>
+                        <li><strong>Public Docs Exempt</strong> — <code>/docs/</code> portal user documentation is now accessible without a license or login.</li>
+                        <li><strong>Deactivate Input Validation</strong> — Real-time inline hint on the deactivation confirmation input (red for wrong, green for correct).</li>
+                    </ul>
+                </div>
+
+                <!-- v1.2.7 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.2.7</span>
+                        <span class="text-xs text-slate-600">17 Apr 2026</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>License Status Redesign</strong> — Complete overhaul of the Subscription page using Joko UI: hero card with dynamic status color, metric cards, feature pills, compact audit log, and collapsible technical details.</li>
+                        <li><strong>Deactivate License</strong> — SuperAdmins can now deactivate the license directly from the Subscription page via a secure confirmation modal (type DEACTIVATE to confirm).</li>
+                        <li><strong>Subscription Sidebar Link</strong> — Added a dedicated "Subscription" entry to the sidebar navigation for SuperAdmins, showing the live license status badge.</li>
+                        <li><strong>Full Access on Empty Features</strong> — Fixed <code>feature_required</code> decorator to grant full access when <code>features_json</code> is empty on an active or grace license.</li>
+                        <li><strong>License Status in English</strong> — All license status page text translated to English; expiry card now shows "Lifetime" for perpetual licenses and "—" when unlicensed.</li>
+                        <li><strong>HTMX-Aware Redirect Fix</strong> — Licensing middleware now sends <code>HX-Redirect</code> headers for HTMX background requests, preventing infinite sidebar loops.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.2.6 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.2.6</span>
                         <span class="text-xs text-slate-600">15 Apr 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>Dynamic Form Builder Enhancements</strong> — Improved logic configuration with section-based navigation and collision detection.</li>

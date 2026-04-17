@@ -1,217 +1,279 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Choose Your Plan — {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
-{% block page_title %}Pricing Tiers{% endblock %}
+{% block title %}Choose a Plan — {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
+{% block page_title %}License Plans{% endblock %}
 
 {% block extra_head %}
 <style>
-    .glass-base {
-        background: rgba(255, 255, 255, 0.6);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }
+    /* ── Layout ──────────────────────────────────── */
+    .upgrade-wrap { max-width:1100px; margin:0 auto; padding:2rem 1rem 3rem; }
+
+    /* ── Plan card ───────────────────────────────── */
     .plan-card {
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        background:#fff; border:1.5px solid #e2e8f0; border-radius:20px;
+        padding:1.75rem; display:flex; flex-direction:column;
+        box-shadow:0 2px 8px rgba(0,0,0,.04);
+        transition:all .3s cubic-bezier(.175,.885,.32,1.1);
+        position:relative;
     }
     .plan-card:hover {
-        transform: translateY(-8px) scale(1.02);
-        box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1);
+        transform:translateY(-6px);
+        box-shadow:0 12px 32px rgba(0,0,0,.10);
+        border-color:#c7d2fe;
     }
-    .popular-card {
-        background: #1e1e2e;
-        color: #fff;
-        border: 2px solid #6366f1;
-        box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+    .plan-card.popular {
+        background:linear-gradient(160deg, #312e81 0%, #1e1b4b 100%);
+        border-color:#6366f1;
+        color:#fff;
+        box-shadow:0 8px 32px rgba(99,102,241,.25);
     }
-    .popular-glow {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), transparent 60%);
-        pointer-events: none;
+    .plan-card.popular:hover {
+        box-shadow:0 16px 48px rgba(99,102,241,.35);
+        border-color:#818cf8;
     }
-    .price-text { font-size: 32px; font-weight: 900; letter-spacing: -0.02em; }
-    .feature-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .btn-upgrade {
-        display: block;
-        text-align: center;
-        padding: 14px;
-        border-radius: 12px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-size: 11px;
-        transition: all 0.3s ease;
+    .plan-card.current-plan {
+        border-color:#34d399;
+        box-shadow:0 0 0 3px rgba(52,211,153,.12);
     }
-    .btn-active { background: #f1f5f9; color: #94a3b8; cursor: default; }
-    .btn-buy { background: #6366f1; color: #fff; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
-    .btn-buy:hover { background: #4f46e5; box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
-    .btn-white { background: #fff; color: #1e1e2e; }
-    .btn-white:hover { background: #f8fafc; }
+
+    /* ── Badges ──────────────────────────────────── */
+    .badge-popular {
+        position:absolute; top:-1px; right:20px;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6);
+        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
+        letter-spacing:.1em; padding:4px 12px; border-radius:0 0 8px 8px;
+        box-shadow:0 4px 12px rgba(99,102,241,.4);
+    }
+    .badge-current {
+        position:absolute; top:-1px; left:20px;
+        background:linear-gradient(135deg,#059669,#10b981);
+        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
+        letter-spacing:.1em; padding:4px 12px; border-radius:0 0 8px 8px;
+    }
+
+    /* ── Plan header ─────────────────────────────── */
+    .plan-name { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }
+    .plan-tagline { font-size:22px; font-weight:900; letter-spacing:-.02em; margin:8px 0 4px; }
+    .plan-desc { font-size:13px; line-height:1.6; }
+
+    /* ── Feature list ────────────────────────────── */
+    .feat-list { list-style:none; padding:0; margin:0; }
+    .feat-list li {
+        display:flex; align-items:center; gap:8px;
+        font-size:13px; padding:4px 0;
+    }
+    .feat-check { width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:10px; font-weight:900; }
+    .feat-yes  { background:#d1fae5; color:#059669; }
+    .feat-no   { background:#f1f5f9; color:#94a3b8; }
+    .feat-dim  { opacity:.5; text-decoration:line-through; }
+
+    /* ── CTA button ──────────────────────────────── */
+    .plan-cta {
+        display:block; text-align:center; padding:13px 20px;
+        border-radius:12px; font-size:13px; font-weight:800;
+        text-transform:uppercase; letter-spacing:.07em;
+        transition:all .25s; text-decoration:none; margin-top:auto; padding-top:16px;
+    }
+    .cta-indigo { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; box-shadow:0 4px 12px rgba(99,102,241,.3); }
+    .cta-indigo:hover { box-shadow:0 6px 20px rgba(99,102,241,.45); transform:translateY(-1px); color:#fff; }
+    .cta-white { background:#fff; color:#312e81; border:1.5px solid rgba(255,255,255,.3); }
+    .cta-white:hover { background:#f0f0ff; color:#312e81; }
+    .cta-purple { background:linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; box-shadow:0 4px 12px rgba(124,58,237,.3); }
+    .cta-purple:hover { box-shadow:0 6px 20px rgba(124,58,237,.45); transform:translateY(-1px); color:#fff; }
+    .cta-dark { background:linear-gradient(135deg,#1e293b,#0f172a); color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.2); }
+    .cta-dark:hover { box-shadow:0 6px 20px rgba(0,0,0,.3); transform:translateY(-1px); color:#fff; }
+    .cta-disabled { background:#f1f5f9; color:#94a3b8; cursor:default; }
+    .cta-disabled:hover { transform:none; box-shadow:none; }
+
+    .plan-divider { border:none; border-top:1.5px solid currentColor; opacity:.12; margin:16px 0; }
+
+    /* ── Comparison table ────────────────────────── */
+    .cmp-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .cmp-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; border-bottom:1.5px solid #f1f5f9; }
+    .cmp-table th:not(:first-child) { text-align:center; }
+    .cmp-table td { padding:10px 16px; border-bottom:1px solid #f8fafc; color:#475569; }
+    .cmp-table td:not(:first-child) { text-align:center; font-weight:700; }
+    .cmp-table tr:last-child td { border-bottom:none; }
+    .cmp-table tr:hover td { background:#fafbff; }
+    .cmp-yes  { color:#059669; }
+    .cmp-no   { color:#cbd5e1; }
+    .cmp-col  { background:rgba(99,102,241,.04); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-16">
-    <!-- Header Section -->
-    <div class="text-center mb-20 relative">
-        <div class="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] mb-6 border border-indigo-100 shadow-sm">
+<div class="upgrade-wrap">
+
+    <!-- ── Hero ── -->
+    <div class="text-center mb-10">
+        <span class="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-[.2em] mb-4 border border-indigo-100">
             License Management
-        </div>
-        <h1 class="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-6">
-            Unlock the Full Power of<br><span class="text-indigo-600">{{ site_config.site_name|default:"RoC Support Desk" }}</span>
+        </span>
+        <h1 class="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">
+            Unlock the Full Power of <span class="text-indigo-600">{{ site_config.site_name|default:"RoC Support Desk" }}</span>
         </h1>
-        <p class="max-w-2xl mx-auto text-slate-500 font-medium leading-relaxed">
-            From small teams to large enterprises, we have a plan that fits your scale.
-            Currently on the <span class="text-indigo-600 font-bold italic">{{ license.get_plan_tier_display }}</span> tier.
+        <p class="text-slate-500 max-w-lg mx-auto text-sm leading-relaxed">
+            From small teams to large enterprises — there's a plan that fits your scale.
+            Currently on the <strong class="text-indigo-600 italic">{{ license.get_plan_tier_display }}</strong> tier.
         </p>
     </div>
 
-    <!-- Pricing Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-stretch">
-        
-        <!-- Starter Core -->
-        <div class="plan-card glass-base rounded-[2.5rem] p-8 flex flex-col border border-white/40 {% if license.plan_tier == 'starter' %}ring-2 ring-indigo-500/20{% endif %}">
-            <div class="flex-1">
-                <div class="flex items-center justify-between mb-8">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Starter</span>
-                    {% if license.plan_tier == 'starter' %}<span class="text-[9px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded">CURRENT</span>{% endif %}
-                </div>
-                <div class="flex items-baseline gap-1 mb-8">
-                    <span class="price-text text-slate-900">Essential</span>
-                </div>
-                <ul class="space-y-4 mb-10">
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-indigo-400"></div> Ticket Management
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-indigo-400"></div> WhatsApp Gateway
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-indigo-400"></div> Form Builder
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-400 line-through">
-                        <div class="feature-dot bg-slate-200"></div> Analytics Dashboard
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-400 line-through">
-                        <div class="feature-dot bg-slate-200"></div> API Integrations
-                    </li>
-                </ul>
+    <!-- ── Plan Grid ── -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; align-items:start; margin-bottom:40px;">
+
+        <!-- Starter -->
+        <div class="plan-card {% if license.plan_tier == 'starter' %}current-plan{% endif %}">
+            {% if license.plan_tier == 'starter' %}<div class="badge-current">Active Plan</div>{% endif %}
+            <div>
+                <p class="plan-name text-indigo-600">Starter</p>
+                <p class="plan-tagline text-slate-900">Essential</p>
+                <p class="plan-desc text-slate-500">Everything a small support team needs to get started.</p>
             </div>
+            <hr class="plan-divider border-slate-200">
+            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px;">
+                <li><span class="feat-check feat-yes">✓</span> <span>Ticket Management</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>WhatsApp Gateway</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Form Builder</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Knowledge Base</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Short Links &amp; QR</span></li>
+                <li class="feat-dim"><span class="feat-check feat-no">✗</span> <span>Analytics Dashboard</span></li>
+                <li class="feat-dim"><span class="feat-check feat-no">✗</span> <span>API Access</span></li>
+            </ul>
+            <div class="text-xs text-slate-400 font-semibold mb-3 text-center">Up to 5 Agents</div>
             {% if license.plan_tier == 'starter' %}
-                <div class="btn-upgrade btn-active">Active Plan</div>
+            <div class="plan-cta cta-disabled">Active Plan</div>
             {% else %}
-                <a href="{{ marketplace_url }}" target="_blank" class="btn-upgrade bg-slate-100 text-slate-600 hover:bg-slate-200">Switch to Starter</a>
+            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-indigo">Get Starter</a>
             {% endif %}
         </div>
 
         <!-- Professional (Most Popular) -->
-        <div class="plan-card popular-card rounded-[2.5rem] p-8 flex flex-col relative overflow-hidden">
-            <div class="popular-glow"></div>
-            <div class="flex-1 relative z-10">
-                <div class="flex items-center justify-between mb-8">
-                    <span class="text-xs font-black uppercase tracking-widest text-indigo-400">Professional</span>
-                    <span class="text-[9px] font-black bg-indigo-500 text-white px-3 py-1 rounded-full shadow-lg shadow-indigo-500/40">MOST POPULAR</span>
-                </div>
-                <div class="flex items-baseline gap-1 mb-8">
-                    <span class="price-text text-white">Full Access</span>
-                </div>
-                <ul class="space-y-4 mb-10">
-                    <li class="flex items-center gap-3 text-sm text-indigo-100">
-                        <div class="feature-dot bg-indigo-400"></div> Everything in Starter
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-indigo-100">
-                        <div class="feature-dot bg-indigo-400"></div> Analytics & Reports
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-indigo-100">
-                        <div class="feature-dot bg-indigo-400"></div> Company Units
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-indigo-100">
-                        <div class="feature-dot bg-indigo-400"></div> Audit Log Exports
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-indigo-300 line-through">
-                        <div class="feature-dot bg-indigo-800"></div> Advanced API
-                    </li>
-                </ul>
+        <div class="plan-card popular {% if license.plan_tier == 'professional' %}current-plan{% endif %}">
+            <div class="badge-popular">🔥 Most Popular</div>
+            {% if license.plan_tier == 'professional' %}<div class="badge-current">Active Plan</div>{% endif %}
+            <div>
+                <p class="plan-name" style="color:#a5b4fc;">Professional</p>
+                <p class="plan-tagline" style="color:#fff;">Full Access</p>
+                <p class="plan-desc" style="color:#c7d2fe;">Analytics, company units, SLA reports — everything unlocked.</p>
             </div>
+            <hr class="plan-divider" style="border-color:#fff;">
+            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px; color:#e0e7ff;">
+                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Starter</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Analytics &amp; Dashboard</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Company Units</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>SLA Reports</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Audit Log Export</span></li>
+                <li style="opacity:.45;text-decoration:line-through; color:#a5b4fc;"><span class="feat-check" style="background:rgba(165,180,252,.15);color:#818cf8;">✗</span> <span>External API</span></li>
+            </ul>
+            <div class="text-xs font-semibold mb-3 text-center" style="color:#818cf8;">Up to 20 Agents</div>
             {% if license.plan_tier == 'professional' %}
-                <div class="btn-upgrade bg-indigo-500/20 text-indigo-300">Active Plan</div>
+            <div class="plan-cta" style="background:rgba(255,255,255,.1);color:#c7d2fe;cursor:default;">Active Plan</div>
             {% else %}
-                <a href="{{ marketplace_url }}" target="_blank" class="btn-upgrade btn-white">Get Professional</a>
+            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-white">Get Professional</a>
             {% endif %}
         </div>
 
         <!-- Business -->
-        <div class="plan-card glass-base rounded-[2.5rem] p-8 flex flex-col border border-white/40">
-            <div class="flex-1">
-                <div class="flex items-center justify-between mb-8">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Business</span>
-                </div>
-                <div class="flex items-baseline gap-1 mb-8">
-                    <span class="price-text text-slate-900">Connected</span>
-                </div>
-                <ul class="space-y-4 mb-10">
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-purple-500"></div> Everything in Pro
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-purple-500"></div> High Volume Capacity
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-purple-500"></div> API Access & Hooks
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-600">
-                        <div class="feature-dot bg-purple-500"></div> Priority Queuing
-                    </li>
-                </ul>
+        <div class="plan-card {% if license.plan_tier == 'business' %}current-plan{% endif %}">
+            {% if license.plan_tier == 'business' %}<div class="badge-current">Active Plan</div>{% endif %}
+            <div>
+                <p class="plan-name text-purple-600">Business</p>
+                <p class="plan-tagline text-slate-900">Connected</p>
+                <p class="plan-desc text-slate-500">High-volume capacity and API access for external integrations.</p>
             </div>
+            <hr class="plan-divider border-slate-200">
+            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px;">
+                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Professional</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>API Access &amp; Hooks</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>High-Volume Capacity</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Priority Queuing</span></li>
+            </ul>
+            <div class="text-xs text-slate-400 font-semibold mb-3 text-center">Up to 50 Agents</div>
             {% if license.plan_tier == 'business' %}
-                <div class="btn-upgrade btn-active">Active Plan</div>
+            <div class="plan-cta cta-disabled">Active Plan</div>
             {% else %}
-                <a href="{{ marketplace_url }}" target="_blank" class="btn-upgrade btn-buy bg-purple-600 shadow-purple-200">Get Business</a>
+            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-purple">Get Business</a>
             {% endif %}
         </div>
 
         <!-- Enterprise -->
-        <div class="plan-card rounded-[2.5rem] p-8 flex flex-col bg-slate-900 border border-slate-800">
-            <div class="flex-1">
-                <div class="flex items-center justify-between mb-8">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-500">Enterprise</span>
-                    <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs">🚀</div>
-                </div>
-                <div class="flex items-baseline gap-1 mb-8 text-white">
-                    <span class="price-text">Infinite</span>
-                </div>
-                <ul class="space-y-4 mb-10">
-                    <li class="flex items-center gap-3 text-sm text-slate-400">
-                        <div class="feature-dot bg-slate-500"></div> Tailored Solutions
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-400">
-                        <div class="feature-dot bg-slate-500"></div> Dedicated Support
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-400">
-                        <div class="feature-dot bg-slate-500"></div> Unlimited Agents
-                    </li>
-                    <li class="flex items-center gap-3 text-sm text-slate-400">
-                        <div class="feature-dot bg-slate-500"></div> Custom Integrations
-                    </li>
-                </ul>
+        <div class="plan-card {% if license.plan_tier == 'enterprise' %}current-plan{% endif %}" style="background:#0f172a; border-color:#1e293b;">
+            {% if license.plan_tier == 'enterprise' %}<div class="badge-current">Active Plan</div>{% endif %}
+            <div>
+                <p class="plan-name" style="color:#64748b;">Enterprise</p>
+                <p class="plan-tagline" style="color:#fff;">Unlimited</p>
+                <p class="plan-desc" style="color:#64748b;">Custom solutions, dedicated support, and unlimited agents.</p>
             </div>
+            <hr class="plan-divider" style="border-color:#fff;">
+            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px; color:#94a3b8;">
+                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Business</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Custom Solutions</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Dedicated Support</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Unlimited Agents</span></li>
+                <li><span class="feat-check feat-yes">✓</span> <span>Custom Integrations</span></li>
+            </ul>
+            <div class="text-xs font-semibold mb-3 text-center" style="color:#475569;">Unlimited Agents ∞</div>
             {% if license.plan_tier == 'enterprise' %}
-                <div class="btn-upgrade bg-slate-800 text-slate-500">Active Plan</div>
+            <div class="plan-cta" style="background:rgba(255,255,255,.05);color:#475569;cursor:default;">Active Plan</div>
             {% else %}
-                <a href="{{ marketplace_url }}" target="_blank" class="btn-upgrade bg-white text-slate-900 font-extrabold">Contact for Enterprise</a>
+            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-dark">Contact Us</a>
             {% endif %}
+        </div>
+
+    </div>
+
+    <!-- ── Feature Comparison Table ── -->
+    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.04); margin-bottom:40px;">
+        <div style="padding:16px 20px; border-bottom:1px solid #f1f5f9; font-size:14px; font-weight:800; color:#1e293b;">
+            📊 Full Feature Comparison
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="cmp-table">
+                <thead>
+                    <tr>
+                        <th style="width:36%">Feature</th>
+                        <th>Trial</th>
+                        <th>Starter</th>
+                        <th class="cmp-col">Professional</th>
+                        <th>Business</th>
+                        <th>Enterprise</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Ticket Management</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Knowledge Base (read)</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Knowledge Base (manage)</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>WhatsApp Gateway</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Form Builder</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Short Links &amp; QR Code</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Email Settings (IMAP/SMTP)</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Analytics Dashboard</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Company Units</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>SLA Reports</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Audit Log Export</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>API Access</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-no cmp-col">—</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr>
+                        <td style="font-weight:700; color:#1e293b;">Max Agents</td>
+                        <td style="color:#94a3b8; font-weight:600;">3</td>
+                        <td style="color:#1e293b; font-weight:700;">5</td>
+                        <td class="cmp-col" style="color:#6366f1; font-weight:700;">20</td>
+                        <td style="color:#7c3aed; font-weight:700;">50</td>
+                        <td style="color:#1e293b; font-weight:700;">∞</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- Activation Footer -->
-    <div class="mt-20 text-center">
-        <p class="text-sm text-slate-400 font-bold uppercase tracking-widest mb-6">Already possess a activation token?</p>
-        <a href="{% url 'licensing:activate' %}" class="inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-white border border-slate-100 text-slate-700 font-bold hover:shadow-xl hover:border-indigo-100 hover:text-indigo-600 transition-all">
+    <!-- ── Already have a key ── -->
+    <div class="text-center">
+        <p class="text-sm text-slate-400 font-semibold mb-4">Already have a license key?</p>
+        <a href="{% url 'licensing:activate' %}" class="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold hover:shadow-lg hover:border-indigo-200 hover:text-indigo-600 transition-all text-sm">
             <span class="text-xl">🔑</span>
-            <span>Input Activate Token</span>
+            <span>Activate License Key</span>
         </a>
     </div>
+
 </div>
 {% endblock %}

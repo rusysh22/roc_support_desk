@@ -656,6 +656,9 @@ def create_category(request):
     prefix_code = request.POST.get("prefix_code", "RQ").strip()[:2]
     parent_id = request.POST.get("parent", "").strip()
     is_confidential = request.POST.get("is_confidential") == "on"
+    is_attachment_mandatory = request.POST.get("is_attachment_mandatory") == "on"
+    template_subject = request.POST.get("template_subject", "").strip()
+    template_text = request.POST.get("template_text", "").strip()
 
     if not name:
         return JsonResponse({"error": "Category name is required."}, status=400)
@@ -672,6 +675,9 @@ def create_category(request):
             prefix_code=prefix_code or "RQ",
             parent=parent,
             is_confidential=is_confidential,
+            is_attachment_mandatory=is_attachment_mandatory,
+            template_subject=template_subject,
+            template_text=template_text,
             created_by=request.user,
             updated_by=request.user,
         )
@@ -704,6 +710,9 @@ def update_category(request, category_id):
     category.icon = request.POST.get("icon", "").strip() or "📝"
     category.prefix_code = request.POST.get("prefix_code", "RQ").strip()[:2] or "RQ"
     category.is_confidential = request.POST.get("is_confidential") == "on"
+    category.is_attachment_mandatory = request.POST.get("is_attachment_mandatory") == "on"
+    category.template_subject = request.POST.get("template_subject", "").strip()
+    category.template_text = request.POST.get("template_text", "").strip()
     category.updated_by = request.user
 
     # Update parent
@@ -852,6 +861,12 @@ def create_case(request, slug=None):
             # Validate attachment sizes (10 MB limit)
             uploaded_files = request.FILES.getlist("attachments")
             file_errors = form.validate_attachments(uploaded_files)
+            
+            # Check if attachment is mandatory for this category
+            category = form.cleaned_data.get("category")
+            if category and category.is_attachment_mandatory and not uploaded_files:
+                file_errors.append("Attachment is mandatory for this category. Please upload at least one file.")
+
             if file_errors:
                 for err in file_errors:
                     form.add_error(None, err)

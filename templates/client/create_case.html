@@ -476,12 +476,19 @@
                                 return (bytes / 1048576).toFixed(1) + ' MB';
                             }
                          }">
-                        <label class="jk-label">Attachments (optional)</label>
+                        <label class="jk-label flex items-center gap-1.5">
+                            Attachments
+                            {% if selected_category.is_attachment_mandatory %}
+                            <span class="text-rose-500 font-black text-sm leading-none" title="Attachment is required">*</span>
+                            <span class="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md uppercase tracking-wide">Required</span>
+                            {% endif %}
+                        </label>
                         <input type="file"
                                name="attachments"
                                multiple
                                x-ref="fileInput"
                                class="jk-file-input"
+                               {% if selected_category.is_attachment_mandatory %}required{% endif %}
                                @change="handleFiles($event)">
 
                         {% for error in form.non_field_errors %}

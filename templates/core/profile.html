@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Profile — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block extra_head %}
+<style>
+    .profile-avatar {
+        width: 80px; height: 80px; border-radius: 24px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 32px; font-weight: 900; color: #fff;
+        box-shadow: 0 8px 24px rgba(99,102,241,.35);
+        flex-shrink: 0;
+    }
+    .role-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 12px; border-radius: 999px;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+        background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe;
+    }
+    .info-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { font-size: 16px; width: 32px; text-align: center; flex-shrink: 0; }
+    .info-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .06em; color: #94a3b8; margin-bottom: 2px; }
+    .info-value { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .info-empty { font-size: 13px; color: #cbd5e1; font-style: italic; }
+
+    .pw-strength-bar {
+        height: 4px; border-radius: 2px; background: #e2e8f0;
+        overflow: hidden; margin-top: 6px;
+    }
+    .pw-strength-fill {
+        height: 100%; border-radius: 2px;
+        transition: width .3s, background .3s;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    {% if messages %}
+    <div class="mb-5 space-y-2">
+        {% for msg in messages %}
+        <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if 'error' in msg.tags %}bg-rose-50 border border-rose-200 text-rose-700
+            {% else %}bg-emerald-50 border border-emerald-200 text-emerald-700{% endif %}">
+            <span>{% if 'error' in msg.tags %}⚠{% else %}✓{% endif %}</span>
+            <span>{{ msg }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ─── Profile Hero ─────────────────────────────────────────────── #}
+    <div class="jk-card mb-6">
+        <div class="jk-card-body">
+            <div class="flex items-center gap-5 flex-wrap">
+                <div class="profile-avatar">{{ profile_user.username|first|upper }}</div>
+                <div class="flex-1 min-w-0">
+                    <h1 class="text-xl font-black text-slate-800 leading-tight">{{ profile_user.username }}</h1>
+                    <p class="text-sm text-slate-400 font-medium mt-0.5">@{{ profile_user.login_username }}</p>
+                    <div class="flex items-center gap-2 mt-2 flex-wrap">
+                        <span class="role-badge">{{ profile_user.role_access }}</span>
+                        {% if profile_user.is_active %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold">● Active</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# Read-only info rows #}
+            <div class="mt-5 border-t border-slate-100 pt-4">
+                <div class="info-row">
+                    <span class="info-icon">🪪</span>
+                    <div>
+                        <div class="info-label">NIK</div>
+                        {% if profile_user.nik %}
+                        <div class="info-value font-mono">{{ profile_user.nik }}</div>
+                        {% else %}
+                        <div class="info-empty">Not set</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <span class="info-icon">📧</span>
+                    <div>
+                        <div class="info-label">Email</div>
+                        <div class="info-value">{{ profile_user.email }}</div>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <span class="info-icon">🔖</span>
+                    <div>
+                        <div class="info-label">Initials</div>
+                        <div class="info-value font-mono uppercase">{{ profile_user.initials|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {# ─── Edit Profile ─────────────────────────────────────────── #}
+        <div class="jk-card">
+            <div class="jk-card-header flex items-center gap-2">
+                <span>✏️</span>
+                <span class="font-bold text-slate-800">Edit Profile</span>
+            </div>
+            <div class="jk-card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="profile">
+
+                    <div class="jk-form-group mb-4">
+                        <label class="jk-label" for="display_name">Display Name</label>
+                        <input type="text" id="display_name" name="display_name"
+                               value="{{ profile_user.username }}"
+                               class="jk-input w-full"
+                               placeholder="Your name"
+                               required>
+                        <p class="text-xs text-slate-400 mt-1">This name is shown across the system.</p>
+                    </div>
+
+                    <div class="jk-form-group mb-5">
+                        <label class="jk-label" for="phone_number">Phone Number</label>
+                        <input type="tel" id="phone_number" name="phone_number"
+                               value="{{ profile_user.phone_number }}"
+                               class="jk-input w-full"
+                               placeholder="+62 812 3456 7890">
+                    </div>
+
+                    <button type="submit" class="jk-btn jk-btn-primary w-full">
+                        💾 Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {# ─── Change Password ──────────────────────────────────────── #}
+        <div class="jk-card">
+            <div class="jk-card-header flex items-center gap-2">
+                <span>🔒</span>
+                <span class="font-bold text-slate-800">Change Password</span>
+            </div>
+            <div class="jk-card-body">
+                <form method="POST" id="pw-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="password">
+
+                    <div class="jk-form-group mb-4">
+                        <label class="jk-label" for="current_password">Current Password</label>
+                        <input type="password" id="current_password" name="current_password"
+                               class="jk-input w-full" placeholder="••••••••" required>
+                    </div>
+
+                    <div class="jk-form-group mb-2">
+                        <label class="jk-label" for="new_password">New Password</label>
+                        <input type="password" id="new_password" name="new_password"
+                               class="jk-input w-full" placeholder="Min. 8 characters"
+                               required oninput="checkPwStrength(this.value)">
+                        <div class="pw-strength-bar">
+                            <div class="pw-strength-fill" id="pw-strength-fill" style="width:0%;background:#e2e8f0;"></div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1" id="pw-strength-label"></p>
+                    </div>
+
+                    <div class="jk-form-group mb-5">
+                        <label class="jk-label" for="confirm_password">Confirm New Password</label>
+                        <input type="password" id="confirm_password" name="confirm_password"
+                               class="jk-input w-full" placeholder="Repeat new password"
+                               required oninput="checkPwMatch()">
+                        <p class="text-xs mt-1 hidden" id="pw-match-msg"></p>
+                    </div>
+
+                    <button type="submit" class="jk-btn jk-btn-primary w-full">
+                        🔑 Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+function checkPwStrength(val) {
+    const fill  = document.getElementById('pw-strength-fill');
+    const label = document.getElementById('pw-strength-label');
+    let pct = 0, color = '#ef4444', text = '';
+    if (val.length >= 8) { pct = 33; color = '#f97316'; text = 'Weak'; }
+    if (val.length >= 10 && /[A-Z]/.test(val)) { pct = 66; color = '#eab308'; text = 'Medium'; }
+    if (val.length >= 12 && /[A-Z]/.test(val) && /[0-9]/.test(val) && /[^a-zA-Z0-9]/.test(val)) { pct = 100; color = '#22c55e'; text = 'Strong'; }
+    if (val.length === 0) { pct = 0; color = '#e2e8f0'; text = ''; }
+    fill.style.width = pct + '%';
+    fill.style.background = color;
+    label.textContent = text;
+    label.style.color = color;
+}
+
+function checkPwMatch() {
+    const np  = document.getElementById('new_password').value;
+    const cp  = document.getElementById('confirm_password').value;
+    const msg = document.getElementById('pw-match-msg');
+    if (!cp) { msg.classList.add('hidden'); return; }
+    msg.classList.remove('hidden');
+    if (np === cp) { msg.textContent = '✓ Passwords match'; msg.style.color = '#22c55e'; }
+    else           { msg.textContent = '✗ Passwords do not match'; msg.style.color = '#ef4444'; }
+}
+</script>
+{% endblock %}

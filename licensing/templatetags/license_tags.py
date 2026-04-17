@@ -130,3 +130,23 @@ _FEATURE_LABELS = {
 def feature_label(feature_key: str) -> str:
     """Convert a feature key to its human-readable label."""
     return _FEATURE_LABELS.get(feature_key, feature_key.replace('_', ' ').title())
+
+
+_FEATURE_ICONS = {
+    'whatsapp':       '📱',
+    'email_settings': '📧',
+    'form_builder':   '📝',
+    'kb_manage':      '📚',
+    'short_links':    '🔗',
+    'analytics':      '📊',
+    'company_units':  '🏢',
+    'sla_reports':    '📈',
+    'audit_export':   '📥',
+    'api_access':     '🔌',
+}
+
+
+@register.filter
+def feature_icon(feature_key: str) -> str:
+    """Return an emoji icon for a feature key."""
+    return _FEATURE_ICONS.get(feature_key, '✨')
