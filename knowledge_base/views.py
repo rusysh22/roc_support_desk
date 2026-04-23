@@ -13,8 +13,10 @@ from django.views.decorators.http import require_POST
 from cases.models import CaseCategory, CaseRecord
 from core.models import User
 
+from core.models import SiteConfig
+
 from .forms import ArticleForm
-from .models import Article, ArticleComment, ArticleImage
+from .models import Article, ArticleAttachment, ArticleComment, ArticleImage
 
 from licensing.decorators import feature_required
 
@@ -94,9 +96,11 @@ def kb_article_detail(request, slug):
     """Full article detail page (public, published only)."""
     article = get_object_or_404(Article, slug=slug, is_published=True)
     comments = article.comments.select_related("user").order_by("created_at")
+    attachments = article.attachments.all()
     return render(request, "knowledge_base/article_detail.html", {
         "article": article,
         "comments": comments,
+        "attachments": attachments,
     })
 
 
@@ -108,9 +112,9 @@ def kb_article_comment(request, slug):
     body = request.POST.get("body", "").strip()
 
     if not body:
-        messages.error(request, "Komentar tidak boleh kosong.")
+        messages.error(request, "Comment cannot be empty.")
     elif len(body) > 250:
-        messages.error(request, "Komentar maksimal 250 karakter.")
+        messages.error(request, "Comment must be 250 characters or less.")
     else:
         ArticleComment.objects.create(
             article=article,
@@ -119,7 +123,7 @@ def kb_article_comment(request, slug):
             created_by=request.user,
             updated_by=request.user,
         )
-        messages.success(request, "Komentar berhasil dikirim.")
+        messages.success(request, "Comment submitted successfully.")
 
     return redirect("knowledge_base:article_detail", slug=slug)
 
@@ -176,12 +180,33 @@ def kb_article_list(request):
     })
 
 
+def _save_attachments(request, article):
+    """Save uploaded files from request.FILES['attachments'] to ArticleAttachment."""
+    site_config = SiteConfig.get_solo()
+    max_bytes = site_config.max_upload_size_mb * 1024 * 1024
+    errors = []
+    for f in request.FILES.getlist("attachments"):
+        if f.size > max_bytes:
+            errors.append(f'"{f.name}" exceeds the {site_config.max_upload_size_mb} MB size limit.')
+            continue
+        ArticleAttachment.objects.create(
+            article=article,
+            file=f,
+            original_filename=f.name,
+            mime_type=f.content_type or "",
+            file_size=f.size,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+    return errors
+
+
 @staff_required
 @feature_required('kb_manage')
 def kb_article_create(request):
     """Create a new KB article (saved as Draft)."""
     if request.method == "POST":
-        form = ArticleForm(request.POST)
+        form = ArticleForm(request.POST, request.FILES)
         if form.is_valid():
             article = form.save(commit=False)
             article.status = Article.Status.DRAFT
@@ -189,6 +214,9 @@ def kb_article_create(request):
             article.updated_by = request.user
             article.save()
             form.save_tags(article)
+            att_errors = _save_attachments(request, article)
+            for err in att_errors:
+                messages.warning(request, err)
             messages.success(request, f'Article "{article.title}" created as Draft.')
             return redirect("kb_desk:article_list")
     else:
@@ -212,7 +240,7 @@ def kb_create_from_case(request, case_id):
         return redirect("kb_desk:article_edit", pk=existing.pk)
 
     if request.method == "POST":
-        form = ArticleForm(request.POST)
+        form = ArticleForm(request.POST, request.FILES)
         if form.is_valid():
             article = form.save(commit=False)
             article.source_case = case
@@ -221,6 +249,9 @@ def kb_create_from_case(request, case_id):
             article.updated_by = request.user
             article.save()
             form.save_tags(article)
+            att_errors = _save_attachments(request, article)
+            for err in att_errors:
+                messages.warning(request, err)
             messages.success(request, f'Article "{article.title}" created from case {case.case_number}.')
             return redirect("kb_desk:article_list")
     else:
@@ -254,7 +285,7 @@ def kb_article_edit(request, pk):
             return HttpResponseForbidden("Published articles can only be edited by Manager/SuperAdmin.")
 
     if request.method == "POST":
-        form = ArticleForm(request.POST, instance=article)
+        form = ArticleForm(request.POST, request.FILES, instance=article)
         if form.is_valid():
             article = form.save(commit=False)
             article.updated_by = request.user
@@ -264,15 +295,27 @@ def kb_article_edit(request, pk):
                 article.rejection_reason = ""
             article.save()
             form.save_tags(article)
+
+            # Delete attachments the user marked for removal
+            delete_ids = request.POST.getlist("delete_attachment")
+            if delete_ids:
+                article.attachments.filter(pk__in=delete_ids).delete()
+
+            att_errors = _save_attachments(request, article)
+            for err in att_errors:
+                messages.warning(request, err)
             messages.success(request, f'Article "{article.title}" updated.')
             return redirect("kb_desk:article_list")
     else:
         form = ArticleForm(instance=article)
 
+    existing_attachments = article.attachments.all()
+
     return render(request, "desk/kb/form.html", {
         "form": form,
         "is_edit": True,
         "article": article,
+        "existing_attachments": existing_attachments,
     })
 
 
@@ -362,6 +405,24 @@ def kb_article_unpublish(request, pk):
     article.save()
     messages.success(request, f'Article "{article.title}" unpublished.')
     return redirect("kb_desk:article_list")
+
+
+@staff_required
+@feature_required('kb_manage')
+@require_POST
+def kb_attachment_delete(request, pk):
+    """Delete a single article attachment."""
+    attachment = get_object_or_404(ArticleAttachment, pk=pk)
+    article = attachment.article
+
+    if request.user.role_access == User.RoleAccess.SUPPORTDESK:
+        if article.created_by != request.user:
+            return HttpResponseForbidden("You can only manage attachments on your own articles.")
+
+    attachment.file.delete(save=False)
+    attachment.delete()
+    messages.success(request, "Attachment deleted.")
+    return redirect("kb_desk:article_edit", pk=article.pk)
 
 
 @staff_required

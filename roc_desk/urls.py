@@ -38,6 +38,7 @@ urlpatterns = [
     path("auth/request-account/", core_views.RequestAccountView.as_view(), name="request_account"),
     path("auth/forgot-password/", core_views.ForgotPasswordView.as_view(), name="forgot_password"),
     path("auth/reset-password/", core_views.ResetPasswordOTPView.as_view(), name="reset_password_otp"),
+    path("auth/change-password/", core_views.ForceChangePasswordView.as_view(), name="force_change_password"),
     path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm, redirect_authenticated_user=True), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
 

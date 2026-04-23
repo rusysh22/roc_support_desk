@@ -21,4 +21,7 @@ urlpatterns = [
 
     # Image upload (Quill.js)
     path("upload-image/", views.kb_image_upload, name="image_upload"),
+
+    # Attachment delete
+    path("attachment/<uuid:pk>/delete/", views.kb_attachment_delete, name="attachment_delete"),
 ]

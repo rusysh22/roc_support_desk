@@ -1,0 +1,17 @@
+# Never bake secrets into the image — passed via docker-compose env_file at runtime
+.env
+
+# No need to copy these into the image
+.git/
+.gitignore
+.dockerignore
+*.md
+media/
+staticfiles/
+__pycache__/
+*.py[cod]
+*.pyc
+.venv/
+venv/
+.vscode/
+.idea/

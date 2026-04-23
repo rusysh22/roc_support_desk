@@ -3,6 +3,8 @@ Cases App — Forms
 ==================
 Forms for public case submission and internal staff RCA updates.
 """
+import magic
+
 from django import forms
 from django.core.exceptions import ValidationError
 import dns.resolver
@@ -133,8 +135,21 @@ class CaseCreateForm(forms.Form):
             
         return email
 
+    ALLOWED_MIME_TYPES = {
+        "application/pdf",
+        "image/png", "image/jpeg", "image/gif", "image/webp",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "text/plain", "text/csv",
+        "application/zip",
+    }
+
     def validate_attachments(self, files):
-        """Validate each uploaded file is ≤ 10 MB. Called from the view."""
+        """Validate each uploaded file: size ≤ 10 MB and MIME type is allowed."""
         errors = []
         for f in files:
             if f.size > self.MAX_FILE_SIZE:
@@ -144,6 +159,22 @@ class CaseCreateForm(forms.Form):
                     f"Maximum allowed size is 10 MB per file. "
                     f"For larger files, please upload to your Cloud Drive "
                     f"and paste the link in the Reference Link field."
+                )
+                continue
+
+            # Validate actual file content via magic bytes (prevents extension spoofing)
+            try:
+                header = f.read(2048)
+                f.seek(0)
+                detected_mime = magic.from_buffer(header, mime=True)
+            except Exception:
+                errors.append(f'File "{f.name}": could not determine file type.')
+                continue
+
+            if detected_mime not in self.ALLOWED_MIME_TYPES:
+                errors.append(
+                    f'File "{f.name}" has a disallowed type ({detected_mime}). '
+                    f"Accepted types: PDF, images, Word, Excel, PowerPoint, plain text, CSV, ZIP."
                 )
         return errors
 

@@ -66,7 +66,7 @@ class LicenseRecord(models.Model):
     # --- Binding ---
     install_fingerprint = models.CharField(
         max_length=64, blank=True,
-        help_text="SHA-256(domain + SECRET_KEY[:12] + product_id) — binds license to this server.",
+        help_text="SHA-256(domain + INSTALL_KEY + product_id) — binds license to this server.",
     )
     marketplace_endpoint = models.URLField(
         blank=True,

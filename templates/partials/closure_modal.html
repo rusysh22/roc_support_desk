@@ -1,20 +1,20 @@
-<div id="closure-modal" 
-     class="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity" 
-     x-data="{ open: true }" 
-     x-show="open" 
+<div id="closure-modal"
+     class="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity"
+     x-data="{ open: true, sendNotif: true }"
+     x-show="open"
      style="display: none;">
-    
+
     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" 
-         @click="open = false" 
-         x-show="open" 
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
+         @click="open = false"
+         x-show="open"
          x-transition.opacity></div>
-    
+
     <!-- Modal Panel -->
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col" 
-         x-show="open" 
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col"
+         x-show="open"
          x-transition.scale.origin.bottom>
-         
+
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
             <h3 class="font-semibold text-slate-800 flex items-center gap-2">
                 <span class="text-xl">✅</span> Confirm Ticket Closure
@@ -23,21 +23,35 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
-        
-        <form hx-post="{% url 'desk:case_close_and_notify' case_id=case.id %}" 
+
+        <form hx-post="{% url 'desk:case_close_and_notify' case_id=case.id %}"
               class="p-6 flex flex-col gap-5">
             {% csrf_token %}
-            
-            <div class="bg-indigo-50 text-indigo-800 p-3 rounded-lg text-sm flex items-start gap-2 border border-indigo-100">
-                <span class="mt-0.5">ℹ️</span>
-                <div>
-                    This professional message will be sent to the requester <strong>({{ case.requester.full_name|default:case.requester_name }})</strong> via 
-                    <strong>{% if case.source == 'EvolutionAPI_WA' %}WhatsApp💬{% else %}Email📧{% endif %}</strong>. 
-                    You may edit the template below before sending.
+
+            <!-- Send notification toggle -->
+            <label class="flex items-center gap-3 cursor-pointer select-none">
+                <div class="relative">
+                    <input type="checkbox" name="send_notification" value="1" class="sr-only" x-model="sendNotif" checked>
+                    <div class="w-10 h-5 rounded-full transition-colors duration-200"
+                         :class="sendNotif ? 'bg-emerald-500' : 'bg-slate-300'"></div>
+                    <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                         :class="sendNotif ? 'translate-x-5' : 'translate-x-0'"></div>
                 </div>
-            </div>
-            
-            <textarea name="closure_message_body" rows="12" class="jk-input text-sm text-slate-700 leading-relaxed font-mono w-full resize-y" required>Hello {{ case.requester.full_name|default:case.requester_name }},
+                <span class="text-sm font-medium text-slate-700">
+                    Send closure notification to requester
+                    <span class="ml-1 font-normal text-slate-500">(via {% if case.source == 'EvolutionAPI_WA' %}WhatsApp💬{% else %}Email📧{% endif %})</span>
+                </span>
+            </label>
+
+            <div x-show="sendNotif" x-transition class="flex flex-col gap-5">
+                <div class="bg-indigo-50 text-indigo-800 p-3 rounded-lg text-sm flex items-start gap-2 border border-indigo-100">
+                    <span class="mt-0.5">ℹ️</span>
+                    <div>
+                        This message will be sent to <strong>{{ case.requester.full_name|default:case.requester_name }}</strong>. You may edit it before sending.
+                    </div>
+                </div>
+
+                <textarea name="closure_message_body" rows="12" class="jk-input text-sm text-slate-700 leading-relaxed font-mono w-full resize-y" :required="sendNotif">Hello {{ case.requester.full_name|default:case.requester_name }},
 
 Your service ticket #{{ case.case_number }} ("{{ case.subject }}") has been marked as Resolved and Closed.
 Here are the details of your ticket:
@@ -54,11 +68,20 @@ Thank you for reaching out to us. If you encounter any further issues, please do
 
 Best regards,
 {{ site_config.site_name|default:"Support Desk" }} Team{% if user.initials %} - {{ user.initials }}{% endif %}</textarea>
+            </div>
+
+            <div x-show="!sendNotif" x-transition
+                 class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm flex items-start gap-2">
+                <span class="mt-0.5">⚠️</span>
+                <span>The ticket will be closed without sending any notification to the requester.</span>
+            </div>
 
             <div class="flex items-center justify-end gap-3 pt-2">
                 <button type="button" @click="open = false; document.getElementById('htmx-modal').innerHTML=''" class="jk-btn jk-btn-secondary px-5">Cancel</button>
-                <button type="submit" class="jk-btn jk-btn-success px-5 font-semibold" onclick="document.getElementById('rca-spinner').style.display='block'">
-                    Send & Close Ticket
+                <button type="submit" class="jk-btn px-5 font-semibold transition-colors"
+                        :class="sendNotif ? 'jk-btn-success' : 'bg-slate-600 hover:bg-slate-700 text-white'"
+                        onclick="document.getElementById('rca-spinner').style.display='block'">
+                    <span x-text="sendNotif ? 'Send & Close Ticket' : 'Close Ticket'"></span>
                 </button>
             </div>
         </form>

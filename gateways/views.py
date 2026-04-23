@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import logging
 
+from ipware import get_client_ip as _get_client_ip
+
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -67,7 +69,7 @@ def evolution_webhook(request: HttpRequest, event_suffix: str = "") -> HttpRespo
         logger.info(
             "Webhook token mismatch from %s (got '%s...'). "
             "Allowing for Evolution API v2 compatibility.",
-            request.META.get("REMOTE_ADDR", "unknown"),
+            _get_client_ip(request)[0] or "unknown",
             received_token[:10],
         )
 

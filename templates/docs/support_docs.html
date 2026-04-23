@@ -92,6 +92,27 @@
     }
     .docs-table td { padding: 9px 13px; border-bottom: 1px solid var(--jk-surface-alt); color: #4b5563; }
     .docs-table tr:hover td { background: var(--jk-surface-alt); }
+
+    /* ── Mobile TOC toggle (desktop: hidden, mobile: shows via jokoui.css) ── */
+    .docs-toc-mobile-btn { display: none; }
+    @media (max-width: 768px) {
+        .docs-toc-mobile-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: var(--jk-radius-sm);
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #065f46;
+            cursor: pointer;
+        }
+        .docs-toc-chevron { margin-left: auto; transition: transform .2s; }
+        #docs-toc-sidebar.toc-collapsed .docs-toc-chevron { transform: rotate(-90deg); }
+    }
 </style>
 {% endblock %}
 
@@ -128,6 +149,10 @@
 
     <!-- ── TOC Sidebar ─────────────────────────────────────────── -->
     <div id="docs-toc-sidebar" class="jk-card" style="position:sticky;top:88px;">
+        <button class="docs-toc-mobile-btn" onclick="toggleDocsToc()" aria-expanded="true" aria-controls="docs-toc-sidebar">
+            📋 <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
+            <svg class="docs-toc-chevron" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
         <div class="jk-card-header" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--jk-text-muted);">
             <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
         </div>
@@ -220,7 +245,7 @@
                 </p>
 
                 <!-- 4 benefit cards -->
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                <div class="docs-grid-2" style="gap:12px;">
                     <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
                         <div style="font-size:22px;margin-bottom:6px;">⚡</div>
                         <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
@@ -376,7 +401,7 @@
                 <div style="font-weight:600;color:var(--jk-text);font-size:13px;margin-bottom:8px;">
                     <span class="lang-id">Metrik Utama</span><span class="lang-en">Key Metrics</span>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+                <div class="docs-grid-3" style="gap:10px;margin-bottom:16px;">
                     <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
                         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">
                             <span class="lang-id">Tiket Aktif</span><span class="lang-en">Active Tickets</span>
@@ -718,7 +743,7 @@
                     </h3>
                     <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">RCA (Root Cause Analysis) wajib diisi sebelum tiket bisa di-Resolve.</p>
                     <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">RCA (Root Cause Analysis) is mandatory before a ticket can be Resolved.</p>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+                    <div class="docs-grid-2" style="gap:10px;margin-bottom:14px;">
                         <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
                             <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;">Root Cause Analysis</div>
                             <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Apa penyebab utama masalah ini?</span><span class="lang-en">What is the root cause of this issue?</span></div>
@@ -831,7 +856,7 @@
                     </h3>
                     <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:12px;">Ada dua opsi untuk menutup tiket:</p>
                     <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:12px;">There are two options to close a ticket:</p>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                    <div class="docs-grid-2" style="gap:10px;margin-bottom:16px;">
                         <div style="background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:var(--jk-radius-sm);padding:12px 14px;">
                             <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Tutup Saja</span><span class="lang-en">Close Only</span></div>
                             <div style="font-size:12.5px;color:var(--jk-text-muted);"><span class="lang-id">Ubah status ke Closed via dropdown status</span><span class="lang-en">Change status to Closed via the status dropdown</span></div>
@@ -970,7 +995,7 @@
                 <div class="docs-step"><div class="docs-step-num">5</div><div><span class="lang-id">Opsional: isi custom slug (contoh: <code>panduan-onboarding</code>)</span><span class="lang-en">Optional: fill custom slug (e.g., <code>onboarding-guide</code>)</span></div></div>
                 <div class="docs-step"><div class="docs-step-num">6</div><div><span class="lang-id">Klik Create — dapatkan short URL &amp; QR code</span><span class="lang-en">Click Create — get your short URL &amp; QR code</span></div></div>
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+                <div class="docs-grid-2" style="gap:12px;margin-top:14px;">
                     <div style="background:var(--jk-surface-alt);border:1px solid var(--jk-border);border-radius:var(--jk-radius-sm);padding:12px 14px;">
                         <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">📷 QR Code</div>
                         <div style="font-size:12.5px;"><span class="lang-id">Klik ikon QR → tampil QR ukuran penuh → download PNG untuk dicetak</span><span class="lang-en">Click QR icon → full-size QR appears → download PNG for printing</span></div>
@@ -1093,6 +1118,35 @@
 
 {% block extra_scripts %}
 <script>
+function toggleDocsToc() {
+    const sidebar = document.getElementById('docs-toc-sidebar');
+    const btn = sidebar ? sidebar.querySelector('.docs-toc-mobile-btn') : null;
+    if (!sidebar) return;
+    const isCollapsed = sidebar.classList.toggle('toc-collapsed');
+    if (btn) btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+}
+
+// Auto-collapse TOC on mobile + close on link click
+(function initMobileToc() {
+    function isMobile() { return window.innerWidth <= 768; }
+    const sidebar = document.getElementById('docs-toc-sidebar');
+    if (!sidebar) return;
+    if (isMobile()) {
+        sidebar.classList.add('toc-collapsed');
+        const btn = sidebar.querySelector('.docs-toc-mobile-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    sidebar.querySelectorAll('.docs-toc-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (isMobile()) {
+                sidebar.classList.add('toc-collapsed');
+                const btn = sidebar.querySelector('.docs-toc-mobile-btn');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+})();
+
 (function() {
     const LANG_KEY = 'roc_docs_lang';
     const saved = localStorage.getItem(LANG_KEY) || 'id';

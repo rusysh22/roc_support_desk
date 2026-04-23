@@ -9,6 +9,9 @@
 <div class="space-y-6" x-data="{
     selected: [],
     showImportModal: false,
+    showUpdateModal: false,
+    showPasswordModal: false,
+    pwTab: 'quick',
     checkAll: false,
     toggleAll(event) {
         const checkboxes = document.querySelectorAll('.user-row-check');
@@ -19,43 +22,36 @@
         if (checked) { if (!this.selected.includes(id)) this.selected.push(id); }
         else { this.selected = this.selected.filter(v => v !== id); }
     },
-    submitExport() {
-        const form = document.getElementById('bulk-action-export-form');
+    _injectIds(formId) {
+        const form = document.getElementById(formId);
+        form.querySelectorAll('input[name=selected_ids]').forEach(el => el.remove());
         this.selected.forEach(id => {
             const input = document.createElement('input');
             input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
             form.appendChild(input);
         });
-        form.submit();
+        return form;
     },
+    submitExport() { this._injectIds('bulk-action-export-form').submit(); },
     submitBulkDelete() {
         if (!confirm('Delete ' + this.selected.length + ' selected user(s)? This cannot be undone.')) return;
-        const form = document.getElementById('bulk-action-delete-form');
-        this.selected.forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
-            form.appendChild(input);
-        });
-        form.submit();
+        this._injectIds('bulk-action-delete-form').submit();
     },
     submitBulkArchive() {
         if (!confirm('Archive ' + this.selected.length + ' selected user(s)?')) return;
-        const form = document.getElementById('bulk-action-archive-form');
-        this.selected.forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
-            form.appendChild(input);
-        });
-        form.submit();
+        this._injectIds('bulk-action-archive-form').submit();
     },
     submitBulkUnarchive() {
         if (!confirm('Unarchive ' + this.selected.length + ' selected user(s)?')) return;
-        const form = document.getElementById('bulk-action-unarchive-form');
-        this.selected.forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'hidden'; input.name = 'selected_ids'; input.value = id;
-            form.appendChild(input);
-        });
+        this._injectIds('bulk-action-unarchive-form').submit();
+    },
+    submitPasswordExport() { this._injectIds('bulk-pw-template-form').submit(); },
+    submitQuickReset() {
+        const pw = document.getElementById('quick-reset-pw').value.trim();
+        if (pw.length < 6) { alert('Password must be at least 6 characters.'); return; }
+        if (!confirm('Reset password for ' + this.selected.length + ' user(s)?')) return;
+        const form = this._injectIds('bulk-reset-pw-form');
+        form.querySelector('input[name=new_password]').value = pw;
         form.submit();
     }
 }">
@@ -90,11 +86,17 @@
                 <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Template .xlsx
             </a>
-            <!-- Import -->
+            <!-- Import New -->
             <button @click="showImportModal = true"
                     class="jk-btn bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
                 <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
-                Import Excel
+                Import New
+            </button>
+            <!-- Update via Excel -->
+            <button @click="showUpdateModal = true"
+                    class="jk-btn bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Update Excel
             </button>
             <!-- New User -->
             <a href="{% url 'users_desk:user_create' %}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap">
@@ -113,7 +115,13 @@
             <button @click="submitExport()"
                     class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                Export Selected
+                Export
+            </button>
+            <!-- Reset Password -->
+            <button @click="showPasswordModal = true"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-violet-500 hover:bg-violet-600 rounded-lg transition-colors">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                Reset Password
             </button>
             <!-- Archive Selected -->
             <button @click="submitBulkArchive()"
@@ -145,6 +153,8 @@
     <form id="bulk-action-delete-form" method="post" action="{% url 'users_desk:user_bulk_delete' %}" style="display:none">{% csrf_token %}</form>
     <form id="bulk-action-archive-form" method="post" action="{% url 'users_desk:user_bulk_archive' %}" style="display:none">{% csrf_token %}</form>
     <form id="bulk-action-unarchive-form" method="post" action="{% url 'users_desk:user_bulk_unarchive' %}" style="display:none">{% csrf_token %}</form>
+    <form id="bulk-pw-template-form" method="post" action="{% url 'users_desk:user_export_password_template' %}" style="display:none">{% csrf_token %}</form>
+    <form id="bulk-reset-pw-form" method="post" action="{% url 'users_desk:user_bulk_reset_password' %}" style="display:none">{% csrf_token %}<input type="hidden" name="new_password" value=""></form>
 
     <!-- Filters -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
@@ -316,6 +326,156 @@
             </div>
         </div>
         {% endif %}
+    </div>
+
+    <!-- ── Password Reset Modal ──────────────────────────────────────── -->
+    <div x-show="showPasswordModal" x-cloak
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.outside="showPasswordModal = false">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    Reset Password — <span x-text="selected.length" class="text-violet-600"></span> user(s) selected
+                </h3>
+                <button @click="showPasswordModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-slate-200 px-6 pt-4 gap-4">
+                <button @click="pwTab = 'quick'"
+                        :class="pwTab === 'quick' ? 'border-b-2 border-violet-600 text-violet-700 font-semibold' : 'text-slate-500 hover:text-slate-700'"
+                        class="pb-2 text-sm transition-colors">🔑 Quick Reset</button>
+                <button @click="pwTab = 'excel'"
+                        :class="pwTab === 'excel' ? 'border-b-2 border-violet-600 text-violet-700 font-semibold' : 'text-slate-500 hover:text-slate-700'"
+                        class="pb-2 text-sm transition-colors">📊 Via Excel (per user)</button>
+            </div>
+
+            <div class="p-6">
+                <!-- Quick Reset Tab -->
+                <div x-show="pwTab === 'quick'" class="space-y-4">
+                    <div class="bg-violet-50 border border-violet-200 rounded-lg p-3 text-sm text-violet-800">
+                        <p class="font-semibold mb-1">The same password will be applied to all selected users.</p>
+                        <p class="text-xs text-violet-600">Your own account will not be reset even if selected.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">New Password</label>
+                        <input type="password" id="quick-reset-pw" minlength="6" placeholder="Min. 6 characters..."
+                               class="jk-input w-full" autocomplete="new-password">
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button @click="showPasswordModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                        <button @click="submitQuickReset()" class="jk-btn bg-violet-600 hover:bg-violet-700 text-white">
+                            <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                            Reset Password
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Excel Tab -->
+                <div x-show="pwTab === 'excel'" class="space-y-4">
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                        <p class="font-semibold mb-1">📋 How it works:</p>
+                        <ol class="list-decimal list-inside space-y-0.5 text-xs">
+                            <li>Export an Excel template (containing the selected users)</li>
+                            <li>Fill in the <code class="bg-amber-100 px-1 rounded font-mono">new_password</code> column for each user</li>
+                            <li>Leave the password column blank to skip that user</li>
+                            <li>Upload the completed file below</li>
+                        </ol>
+                    </div>
+
+                    <!-- Step 1: Export -->
+                    <div class="border border-slate-200 rounded-xl p-4">
+                        <p class="text-sm font-semibold text-slate-700 mb-2">Step 1 — Download template</p>
+                        <button @click="submitPasswordExport()"
+                                class="jk-btn bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm w-full justify-center">
+                            <svg class="h-4 w-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Export Template (<span x-text="selected.length"></span> user)
+                        </button>
+                    </div>
+
+                    <!-- Step 2: Import -->
+                    <div class="border border-slate-200 rounded-xl p-4">
+                        <p class="text-sm font-semibold text-slate-700 mb-2">Step 2 — Upload completed file</p>
+                        <form method="post" action="{% url 'users_desk:user_import_bulk_password' %}" enctype="multipart/form-data" class="space-y-3">
+                            {% csrf_token %}
+                            <input type="file" name="csv_file" accept=".xlsx" required
+                                   class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 cursor-pointer border border-slate-200 rounded-lg p-1">
+                            <div class="flex justify-end gap-3">
+                                <button type="button" @click="showPasswordModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                                <button type="submit" class="jk-btn bg-violet-600 hover:bg-violet-700 text-white text-sm">
+                                    Import &amp; Reset Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Update via Excel Modal ─────────────────────────────────────── -->
+    <div x-show="showUpdateModal" x-cloak
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.outside="showUpdateModal = false">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Update User Data via Excel
+                </h3>
+                <button @click="showUpdateModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                    <p class="font-semibold mb-1">📋 How it works:</p>
+                    <ol class="list-decimal list-inside space-y-0.5 text-xs">
+                        <li>Download template — contains all current user data</li>
+                        <li>Edit the fields you want to change (display_name, email, role, etc.)</li>
+                        <li>Do <strong>not</strong> change the <code class="bg-amber-100 px-1 rounded font-mono">login_username</code> column — it is used as the identifier</li>
+                        <li>The <code class="bg-amber-100 px-1 rounded font-mono">new_password</code> column is optional — leave blank to keep the current password</li>
+                        <li>Upload the file — the system will update matched users and skip unrecognised ones</li>
+                    </ol>
+                </div>
+
+                <!-- Step 1: Download template -->
+                <div class="border border-slate-200 rounded-xl p-4">
+                    <p class="text-sm font-semibold text-slate-700 mb-2">Step 1 — Download current data template</p>
+                    <a href="{% url 'users_desk:user_export_update_template' %}"
+                       class="jk-btn bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm w-full justify-center">
+                        <svg class="h-4 w-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Download Update Template (.xlsx)
+                    </a>
+                </div>
+
+                <!-- Step 2: Upload -->
+                <div class="border border-slate-200 rounded-xl p-4">
+                    <p class="text-sm font-semibold text-slate-700 mb-2">Step 2 — Upload edited file</p>
+                    <form method="post" action="{% url 'users_desk:user_import_update' %}" enctype="multipart/form-data" class="space-y-3">
+                        {% csrf_token %}
+                        <input type="file" name="csv_file" accept=".xlsx" required
+                               class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer border border-slate-200 rounded-lg p-1">
+                        <div class="bg-slate-50 rounded-lg p-2 text-xs text-slate-500 space-y-1">
+                            <p>✅ Only updates existing users — no new users will be created</p>
+                            <p>✅ Columns absent from the file will not be changed</p>
+                            <p>⚠️ All updates run in a single transaction — a critical error rolls back everything</p>
+                        </div>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" @click="showUpdateModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                            <button type="submit" class="jk-btn bg-amber-500 hover:bg-amber-600 text-white text-sm">
+                                <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                                Import &amp; Update
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Import Excel Modal — inside x-data scope so showImportModal is accessible -->

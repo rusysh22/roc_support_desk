@@ -105,6 +105,27 @@
     .docs-table td { padding: 9px 13px; border-bottom: 1px solid var(--jk-surface-alt); color: #4b5563; }
     .docs-table tr:hover td { background: var(--jk-surface-alt); }
 
+    /* ── Mobile TOC toggle ── */
+    .docs-toc-mobile-btn { display: none; }
+    @media (max-width: 768px) {
+        .docs-toc-mobile-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            background: #ede9fe;
+            border: 1px solid #c4b5fd;
+            border-radius: var(--jk-radius-sm);
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4c1d95;
+            cursor: pointer;
+        }
+        .docs-toc-chevron { margin-left: auto; transition: transform .2s; }
+        #docs-toc-sidebar.toc-collapsed .docs-toc-chevron { transform: rotate(-90deg); }
+    }
+
     /* ── FAQ ─────────────────────────────────────────────────── */
     .docs-faq-item {
         border: 1px solid var(--jk-border); border-radius: 10px;
@@ -162,6 +183,10 @@
 
     <!-- ── TOC Sidebar ─────────────────────────────────────────── -->
     <div id="docs-toc-sidebar" class="jk-card" style="position:sticky;top:88px;">
+        <button class="docs-toc-mobile-btn" onclick="toggleDocsToc()" aria-expanded="true" aria-controls="docs-toc-sidebar">
+            📋 <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
+            <svg class="docs-toc-chevron" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
         <div class="jk-card-header" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--jk-text-muted);">
             <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
         </div>
@@ -234,7 +259,7 @@
                     With this system, every request is recorded, tracked, and handled measurably. You can monitor ticket status at any time.
                 </p>
 
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                <div class="docs-grid-2" style="gap:12px;">
                     <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
                         <div style="font-size:22px;margin-bottom:6px;">📋</div>
                         <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">
@@ -484,7 +509,7 @@
                     Some service categories come with a <strong>Dynamic Form</strong> — a custom form with additional relevant questions (e.g. surveys, registrations, or structured complaint forms).
                 </p>
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                <div class="docs-grid-2" style="gap:10px;margin-bottom:16px;">
                     <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);">
                         <div style="font-weight:700;font-size:13px;color:var(--jk-text);margin-bottom:4px;">📑 <span class="lang-id">Multi-halaman</span><span class="lang-en">Multi-page</span></div>
                         <div style="font-size:12.5px;"><span class="lang-id">Form dapat terdiri dari beberapa halaman. Navigasi dengan tombol Lanjut / Kembali.</span><span class="lang-en">Forms can have multiple pages. Navigate with the Next / Back buttons.</span></div>
@@ -599,7 +624,7 @@
                     The <strong>Knowledge Base</strong> is a repository of how-to guides and common solutions curated by the support team. Use the KB to find answers independently before submitting a ticket.
                 </p>
 
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+                <div class="docs-grid-3" style="gap:10px;margin-bottom:16px;">
                     <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:12px 14px;border:1px solid var(--jk-border);text-align:center;">
                         <div style="font-size:22px;margin-bottom:6px;">🔍</div>
                         <div style="font-weight:700;font-size:12px;color:var(--jk-text);margin-bottom:4px;"><span class="lang-id">Cari Artikel</span><span class="lang-en">Search Articles</span></div>
@@ -732,6 +757,35 @@
 
 {% block extra_scripts %}
 <script>
+function toggleDocsToc() {
+    const sidebar = document.getElementById('docs-toc-sidebar');
+    const btn = sidebar ? sidebar.querySelector('.docs-toc-mobile-btn') : null;
+    if (!sidebar) return;
+    const isCollapsed = sidebar.classList.toggle('toc-collapsed');
+    if (btn) btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+}
+
+// Auto-collapse TOC on mobile + close on link click
+(function initMobileToc() {
+    function isMobile() { return window.innerWidth <= 768; }
+    const sidebar = document.getElementById('docs-toc-sidebar');
+    if (!sidebar) return;
+    if (isMobile()) {
+        sidebar.classList.add('toc-collapsed');
+        const btn = sidebar.querySelector('.docs-toc-mobile-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    sidebar.querySelectorAll('.docs-toc-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (isMobile()) {
+                sidebar.classList.add('toc-collapsed');
+                const btn = sidebar.querySelector('.docs-toc-mobile-btn');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+})();
+
 (function() {
     const LANG_KEY = 'preferred_lang';
     const saved = localStorage.getItem(LANG_KEY) || 'id';

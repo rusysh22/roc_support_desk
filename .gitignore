@@ -46,3 +46,6 @@ media/
 
 #LICENSE_SYSTEM
 LICENSE_SYSTEM.md
+
+# Internal security & planning docs
+SECURITY_PLAN.md

@@ -20,7 +20,9 @@ env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
 )
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+_env_file = os.path.join(BASE_DIR, ".env")
+if os.path.exists(_env_file):
+    environ.Env.read_env(_env_file)
 
 # -----------------------------------------------------------------
 # Core
@@ -54,6 +56,8 @@ INSTALLED_APPS = [
     "links.apps.LinksConfig",
     # License management
     "licensing.apps.LicensingConfig",
+    # Field-level encryption
+    "encrypted_model_fields",
 ]
 
 from django.utils.functional import lazy
@@ -107,7 +111,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.ContentSecurityPolicyMiddleware",
     "core.middleware.PublicLoginRestrictionMiddleware",
+    "core.middleware.ForcePasswordChangeMiddleware",
     # License gate — routes by effective license status
     "licensing.middleware.LicenseGateMiddleware",
     # Trial timer — tracks daily usage; blocks when quota exhausted
@@ -230,16 +236,50 @@ LOGOUT_REDIRECT_URL = "/"
 
 # --- Production Security & Proxy Settings ---
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Trusted reverse proxy IPs (nginx inside Docker); real client IP comes from X-Forwarded-For
+IPWARE_META_PRECEDENCE_ORDER = (
+    'HTTP_X_FORWARDED_FOR',
+    'X_FORWARDED_FOR',
+    'HTTP_CLIENT_IP',
+    'HTTP_X_REAL_IP',
+    'REMOTE_ADDR',
+)
 CSRF_TRUSTED_ORIGINS = [
     'https://rusydani.my.id',
-    'https://*.rusydani.my.id'
+    'https://*.rusydani.my.id',
+    'https://pajak-santika.my.id',
+    'https://*.pajak-santika.my.id',
 ]
 CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 
+# --- HTTPS & Security Headers ---
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+
+# --- Cookie Security ---
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+
+# --- Clickjacking Protection ---
+X_FRAME_OPTIONS = "DENY"
+
 # --- Session Expiry ---
-# Automatically logs out the user after 24 hours (86400 seconds) of inactivity
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# --- Install key (used by licensing fingerprint — separate from SECRET_KEY) ---
+INSTALL_KEY = env("INSTALL_KEY", default="")
+
+# --- Field-level encryption key (IMAP/SMTP passwords) ---
+FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", default="")
 
 # -----------------------------------------------------------------
 # License System

@@ -124,9 +124,9 @@ def generate_fingerprint() -> str:
     """
     Generate a unique fingerprint for this installation.
 
-    Composed of: hostname + partial SECRET_KEY + product_id
+    Composed of: hostname + INSTALL_KEY + product_id
     This fingerprint is sent to the marketplace to bind a license key to
-    a specific server/domain. Changing the domain or SECRET_KEY will
+    a specific server/domain. Changing the domain or INSTALL_KEY will
     invalidate the fingerprint.
     """
     cfg = getattr(settings, 'LICENSE_SETTINGS', {})
@@ -139,7 +139,8 @@ def generate_fingerprint() -> str:
         allowed = getattr(settings, 'ALLOWED_HOSTS', ['localhost'])
         hostname = allowed[0] if allowed else 'localhost'
 
-    raw = f"{hostname}:{settings.SECRET_KEY[:12]}:{cfg.get('PRODUCT_ID', 'roc-support-desk')}"
+    install_key = getattr(settings, 'INSTALL_KEY', '') or settings.SECRET_KEY[:12]
+    raw = f"{hostname}:{install_key}:{cfg.get('PRODUCT_ID', 'roc-support-desk')}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 

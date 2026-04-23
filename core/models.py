@@ -14,6 +14,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
+from encrypted_model_fields.fields import EncryptedCharField
 
 
 # =====================================================================
@@ -131,18 +132,24 @@ class User(AbstractUser):
         help_text="User initials used as a signature (e.g., 'mrs').",
     )
 
-    phone_number = models.CharField(
+    phone_number = EncryptedCharField(
         max_length=30,
         blank=True,
         default='',
         verbose_name="Phone Number",
-        help_text="User's phone/mobile number.",
+        help_text="User's phone/mobile number (encrypted at rest).",
     )
 
     can_handle_confidential = models.BooleanField(
         default=False,
         verbose_name="Can Handle Confidential",
         help_text="Allow this user to access tickets in confidential categories.",
+    )
+
+    must_change_password = models.BooleanField(
+        default=False,
+        verbose_name="Must Change Password",
+        help_text="Force this user to change their password on next login.",
     )
 
     # --- Auth configuration ---
@@ -436,13 +443,13 @@ class EmailConfig(AuditableModel):
     imap_host = models.CharField(max_length=255, default="imap.gmail.com", verbose_name="IMAP Host")
     imap_port = models.IntegerField(default=993, verbose_name="IMAP Port")
     imap_user = models.CharField(max_length=255, blank=True, null=True, verbose_name="IMAP User")
-    imap_password = models.CharField(max_length=255, blank=True, null=True, verbose_name="IMAP App Password", help_text="e.g. Gmail App Password (16 chars, no spaces)")
+    imap_password = EncryptedCharField(max_length=255, blank=True, null=True, verbose_name="IMAP App Password", help_text="e.g. Gmail App Password (16 chars, no spaces)")
 
     # SMTP Configuration (Sending)
     smtp_host = models.CharField(max_length=255, default="smtp.gmail.com", verbose_name="SMTP Host")
     smtp_port = models.IntegerField(default=587, verbose_name="SMTP Port")
     smtp_user = models.CharField(max_length=255, blank=True, null=True, verbose_name="SMTP User")
-    smtp_password = models.CharField(max_length=255, blank=True, null=True, verbose_name="SMTP App Password")
+    smtp_password = EncryptedCharField(max_length=255, blank=True, null=True, verbose_name="SMTP App Password")
     smtp_use_tls = models.BooleanField(default=True, verbose_name="Use TLS")
     smtp_use_ssl = models.BooleanField(default=False, verbose_name="Use SSL")
     default_from_email = models.CharField(max_length=255, blank=True, null=True, verbose_name="Default From Email", help_text="Usually matches SMTP User")
@@ -644,9 +651,139 @@ class OTPToken(models.Model):
         """
         if self.is_used:
             return False
-            
+
         from datetime import timedelta
         from django.utils import timezone
-        
+
         expiration_time = self.created_at + timedelta(minutes=15)
         return timezone.now() <= expiration_time
+
+
+# =====================================================================
+# Login Attempt Tracking (brute-force protection)
+# =====================================================================
+
+class LoginAttempt(models.Model):
+    """
+    Persists login attempt records so brute-force counters survive a Redis restart.
+    Auto-cleaned by a Celery beat task after 7 days.
+    """
+    login_username = models.CharField(max_length=150, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    attempted_at = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Login Attempt"
+        verbose_name_plural = "Login Attempts"
+        ordering = ["-attempted_at"]
+
+    def __str__(self):
+        status = "OK" if self.success else "FAIL"
+        return f"{self.login_username} [{status}] @ {self.attempted_at:%Y-%m-%d %H:%M}"
+
+
+# =====================================================================
+# Audit Log (ISO 27001 A.12.3 — Event Logging)
+# =====================================================================
+
+class AuditLog(models.Model):
+    """
+    Immutable security event log.  Records are append-only — no update/delete
+    should ever be performed on this table in application code.
+    """
+
+    class Action(models.TextChoices):
+        LOGIN_SUCCESS    = 'LOGIN_SUCCESS',    'Login — Success'
+        LOGIN_FAIL       = 'LOGIN_FAIL',       'Login — Failed'
+        LOGOUT           = 'LOGOUT',           'Logout'
+        PASSWORD_CHANGE  = 'PASSWORD_CHANGE',  'Password Changed'
+        BULK_IMPORT      = 'BULK_IMPORT',      'Bulk User Import'
+        EXPORT           = 'EXPORT',           'Data Export'
+        ROLE_CHANGE      = 'ROLE_CHANGE',      'Role Changed'
+        SMTP_UPDATE      = 'SMTP_UPDATE',      'SMTP/IMAP Config Updated'
+        TICKET_CLOSE     = 'TICKET_CLOSE',     'Ticket Closed'
+        TICKET_REOPEN    = 'TICKET_REOPEN',    'Ticket Reopened'
+        LICENSE_OP       = 'LICENSE_OP',       'License Operation'
+        ACCOUNT_REQUEST  = 'ACCOUNT_REQUEST',  'Account Request Submitted'
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_logs",
+        help_text="Authenticated user who triggered the event; null for anonymous actions.",
+    )
+    actor_username = models.CharField(
+        max_length=150, blank=True,
+        help_text="Snapshot of login_username at event time (survives user deletion).",
+    )
+    action = models.CharField(max_length=30, choices=Action.choices, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    target_type = models.CharField(
+        max_length=100, blank=True,
+        help_text="Model label of the affected object, e.g. 'cases.caserecord'.",
+    )
+    target_id = models.CharField(max_length=100, blank=True)
+    details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Arbitrary key-value context for the event.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["action", "created_at"]),
+            models.Index(fields=["actor", "created_at"]),
+        ]
+
+    def __str__(self):
+        who = self.actor_username or "anonymous"
+        return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.action} by {who}"
+
+    @classmethod
+    def log(
+        cls,
+        action: str,
+        *,
+        request=None,
+        actor=None,
+        ip_address: str = "",
+        target=None,
+        details: dict = None,
+    ) -> "AuditLog":
+        """
+        Convenience factory.  Pass either ``request`` (preferred) or explicit
+        ``actor`` + ``ip_address`` when no request object is available.
+        """
+        from ipware import get_client_ip
+
+        if request is not None and actor is None:
+            actor = request.user if request.user.is_authenticated else None
+
+        if request is not None and not ip_address:
+            ip, _ = get_client_ip(request)
+            ip_address = ip or ""
+
+        actor_username = ""
+        if actor is not None:
+            actor_username = getattr(actor, "login_username", "") or getattr(actor, "username", "")
+
+        target_type = ""
+        target_id = ""
+        if target is not None:
+            target_type = f"{target._meta.app_label}.{target._meta.model_name}"
+            target_id = str(target.pk)
+
+        return cls.objects.create(
+            actor=actor,
+            actor_username=actor_username,
+            action=action,
+            ip_address=ip_address or None,
+            target_type=target_type,
+            target_id=target_id,
+            details=details or {},
+        )

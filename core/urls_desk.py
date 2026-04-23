@@ -21,4 +21,11 @@ urlpatterns = [
     path("bulk-unarchive/", views_user.user_bulk_unarchive, name="user_bulk_unarchive"),
     path("<int:pk>/archive/", views_user.user_archive, name="user_archive"),
     path("<int:pk>/unarchive/", views_user.user_unarchive, name="user_unarchive"),
+    # Password reset
+    path("bulk-password-template/", views_user.user_export_password_template, name="user_export_password_template"),
+    path("bulk-password/", views_user.user_import_bulk_password, name="user_import_bulk_password"),
+    path("bulk-reset-password/", views_user.user_bulk_reset_password, name="user_bulk_reset_password"),
+    # Update existing via Excel
+    path("export/update-template/", views_user.user_export_update_template, name="user_export_update_template"),
+    path("import/update/", views_user.user_import_update, name="user_import_update"),
 ]

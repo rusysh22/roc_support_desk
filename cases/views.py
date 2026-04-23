@@ -17,6 +17,7 @@ Staff views (login + role_access required):
 """
 from functools import wraps
 
+from ipware import get_client_ip as _get_client_ip
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.contrib import messages
@@ -845,7 +846,8 @@ def create_case(request, slug=None):
 
     if request.method == "POST":
         # Rate Limiting Check
-        client_ip = request.META.get('REMOTE_ADDR', 'unknown_ip')
+        client_ip, _ = _get_client_ip(request)
+        client_ip = client_ip or "unknown_ip"
         cache_key = f"create_case_rate_limit_{client_ip}"
         attempts = cache.get(cache_key, 0)
         
@@ -1023,7 +1025,8 @@ def public_form_view(request, slug):
 
     fields = form_obj.fields.all()
 
-    client_ip = request.META.get('REMOTE_ADDR', 'unknown_ip')
+    client_ip, _ = _get_client_ip(request)
+    client_ip = client_ip or "unknown_ip"
     cache_key = f"public_form_rate_limit_{client_ip}_{slug}"
 
     if request.method == "POST":
@@ -2472,45 +2475,51 @@ def case_close_and_notify(request, case_id):
     case = get_object_or_404(CaseRecord, id=case_id)
     if not _check_confidential_access(case, request.user):
         return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    send_notification = request.POST.get("send_notification") == "1"
     closure_msg_body = request.POST.get("closure_message_body", "").strip()
-    
-    if not closure_msg_body:
+
+    if send_notification and not closure_msg_body:
         return HttpResponse("Message body cannot be empty.", status=400)
-        
+
     # Mark the case as closed
     case.status = CaseRecord.Status.CLOSED
     case.hold_wa_session = False
     case.updated_by = request.user
     case.save(update_fields=["status", "hold_wa_session", "updated_at", "updated_by"])
-    
+
+    from core.models import AuditLog
+    AuditLog.log(AuditLog.Action.TICKET_CLOSE, request=request, target=case,
+                 details={"case_number": str(case.id)})
+
     if case.sub_tickets.exists():
         case.sub_tickets.update(status=CaseRecord.Status.CLOSED, updated_at=case.updated_at, updated_by=request.user)
-    
-    # Determine the reply channel based on the source
-    reply_channel = Message.Channel.WEB
-    if case.source in [CaseRecord.Source.WEBFORM, CaseRecord.Source.EMAIL]:
-        reply_channel = Message.Channel.EMAIL
-    elif case.source == CaseRecord.Source.EVOLUTION_WA:
-        reply_channel = Message.Channel.WHATSAPP
-        
-    # Create the Outbound Message containing the closure payload
-    msg = Message.objects.create(
-        case=case,
-        sender_staff=request.user,
-        body=closure_msg_body,
-        direction=Message.Direction.OUTBOUND,
-        channel=reply_channel,
-    )
-    
-    # Trigger appropriate sending mechanisms
-    if reply_channel == Message.Channel.EMAIL:
-        from gateways.tasks import send_outbound_email_task
-        send_outbound_email_task.delay(str(msg.id))
-    elif reply_channel == Message.Channel.WHATSAPP:
-        from gateways.tasks import send_outbound_whatsapp_task
-        msg.delivery_status = Message.DeliveryStatus.PENDING
-        msg.save(update_fields=["delivery_status"])
-        send_outbound_whatsapp_task.delay(str(msg.id))
+
+    if send_notification:
+        # Determine the reply channel based on the source
+        reply_channel = Message.Channel.WEB
+        if case.source in [CaseRecord.Source.WEBFORM, CaseRecord.Source.EMAIL]:
+            reply_channel = Message.Channel.EMAIL
+        elif case.source == CaseRecord.Source.EVOLUTION_WA:
+            reply_channel = Message.Channel.WHATSAPP
+
+        # Create the Outbound Message containing the closure payload
+        msg = Message.objects.create(
+            case=case,
+            sender_staff=request.user,
+            body=closure_msg_body,
+            direction=Message.Direction.OUTBOUND,
+            channel=reply_channel,
+        )
+
+        # Trigger appropriate sending mechanisms
+        if reply_channel == Message.Channel.EMAIL:
+            from gateways.tasks import send_outbound_email_task
+            send_outbound_email_task.delay(str(msg.id))
+        elif reply_channel == Message.Channel.WHATSAPP:
+            from gateways.tasks import send_outbound_whatsapp_task
+            msg.delivery_status = Message.DeliveryStatus.PENDING
+            msg.save(update_fields=["delivery_status"])
+            send_outbound_whatsapp_task.delay(str(msg.id))
                 
     # Return a success script to trigger a reload or update
     return HttpResponse(
@@ -2853,32 +2862,33 @@ def case_export_excel(request):
         cell.border = thin_border
 
     # Data rows
+    from core.excel_utils import safe_cell
     data_align = Alignment(vertical="top", wrap_text=True)
     MASKED = "[Confidential]"
     for row_idx, case in enumerate(cases, 2):
         has_access = getattr(case, "has_confidential_access_flag", True)
         row_data = [
             row_idx - 1,
-            case.case_number,
-            case.subject if has_access else MASKED,
-            case.get_status_display(),
-            case.get_priority_display(),
-            case.get_case_type_display(),
-            case.get_source_display(),
-            case.category.name if case.category else "",
-            case.requester.full_name if case.requester else case.requester_name,
-            case.requester.email if case.requester else case.requester_email,
-            case.requester.phone_number if case.requester else "",
-            case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name,
-            case.requester.job_role if case.requester else case.requester_job_role,
-            (case.problem_description or "") if has_access else MASKED,
-            (case.root_cause_analysis or "") if has_access else MASKED,
-            (case.solving_steps or "") if has_access else MASKED,
-            (case.quick_notes or "") if has_access else MASKED,
-            case.tags or "",
-            ", ".join([f.username for f in case.followers.all()]) if has_access else MASKED,
-            (case.link or "") if has_access else MASKED,
-            (case.assigned_to.username if case.assigned_to else "Unassigned") if has_access else MASKED,
+            safe_cell(case.case_number),
+            safe_cell(case.subject) if has_access else MASKED,
+            safe_cell(case.get_status_display()),
+            safe_cell(case.get_priority_display()),
+            safe_cell(case.get_case_type_display()),
+            safe_cell(case.get_source_display()),
+            safe_cell(case.category.name if case.category else ""),
+            safe_cell(case.requester.full_name if case.requester else case.requester_name),
+            safe_cell(case.requester.email if case.requester else case.requester_email),
+            safe_cell(case.requester.phone_number if case.requester else ""),
+            safe_cell(case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name),
+            safe_cell(case.requester.job_role if case.requester else case.requester_job_role),
+            safe_cell(case.problem_description or "") if has_access else MASKED,
+            safe_cell(case.root_cause_analysis or "") if has_access else MASKED,
+            safe_cell(case.solving_steps or "") if has_access else MASKED,
+            safe_cell(case.quick_notes or "") if has_access else MASKED,
+            safe_cell(case.tags or ""),
+            safe_cell(", ".join([f.username for f in case.followers.all()])) if has_access else MASKED,
+            safe_cell(case.link or "") if has_access else MASKED,
+            safe_cell(case.assigned_to.username if case.assigned_to else "Unassigned") if has_access else MASKED,
             localtime(case.response_due_at).strftime("%d/%m/%Y %H:%M") if case.response_due_at else "",
             localtime(case.resolution_due_at).strftime("%d/%m/%Y %H:%M") if case.resolution_due_at else "",
             localtime(case.created_at).strftime("%d/%m/%Y %H:%M") if case.created_at else "",
@@ -2917,6 +2927,9 @@ def case_export_excel(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    from core.models import AuditLog
+    AuditLog.log(AuditLog.Action.EXPORT, request=request,
+                 details={"filename": filename, "type": "case_list"})
     return response
 
 
@@ -3613,28 +3626,26 @@ def form_responses_export(request, pk):
     ws.append(header)
     
     # Data Rows
+    from core.excel_utils import safe_cell
     for sub in submissions:
         username = "Guest User"
         if sub.submitted_by:
             username = f"{sub.submitted_by.first_name} {sub.submitted_by.last_name}".strip()
             if not username:
                 username = sub.submitted_by.username
-                
+
         row = [
-            sub.submitted_at.replace(tzinfo=None) if sub.submitted_at else "", # Excel prefers naive datetimes
-            username
+            sub.submitted_at.replace(tzinfo=None) if sub.submitted_at else "",
+            safe_cell(username),
         ]
-        
+
         for fid in field_ids:
             ans = sub.answers.get(fid, "")
-            
-            # Format lists (e.g checkboxes, multiple attachments) safely
             if isinstance(ans, list):
-                # If the list consists of dicts or complicated strings, try to flatten it
-                row.append(" | ".join([str(a) for a in ans]))
+                row.append(safe_cell(" | ".join([str(a) for a in ans])))
             else:
-                row.append(str(ans))
-                
+                row.append(safe_cell(ans))
+
         ws.append(row)
         
     wb.save(response)

@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.8</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.9</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.8
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.9
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,30 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.2.8 -->
+                <!-- v1.2.9 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.2.9</span>
+                        <span class="text-xs text-slate-600">23 Apr 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>ISO 27001 Security Hardening (Phase 3)</strong> — Completed medium-term security remediation: accurate IP detection via django-ipware across all rate-limiting views, Content Security Policy header, licensing fingerprint no longer leaks partial SECRET_KEY.</li>
+                        <li><strong>Audit Log</strong> — New <code>AuditLog</code> model records security events (login success/failure, password change, bulk import, data export, ticket close) with actor, IP, and target. Read-only view in SuperAdmin panel.</li>
+                        <li><strong>PII Encryption</strong> — User phone number is now encrypted at rest using Fernet symmetric encryption.</li>
+                        <li><strong>nginx Media Serving</strong> — Added nginx reverse proxy container that serves <code>/media/</code> and <code>/static/</code> files directly, resolving missing images in production (<code>DEBUG=False</code>).</li>
+                        <li><strong>Security: .env excluded from Docker image</strong> — <code>.dockerignore</code> now prevents secrets from being baked into the image; credentials are injected at runtime via Docker Compose.</li>
+                        <li><strong>Fix: Evolution API key variable expansion</strong> — Rotated API keys to remove <code>$</code> characters that caused Docker Compose to silently truncate credential values.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.2.8 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.2.8</span>
                         <span class="text-xs text-slate-600">17 Apr 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>User Profile Page</strong> — New dedicated profile page at <code>/desk/profile/</code> for viewing and editing display name, phone number, NIK, email, and changing password with strength indicator.</li>

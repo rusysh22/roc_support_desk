@@ -140,7 +140,7 @@
     </div>
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <form method="post" id="articleForm" class="p-6 sm:p-8">
+        <form method="post" id="articleForm" enctype="multipart/form-data" class="p-6 sm:p-8">
             {% csrf_token %}
 
             <!-- Validation Errors -->
@@ -187,8 +187,8 @@
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Comments</label>
                             <label class="inline-flex items-center gap-3 cursor-pointer select-none">
                                 {{ form.allow_comments }}
-                                <span class="text-sm text-slate-700">Izinkan komentar dari pengguna yang login</span>
-                                <span class="text-xs text-slate-400">(jika dimatikan, form komentar tidak akan tampil di artikel)</span>
+                                <span class="text-sm text-slate-700">Allow comments from logged-in users</span>
+                                <span class="text-xs text-slate-400">(if disabled, the comment form will not appear on the article)</span>
                             </label>
                             {% if form.allow_comments.errors %}
                             <p class="text-xs text-red-500 mt-1">{{ form.allow_comments.errors.0 }}</p>
@@ -246,6 +246,92 @@
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-700">*</span></h3>
                     {{ form.solution }}
                     <div id="editor-solution" class="quill-editor"></div>
+                </div>
+
+                <!-- Attachments -->
+                <div x-data="attachmentUploader({{ site_config.max_upload_size_mb }})">
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Attachments</h3>
+
+                    {% if is_edit and existing_attachments %}
+                    <!-- Existing attachments -->
+                    <div class="mb-4 space-y-2">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Existing Files</p>
+                        {% for att in existing_attachments %}
+                        <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
+                             x-show="!pendingDeletes.includes('{{ att.pk }}')"
+                             x-transition>
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-lg">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <a href="{{ att.file.url }}" target="_blank" class="text-sm font-medium text-indigo-600 hover:text-indigo-800 truncate block">{{ att.original_filename|default:att.file.name }}</a>
+                                    <p class="text-xs text-slate-400">{{ att.file_size_display }}</p>
+                                </div>
+                            </div>
+                            <button type="button"
+                                    @click="markDelete('{{ att.pk }}')"
+                                    class="flex-shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove attachment">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                        {% endfor %}
+                        <!-- Hidden inputs for deletions -->
+                        <template x-for="id in pendingDeletes" :key="id">
+                            <input type="hidden" name="delete_attachment" :value="id">
+                        </template>
+                    </div>
+                    {% endif %}
+
+                    <!-- New file upload area -->
+                    <div class="space-y-3">
+                        <div class="relative border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors cursor-pointer"
+                             @click="$refs.fileInput.click()"
+                             @dragover.prevent="dragging = true"
+                             @dragleave.prevent="dragging = false"
+                             @drop.prevent="onDrop($event)"
+                             :class="dragging ? 'border-indigo-400 bg-indigo-50' : ''">
+                            <input type="file" name="attachments" multiple x-ref="fileInput"
+                                   class="hidden" @change="onFileChange($event)">
+                            <div class="flex flex-col items-center gap-2 pointer-events-none">
+                                <div class="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full">
+                                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                </div>
+                                <p class="text-sm text-slate-600 font-medium">Klik atau seret file ke sini</p>
+                                <p class="text-xs text-slate-400">Semua tipe file didukung &bull; Maks. {{ site_config.max_upload_size_mb }} MB per file &bull; Bisa lebih dari satu</p>
+                            </div>
+                        </div>
+
+                        <!-- Size error -->
+                        <div x-show="sizeErrors.length > 0" x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <template x-for="err in sizeErrors" :key="err">
+                                <p class="text-xs text-red-600" x-text="err"></p>
+                            </template>
+                        </div>
+
+                        <!-- Selected files preview -->
+                        <div x-show="selectedFiles.length > 0" class="space-y-2">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">File yang akan diupload</p>
+                            <template x-for="(file, index) in selectedFiles" :key="index">
+                                <div class="flex items-center justify-between gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                                    <div class="flex items-center gap-3 min-w-0">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white border border-green-200 rounded-lg">
+                                            <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-slate-700 truncate" x-text="file.name"></p>
+                                            <p class="text-xs text-slate-400" x-text="formatSize(file.size)"></p>
+                                        </div>
+                                    </div>
+                                    <button type="button" @click="removeFile(index)"
+                                            class="flex-shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -467,6 +553,64 @@ class QuillImageResize {
             }
         }
     }
+}
+
+function attachmentUploader(maxMb) {
+    return {
+        maxBytes: maxMb * 1024 * 1024,
+        selectedFiles: [],
+        sizeErrors: [],
+        pendingDeletes: [],
+        dragging: false,
+        dataTransfer: new DataTransfer(),
+
+        onFileChange(event) {
+            this.addFiles(Array.from(event.target.files));
+        },
+
+        onDrop(event) {
+            this.dragging = false;
+            this.addFiles(Array.from(event.dataTransfer.files));
+        },
+
+        addFiles(files) {
+            this.sizeErrors = [];
+            files.forEach(file => {
+                if (file.size > this.maxBytes) {
+                    this.sizeErrors.push(`"${file.name}" exceeds the ${maxMb} MB size limit.`);
+                    return;
+                }
+                if (!this.selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+                    this.selectedFiles.push(file);
+                    this.dataTransfer.items.add(file);
+                }
+            });
+            this.$refs.fileInput.files = this.dataTransfer.files;
+        },
+
+        removeFile(index) {
+            this.selectedFiles.splice(index, 1);
+            this.dataTransfer = new DataTransfer();
+            this.selectedFiles.forEach(f => this.dataTransfer.items.add(f));
+            this.$refs.fileInput.files = this.dataTransfer.files;
+        },
+
+        markDelete(id) {
+            if (!this.pendingDeletes.includes(id)) {
+                this.pendingDeletes.push(id);
+            }
+        },
+
+        formatSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            for (const unit of units) {
+                if (size < 1024) return `${Math.round(size)} ${unit}`;
+                size /= 1024;
+            }
+            return `${size.toFixed(1)} GB`;
+        },
+    };
 }
 
 function kbForm() {

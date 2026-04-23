@@ -19,6 +19,11 @@ def kb_image_upload_path(instance, filename):
     return f"kb_images/{filename}"
 
 
+def kb_attachment_upload_path(instance, filename):
+    """Upload path for article attachments: kb_attachments/<article_uuid>/<filename>."""
+    return f"kb_attachments/{instance.article.id}/{filename}"
+
+
 class ArticleTag(AuditableModel):
     """Reusable tag for categorising knowledge base articles."""
 
@@ -193,6 +198,53 @@ class Article(AuditableModel):
         }
         icon = status_icons.get(self.status, "")
         return f"{icon} {self.title}"
+
+
+class ArticleAttachment(AuditableModel):
+    """File attachment linked to a KB article."""
+
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+        verbose_name="Article",
+    )
+    file = models.FileField(
+        upload_to=kb_attachment_upload_path,
+        verbose_name="File",
+    )
+    original_filename = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Original Filename",
+    )
+    mime_type = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="MIME Type",
+    )
+    file_size = models.PositiveIntegerField(
+        default=0,
+        verbose_name="File Size (bytes)",
+    )
+
+    class Meta:
+        verbose_name = "Article Attachment"
+        verbose_name_plural = "Article Attachments"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return self.original_filename or str(self.file)
+
+    @property
+    def file_size_display(self):
+        """Human-readable file size."""
+        size = self.file_size
+        for unit in ("B", "KB", "MB", "GB"):
+            if size < 1024:
+                return f"{size:.0f} {unit}"
+            size /= 1024
+        return f"{size:.1f} GB"
 
 
 class ArticleComment(AuditableModel):

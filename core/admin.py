@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken, LoginSlideImage
+from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken, LoginSlideImage
 
 
 # =====================================================================
@@ -222,3 +222,31 @@ class FeedbackAdmin(ModelAdmin):
     search_fields = ("subject", "message", "user__username", "user__email")
     readonly_fields = ("id", "user", "feedback_type", "subject", "message", "created_at", "updated_at")
     list_editable = ("is_read",)
+
+
+# =====================================================================
+# Audit Log Admin (read-only)
+# =====================================================================
+
+@admin.register(AuditLog)
+class AuditLogAdmin(ModelAdmin):
+    """Read-only view of the security audit log (ISO 27001 A.12.3)."""
+
+    list_display = ("created_at", "action", "actor_username", "ip_address", "target_type", "target_id")
+    list_filter = ("action", "created_at")
+    search_fields = ("actor_username", "ip_address", "target_type", "target_id")
+    readonly_fields = (
+        "actor", "actor_username", "action", "ip_address",
+        "target_type", "target_id", "details", "created_at",
+    )
+    ordering = ("-created_at",)
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

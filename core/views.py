@@ -2,9 +2,12 @@
 Core App — Views
 ===================
 """
-import random
+import secrets
+from django.conf import settings
+from ipware import get_client_ip as _get_client_ip
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views import View
@@ -37,33 +40,47 @@ class ForgotPasswordView(View):
         form = ForgotPasswordForm(request.POST)
         if form.is_valid():
             email = form.cleaned_data["email"]
-            user = User.objects.get(email=email)
-            
-            # Generate a random 6-digit OTP
-            otp_code = f"{random.randint(100000, 999999)}"
-            
+
+            # Rate-limit OTP sends: max 3 per 10 minutes per email address
+            rate_key = f"otp_send_rate:{email}"
+            send_count = cache.get(rate_key, 0)
+            if send_count >= 3:
+                messages.warning(request, "Too many requests. Please wait a few minutes before requesting another OTP.")
+                return render(request, self.template_name, {"form": form})
+
+            # Always show the same message regardless of whether the email exists (prevent enumeration)
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                messages.success(request, "If that email is registered, you will receive an OTP shortly.")
+                return redirect(reverse("reset_password_otp"))
+
+            # Generate a cryptographically secure 6-digit OTP
+            otp_code = f"{secrets.randbelow(900000) + 100000}"
+
             # Invalidate all previous OTPs for this user
             OTPToken.objects.filter(user=user, is_used=False).update(is_used=True)
-            
-            # Save new OTP
+
+            # Save new OTP (attempt counter reset)
             OTPToken.objects.create(user=user, token=otp_code)
-            
+
             # Dispatch the email task
             try:
                 from .tasks import send_password_reset_otp_task
-                
                 send_password_reset_otp_task.delay(user.email, otp_code, user.username)
-
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error("Could not send OTP task: %s", e)
                 form.add_error("email", "System error while dispatching OTP email. Please contact support.")
                 return render(request, self.template_name, {"form": form})
-                
-            # Store the email in session for the next step so the user doesn't have to re-enter it internally
+
+            # Increment the rate-limit counter (10 minutes TTL)
+            cache.set(rate_key, send_count + 1, timeout=600)
+
+            # Store email in session for the next step
             request.session['reset_email'] = user.email
-            
-            messages.success(request, "An OTP has been sent to your email address.")
+
+            messages.success(request, "If that email is registered, you will receive an OTP shortly.")
             return redirect(reverse("reset_password_otp"))
             
         return render(request, self.template_name, {"form": form})
@@ -106,14 +123,25 @@ class ResetPasswordOTPView(View):
                 messages.error(request, "Account error. Please start over.")
                 return redirect(reverse("forgot_password"))
                 
+            # Check OTP attempt rate limit (max 5 wrong attempts per session)
+            attempt_key = f"otp_attempts:{email}"
+            attempts = cache.get(attempt_key, 0)
+            if attempts >= 5:
+                OTPToken.objects.filter(user=user, is_used=False).update(is_used=True)
+                del request.session['reset_email']
+                messages.error(request, "Too many incorrect OTP attempts. Please request a new OTP.")
+                return redirect(reverse("forgot_password"))
+
             # Check for a valid OTP
             token_obj = OTPToken.objects.filter(user=user, token=otp, is_used=False).order_by('-created_at').first()
-            
+
             if not token_obj or not token_obj.is_valid():
+                cache.set(attempt_key, attempts + 1, timeout=900)
                 form.add_error("otp", "Invalid or expired OTP code.")
                 return render(request, self.template_name, {"form": form, "email": email})
-                
-            # Mark OTP as used
+
+            # Valid OTP — clear attempt counter and mark as used
+            cache.delete(attempt_key)
             token_obj.is_used = True
             token_obj.save()
             
@@ -128,6 +156,41 @@ class ResetPasswordOTPView(View):
             return redirect(reverse("login"))
             
         return render(request, self.template_name, {"form": form, "email": email})
+
+
+class ForceChangePasswordView(View):
+    """
+    Forces users with must_change_password=True to set a new password
+    before they can use any other part of the application.
+    """
+    template_name = "registration/force_change_password.html"
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return redirect(reverse("login"))
+        if not getattr(request.user, "must_change_password", False):
+            return redirect(settings.LOGIN_REDIRECT_URL)
+        return render(request, self.template_name)
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return redirect(reverse("login"))
+        new_password = request.POST.get("new_password", "").strip()
+        confirm_password = request.POST.get("confirm_password", "").strip()
+        if len(new_password) < 8:
+            messages.error(request, "Password must be at least 8 characters.")
+            return render(request, self.template_name)
+        if new_password != confirm_password:
+            messages.error(request, "Passwords do not match.")
+            return render(request, self.template_name)
+        user = request.user
+        user.set_password(new_password)
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+        from .models import AuditLog
+        AuditLog.log(AuditLog.Action.PASSWORD_CHANGE, request=request, target=user)
+        messages.success(request, "Password changed successfully. Please log in again.")
+        return redirect(reverse("login"))
 
 
 class RequestAccountView(View):
@@ -183,7 +246,8 @@ class RequestAccountView(View):
 
         # Rate limiting
         from django.core.cache import cache
-        client_ip = request.META.get("REMOTE_ADDR", "unknown")
+        client_ip, _ = _get_client_ip(request)
+        client_ip = client_ip or "unknown"
         cache_key = f"request_account_rate_{client_ip}"
         attempts = cache.get(cache_key, 0)
         if attempts >= 3:

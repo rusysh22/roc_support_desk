@@ -12,6 +12,7 @@ Phase 2 views:
 import json
 import logging
 
+from ipware import get_client_ip as _ipware_get_client_ip
 from django.conf import settings
 from django.contrib import messages
 from django.core.management import call_command
@@ -36,11 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_client_ip(request) -> str:
-    """Extract real client IP respecting X-Forwarded-For proxy headers."""
-    xff = request.META.get('HTTP_X_FORWARDED_FOR')
-    if xff:
-        return xff.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', '')
+    ip, _ = _ipware_get_client_ip(request)
+    return ip or ""
 
 
 def _is_superadmin(user) -> bool:
@@ -313,7 +311,7 @@ def deactivate_license(request):
 
     confirm = request.POST.get('confirm', '').strip()
     if confirm != 'DEACTIVATE':
-        messages.error(request, "Konfirmasi tidak valid. Ketik DEACTIVATE untuk melanjutkan.")
+        messages.error(request, "Invalid confirmation. Type DEACTIVATE to continue.")
         return redirect('licensing:status')
 
     record = LicenseRecord.get_current()
@@ -332,7 +330,7 @@ def deactivate_license(request):
         signature_valid=True,
     )
 
-    messages.success(request, "Lisensi berhasil dinonaktifkan. Sistem sekarang dalam mode unlicensed.")
+    messages.success(request, "License deactivated successfully. The system is now in unlicensed mode.")
     return redirect('licensing:activate')
 
 
