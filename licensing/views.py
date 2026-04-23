@@ -271,6 +271,9 @@ def start_trial(request):
         return redirect('licensing:activate')
 
     # Reset to trial
+    from django.conf import settings as django_settings
+    trial_max_agents = django_settings.LICENSE_SETTINGS.get('TRIAL_MAX_AGENTS', 3)
+
     record.license_key      = ''
     record.status           = 'trial'
     record.plan_tier        = 'trial'
@@ -278,6 +281,7 @@ def start_trial(request):
     record.expires_at       = None
     record.features_json    = {}
     record.last_verified_at = None
+    record.max_agents       = trial_max_agents
     record.save()
 
     # Reset trial usage counters so user gets fresh quota

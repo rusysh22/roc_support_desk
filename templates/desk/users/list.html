@@ -98,11 +98,26 @@
                 <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Update Excel
             </button>
+            <!-- Agent limit badge -->
+            {% if max_agents %}
+            <span class="text-xs px-2.5 py-1.5 rounded-lg font-semibold
+                {% if agent_limit_reached %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                Agents: {{ current_agents }}/{{ max_agents }}
+            </span>
+            {% endif %}
             <!-- New User -->
+            {% if agent_limit_reached %}
+            <span title="Agent limit reached ({{ current_agents }}/{{ max_agents }}). Upgrade your license to add more agents."
+                  class="jk-btn py-2 px-4 text-sm whitespace-nowrap bg-slate-200 text-slate-400 cursor-not-allowed select-none">
+                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                New User
+            </span>
+            {% else %}
             <a href="{% url 'users_desk:user_create' %}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap">
                 <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 New User
             </a>
+            {% endif %}
         </div>
     </div>
 

@@ -24,6 +24,25 @@ from .excel_utils import safe_cell
 from .forms import UserAdminForm
 from .models import User
 
+# Roles that count against the max_agents license limit
+AGENT_ROLES = {User.RoleAccess.SUPPORTDESK, User.RoleAccess.MANAGER}
+
+
+def _get_agent_limit():
+    """
+    Return (current_count, max_allowed) for agent-role users.
+    Falls back to unlimited (None) if licensing is unavailable.
+    """
+    try:
+        from licensing.models import LicenseRecord
+        license_obj = LicenseRecord.get_current()
+        max_allowed = license_obj.max_agents
+    except Exception:
+        max_allowed = None
+
+    current_count = User.objects.filter(role_access__in=AGENT_ROLES, is_active=True).count()
+    return current_count, max_allowed
+
 
 def _generate_password(length=16):
     """Generate a cryptographically random password."""
@@ -72,21 +91,40 @@ def user_list(request):
     paginator = Paginator(qs, 15)
     page = paginator.get_page(request.GET.get("page", 1))
 
+    current_agents, max_agents = _get_agent_limit()
     return render(request, "desk/users/list.html", {
         "users": page,
         "search_query": search,
         "role_filter": role_filter,
         "status_filter": status_filter,
         "role_choices": User.RoleAccess.choices,
+        "current_agents": current_agents,
+        "max_agents": max_agents,
+        "agent_limit_reached": max_agents is not None and current_agents >= max_agents,
     })
 
 
 @superadmin_required
 def user_create(request):
     """Create a new user."""
+    current_agents, max_agents = _get_agent_limit()
+
     if request.method == "POST":
         form = UserAdminForm(request.POST)
         if form.is_valid():
+            new_role = form.cleaned_data.get('role_access')
+            if new_role in AGENT_ROLES and max_agents is not None and current_agents >= max_agents:
+                messages.error(
+                    request,
+                    f"Agent limit reached ({current_agents}/{max_agents}). "
+                    "Upgrade your license to add more Support Desk or Manager accounts."
+                )
+                return render(request, "desk/users/form.html", {
+                    "form": form,
+                    "is_edit": False,
+                    "current_agents": current_agents,
+                    "max_agents": max_agents,
+                })
             user = form.save()
             messages.success(request, f'User "{user.login_username}" created successfully.')
             return redirect("users_desk:user_list")
@@ -96,6 +134,8 @@ def user_create(request):
     return render(request, "desk/users/form.html", {
         "form": form,
         "is_edit": False,
+        "current_agents": current_agents,
+        "max_agents": max_agents,
     })
 
 
@@ -103,10 +143,28 @@ def user_create(request):
 def user_edit(request, pk):
     """Edit an existing user."""
     user_obj = get_object_or_404(User, pk=pk)
+    current_agents, max_agents = _get_agent_limit()
 
     if request.method == "POST":
         form = UserAdminForm(request.POST, instance=user_obj)
         if form.is_valid():
+            new_role = form.cleaned_data.get('role_access')
+            old_role = user_obj.role_access
+            # Only check limit when promoting a non-agent to an agent role
+            if (new_role in AGENT_ROLES and old_role not in AGENT_ROLES
+                    and max_agents is not None and current_agents >= max_agents):
+                messages.error(
+                    request,
+                    f"Agent limit reached ({current_agents}/{max_agents}). "
+                    "Upgrade your license to promote this user to a Support Desk or Manager role."
+                )
+                return render(request, "desk/users/form.html", {
+                    "form": form,
+                    "is_edit": True,
+                    "user_obj": user_obj,
+                    "current_agents": current_agents,
+                    "max_agents": max_agents,
+                })
             form.save()
             messages.success(request, f'User "{user_obj.login_username}" updated successfully.')
             return redirect("users_desk:user_list")
@@ -117,6 +175,8 @@ def user_edit(request, pk):
         "form": form,
         "is_edit": True,
         "user_obj": user_obj,
+        "current_agents": current_agents,
+        "max_agents": max_agents,
     })
 
 
@@ -339,6 +399,23 @@ def user_import(request):
         for err in errors:
             messages.error(request, err)
         return redirect("users_desk:user_list")
+
+    # --- Check agent limit before creating ---
+    current_agents, max_agents = _get_agent_limit()
+    if max_agents is not None:
+        new_agents_in_file = sum(
+            1 for row in data_rows
+            if (get_col(row, "role_access") or User.RoleAccess.SUPPORTDESK) in AGENT_ROLES
+        )
+        if current_agents + new_agents_in_file > max_agents:
+            messages.error(
+                request,
+                f"Import would exceed your agent limit. "
+                f"Current: {current_agents}/{max_agents} agents. "
+                f"This file contains {new_agents_in_file} agent-role user(s). "
+                "Remove non-agent roles or upgrade your license."
+            )
+            return redirect("users_desk:user_list")
 
     # --- All OK — create users inside an atomic transaction ---
     created_count = 0

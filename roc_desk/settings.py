@@ -295,6 +295,7 @@ LICENSE_SETTINGS = {
     'VERIFY_INTERVAL_HOURS':  env.int('LICENSE_VERIFY_INTERVAL_HOURS', default=24),
     'TRIAL_MAX_DAYS':         env.int('LICENSE_TRIAL_MAX_DAYS', default=1),
     'TRIAL_DURATION_SECONDS': env.int('LICENSE_TRIAL_DURATION_SECONDS', default=900),
+    'TRIAL_MAX_AGENTS':       env.int('LICENSE_TRIAL_MAX_AGENTS', default=3),
     'GRACE_PERIOD_HOURS':     env.int('LICENSE_GRACE_PERIOD_HOURS', default=48),
     'GRACE_DAYS':             env.int('LICENSE_GRACE_DAYS', default=3),
     'PARTIAL_LOCK_DAYS':      env.int('LICENSE_PARTIAL_LOCK_DAYS', default=7),

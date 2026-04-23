@@ -64,9 +64,10 @@
     {% block extra_head %}{% endblock %}
 </head>
 
-<body class="jk-page" x-data="{ 
-    sidebarOpen: false, 
+<body class="jk-page" x-data="{
+    sidebarOpen: false,
     sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+    licenseOpen: false,
     toggleSidebar() {
         this.sidebarCollapsed = !this.sidebarCollapsed;
         localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);

@@ -16,10 +16,11 @@ class ContentSecurityPolicyMiddleware:
     Adds a Content-Security-Policy header to every response.
 
     Policy is intentionally permissive on script-src because the app uses
-    Tailwind CDN (requires inline execution), Alpine.js (inline x-data), and
-    several inline <script> blocks. Locking script-src to 'self' only would
-    require migrating every template to nonce-based scripts — tracked as a
-    future hardening step (M2-b). The meaningful wins here are:
+    Tailwind CDN (requires inline execution), Alpine.js (uses eval() internally
+    to process x-data/x-bind/x-on expressions), and HTMX (also uses eval()).
+    Removing unsafe-eval breaks all Alpine.js interactivity. Locking to
+    nonce-based scripts is tracked as a future hardening step (M2-b).
+    The meaningful wins here are:
       - object-src 'none'  — blocks Flash / plugin-based code execution
       - base-uri 'self'    — prevents base tag hijacking
       - form-action 'self' — prevents cross-origin form submission
@@ -28,7 +29,7 @@ class ContentSecurityPolicyMiddleware:
 
     CSP = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
             "https://cdn.tailwindcss.com "
             "https://cdn.jsdelivr.net "
             "https://unpkg.com; "
@@ -37,7 +38,7 @@ class ContentSecurityPolicyMiddleware:
             "https://cdn.jsdelivr.net; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self'; "
+        "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "
