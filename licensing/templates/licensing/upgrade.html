@@ -99,10 +99,248 @@
     .cmp-yes  { color:#059669; }
     .cmp-no   { color:#cbd5e1; }
     .cmp-col  { background:rgba(99,102,241,.04); }
+
+    /* ── Payment Method Modal ────────────────────── */
+    .pm-overlay {
+        display:none; position:fixed; inset:0;
+        background:rgba(15,23,42,.55); backdrop-filter:blur(4px);
+        z-index:9999; align-items:center; justify-content:center;
+    }
+    .pm-overlay.active { display:flex; }
+    .pm-modal {
+        background:#fff; border-radius:20px; padding:2rem;
+        width:100%; max-width:460px; box-shadow:0 24px 64px rgba(0,0,0,.18);
+        animation:pmSlideIn .25s cubic-bezier(.175,.885,.32,1.1);
+    }
+    @keyframes pmSlideIn {
+        from { transform:translateY(24px); opacity:0; }
+        to   { transform:translateY(0);    opacity:1; }
+    }
+    .pm-title { font-size:18px; font-weight:900; color:#1e293b; margin-bottom:4px; }
+    .pm-sub   { font-size:13px; color:#64748b; margin-bottom:20px; }
+
+    .pm-option {
+        display:flex; align-items:center; gap:14px;
+        border:1.5px solid #e2e8f0; border-radius:14px;
+        padding:14px 16px; margin-bottom:10px;
+        cursor:pointer; transition:all .2s;
+        position:relative; background:#fff;
+    }
+    .pm-option:hover:not(.pm-disabled) {
+        border-color:#6366f1; box-shadow:0 4px 16px rgba(99,102,241,.12);
+        background:#fafaff;
+    }
+    .pm-option.pm-disabled {
+        background:#f8fafc; cursor:not-allowed; opacity:.72;
+    }
+    .pm-icon {
+        width:44px; height:44px; border-radius:12px;
+        display:flex; align-items:center; justify-content:center;
+        font-size:22px; flex-shrink:0;
+    }
+    .pm-icon-bank    { background:#eff6ff; }
+    .pm-icon-wallet  { background:#f0fdf4; }
+    .pm-icon-store   { background:#fff7ed; }
+    .pm-label  { font-size:14px; font-weight:800; color:#1e293b; }
+    .pm-desc   { font-size:12px; color:#64748b; margin-top:1px; }
+    .pm-badge-wip {
+        position:absolute; right:14px; top:50%; transform:translateY(-50%);
+        background:linear-gradient(135deg,#f59e0b,#d97706);
+        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
+        letter-spacing:.08em; padding:3px 9px; border-radius:20px;
+        display:flex; align-items:center; gap:4px;
+    }
+    .pm-close-btn {
+        display:block; width:100%; text-align:center; margin-top:16px;
+        font-size:13px; color:#94a3b8; cursor:pointer; font-weight:600;
+        padding:8px; border-radius:8px; transition:color .2s;
+    }
+    .pm-close-btn:hover { color:#475569; }
+
+    #pmConfirmBtn:hover  { box-shadow:0 6px 20px rgba(99,102,241,.45); transform:translateY(-1px); }
+    #pmChangeMethod:hover { background:#f5f3ff; border-color:#818cf8; }
 </style>
 {% endblock %}
 
 {% block content %}
+
+<!-- ── Payment Method Modal ── -->
+<div class="pm-overlay" id="pmOverlay">
+    <div class="pm-modal">
+
+        <!-- ── Step 1: Pilih Metode ── -->
+        <div id="pmStep1">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                <div style="width:22px; height:22px; background:#6366f1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; flex-shrink:0;">1</div>
+                <p class="pm-title" style="margin:0;">Pilih Metode Pembayaran</p>
+            </div>
+            <p class="pm-sub" style="padding-left:32px;">Pilih cara pembayaran untuk lisensi <strong id="pmPlanName"></strong>.</p>
+
+            <!-- Transfer Bank -->
+            <div class="pm-option" id="pmBankTransfer">
+                <div class="pm-icon pm-icon-bank">🏦</div>
+                <div>
+                    <p class="pm-label">Transfer Bank</p>
+                    <p class="pm-desc">BCA, BNI, BRI, Mandiri &amp; bank lainnya</p>
+                </div>
+            </div>
+
+            <!-- E-Wallet (WIP) -->
+            <div class="pm-option pm-disabled">
+                <div class="pm-icon pm-icon-wallet">💳</div>
+                <div>
+                    <p class="pm-label">E-Wallet</p>
+                    <p class="pm-desc">GoPay, OVO, DANA, ShopeePay</p>
+                </div>
+                <div class="pm-badge-wip">🔧 Dalam Perbaikan</div>
+            </div>
+
+            <!-- Toko Merchant (WIP) -->
+            <div class="pm-option pm-disabled">
+                <div class="pm-icon pm-icon-store">🏪</div>
+                <div>
+                    <p class="pm-label">Toko Merchant</p>
+                    <p class="pm-desc">Indomaret, Alfamart &amp; minimarket lainnya</p>
+                </div>
+                <div class="pm-badge-wip">🔧 Dalam Perbaikan</div>
+            </div>
+
+            <span class="pm-close-btn" id="pmClose">Batal</span>
+        </div>
+
+        <!-- ── Step 2: Konfirmasi ── -->
+        <div id="pmStep2" style="display:none;">
+            <!-- Step indicator -->
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#94a3b8;">
+                    <div style="width:20px; height:20px; background:#d1fae5; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#059669;">✓</div>
+                    <span>Pilih Metode</span>
+                </div>
+                <div style="flex:1; height:1.5px; background:#e2e8f0;"></div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#6366f1;">
+                    <div style="width:20px; height:20px; background:#6366f1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:900;">2</div>
+                    <span>Konfirmasi</span>
+                </div>
+            </div>
+
+            <!-- Ringkasan pesanan -->
+            <div style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:16px;">
+                <p style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; margin-bottom:10px;">Ringkasan Pesanan</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:13px; color:#64748b;">Paket</span>
+                    <span style="font-size:13px; font-weight:800; color:#1e293b;" id="pmConfirmPlan"></span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:13px; color:#64748b;">Metode Pembayaran</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span id="pmConfirmMethodIcon" style="font-size:16px;"></span>
+                        <span style="font-size:13px; font-weight:800; color:#1e293b;" id="pmConfirmMethodName"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info notice -->
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; margin-bottom:16px; display:flex; gap:10px; align-items:flex-start;">
+                <span style="font-size:16px; flex-shrink:0;">ℹ️</span>
+                <p style="font-size:12px; color:#1d4ed8; line-height:1.6; margin:0;">
+                    Anda akan diarahkan ke halaman marketplace untuk menyelesaikan pembayaran. Pastikan metode di atas sudah sesuai.
+                </p>
+            </div>
+
+            <!-- Actions -->
+            <button id="pmConfirmBtn"
+                style="display:block; width:100%; padding:13px; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; border:none; border-radius:12px; cursor:pointer; transition:all .25s; margin-bottom:10px; box-shadow:0 4px 12px rgba(99,102,241,.3);">
+                Lanjutkan ke Pembayaran →
+            </button>
+
+            <button id="pmChangeMethod"
+                style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:11px; background:#fff; color:#6366f1; font-size:13px; font-weight:700; border:1.5px solid #c7d2fe; border-radius:12px; cursor:pointer; transition:all .2s;">
+                ↩ Ganti Metode Pembayaran
+            </button>
+
+            <span class="pm-close-btn" id="pmClose2" style="margin-top:10px;">Batal</span>
+        </div>
+
+    </div>
+</div>
+
+<script>
+(function(){
+    var overlay        = document.getElementById('pmOverlay');
+    var step1          = document.getElementById('pmStep1');
+    var step2          = document.getElementById('pmStep2');
+    var planLabel      = document.getElementById('pmPlanName');
+    var bankBtn        = document.getElementById('pmBankTransfer');
+    var confirmBtn     = document.getElementById('pmConfirmBtn');
+    var changeBtn      = document.getElementById('pmChangeMethod');
+    var closeBtn       = document.getElementById('pmClose');
+    var closeBtn2      = document.getElementById('pmClose2');
+    var confirmPlan    = document.getElementById('pmConfirmPlan');
+    var confirmIcon    = document.getElementById('pmConfirmMethodIcon');
+    var confirmName    = document.getElementById('pmConfirmMethodName');
+    var dest           = '';
+    var selectedMethod = null;
+
+    var methods = {
+        bank: { icon: '🏦', name: 'Transfer Bank' }
+    };
+
+    function openModal(planName, url) {
+        dest = url;
+        planLabel.textContent = planName;
+        showStep(1);
+        overlay.classList.add('active');
+    }
+
+    function showStep(n) {
+        step1.style.display = n === 1 ? '' : 'none';
+        step2.style.display = n === 2 ? '' : 'none';
+    }
+
+    function goToConfirm(methodKey) {
+        selectedMethod = methodKey;
+        confirmPlan.textContent = planLabel.textContent;
+        confirmIcon.textContent = methods[methodKey].icon;
+        confirmName.textContent = methods[methodKey].name;
+        showStep(2);
+    }
+
+    function closeModal() {
+        overlay.classList.remove('active');
+        selectedMethod = null;
+    }
+
+    bankBtn.addEventListener('click', function(){ goToConfirm('bank'); });
+
+    confirmBtn.addEventListener('click', function(){
+        if (dest) window.open(dest, '_blank');
+        closeModal();
+    });
+
+    changeBtn.addEventListener('click', function(){ showStep(1); });
+
+    closeBtn.addEventListener('click',  closeModal);
+    closeBtn2.addEventListener('click', closeModal);
+
+    overlay.addEventListener('click', function(e){
+        if (e.target === overlay) closeModal();
+    });
+
+    document.addEventListener('DOMContentLoaded', function(){
+        document.querySelectorAll('a.plan-cta[href]').forEach(function(el){
+            if (el.href && el.href !== '#' && !el.classList.contains('cta-disabled')) {
+                var planName = el.closest('.plan-card')
+                    ? (el.closest('.plan-card').querySelector('.plan-tagline') || {}).textContent || 'Plan'
+                    : 'Plan';
+                el.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openModal(planName, el.href);
+                });
+            }
+        });
+    });
+})();
+</script>
 <div class="upgrade-wrap">
 
     <!-- ── Hero ── -->
