@@ -3,26 +3,26 @@ upstream django {
 }
 
 server {
-    listen 80;
+    listen 80 default_server;
     server_name _;
+    return 444;
+}
+
+server {
+    listen 80;
+    server_name ${NGINX_SERVER_NAMES};
 
     client_max_body_size 20M;
 
-    # Media files — served directly by nginx from the shared Docker volume.
-    # This is the reason nginx exists: Django (gunicorn) does NOT serve media
-    # in production (DEBUG=False).
     location /media/ {
         alias /app/media/;
         expires 7d;
         add_header Cache-Control "public, immutable";
-        # Only allow safe methods; no PUT/DELETE on the file server
         limit_except GET HEAD {
             deny all;
         }
     }
 
-    # Static files — served directly by nginx (faster than whitenoise for
-    # high-traffic deployments, but whitenoise on Django side is kept as fallback).
     location /static/ {
         alias /app/staticfiles/;
         expires 30d;
@@ -32,15 +32,11 @@ server {
         }
     }
 
-    # Everything else → gunicorn
     location / {
         proxy_pass http://django;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        # Pass the original proto set by the outermost proxy (host nginx).
-        # Do NOT use $scheme here — Docker nginx only sees plain HTTP (port 8000),
-        # so $scheme would always be "http", triggering Django's SECURE_SSL_REDIRECT loop.
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         proxy_redirect off;
 
