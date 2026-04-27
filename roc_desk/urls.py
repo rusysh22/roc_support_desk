@@ -7,6 +7,7 @@ from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
+from django.http import JsonResponse
 
 from core import views as core_views
 from core.auth_forms import CustomAuthenticationForm
@@ -29,6 +30,9 @@ admin.site.site_title = lazy(get_admin_site_name, str)()
 admin.site.index_title = "Administration"
 
 urlpatterns = [
+    # Docker health check — used by compose healthcheck probe
+    path("health/", lambda r: JsonResponse({"status": "ok"})),
+
     # Override Admin logout to redirect to public login
     path("admin/logout/", auth_views.LogoutView.as_view(next_page="/auth/login/")),
     # Django admin

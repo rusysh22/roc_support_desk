@@ -1,6 +1,7 @@
-upstream django {
-    server web:8001;
-}
+# Docker internal DNS resolver — forces nginx to re-resolve 'web' hostname
+# every 10s instead of caching the IP at startup. This prevents 502s after
+# the web container restarts and gets a new internal IP.
+resolver 127.0.0.11 valid=10s ipv6=off;
 
 server {
     listen 80 default_server;
@@ -33,7 +34,10 @@ server {
     }
 
     location / {
-        proxy_pass http://django;
+        # Variable forces nginx to use the resolver on every request
+        set $upstream http://web:8001;
+        proxy_pass $upstream;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -41,6 +45,12 @@ server {
         proxy_redirect off;
 
         proxy_read_timeout 120s;
-        proxy_connect_timeout 10s;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 120s;
+
+        # Retry on connection error/timeout — prevents instant 502 on transient restart
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
     }
 }

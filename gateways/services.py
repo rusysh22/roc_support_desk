@@ -196,6 +196,18 @@ class EvolutionAPIService:
             logger.error("Failed to fetch QR code: %s", exc)
             return None
 
+    def logout_instance(self) -> bool:
+        """Force-logout the WhatsApp session so a fresh QR code is generated."""
+        url = self._build_url("instance/logout")
+        try:
+            response = requests.delete(url, headers=self._headers(), timeout=self.timeout)
+            response.raise_for_status()
+            logger.info("WhatsApp instance '%s' logged out successfully.", self.instance)
+            return True
+        except requests.RequestException as exc:
+            logger.error("Failed to logout WhatsApp instance: %s", exc)
+            return False
+
     # ------------------------------------------------------------------
     # Public API — Send Messages & Presence
     # ------------------------------------------------------------------

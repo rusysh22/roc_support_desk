@@ -3113,6 +3113,29 @@ def case_add_comment(request, case_id):
 
 @staff_required
 @feature_required('whatsapp')
+def whatsapp_disconnect_view(request):
+    """Force-logout the WhatsApp session so the instance resets and shows a fresh QR."""
+    from gateways.services import EvolutionAPIService
+    from django.contrib import messages
+
+    if request.method != "POST":
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(["POST"])
+
+    svc = EvolutionAPIService()
+    success = svc.logout_instance()
+
+    if success:
+        messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
+    else:
+        messages.error(request, "Failed to disconnect WhatsApp session. Check the Evolution API logs.")
+
+    from django.shortcuts import redirect
+    return redirect("desk:whatsapp_status")
+
+
+@staff_required
+@feature_required('whatsapp')
 def whatsapp_status_view(request):
     """
     Dashboard view for monitoring Evolution API WhatsApp connection.

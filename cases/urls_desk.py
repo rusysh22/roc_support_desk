@@ -63,6 +63,7 @@ urlpatterns = [
 
     # WhatsApp Integration Status
     path("whatsapp/status/", views.whatsapp_status_view, name="whatsapp_status"),
+    path("whatsapp/disconnect/", views.whatsapp_disconnect_view, name="whatsapp_disconnect"),
 
     # Email Settings Dashboard
     path("email-settings/", views.email_settings_view, name="email_settings"),
