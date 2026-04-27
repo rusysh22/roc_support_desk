@@ -108,31 +108,29 @@ class CaseCreateForm(forms.Form):
 
     def clean_requester_email(self):
         """
-        Validate that the email domain has valid MX records.
-        Prevents typos or fake domains from passing through.
+        Validate that the email domain is not completely non-existent (NXDOMAIN).
+        Transient DNS errors (timeout, SERVFAIL) are allowed through to avoid
+        blocking valid corporate email addresses on slow or private DNS setups.
         """
         email = self.cleaned_data.get("requester_email")
         if not email:
             return email
-            
+
         domain = email.split('@')[-1]
         try:
-            # Query MX records with a short timeout to prevent hanging the server
             resolver = dns.resolver.Resolver()
-            resolver.timeout = 3.0
-            resolver.lifetime = 3.0
-            answers = resolver.resolve(domain, 'MX')
-            if not answers:
-                raise ValidationError(f"The domain '{domain}' does not appear to be set up to receive emails.")
-        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
-            raise ValidationError(f"The domain '{domain}' does not exist or cannot receive emails. Please check for typos.")
-        except dns.exception.Timeout:
-            # If the DNS server times out, log it but don't strictly block the user 
-            # to be safe, or you can block it. Here we raise a validation error for strictness.
-            raise ValidationError(f"Could not verify the email domain '{domain}' at this time. Please try again.")
-        except Exception:
-            raise ValidationError("Invalid email address format or domain.")
-            
+            resolver.timeout = 5.0
+            resolver.lifetime = 5.0
+            resolver.resolve(domain, 'MX')
+        except dns.resolver.NXDOMAIN:
+            raise ValidationError(
+                f"The domain '{domain}' does not exist. Please check your email address for typos."
+            )
+        except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout, Exception):
+            # Domain may have A-record-only mail or DNS is temporarily unreachable;
+            # allow through rather than blocking legitimate corporate emails.
+            pass
+
         return email
 
     ALLOWED_MIME_TYPES = {
