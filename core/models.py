@@ -184,6 +184,42 @@ class CompanyUnit(AuditableModel):
         help_text="Short identifier, e.g. IT, FIN, HR.",
     )
 
+    # --- Location ---
+    address = models.TextField(
+        blank=True,
+        default='',
+        verbose_name="Address",
+        help_text="Full street address of this unit's office.",
+    )
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name="City",
+    )
+    province = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name="Province",
+    )
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name="Latitude",
+        help_text="GPS latitude, e.g. -6.2088000",
+    )
+    longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name="Longitude",
+        help_text="GPS longitude, e.g. 106.8456000",
+    )
+
     class Meta:
         verbose_name = "Company Unit"
         verbose_name_plural = "Company Units"

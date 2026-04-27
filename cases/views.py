@@ -135,6 +135,7 @@ def dashboard(request):
     filter_category = request.GET.get("category", "")
     filter_source = request.GET.get("source", "")
     filter_priority = request.GET.get("priority", "")
+    filter_unit = request.GET.get("company_unit", "")
 
     # Default: first day of current month → today
     if date_from_str:
@@ -175,6 +176,8 @@ def dashboard(request):
         qs = qs.filter(source=filter_source)
     if filter_priority:
         qs = qs.filter(priority=filter_priority)
+    if filter_unit:
+        qs = qs.filter(requester__unit_id=filter_unit)
 
     # ── Also build an "all time active" queryset (not filtered by date) for summary cards ──
     active_qs = CaseRecord.objects.filter(
@@ -193,6 +196,8 @@ def dashboard(request):
         active_qs = active_qs.filter(source=filter_source)
     if filter_priority:
         active_qs = active_qs.filter(priority=filter_priority)
+    if filter_unit:
+        active_qs = active_qs.filter(requester__unit_id=filter_unit)
 
     # ── SUMMARY CARDS ──────────────────────────────────────────────
     total_in_range = qs.count()
@@ -548,8 +553,53 @@ def dashboard(request):
         role_access__in=[User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER, User.RoleAccess.SUPPORTDESK]
     ).order_by("username")
     categories = CaseCategory.objects.filter(parent__isnull=True).order_by("name")
+    all_company_units = CompanyUnit.objects.order_by("code")
 
+    # ── MAP DATA: Company Units with geolocation + ticket counts ───
     import json
+    map_case_filter = Q(
+        employees__cases__is_spam=False,
+        employees__cases__master_ticket__isnull=True,
+        employees__cases__created_at__range=(dt_from, dt_to),
+    )
+    if filter_assigned:
+        if filter_assigned == "unassigned":
+            map_case_filter &= Q(employees__cases__assigned_to__isnull=True)
+        else:
+            map_case_filter &= Q(employees__cases__assigned_to_id=filter_assigned)
+    if filter_category:
+        map_case_filter &= Q(employees__cases__category__slug=filter_category)
+    if filter_source:
+        map_case_filter &= Q(employees__cases__source=filter_source)
+    if filter_priority:
+        map_case_filter &= Q(employees__cases__priority=filter_priority)
+
+    map_units_qs = (
+        CompanyUnit.objects
+        .filter(latitude__isnull=False, longitude__isnull=False)
+        .annotate(ticket_count=Count('employees__cases', filter=map_case_filter, distinct=True))
+        .order_by('-ticket_count')
+    )
+    # When a specific unit is selected, show only that unit on the map
+    if filter_unit:
+        map_units_qs = map_units_qs.filter(id=filter_unit)
+    map_units_list = list(map_units_qs)
+    map_units_json = json.dumps([
+        {
+            'id': str(u.id),
+            'name': u.name,
+            'code': u.code,
+            'city': u.city,
+            'province': u.province,
+            'lat': float(u.latitude),
+            'lng': float(u.longitude),
+            'ticket_count': u.ticket_count,
+        }
+        for u in map_units_list
+    ])
+    map_total_units = len(map_units_list)
+    map_covered_tickets = sum(u.ticket_count for u in map_units_list)
+
     context = {
         # Summary cards
         "total_in_range": total_in_range,
@@ -596,6 +646,8 @@ def dashboard(request):
         "filter_category": filter_category,
         "filter_source": filter_source,
         "filter_priority": filter_priority,
+        "filter_unit": filter_unit,
+        "all_company_units": all_company_units,
         "date_range_label": f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}",
         "trend_granularity": trend_granularity,
         # Word clouds
@@ -613,6 +665,11 @@ def dashboard(request):
         "reopened_count": reopened_count,
         "reopen_pct": reopen_pct,
         "stale_tickets": stale_tickets,
+        # Regional map
+        "map_units_json": map_units_json,
+        "map_units": map_units_list,
+        "map_total_units": map_total_units,
+        "map_covered_tickets": map_covered_tickets,
     }
     return render(request, "admin/dashboard.html", context)
 

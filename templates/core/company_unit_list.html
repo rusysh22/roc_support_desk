@@ -69,6 +69,8 @@
                         </th>
                         <th>Unit Code</th>
                         <th>Name</th>
+                        <th>Location</th>
+                        <th class="text-center w-20">Map</th>
                         <th>Created By</th>
                         <th class="text-right">Actions</th>
                     </tr>
@@ -86,10 +88,34 @@
                             <div class="text-sm font-medium text-slate-700">{{ unit.name }}</div>
                         </td>
                         <td>
+                            {% if unit.city or unit.province %}
+                            <div class="text-sm text-slate-700">
+                                {% if unit.city %}{{ unit.city }}{% endif %}{% if unit.city and unit.province %}, {% endif %}{% if unit.province %}{{ unit.province }}{% endif %}
+                            </div>
+                            {% if unit.address %}
+                            <div class="text-xs text-slate-500 truncate max-w-[200px]">{{ unit.address }}</div>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-xs text-slate-400 italic">No location set</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if unit.latitude and unit.longitude %}
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" title="{{ unit.latitude }}, {{ unit.longitude }}">
+                                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                                Mapped
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
+                                —
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
                             <div class="text-sm text-slate-600">{{ unit.created_by.username|default:"System" }}</div>
                         </td>
                         <td class="text-right">
-                            <div class="flex items-center justify-end gap-2 pr-4 opacity-0 group-hover:opacity-100 transition-opacity" style="opacity: 1;">
+                            <div class="flex items-center justify-end gap-2 pr-4" style="opacity: 1;">
                                 <a href="{% url 'desk:company_unit_edit' unit.pk %}" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Unit">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 </a>
@@ -101,7 +127,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-slate-600">
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-600">
                             {% if request.GET.q %}
                             No company units found matching your search.
                             {% else %}

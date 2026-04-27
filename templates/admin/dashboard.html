@@ -8,6 +8,7 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 {% endblock %}
 
 {% block content %}
@@ -65,17 +66,34 @@
                     <option value="Critical" {% if filter_priority == "Critical" %}selected{% endif %}>Critical</option>
                 </select>
             </div>
+            <div class="flex-1 min-w-[150px]">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <svg class="w-3 h-3 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                    Company Unit
+                </label>
+                <select name="company_unit" class="jk-select text-sm w-full">
+                    <option value="">All Units</option>
+                    {% for cu in all_company_units %}
+                    <option value="{{ cu.id }}" {% if filter_unit == cu.id|stringformat:"s" %}selected{% endif %}>{{ cu.code }} — {{ cu.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="flex gap-2">
                 <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
                     Filter
                 </button>
-                <a href="{% url 'desk:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm" title="Reset">
+                <a href="{% url 'desk:dashboard' %}" class="jk-btn jk-btn-secondary jk-btn-sm" title="Reset all filters">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </a>
             </div>
         </div>
-        <div class="mt-2 text-xs text-slate-600 font-medium">{{ date_range_label }}</div>
+        <div class="mt-2 flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-slate-600 font-medium">{{ date_range_label }}</span>
+            {% if filter_unit %}
+            {% for cu in all_company_units %}{% if cu.id|stringformat:"s" == filter_unit %}<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">📍 {{ cu.code }} — {{ cu.name }}</span>{% endif %}{% endfor %}
+            {% endif %}
+        </div>
     </form>
 </div>
 
@@ -127,6 +145,169 @@
 </div>
 
 <!-- ============================================================= -->
+<!-- MAP HERO: Regional Coverage Map                                 -->
+<!-- ============================================================= -->
+<div class="jk-card overflow-hidden">
+
+    <!-- Gradient Header -->
+    <div class="relative px-5 py-4 flex flex-wrap items-center justify-between gap-3"
+         style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 55%, #1a3a5c 100%);">
+        <!-- Decorative ambient blobs -->
+        <div class="absolute -top-10 -right-10 w-44 h-44 rounded-full pointer-events-none"
+             style="background: radial-gradient(circle, rgba(129,140,248,0.18), transparent);"></div>
+        <div class="absolute bottom-0 right-32 w-32 h-32 rounded-full pointer-events-none"
+             style="background: radial-gradient(circle, rgba(6,182,212,0.14), transparent);"></div>
+
+        <div class="flex items-center gap-3 relative z-10">
+            <div class="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-2xl border border-white/10 shadow-inner">
+                🗺️
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-white leading-tight">Regional Coverage Map</h3>
+                <p class="text-xs text-indigo-200/80 mt-0.5">Ticket distribution across company locations — {{ date_range_label }}</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 relative z-10 flex-wrap">
+            <div class="bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2 text-center min-w-[80px]">
+                <div class="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Mapped Units</div>
+                <div class="text-2xl font-black text-white leading-tight">{{ map_total_units }}</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2 text-center min-w-[80px]">
+                <div class="text-[10px] font-bold text-indigo-200 uppercase tracking-wider">Tickets</div>
+                <div class="text-2xl font-black text-white leading-tight">{{ map_covered_tickets }}</div>
+            </div>
+            {% if map_total_units == 0 %}
+            <a href="{% url 'desk:company_unit_list' %}"
+               class="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold rounded-xl px-4 py-2.5 transition-colors border border-indigo-400/50 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Set Up Locations
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Body -->
+    {% if map_total_units == 0 %}
+    <!-- ── Empty State ─────────────────────────────────────────── -->
+    <div class="flex flex-col items-center justify-center py-20 px-8 bg-gradient-to-b from-slate-50 to-white">
+        <div class="relative mb-6">
+            <div class="w-24 h-24 rounded-2xl bg-slate-100 flex items-center justify-center text-5xl border border-slate-200 shadow-inner">🗺️</div>
+            <div class="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-base">📍</div>
+        </div>
+        <h4 class="font-bold text-slate-700 text-lg">No Location Data Yet</h4>
+        <p class="text-sm text-slate-500 text-center mt-2 max-w-sm leading-relaxed">
+            Add <strong class="text-slate-600">latitude & longitude</strong> coordinates to your Company Units to see a live interactive map of ticket distribution across Indonesia.
+        </p>
+        <div class="flex flex-wrap gap-3 mt-6 justify-center">
+            <a href="{% url 'desk:company_unit_list' %}" class="jk-btn jk-btn-primary px-6 shadow-sm">
+                <svg class="w-4 h-4 mr-1.5 inline -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Manage Company Units
+            </a>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- ── Map + Ranking Panel ──────────────────────────────────── -->
+    <div class="flex flex-col lg:flex-row">
+
+        <!-- Leaflet Map -->
+        <div class="flex-1 relative">
+            <div id="regional-map" style="height: 480px; width: 100%; z-index: 1; display: block;"></div>
+        </div>
+
+        <!-- Ranking Side Panel -->
+        <div class="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-slate-100 flex flex-col bg-white">
+            <!-- Panel Header -->
+            <div class="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unit Ranking</span>
+                <span class="ml-auto text-[10px] text-slate-400">Click to zoom</span>
+            </div>
+
+            <!-- Ranking List -->
+            <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1" style="max-height: 352px;">
+                {% for unit in map_units %}
+                <div class="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group unit-rank-item"
+                     data-unit-id="{{ unit.id }}"
+                     data-lat="{{ unit.latitude }}"
+                     data-lng="{{ unit.longitude }}">
+                    <!-- Rank -->
+                    <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0
+                        {% if forloop.counter == 1 %}bg-amber-100 text-amber-700
+                        {% elif forloop.counter == 2 %}bg-slate-200 text-slate-600
+                        {% elif forloop.counter == 3 %}bg-orange-100 text-orange-700
+                        {% else %}bg-slate-100 text-slate-500{% endif %}">
+                        {{ forloop.counter }}
+                    </div>
+                    <!-- Color indicator -->
+                    <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                        {% if unit.ticket_count == 0 %}bg-slate-300
+                        {% elif unit.ticket_count < 10 %}bg-emerald-500
+                        {% elif unit.ticket_count < 50 %}bg-amber-400
+                        {% elif unit.ticket_count < 100 %}bg-orange-500
+                        {% else %}bg-red-500{% endif %}">
+                    </div>
+                    <!-- Unit info -->
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[11px] font-semibold text-slate-700 truncate group-hover:text-indigo-700 transition-colors">
+                            {{ unit.code }} — {{ unit.name }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 truncate">
+                            {% if unit.city %}{{ unit.city }}{% if unit.province %}, {{ unit.province }}{% endif %}{% elif unit.province %}{{ unit.province }}{% else %}No location name{% endif %}
+                        </div>
+                    </div>
+                    <!-- Ticket count badge -->
+                    <div class="flex-shrink-0 text-[11px] font-black
+                        {% if unit.ticket_count == 0 %}text-slate-400
+                        {% elif unit.ticket_count < 10 %}text-emerald-600
+                        {% elif unit.ticket_count < 50 %}text-amber-600
+                        {% elif unit.ticket_count < 100 %}text-orange-600
+                        {% else %}text-red-600{% endif %}">
+                        {{ unit.ticket_count }}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="flex items-center justify-center py-8 text-sm text-slate-400">No data</div>
+                {% endfor %}
+            </div>
+
+            <!-- Legend -->
+            <div class="px-4 py-3 border-t border-slate-100 bg-slate-50/60">
+                <div class="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ticket Volume</div>
+                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-slate-300 inline-block flex-shrink-0"></span>
+                        <span class="text-[10px] text-slate-600 font-medium">0</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block flex-shrink-0"></span>
+                        <span class="text-[10px] text-slate-600 font-medium">1 – 9</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-amber-400 inline-block flex-shrink-0"></span>
+                        <span class="text-[10px] text-slate-600 font-medium">10 – 49</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-orange-500 inline-block flex-shrink-0"></span>
+                        <span class="text-[10px] text-slate-600 font-medium">50 – 99</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-red-500 inline-block flex-shrink-0"></span>
+                        <span class="text-[10px] text-slate-600 font-medium">100+</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ============================================================= -->
 <!-- CHART ROW 1: Trend + Status + Source                           -->
 <!-- ============================================================= -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -141,11 +322,11 @@
                     <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-medium">Avg: {{ avg_resolution }}</span>
                     {% endif %}
                     <div class="flex bg-slate-100 rounded-lg p-0.5" x-data>
-                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=daily"
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&company_unit={{ filter_unit }}&granularity=daily"
                            class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'daily' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Day</a>
-                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=weekly"
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&company_unit={{ filter_unit }}&granularity=weekly"
                            class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'weekly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Week</a>
-                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&granularity=monthly"
+                        <a href="?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&assigned_to={{ filter_assigned }}&category={{ filter_category }}&source={{ filter_source }}&priority={{ filter_priority }}&company_unit={{ filter_unit }}&granularity=monthly"
                            class="px-2 py-0.5 rounded-md text-xs font-semibold transition-colors {% if trend_granularity == 'monthly' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">Month</a>
                     </div>
                 </div>
@@ -967,5 +1148,165 @@ document.addEventListener('DOMContentLoaded', function() {
         renderCloud('rcaCloudCanvas', 'rcaCloudEmpty', rcaCloud, jokoColors);
     }, 200);
 });
+</script>
+
+<!-- ── Leaflet.js (Regional Coverage Map) ─────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLs=" crossorigin=""></script>
+<script>
+(function () {
+    const mapEl = document.getElementById('regional-map');
+    if (!mapEl) return;
+
+    const units      = {{ map_units_json|safe }};
+    const filterUnit = '{{ filter_unit }}'; // selected unit ID (or '')
+
+    // ── Init Leaflet — full interaction enabled ──────────────────
+    const map = L.map('regional-map', {
+        zoomControl:        true,
+        scrollWheelZoom:    true,   // desktop scroll-wheel zoom
+        doubleClickZoom:    true,
+        touchZoom:          true,   // pinch zoom on mobile
+        dragging:           true,
+        boxZoom:            true,
+        keyboard:           true,
+        tap:                true,   // touch tap on mobile
+        zoomSnap:           0.5,
+        zoomDelta:          0.5,
+    }).setView([-2.5, 118.0], 5);
+
+    // Move zoom control to bottom-right to avoid sidebar overlap
+    map.zoomControl.setPosition('bottomright');
+
+    // ── OSM tile layer ───────────────────────────────────────────
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+        maxZoom:     19,
+        tileSize:    256,
+    }).addTo(map);
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function markerRadius(n) {
+        if (n === 0)  return 8;
+        if (n < 10)   return 12;
+        if (n < 50)   return 17;
+        if (n < 100)  return 22;
+        return 30;
+    }
+    function markerColor(n) {
+        if (n === 0)  return '#94a3b8'; // slate
+        if (n < 10)   return '#10b981'; // emerald
+        if (n < 50)   return '#f59e0b'; // amber
+        if (n < 100)  return '#f97316'; // orange
+        return '#ef4444';               // red
+    }
+
+    const caseListBase = "{% url 'desk:case_list' %}";
+    const activeParams = "date_from={{ filter_date_from }}&date_to={{ filter_date_to }}"
+        + (filterUnit ? '&company_unit=' + filterUnit : '');
+    const markerMap = {};
+
+    if (!units || units.length === 0) {
+        // Show 'no data' overlay on the map
+        const noData = L.control({ position: 'topright' });
+        noData.onAdd = function () {
+            const div = L.DomUtil.create('div');
+            div.innerHTML = '<div style="background:rgba(255,255,255,0.9);padding:8px 12px;border-radius:8px;font-size:11px;color:#64748b;font-family:Inter,sans-serif;">No mapped units for current filter</div>';
+            return div;
+        };
+        noData.addTo(map);
+        return;
+    }
+
+    // ── Render markers ───────────────────────────────────────────
+    units.forEach(function (u) {
+        const colour    = markerColor(u.ticket_count);
+        const isSelected = filterUnit && u.id === filterUnit;
+
+        const circle = L.circleMarker([u.lat, u.lng], {
+            radius:      markerRadius(u.ticket_count),
+            fillColor:   colour,
+            color:       isSelected ? '#6366f1' : '#ffffff',
+            weight:      isSelected ? 3.5 : 2,
+            opacity:     1,
+            fillOpacity: isSelected ? 1 : 0.85,
+        });
+
+        const locationLine  = [u.city, u.province].filter(Boolean).join(', ') || '—';
+        const ticketLabel   = u.ticket_count === 1 ? '1 ticket' : u.ticket_count + ' tickets';
+        const viewUrl       = caseListBase + '?' + activeParams;
+
+        circle.bindPopup(
+            '<div style="font-family:Inter,system-ui,sans-serif;min-width:200px;padding:3px 0;">' +
+                '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:3px;">' +
+                    escHtml(u.code) + ' — ' + escHtml(u.name) +
+                '</div>' +
+                '<div style="font-size:11px;color:#64748b;margin-bottom:9px;display:flex;align-items:center;gap:4px;">' +
+                    '<svg width="10" height="10" viewBox="0 0 20 20" fill="#94a3b8"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>' +
+                    escHtml(locationLine) +
+                '</div>' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f1f5f9;padding-top:8px;margin-top:2px;">' +
+                    '<span style="font-size:15px;font-weight:900;color:' + colour + ';">' + ticketLabel + '</span>' +
+                    '<a href="' + viewUrl + '" style="font-size:10px;color:#6366f1;font-weight:700;text-decoration:none;padding:3px 8px;background:#eef2ff;border-radius:6px;">View →</a>' +
+                '</div>' +
+            '</div>',
+            { maxWidth: 240, minWidth: 200 }
+        );
+
+        // Hover effect
+        circle.on('mouseover', function () {
+            this.setStyle({ weight: 3, fillOpacity: 1 });
+            this.openPopup();
+        });
+        circle.on('mouseout', function () {
+            this.setStyle({ weight: isSelected ? 3.5 : 2, fillOpacity: isSelected ? 1 : 0.85 });
+        });
+
+        circle.addTo(map);
+        markerMap[u.id] = circle;
+    });
+
+    // ── Fit map to all markers ───────────────────────────────────
+    (function fitMap() {
+        if (units.length === 1) {
+            map.setView([units[0].lat, units[0].lng], 11);
+            markerMap[units[0].id].openPopup();
+        } else {
+            const bounds = L.latLngBounds(units.map(function (u) { return [u.lat, u.lng]; }));
+            map.fitBounds(bounds, { padding: [48, 48], maxZoom: 10, animate: false });
+        }
+    })();
+
+    // ── Rank-row click → pan & open popup ───────────────────────
+    document.querySelectorAll('.unit-rank-item').forEach(function (el) {
+        el.addEventListener('click', function () {
+            const id  = el.dataset.unitId;
+            const lat = parseFloat(el.dataset.lat);
+            const lng = parseFloat(el.dataset.lng);
+            const m   = markerMap[id];
+            if (!m) return;
+            map.setView([lat, lng], 12, { animate: true, duration: 0.5 });
+            setTimeout(function () { m.openPopup(); }, 300);
+        });
+    });
+
+    // ── Responsive: invalidate on sidebar collapse ───────────────
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('[\\@click*="toggleSidebar"]')) {
+            setTimeout(function () { map.invalidateSize({ animate: false }); }, 320);
+        }
+    });
+
+    // ── Responsive: handle window resize ────────────────────────
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () { map.invalidateSize({ animate: false }); }, 200);
+    });
+
+    // ── HTML escape helper ───────────────────────────────────────
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+})();
 </script>
 {% endblock %}

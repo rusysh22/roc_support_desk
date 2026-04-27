@@ -447,10 +447,15 @@ class SuperAdminRequiredMixin(UserPassesTestMixin):
 class CompanyUnitForm(forms.ModelForm):
     class Meta:
         model = CompanyUnit
-        fields = ['name', 'code']
+        fields = ['name', 'code', 'address', 'city', 'province', 'latitude', 'longitude']
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Information Technology'}),
-            'code': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
+            'name':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Information Technology'}),
+            'code':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
+            'address':   forms.Textarea(attrs={'class': 'jk-input', 'rows': 3, 'placeholder': 'Jl. Sudirman No. 1, Jakarta Pusat'}),
+            'city':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Jakarta'}),
+            'province':  forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. DKI Jakarta'}),
+            'latitude':  forms.NumberInput(attrs={'class': 'jk-input', 'step': 'any', 'placeholder': '-6.2088000', 'id': 'id_latitude'}),
+            'longitude': forms.NumberInput(attrs={'class': 'jk-input', 'step': 'any', 'placeholder': '106.8456000', 'id': 'id_longitude'}),
         }
 
 class CompanyUnitListView(FeatureRequiredMixin, SuperAdminRequiredMixin, ListView):
