@@ -68,23 +68,27 @@ def manager_or_admin_required(view_func):
 # =====================================================================
 
 def kb_home(request):
-    """Knowledge Base Home — categories + recent published articles."""
+    """Knowledge Base Home — categories + featured + recent published articles."""
     categories = CaseCategory.objects.annotate(
         published_articles_count=Count("articles", filter=Q(articles__is_published=True))
     ).filter(published_articles_count__gt=0).order_by("name")
 
+    featured_articles = Article.objects.filter(is_published=True, is_featured=True).order_by("-created_at")
     recent_articles = Article.objects.filter(is_published=True).order_by("-created_at")[:5]
 
     return render(request, "knowledge_base/home.html", {
         "categories": categories,
+        "featured_articles": featured_articles,
         "recent_articles": recent_articles,
     })
 
 
 def kb_category(request, slug):
-    """Lists all published articles within a category."""
+    """Lists all published articles within a category, featured first."""
     category = get_object_or_404(CaseCategory, slug=slug)
-    articles = Article.objects.filter(category=category, is_published=True).order_by("-created_at")
+    articles = Article.objects.filter(
+        category=category, is_published=True
+    ).order_by("-is_featured", "-created_at")
 
     return render(request, "knowledge_base/category.html", {
         "category": category,
@@ -404,6 +408,37 @@ def kb_article_unpublish(request, pk):
     article.updated_by = request.user
     article.save()
     messages.success(request, f'Article "{article.title}" unpublished.')
+    return redirect("kb_desk:article_list")
+
+
+@manager_or_admin_required
+@feature_required('kb_manage')
+@require_POST
+def kb_article_toggle_featured(request, pk):
+    """Toggle featured status for a published article (max 10 featured)."""
+    article = get_object_or_404(Article, pk=pk)
+    if article.status != Article.Status.PUBLISHED:
+        messages.error(request, "Only published articles can be featured.")
+        return redirect("kb_desk:article_list")
+
+    if article.is_featured:
+        article.is_featured = False
+        article.updated_by = request.user
+        article.save()
+        messages.success(request, f'"{article.title}" removed from featured articles.')
+    else:
+        featured_count = Article.objects.filter(is_featured=True).count()
+        if featured_count >= 10:
+            messages.error(
+                request,
+                "Maximum 10 featured articles reached. Remove a featured article first."
+            )
+            return redirect("kb_desk:article_list")
+        article.is_featured = True
+        article.updated_by = request.user
+        article.save()
+        messages.success(request, f'"{article.title}" added to featured articles.')
+
     return redirect("kb_desk:article_list")
 
 

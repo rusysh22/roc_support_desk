@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.2.9</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.3.0</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.2.9
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.3.0
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,32 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.2.9 -->
+                <!-- v1.3.0 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.3.0</span>
+                        <span class="text-xs text-slate-600">28 Apr 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>Knowledge Base: Highlighted Articles</strong> — Manager/SuperAdmin can pin up to 10 published articles as "Highlighted". Pinned articles appear in a dedicated gold-accented section on the KB home page and float to the top of every category listing with a star badge. Auto-unpinned when an article is unpublished.</li>
+                        <li><strong>Dashboard: Regional Coverage Map</strong> — Interactive Leaflet/OpenStreetMap widget on the staff dashboard. Circle markers sized and coloured by ticket volume per company unit; click-to-zoom, hover popups, and a ranking side panel. Company Unit filter propagates across all dashboard charts, tables, and the map.</li>
+                        <li><strong>Company Units: Geolocation</strong> — Added address, city, province, latitude, and longitude fields to Company Unit. Nominatim geocoding button auto-fills coordinates from address; click-to-set mini Leaflet map on the edit form; "Mapped" status badge in the unit list.</li>
+                        <li><strong>Email: Corporate domain validation</strong> — Relaxed email validation to accept corporate and custom domains, removing the restriction to known public providers only.</li>
+                        <li><strong>WhatsApp: Disconnect button</strong> — Added a disconnect action on the WhatsApp gateway settings page. Fixed nginx 502 error that occurred on container restart.</li>
+                        <li><strong>Infrastructure: nginx host hardening</strong> — Strict server-name host filtering in nginx config; gunicorn worker timeout increased; server names now parameterised via environment variable instead of being hardcoded.</li>
+                        <li><strong>Licensing: Agent limit enforcement</strong> — <code>max_agents</code> cap from the license is now enforced on user create, edit, and bulk import — prevents exceeding the licensed seat count.</li>
+                        <li><strong>Upgrade UX: Two-step payment modal</strong> — Payment method selection on the upgrade page redesigned as a two-step modal with clear options and visual confirmation before proceeding.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.2.9 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.2.9</span>
                         <span class="text-xs text-slate-600">23 Apr 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>ISO 27001 Security Hardening (Phase 3)</strong> — Completed medium-term security remediation: accurate IP detection via django-ipware across all rate-limiting views, Content Security Policy header, licensing fingerprint no longer leaks partial SECRET_KEY.</li>

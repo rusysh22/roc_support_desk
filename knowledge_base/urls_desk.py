@@ -18,6 +18,7 @@ urlpatterns = [
     path("<uuid:pk>/approve/", views.kb_article_approve, name="article_approve"),
     path("<uuid:pk>/reject/", views.kb_article_reject, name="article_reject"),
     path("<uuid:pk>/unpublish/", views.kb_article_unpublish, name="article_unpublish"),
+    path("<uuid:pk>/toggle-featured/", views.kb_article_toggle_featured, name="article_toggle_featured"),
 
     # Image upload (Quill.js)
     path("upload-image/", views.kb_image_upload, name="image_upload"),

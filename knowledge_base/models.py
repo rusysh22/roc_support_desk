@@ -152,6 +152,12 @@ class Article(AuditableModel):
         verbose_name="Published",
         help_text="Auto-set when status becomes Published.",
     )
+    is_featured = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Featured",
+        help_text="Pin to Featured Articles section (published only, max 10).",
+    )
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -187,6 +193,9 @@ class Article(AuditableModel):
             self.slug = slug
         # Keep is_published in sync with status
         self.is_published = self.status == self.Status.PUBLISHED
+        # Auto-clear featured when article is not published
+        if not self.is_published:
+            self.is_featured = False
         super().save(*args, **kwargs)
 
     def __str__(self):

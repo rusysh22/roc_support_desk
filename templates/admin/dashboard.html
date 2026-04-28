@@ -9,6 +9,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
 {% endblock %}
 
 {% block content %}
@@ -1151,7 +1153,8 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- ── Leaflet.js (Regional Coverage Map) ─────────────────────── -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLs=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
 <script>
 (function () {
     const mapEl = document.getElementById('regional-map');
@@ -1177,11 +1180,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Move zoom control to bottom-right to avoid sidebar overlap
     map.zoomControl.setPosition('bottomright');
 
-    // ── OSM tile layer ───────────────────────────────────────────
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // ── Tile layers ──────────────────────────────────────────────
+    const satellite = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+    });
+    const street = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-        maxZoom:     19,
-        tileSize:    256,
+        maxZoom: 19,
+        tileSize: 256,
+    });
+
+    satellite.addTo(map);
+    L.control.layers({ 'Satellite': satellite, 'Street': street }, {}, {
+        position: 'topright',
+        collapsed: false,
     }).addTo(map);
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -1217,9 +1232,34 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    // ── Cluster group ─────────────────────────────────────────────
+    const clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 60,
+        iconCreateFunction: function (cluster) {
+            const markers = cluster.getAllChildMarkers();
+            const total   = markers.reduce(function (sum, m) { return sum + (m._ticketCount || 0); }, 0);
+            const colour  = markerColor(total);
+            const size    = total === 0 ? 36 : total < 10 ? 42 : total < 50 ? 50 : total < 100 ? 58 : 68;
+            return L.divIcon({
+                html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
+                      'background:' + colour + ';border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);' +
+                      'display:flex;align-items:center;justify-content:center;' +
+                      'font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900;color:#fff;">' +
+                      total + '</div>',
+                className: '',
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+            });
+        },
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        animate: true,
+    });
+
     // ── Render markers ───────────────────────────────────────────
     units.forEach(function (u) {
-        const colour    = markerColor(u.ticket_count);
+        const colour     = markerColor(u.ticket_count);
         const isSelected = filterUnit && u.id === filterUnit;
 
         const circle = L.circleMarker([u.lat, u.lng], {
@@ -1230,10 +1270,11 @@ document.addEventListener('DOMContentLoaded', function() {
             opacity:     1,
             fillOpacity: isSelected ? 1 : 0.85,
         });
+        circle._ticketCount = u.ticket_count;
 
-        const locationLine  = [u.city, u.province].filter(Boolean).join(', ') || '—';
-        const ticketLabel   = u.ticket_count === 1 ? '1 ticket' : u.ticket_count + ' tickets';
-        const viewUrl       = caseListBase + '?' + activeParams;
+        const locationLine = [u.city, u.province].filter(Boolean).join(', ') || '—';
+        const ticketLabel  = u.ticket_count === 1 ? '1 ticket' : u.ticket_count + ' tickets';
+        const viewUrl      = caseListBase + '?' + activeParams;
 
         circle.bindPopup(
             '<div style="font-family:Inter,system-ui,sans-serif;min-width:200px;padding:3px 0;">' +
@@ -1252,7 +1293,6 @@ document.addEventListener('DOMContentLoaded', function() {
             { maxWidth: 240, minWidth: 200 }
         );
 
-        // Hover effect
         circle.on('mouseover', function () {
             this.setStyle({ weight: 3, fillOpacity: 1 });
             this.openPopup();
@@ -1261,9 +1301,11 @@ document.addEventListener('DOMContentLoaded', function() {
             this.setStyle({ weight: isSelected ? 3.5 : 2, fillOpacity: isSelected ? 1 : 0.85 });
         });
 
-        circle.addTo(map);
+        clusterGroup.addLayer(circle);
         markerMap[u.id] = circle;
     });
+
+    map.addLayer(clusterGroup);
 
     // ── Fit map to all markers ───────────────────────────────────
     (function fitMap() {
@@ -1276,16 +1318,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })();
 
-    // ── Rank-row click → pan & open popup ───────────────────────
+    // ── Rank-row click → zoom into marker, expand cluster if needed ──
     document.querySelectorAll('.unit-rank-item').forEach(function (el) {
         el.addEventListener('click', function () {
-            const id  = el.dataset.unitId;
-            const lat = parseFloat(el.dataset.lat);
-            const lng = parseFloat(el.dataset.lng);
-            const m   = markerMap[id];
+            const id = el.dataset.unitId;
+            const m  = markerMap[id];
             if (!m) return;
-            map.setView([lat, lng], 12, { animate: true, duration: 0.5 });
-            setTimeout(function () { m.openPopup(); }, 300);
+            clusterGroup.zoomToShowLayer(m, function () {
+                m.openPopup();
+            });
         });
     });
 

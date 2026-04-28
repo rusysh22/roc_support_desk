@@ -6,6 +6,51 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<style>
+#address-suggestions {
+    position: absolute;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    max-height: 280px;
+    overflow-y: auto;
+    width: 100%;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+}
+#address-suggestions .suggestion-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: #374151;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+    transition: background 0.12s;
+}
+#address-suggestions .suggestion-item:last-child { border-bottom: none; }
+#address-suggestions .suggestion-item:hover,
+#address-suggestions .suggestion-item.active { background: #f0f9ff; }
+#address-suggestions .suggestion-icon { color: #64748b; flex-shrink: 0; margin-top: 1px; }
+#address-suggestions .suggestion-main { font-weight: 600; color: #1e293b; }
+#address-suggestions .suggestion-sub { font-size: 0.75rem; color: #64748b; margin-top: 1px; }
+#address-suggestions .suggestion-empty {
+    padding: 14px;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: #94a3b8;
+}
+.address-wrapper { position: relative; }
+#address-spinner { display: none; }
+#address-spinner.active { display: block; }
+.leaflet-container { cursor: crosshair !important; }
+.suggestion-icon-svg { flex-shrink: 0; color: #64748b; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -82,11 +127,26 @@
                         <span class="ml-auto text-xs text-slate-400 font-medium">Used for the Regional Coverage Map</span>
                     </div>
 
-                    <!-- Address -->
+                    <!-- Address with Autocomplete -->
                     <div class="mb-5">
-                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Street Address</label>
-                        {{ form.address }}
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+                            Street Address
+                            <span class="ml-1 text-xs font-normal text-slate-400">(type at least 3 characters for location suggestions)</span>
+                        </label>
+                        <div class="address-wrapper">
+                            {{ form.address }}
+                            <!-- Spinner -->
+                            <div id="address-spinner" class="pointer-events-none absolute right-3 inset-y-0 flex items-center">
+                                <svg class="animate-spin h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                            </div>
+                            <!-- Dropdown suggestions -->
+                            <div id="address-suggestions" class="hidden"></div>
+                        </div>
                         {% if form.address.errors %}<p class="text-xs text-red-600 mt-1">{{ form.address.errors|join:", " }}</p>{% endif %}
+                        <p class="text-xs text-slate-400 mt-1">Select a suggestion to auto-fill city & province, or drop a pin on the map.</p>
                     </div>
 
                     <!-- City + Province -->
@@ -103,16 +163,11 @@
                         </div>
                     </div>
 
-                    <!-- Coordinates + Geocode button -->
+                    <!-- Coordinates -->
                     <div class="mb-4">
                         <div class="flex items-center justify-between mb-1.5">
                             <label class="text-sm font-semibold text-slate-700">Coordinates (GPS)</label>
-                            <button type="button" id="geocode-btn"
-                                    onclick="geocodeLocation()"
-                                    class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition-colors">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <span id="geocode-btn-text">Auto-detect from City/Province</span>
-                            </button>
+                            <span id="reverse-geo-status" class="text-xs text-slate-400 italic hidden">Detecting location…</span>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -126,19 +181,18 @@
                                 {% if form.longitude.errors %}<p class="text-xs text-red-600 mt-1">{{ form.longitude.errors|join:", " }}</p>{% endif %}
                             </div>
                         </div>
-                        <div id="geocode-status" class="mt-2 text-xs hidden"></div>
                     </div>
 
-                    <!-- Map Preview -->
+                    <!-- Map -->
                     <div class="rounded-xl border border-slate-200 overflow-hidden">
                         <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                             <span class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                                Location Preview
+                                Interactive Map
                             </span>
-                            <span class="text-[10px] text-slate-400">Click map to set coordinates • Drag pin to adjust</span>
+                            <span class="text-[10px] text-slate-400">Click or drag the pin to set location and auto-fill address</span>
                         </div>
-                        <div id="unit-preview-map" style="height: 280px; width: 100%;"></div>
+                        <div id="unit-preview-map" style="height: 320px; width: 100%;"></div>
                     </div>
                 </div>
 
@@ -159,25 +213,70 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLs=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 (function () {
-    const latInput = document.getElementById('id_latitude');
-    const lngInput = document.getElementById('id_longitude');
+    'use strict';
 
-    // Initial coords from existing form values (edit mode) or centre of Indonesia
-    const initLat = parseFloat(latInput.value) || -2.5;
-    const initLng = parseFloat(lngInput.value) || 118.0;
+    /* ── DOM refs ── */
+    const latInput  = document.getElementById('id_latitude');
+    const lngInput  = document.getElementById('id_longitude');
+    const addrInput = document.getElementById('id_address');
+    const cityInput = document.getElementById('id_city');
+    const provInput = document.getElementById('id_province');
+    const sugBox    = document.getElementById('address-suggestions');
+    const spinner   = document.getElementById('address-spinner');
+    const revStatus = document.getElementById('reverse-geo-status');
+
+    const NOMINATIM = 'https://nominatim.openstreetmap.org';
+    const HEADERS   = { 'User-Agent': 'RoCDesk/1.0' };
+
+    /* ISO-4 → province name for special regions Nominatim omits 'state' for */
+    const ISO_PROVINCE = { 'ID-JK': 'DKI Jakarta' };
+
+    /* ── Shared: extract structured fields from Nominatim address object ── */
+    function extractFields(a, fallbackName) {
+        const road        = a.road || a.pedestrian || a.footway || '';
+        const number      = a.house_number ? ' No.' + a.house_number : '';
+        const subDistrict = a.suburb || a.neighbourhood || a.village || '';
+        const street      = [road + number, subDistrict].filter(Boolean).join(', ');
+
+        /* City — strip administrative suffixes like "City of …" / "… City" */
+        let city = a.city || a.town || a.county || a.regency || '';
+        city = city.replace(/^City of\s+/i, '').replace(/\s+City$/i, '').trim();
+
+        /* Province — Nominatim omits 'state' for Jakarta; fall back to ISO code */
+        let prov = a.state || a.province || ISO_PROVINCE[a['ISO3166-2-lvl4']] || '';
+        prov = prov
+            .replace(/^(Special Region of |Daerah Istimewa |Daerah Khusus Ibukota |Provinsi )/i, '')
+            .trim();
+
+        return {
+            street: street || fallbackName || '',
+            city,
+            prov,
+        };
+    }
+
+    function applyFields({ street, city, prov }) {
+        if (street) addrInput.value = street;
+        if (city)   cityInput.value = city;
+        if (prov)   provInput.value = prov;
+    }
+
+    /* ── Map init ── */
+    const initLat   = parseFloat(latInput.value) || -2.5;
+    const initLng   = parseFloat(lngInput.value) || 118.0;
     const hasCoords = !!(parseFloat(latInput.value) && parseFloat(lngInput.value));
 
-    const map = L.map('unit-preview-map', { zoomControl: true }).setView([initLat, initLng], hasCoords ? 11 : 5);
+    const map = L.map('unit-preview-map', { zoomControl: true })
+                 .setView([initLat, initLng], hasCoords ? 12 : 5);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 18,
     }).addTo(map);
 
-    // Marker
     let marker = null;
 
     function placeMarker(lat, lng) {
@@ -187,7 +286,7 @@
             marker = L.marker([lat, lng], { draggable: true }).addTo(map);
             marker.on('dragend', function (e) {
                 const pos = e.target.getLatLng();
-                setCoords(pos.lat.toFixed(7), pos.lng.toFixed(7));
+                reverseGeocode(pos.lat.toFixed(7), pos.lng.toFixed(7));
             });
         }
     }
@@ -197,78 +296,203 @@
         lngInput.value = lng;
     }
 
-    if (hasCoords) {
-        placeMarker(initLat, initLng);
-    }
+    if (hasCoords) placeMarker(initLat, initLng);
 
-    // Click on map → set coordinates
     map.on('click', function (e) {
         const lat = e.latlng.lat.toFixed(7);
         const lng = e.latlng.lng.toFixed(7);
-        setCoords(lat, lng);
         placeMarker(parseFloat(lat), parseFloat(lng));
         map.setView([lat, lng], map.getZoom());
+        reverseGeocode(lat, lng);
     });
 
-    // Expose updatePreview so geocodeLocation() can call it
-    window._unitMapUpdate = function (lat, lng) {
-        placeMarker(parseFloat(lat), parseFloat(lng));
-        map.setView([parseFloat(lat), parseFloat(lng)], 12, { animate: true });
-    };
-})();
+    /* ── Reverse Geocode ── */
+    let revStatusTimer = null;
 
-// ── Geocode button ──────────────────────────────────────────────
-async function geocodeLocation() {
-    const cityEl     = document.getElementById('id_city');
-    const provinceEl = document.getElementById('id_province');
-    const btn        = document.getElementById('geocode-btn');
-    const btnText    = document.getElementById('geocode-btn-text');
-    const status     = document.getElementById('geocode-status');
+    async function reverseGeocode(lat, lng) {
+        setCoords(lat, lng);
 
-    const city     = cityEl ? cityEl.value.trim() : '';
-    const province = provinceEl ? provinceEl.value.trim() : '';
+        clearTimeout(revStatusTimer);
+        revStatus.textContent = 'Detecting address…';
+        revStatus.className = 'text-xs text-slate-400 italic';
+        revStatus.classList.remove('hidden');
 
-    if (!city && !province) {
-        status.textContent = '⚠️ Please fill in City or Province first.';
-        status.className = 'mt-2 text-xs text-amber-600';
-        status.classList.remove('hidden');
-        return;
-    }
+        try {
+            const url = NOMINATIM + '/reverse?lat=' + lat + '&lon=' + lng +
+                        '&format=json&accept-language=id,en&zoom=16';
+            const res  = await fetch(url, { headers: HEADERS });
+            const data = await res.json();
 
-    btn.disabled = true;
-    btnText.textContent = 'Searching…';
-    status.className = 'mt-2 text-xs text-slate-500';
-    status.textContent = 'Contacting OpenStreetMap Nominatim…';
-    status.classList.remove('hidden');
-
-    const query = [city, province, 'Indonesia'].filter(Boolean).join(', ');
-    const url   = 'https://nominatim.openstreetmap.org/search?q=' +
-                  encodeURIComponent(query) +
-                  '&format=json&limit=1&countrycodes=id&accept-language=id,en';
-
-    try {
-        const res  = await fetch(url, { headers: { 'User-Agent': 'RoCDesk/1.0' } });
-        const data = await res.json();
-
-        if (data.length > 0) {
-            const lat = parseFloat(data[0].lat).toFixed(7);
-            const lng = parseFloat(data[0].lon).toFixed(7);
-            document.getElementById('id_latitude').value  = lat;
-            document.getElementById('id_longitude').value = lng;
-            if (window._unitMapUpdate) window._unitMapUpdate(lat, lng);
-            status.textContent = '✅ Coordinates set: ' + lat + ', ' + lng + ' — ' + (data[0].display_name || '');
-            status.className = 'mt-2 text-xs text-emerald-600 truncate';
-        } else {
-            status.textContent = '❌ Location not found. Try a different city name.';
-            status.className = 'mt-2 text-xs text-red-600';
+            if (data && data.address) {
+                applyFields(extractFields(data.address, data.name));
+                revStatus.textContent = '✅ Location detected';
+                revStatus.className = 'text-xs text-emerald-600';
+            } else {
+                revStatus.textContent = 'Coordinates saved (address not found)';
+                revStatus.className = 'text-xs text-slate-400 italic';
+            }
+        } catch {
+            revStatus.textContent = 'Coordinates saved';
+            revStatus.className = 'text-xs text-slate-400 italic';
         }
-    } catch (e) {
-        status.textContent = '❌ Network error. Please try again or enter coordinates manually.';
-        status.className = 'mt-2 text-xs text-red-600';
-    } finally {
-        btn.disabled = false;
-        btnText.textContent = 'Auto-detect from City/Province';
+
+        revStatus.classList.remove('hidden');
+        revStatusTimer = setTimeout(() => revStatus.classList.add('hidden'), 4000);
     }
-}
+
+    /* ── Address Autocomplete ── */
+    let debounceTimer  = null;
+    let activeIndex    = -1;
+    let searchAbort    = null;   /* AbortController untuk cancel request lama */
+
+    addrInput.setAttribute('role', 'combobox');
+    addrInput.setAttribute('aria-autocomplete', 'list');
+    addrInput.setAttribute('aria-expanded', 'false');
+    addrInput.setAttribute('aria-controls', 'address-suggestions');
+    sugBox.setAttribute('role', 'listbox');
+
+    addrInput.addEventListener('input', function () {
+        const q = this.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < 3) { hideSuggestions(); return; }
+        debounceTimer = setTimeout(() => fetchSuggestions(q), 400);
+    });
+
+    addrInput.addEventListener('keydown', function (e) {
+        const items = sugBox.querySelectorAll('[role="option"]');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIndex = (activeIndex + 1) % items.length;
+            updateAriaActive(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIndex = (activeIndex - 1 + items.length) % items.length;
+            updateAriaActive(items);
+        } else if (e.key === 'Enter' && activeIndex >= 0) {
+            e.preventDefault();
+            items[activeIndex].click();
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+            addrInput.focus();
+        }
+    });
+
+    function updateAriaActive(items) {
+        items.forEach((el, i) => {
+            const isActive = i === activeIndex;
+            el.classList.toggle('active', isActive);
+            el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            if (isActive) addrInput.setAttribute('aria-activedescendant', el.id);
+        });
+        if (activeIndex < 0) addrInput.removeAttribute('aria-activedescendant');
+    }
+
+    async function fetchSuggestions(q) {
+        /* Cancel in-flight request jika ada */
+        if (searchAbort) searchAbort.abort();
+        searchAbort = new AbortController();
+
+        spinner.classList.add('active');
+        hideSuggestions();
+
+        try {
+            const url = NOMINATIM + '/search?q=' + encodeURIComponent(q) +
+                        '&format=json&limit=7&countrycodes=id&accept-language=id,en&addressdetails=1';
+            const res  = await fetch(url, { headers: HEADERS, signal: searchAbort.signal });
+            const data = await res.json();
+
+            sugBox.innerHTML = '';
+
+            if (!data.length) {
+                const empty = document.createElement('div');
+                empty.className = 'suggestion-empty';
+                empty.textContent = 'No results found for "' + q + '"';
+                sugBox.appendChild(empty);
+            } else {
+                data.forEach(function (item, idx) {
+                    const name   = item.name || item.display_name.split(',')[0];
+                    const detail = item.display_name
+                        .replace(name + ', ', '')
+                        .replace(/, Indonesia$/, '');
+
+                    const el = document.createElement('div');
+                    el.className = 'suggestion-item';
+                    el.setAttribute('role', 'option');
+                    el.setAttribute('id', 'suggestion-' + idx);
+                    el.setAttribute('aria-selected', 'false');
+
+                    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    icon.setAttribute('class', 'w-3.5 h-3.5 suggestion-icon-svg');
+                    icon.setAttribute('fill', 'none');
+                    icon.setAttribute('stroke', 'currentColor');
+                    icon.setAttribute('viewBox', '0 0 24 24');
+                    icon.setAttribute('aria-hidden', 'true');
+                    icon.innerHTML =
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>';
+
+                    const iconWrap = document.createElement('span');
+                    iconWrap.className = 'suggestion-icon';
+                    iconWrap.appendChild(icon);
+
+                    const textWrap = document.createElement('div');
+                    const mainEl   = document.createElement('div');
+                    mainEl.className = 'suggestion-main';
+                    mainEl.textContent = name;
+                    const subEl = document.createElement('div');
+                    subEl.className = 'suggestion-sub';
+                    subEl.textContent = detail;
+                    textWrap.appendChild(mainEl);
+                    textWrap.appendChild(subEl);
+
+                    el.appendChild(iconWrap);
+                    el.appendChild(textWrap);
+
+                    el.addEventListener('click', function () { selectSuggestion(item); });
+                    sugBox.appendChild(el);
+                });
+            }
+
+            activeIndex = -1;
+            sugBox.classList.remove('hidden');
+            addrInput.setAttribute('aria-expanded', 'true');
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                /* Fetch gagal — biarkan saja, user masih bisa ketik manual */
+            }
+        } finally {
+            spinner.classList.remove('active');
+        }
+    }
+
+    function selectSuggestion(item) {
+        const lat    = parseFloat(item.lat).toFixed(7);
+        const lng    = parseFloat(item.lon).toFixed(7);
+        const fields = extractFields(item.address || {}, item.name);
+
+        applyFields(fields);
+        setCoords(lat, lng);
+        placeMarker(parseFloat(lat), parseFloat(lng));
+        map.setView([parseFloat(lat), parseFloat(lng)], 15, { animate: true });
+
+        hideSuggestions();
+    }
+
+    function hideSuggestions() {
+        sugBox.classList.add('hidden');
+        sugBox.innerHTML = '';
+        activeIndex = -1;
+        addrInput.setAttribute('aria-expanded', 'false');
+        addrInput.removeAttribute('aria-activedescendant');
+    }
+
+    document.addEventListener('click', function (e) {
+        if (!addrInput.contains(e.target) && !sugBox.contains(e.target)) {
+            hideSuggestions();
+        }
+    });
+
+})();
 </script>
 {% endblock %}

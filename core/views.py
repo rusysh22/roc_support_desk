@@ -451,7 +451,7 @@ class CompanyUnitForm(forms.ModelForm):
         widgets = {
             'name':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Information Technology'}),
             'code':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
-            'address':   forms.Textarea(attrs={'class': 'jk-input', 'rows': 3, 'placeholder': 'Jl. Sudirman No. 1, Jakarta Pusat'}),
+            'address':   forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'Jl. Sudirman No. 1, Jakarta Pusat', 'autocomplete': 'off'}),
             'city':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Jakarta'}),
             'province':  forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. DKI Jakarta'}),
             'latitude':  forms.NumberInput(attrs={'class': 'jk-input', 'step': 'any', 'placeholder': '-6.2088000', 'id': 'id_latitude'}),
