@@ -71,6 +71,12 @@ urlpatterns = [
     # Apps Connection Hub (Master Data — SuperAdmin only)
     path("apps-connection/", views.apps_connection_view, name="apps_connection"),
 
+    # Microsoft Teams Settings
+    path("teams-settings/", views.teams_settings_view, name="teams_settings"),
+
+    # Internal API — Staff contacts for notification selectors
+    path("api/staff-contacts/", views.api_staff_contacts, name="api_staff_contacts"),
+
     # Dynamic Form Builder
     path("forms/", views.form_list_view, name="form_list"),
     path("forms/create/", views.form_create_view, name="form_create"),

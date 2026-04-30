@@ -175,6 +175,7 @@ class CaseRecord(AuditableModel):
         EVOLUTION_WA = "EvolutionAPI_WA", "WhatsApp (Evolution API)"
         EMAIL = "Email", "Email"
         WEBFORM = "WebForm", "Web Form"
+        TEAMS_BOT = "Teams_Bot", "Microsoft Teams (Bot)"
 
     class Priority(models.TextChoices):
         LOW = "Low", "Low"
@@ -435,6 +436,7 @@ class Message(AuditableModel):
         WHATSAPP = "WhatsApp", "WhatsApp"
         EMAIL = "Email", "Email"
         WEB = "Web", "Web"
+        TEAMS = "Teams", "Microsoft Teams"
 
     class DeliveryStatus(models.TextChoices):
         PENDING = "Pending", "Pending"

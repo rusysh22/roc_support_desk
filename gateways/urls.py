@@ -1,7 +1,7 @@
 """
 Gateways — URL Configuration
 ===============================
-Webhook endpoint for Evolution API (WhatsApp gateway).
+Webhook endpoints for Evolution API (WhatsApp) and Microsoft Teams Bot.
 """
 from django.urls import path
 
@@ -21,5 +21,11 @@ urlpatterns = [
         "evolution/webhook/<str:event_suffix>",
         views.evolution_webhook,
         name="evolution_webhook_event",
+    ),
+    # Microsoft Teams Bot Framework — POST only, CSRF exempt, JWT-secured
+    path(
+        "teams/webhook/",
+        views.teams_bot_webhook,
+        name="teams_bot_webhook",
     ),
 ]

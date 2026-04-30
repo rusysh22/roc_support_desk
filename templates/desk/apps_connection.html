@@ -6,371 +6,152 @@
 {% block nav_apps_connection %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{ showTeams1way: false, showTeamsBot: false, showNotif: false }">
+<div class="space-y-2 mb-6">
+    <p class="text-sm text-slate-500">Manage external application integrations. Configure each channel's connection and notification settings independently.</p>
+</div>
 
-    <p class="text-sm text-slate-500">Kelola koneksi aplikasi eksternal dan pengaturan notifikasi tiket baru.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;align-items:start;">
 
-    <!-- ─── Django Messages ───────────────────────────────────── -->
-    {% if messages %}
-    <div class="space-y-2">
-        {% for message in messages %}
-        <div class="flex items-center gap-3 p-4 rounded-xl text-sm border
-            {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200
-            {% else %}bg-red-50 text-red-800 border-red-200{% endif %}">
-            {% if message.tags == 'success' %}
-            <svg class="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-            {% else %}
-            <svg class="h-5 w-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            {% endif %}
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- ═══════════════════════════════════════════════════════════
-         NOTIFICATION SETTINGS
-    ════════════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-orange-500 relative"></div>
-        <div class="px-6 py-5 flex items-center justify-between border-b border-slate-100">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-xl shrink-0">🔔</div>
+    <!-- ─── WhatsApp ──────────────────────────────────────────── -->
+    <div class="jk-card" style="border:2px solid #25d366;">
+        <div class="jk-card-header" style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#25d366;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📲</div>
                 <div>
-                    <div class="font-700 text-sm font-bold text-slate-800">Notifikasi Tiket Baru</div>
-                    <div class="text-xs text-slate-500 mt-0.5">Pilih channel untuk menerima notifikasi internal saat tiket baru masuk</div>
+                    <div style="font-weight:700;font-size:14px;color:#064e3b;">WhatsApp</div>
+                    <div style="font-size:11px;color:#065f46;font-weight:500;">via Evolution API</div>
                 </div>
             </div>
-            <button @click="showNotif = !showNotif" type="button"
-                class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm py-2 px-4 rounded-lg border border-slate-200 transition-colors">
-                <svg x-show="!showNotif" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <svg x-show="showNotif" class="h-4 w-4" style="display:none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                <span x-text="showNotif ? 'Tutup' : 'Atur Notifikasi'">Atur Notifikasi</span>
-            </button>
+            <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;">✅ Active</span>
         </div>
-
-        <!-- Status summary -->
-        <div class="px-6 py-4 flex flex-wrap gap-4">
-            <div class="flex items-center gap-2 text-sm">
-                <div class="w-2 h-2 rounded-full {% if notif_cfg.notify_new_ticket_email %}bg-emerald-400{% else %}bg-slate-300{% endif %}"></div>
-                <span class="text-slate-600">Email {% if notif_cfg.notify_new_ticket_email %}<span class="text-emerald-700 font-semibold">Aktif</span>{% else %}<span class="text-slate-400">Nonaktif</span>{% endif %}</span>
-            </div>
-            <div class="flex items-center gap-2 text-sm">
-                <div class="w-2 h-2 rounded-full {% if notif_cfg.notify_new_ticket_whatsapp %}bg-emerald-400{% else %}bg-slate-300{% endif %}"></div>
-                <span class="text-slate-600">WhatsApp {% if notif_cfg.notify_new_ticket_whatsapp %}<span class="text-emerald-700 font-semibold">Aktif</span>{% else %}<span class="text-slate-400">Nonaktif</span>{% endif %}</span>
-            </div>
-            <div class="flex items-center gap-2 text-sm">
-                <div class="w-2 h-2 rounded-full {% if notif_cfg.notify_new_ticket_teams %}bg-emerald-400{% else %}bg-slate-300{% endif %}"></div>
-                <span class="text-slate-600">Teams {% if notif_cfg.notify_new_ticket_teams %}<span class="text-emerald-700 font-semibold">Aktif</span>{% else %}<span class="text-slate-400">Nonaktif</span>{% endif %}</span>
-            </div>
-        </div>
-
-        <!-- Collapsible form -->
-        <div x-show="showNotif"
-             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-2"
-             class="border-t border-slate-100" style="display:none">
-            <form method="post" class="p-6 space-y-6">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="save_notification">
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-lg">📧</span>
-                            <span class="font-semibold text-sm text-slate-700">Email</span>
-                        </div>
-                        <label class="inline-flex items-center gap-2 cursor-pointer mb-3">
-                            {{ notif_form.notify_new_ticket_email }}
-                            <span class="text-sm text-slate-600">{{ notif_form.notify_new_ticket_email.label }}</span>
-                        </label>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{{ notif_form.email_recipients.label }}</label>
-                            {{ notif_form.email_recipients }}
-                            <p class="text-xs text-slate-400 mt-1">{{ notif_form.email_recipients.help_text }}</p>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-lg">💬</span>
-                            <span class="font-semibold text-sm text-slate-700">WhatsApp</span>
-                        </div>
-                        <label class="inline-flex items-center gap-2 cursor-pointer mb-3">
-                            {{ notif_form.notify_new_ticket_whatsapp }}
-                            <span class="text-sm text-slate-600">{{ notif_form.notify_new_ticket_whatsapp.label }}</span>
-                        </label>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{{ notif_form.whatsapp_recipients.label }}</label>
-                            {{ notif_form.whatsapp_recipients }}
-                            <p class="text-xs text-slate-400 mt-1">{{ notif_form.whatsapp_recipients.help_text }}</p>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-lg">🟦</span>
-                            <span class="font-semibold text-sm text-slate-700">Microsoft Teams</span>
-                        </div>
-                        <label class="inline-flex items-center gap-2 cursor-pointer mb-3">
-                            {{ notif_form.notify_new_ticket_teams }}
-                            <span class="text-sm text-slate-600">{{ notif_form.notify_new_ticket_teams.label }}</span>
-                        </label>
-                        <p class="text-xs text-slate-400">Menggunakan Incoming Webhook URL yang dikonfigurasi di card Microsoft Teams di bawah.</p>
-                    </div>
-                </div>
-
-                <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                    <button @click="showNotif = false" type="button" class="text-sm px-5 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">Batal</button>
-                    <button type="submit" class="jk-btn-primary px-8 py-2 text-sm shadow-sm">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         CHANNEL CARDS GRID
-    ════════════════════════════════════════════════════════════════ -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;align-items:start;">
-
-        <!-- ─── WhatsApp ──────────────────────────────────────── -->
-        <div class="jk-card" style="border:2px solid #25d366;">
-            <div class="jk-card-header" style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:#25d366;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📲</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#064e3b;">WhatsApp</div>
-                        <div style="font-size:11px;color:#065f46;font-weight:500;">via Evolution API</div>
-                    </div>
-                </div>
-                <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;">✅ Active</span>
-            </div>
-            <div class="jk-card-body" style="padding:16px 20px;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
-                    Terima dan balas pesan WhatsApp langsung dari dalam sistem tiket. Koneksi via QR Code pairing.
-                </p>
-                <a href="{% url 'desk:whatsapp_status' %}" class="jk-btn jk-btn-primary jk-btn-sm">⚙️ Kelola Koneksi</a>
-            </div>
-        </div>
-
-        <!-- ─── Email ─────────────────────────────────────────── -->
-        <div class="jk-card" style="border:2px solid #6366f1;">
-            <div class="jk-card-header" style="background:#f5f3ff;border-bottom:1px solid #c4b5fd;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📧</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#312e81;">Email</div>
-                        <div style="font-size:11px;color:#4f46e5;font-weight:500;">SMTP · IMAP</div>
-                    </div>
-                </div>
-                <span class="jk-badge" style="background:#ede9fe;color:#4f46e5;border:1px solid #a5b4fc;font-size:11px;">✅ Active</span>
-            </div>
-            <div class="jk-card-body" style="padding:16px 20px;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
-                    Terima tiket baru dan kirim balasan formal lewat email. Konfigurasikan SMTP untuk keluar dan IMAP untuk masuk.
-                </p>
-                <a href="{% url 'desk:email_settings' %}" class="jk-btn jk-btn-primary jk-btn-sm">⚙️ Kelola Konfigurasi</a>
-            </div>
-        </div>
-
-        <!-- ─── Microsoft Teams ───────────────────────────────── -->
-        <div class="bg-white rounded-2xl shadow-sm overflow-hidden" style="border:2px solid #0078d4;">
-            <div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🟦</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#1e3a5f;">Microsoft Teams</div>
-                        <div style="font-size:11px;color:#1d4ed8;font-weight:500;">Incoming Webhook · Bot Framework</div>
-                    </div>
-                </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-                    {% if teams_cfg.is_notification_enabled %}
-                    <span class="jk-badge" style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-size:11px;">🔔 Notif Aktif</span>
-                    {% else %}
-                    <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">— Notif Off</span>
-                    {% endif %}
-                    {% if teams_cfg.is_bot_enabled %}
-                    <span class="jk-badge" style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-size:11px;">🤖 Bot Aktif</span>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div style="padding:16px 20px 0;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:16px;line-height:1.6;">
-                    Kirim notifikasi tiket baru ke channel Teams (gratis) atau aktifkan bot 2-way via Azure Bot Framework (berbayar).
-                </p>
-
-                <!-- Test result -->
-                {% if test_result %}
-                <div class="mb-4 flex items-start gap-2 text-sm p-3 rounded-xl border
-                    {% if test_result.status == 'success' %}bg-green-50 border-green-200 text-green-800{% else %}bg-red-50 border-red-200 text-red-800{% endif %}">
-                    {% if test_result.status == 'success' %}✅{% else %}❌{% endif %}
-                    <span>{{ test_result.message }}</span>
-                </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:6px;line-height:1.6;">Receive and reply to WhatsApp messages directly inside the ticket system via QR Code pairing.</p>
+            <p style="font-size:12px;color:var(--jk-text-muted);margin-bottom:14px;">
+                New-ticket notifications:
+                {% if notif_cfg.notify_new_ticket_whatsapp %}
+                <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:10px;">Enabled</span>
+                {% else %}
+                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:10px;">Disabled</span>
                 {% endif %}
-
-                <!-- ── Section 1: Incoming Webhook (1-way, gratis) ── -->
-                <div class="border border-slate-200 rounded-xl overflow-hidden mb-3" x-data="">
-                    <button @click="showTeams1way = !showTeams1way" type="button"
-                        class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-semibold text-slate-700">
-                        <div class="flex items-center gap-2">
-                            <span>📨 Incoming Webhook</span>
-                            <span class="text-xs font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Gratis</span>
-                            {% if teams_cfg.incoming_webhook_url %}
-                            <span class="text-xs font-normal text-blue-600">• Terkonfigurasi</span>
-                            {% endif %}
-                        </div>
-                        <svg :class="showTeams1way ? 'rotate-180' : ''" class="h-4 w-4 text-slate-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <div x-show="showTeams1way"
-                         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-                         style="display:none">
-                        <div class="p-4 bg-blue-50/40 border-t border-slate-200 text-xs text-blue-700 leading-relaxed">
-                            Di channel Teams → ⋯ More options → Connectors → <strong>Incoming Webhook</strong> → Create → copy URL ke bawah.
-                        </div>
-                        <form method="post" class="p-4 space-y-4 border-t border-slate-100">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="save_teams">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{{ teams_form.incoming_webhook_url.label }}</label>
-                                {{ teams_form.incoming_webhook_url }}
-                                <p class="text-xs text-slate-400 mt-1">{{ teams_form.incoming_webhook_url.help_text }}</p>
-                            </div>
-                            <label class="inline-flex items-center gap-2 cursor-pointer">
-                                {{ teams_form.is_notification_enabled }}
-                                <span class="text-sm text-slate-700 font-medium">{{ teams_form.is_notification_enabled.label }}</span>
-                            </label>
-                            <div class="flex items-center gap-3 pt-2 border-t border-slate-100">
-                                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">💾 Simpan</button>
-                                <button type="submit" form="form-test-teams-webhook" class="jk-btn jk-btn-secondary jk-btn-sm">🧪 Test Webhook</button>
-                            </div>
-                        </form>
-                        <form id="form-test-teams-webhook" method="post" style="display:none">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="test_teams_webhook">
-                        </form>
-                    </div>
-                </div>
-
-                <!-- ── Section 2: Bot Framework (2-way, berbayar) ── -->
-                <div class="border border-slate-200 rounded-xl overflow-hidden mb-4">
-                    <button @click="showTeamsBot = !showTeamsBot" type="button"
-                        class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-semibold text-slate-700">
-                        <div class="flex items-center gap-2">
-                            <span>🤖 Bot 2-Way</span>
-                            <span class="text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Azure required</span>
-                            {% if teams_cfg.is_bot_enabled %}
-                            <span class="text-xs font-normal text-blue-600">• Aktif</span>
-                            {% endif %}
-                        </div>
-                        <svg :class="showTeamsBot ? 'rotate-180' : ''" class="h-4 w-4 text-slate-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <div x-show="showTeamsBot"
-                         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-                         style="display:none">
-                        <div class="p-4 bg-amber-50/60 border-t border-amber-100 text-xs text-amber-800 leading-relaxed">
-                            ⚠️ Membutuhkan <strong>Azure Subscription</strong> + pendaftaran Bot di Azure Portal. Webhook URL sistem harus didaftarkan sebagai Messaging Endpoint di Azure Bot Service.
-                        </div>
-                        <form method="post" class="p-4 space-y-4 border-t border-slate-100">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="save_teams">
-                            <div class="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{{ teams_form.bot_app_id.label }}</label>
-                                    {{ teams_form.bot_app_id }}
-                                    <p class="text-xs text-slate-400 mt-1">{{ teams_form.bot_app_id.help_text }}</p>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{{ teams_form.bot_app_password.label }}</label>
-                                    {{ teams_form.bot_app_password }}
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{{ teams_form.tenant_id.label }}</label>
-                                    {{ teams_form.tenant_id }}
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{{ teams_form.bot_webhook_secret.label }}</label>
-                                    {{ teams_form.bot_webhook_secret }}
-                                    <p class="text-xs text-slate-400 mt-1">{{ teams_form.bot_webhook_secret.help_text }}</p>
-                                </div>
-                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                                    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Bot Webhook URL (daftarkan di Azure)</div>
-                                    <div class="font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded px-3 py-2 select-all break-all">
-                                        {{ request.scheme }}://{{ request.get_host }}/api/gateways/teams/webhook/
-                                    </div>
-                                </div>
-                            </div>
-                            <label class="inline-flex items-center gap-2 cursor-pointer">
-                                {{ teams_form.is_bot_enabled }}
-                                <span class="text-sm text-slate-700 font-medium">{{ teams_form.is_bot_enabled.label }}</span>
-                            </label>
-                            <div class="pt-2 border-t border-slate-100">
-                                <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm">💾 Simpan</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
+            </p>
+            <a href="{% url 'desk:whatsapp_status' %}" class="jk-btn jk-btn-primary jk-btn-sm">⚙️ Manage Connection</a>
         </div>
-
-        <!-- ─── Telegram (Coming Soon) ─────────────────────────── -->
-        <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
-            <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:#2ca5e0;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✈️</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#334155;">Telegram</div>
-                        <div style="font-size:11px;color:#64748b;font-weight:500;">Telegram Bot API</div>
-                    </div>
-                </div>
-                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
-            </div>
-            <div class="jk-card-body" style="padding:16px 20px;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
-                    Integrasikan bot Telegram untuk menerima dan membalas tiket support langsung dari platform Telegram.
-                </p>
-                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Belum Tersedia</button>
-            </div>
-        </div>
-
-        <!-- ─── Instagram (Coming Soon) ───────────────────────── -->
-        <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
-            <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#334155;">Instagram</div>
-                        <div style="font-size:11px;color:#64748b;font-weight:500;">Meta Graph API</div>
-                    </div>
-                </div>
-                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
-            </div>
-            <div class="jk-card-body" style="padding:16px 20px;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
-                    Terima Instagram DM dan ubah otomatis menjadi tiket support via Meta Graph API.
-                </p>
-                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Belum Tersedia</button>
-            </div>
-        </div>
-
-        <!-- ─── X / Twitter (Coming Soon) ─────────────────────── -->
-        <div class="jk-card" style="opacity:.65;border:2px solid #e2e8f0;">
-            <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:#000;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;color:#fff;font-weight:900;font-family:sans-serif;">𝕏</div>
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#334155;">X (Twitter)</div>
-                        <div style="font-size:11px;color:#64748b;font-weight:500;">X API v2</div>
-                    </div>
-                </div>
-                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
-            </div>
-            <div class="jk-card-body" style="padding:16px 20px;">
-                <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">
-                    Pantau mention dan DM di X (Twitter) dan teruskan otomatis sebagai tiket via X API v2.
-                </p>
-                <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Belum Tersedia</button>
-            </div>
-        </div>
-
     </div>
+
+    <!-- ─── Email ─────────────────────────────────────────────── -->
+    <div class="jk-card" style="border:2px solid #6366f1;">
+        <div class="jk-card-header" style="background:#f5f3ff;border-bottom:1px solid #c4b5fd;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📧</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#312e81;">Email</div>
+                    <div style="font-size:11px;color:#4f46e5;font-weight:500;">SMTP · IMAP</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#ede9fe;color:#4f46e5;border:1px solid #a5b4fc;font-size:11px;">✅ Active</span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:6px;line-height:1.6;">Receive new tickets and send formal replies via email. Configure SMTP for outbound and IMAP for inbound.</p>
+            <p style="font-size:12px;color:var(--jk-text-muted);margin-bottom:14px;">
+                New-ticket notifications:
+                {% if notif_cfg.notify_new_ticket_email %}
+                <span class="jk-badge" style="background:#ede9fe;color:#4f46e5;border:1px solid #a5b4fc;font-size:10px;">Enabled</span>
+                {% else %}
+                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:10px;">Disabled</span>
+                {% endif %}
+            </p>
+            <a href="{% url 'desk:email_settings' %}" class="jk-btn jk-btn-primary jk-btn-sm">⚙️ Manage Configuration</a>
+        </div>
+    </div>
+
+    <!-- ─── Microsoft Teams ───────────────────────────────────── -->
+    <div class="jk-card" style="border:2px solid #0078d4;">
+        <div class="jk-card-header" style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🟦</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#1e3a5f;">Microsoft Teams</div>
+                    <div style="font-size:11px;color:#1d4ed8;font-weight:500;">Incoming Webhook · Bot Framework</div>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+                {% if teams_cfg.is_notification_enabled %}
+                <span class="jk-badge" style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-size:10px;">🔔 Webhook Active</span>
+                {% else %}
+                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:10px;">Webhook Off</span>
+                {% endif %}
+                {% if teams_cfg.is_bot_enabled %}
+                <span class="jk-badge" style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-size:10px;">🤖 Bot Active</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:6px;line-height:1.6;">Post new-ticket notifications to a Teams channel (free) or enable a 2-way bot via Azure Bot Framework (requires Azure subscription).</p>
+            <p style="font-size:12px;color:var(--jk-text-muted);margin-bottom:14px;">
+                New-ticket notifications:
+                {% if notif_cfg.notify_new_ticket_teams %}
+                <span class="jk-badge" style="background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-size:10px;">Enabled</span>
+                {% else %}
+                <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:10px;">Disabled</span>
+                {% endif %}
+            </p>
+            <a href="{% url 'desk:teams_settings' %}" class="jk-btn jk-btn-primary jk-btn-sm">⚙️ Manage Configuration</a>
+        </div>
+    </div>
+
+    <!-- ─── Telegram (Coming Soon) ─────────────────────────────── -->
+    <div class="jk-card" style="opacity:.6;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#2ca5e0;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✈️</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">Telegram</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">Telegram Bot API</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">Integrate a Telegram bot to receive and respond to support tickets directly via the Telegram platform.</p>
+            <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Not Available Yet</button>
+        </div>
+    </div>
+
+    <!-- ─── Instagram (Coming Soon) ───────────────────────────── -->
+    <div class="jk-card" style="opacity:.6;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">Instagram</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">Meta Graph API</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">Receive Instagram DMs and automatically convert them into support tickets via the Meta Graph API.</p>
+            <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Not Available Yet</button>
+        </div>
+    </div>
+
+    <!-- ─── X / Twitter (Coming Soon) ─────────────────────────── -->
+    <div class="jk-card" style="opacity:.6;border:2px solid #e2e8f0;">
+        <div class="jk-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:38px;height:38px;border-radius:10px;background:#000;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:#fff;font-weight:900;font-family:sans-serif;">𝕏</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:#334155;">X (Twitter)</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:500;">X API v2</div>
+                </div>
+            </div>
+            <span class="jk-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;font-size:11px;">🔜 Coming Soon</span>
+        </div>
+        <div class="jk-card-body" style="padding:16px 20px;">
+            <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:14px;line-height:1.6;">Monitor mentions and DMs on X (Twitter) and automatically forward them as support tickets via X API v2.</p>
+            <button class="jk-btn jk-btn-secondary jk-btn-sm" disabled style="cursor:not-allowed;">🔒 Not Available Yet</button>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

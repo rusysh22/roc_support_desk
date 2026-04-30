@@ -3199,49 +3199,72 @@ def whatsapp_disconnect_view(request):
 def whatsapp_status_view(request):
     """
     Dashboard view for monitoring Evolution API WhatsApp connection.
-    Retrieves instance state and QR code if requested/disconnected.
+    Also handles saving WhatsApp internal notification recipients.
     """
     from gateways.services import EvolutionAPIService
+    from core.models import NotificationConfig, User as UserModel
+    from django.contrib import messages
     from datetime import datetime
-    
+
+    # Handle notification config save
+    if request.method == 'POST' and request.POST.get('form_type') == 'wa_notif':
+        notif_cfg = NotificationConfig.get_solo()
+        notif_cfg.notify_new_ticket_whatsapp = 'notify_new_ticket_whatsapp' in request.POST
+        wa_recipients = request.POST.getlist('whatsapp_recipients')
+        notif_cfg.whatsapp_recipients = ', '.join(r for r in wa_recipients if r.strip())
+        notif_cfg.updated_by = request.user
+        notif_cfg.save()
+        messages.success(request, "WhatsApp notification settings updated successfully.")
+        return redirect('desk:whatsapp_status')
+
     svc = EvolutionAPIService()
     state_data = svc.get_instance_state()
     info_data = svc.get_instance_info()
-    
-    qr_data = None
-    
-    # Check if we are connected; if not, fetch QR code
+
     instance_state = state_data.get("instance", {}).get("state", "UNKNOWN") if state_data else "ERROR"
-    
+
     last_connected = None
     if info_data and "updatedAt" in info_data:
-        # e.g. "2026-02-28T06:50:37.380Z" -> Convert to aware datetime
         dt_str = info_data.get("updatedAt").replace('Z', '+00:00')
         try:
             last_connected = datetime.fromisoformat(dt_str)
         except ValueError:
             pass
-            
-    if instance_state not in ["open", "connected"]:
-        # Instance is likely disconnected, fetching QR
-        qr_data = svc.get_qr_code()
-        
+
     qr_base64 = None
-    if qr_data and "base64" in qr_data:
-        qr_base64 = qr_data.get("base64")
-        
-    # If the user is on HTMX, just return the partial piece to swap
+    if instance_state not in ["open", "connected"]:
+        qr_data = svc.get_qr_code()
+        if qr_data and "base64" in qr_data:
+            qr_base64 = qr_data.get("base64")
+
     if request.headers.get('HX-Request') == 'true':
         return render(request, "partials/whatsapp_status_card.html", {
             "instance_state": instance_state,
             "qr_base64": qr_base64,
             "last_connected": last_connected,
         })
-        
+
+    # Build notification recipient options from active staff
+    notif_cfg = NotificationConfig.get_solo()
+    selected_wa = {p.strip() for p in (notif_cfg.whatsapp_recipients or '').split(',') if p.strip()}
+    staff_wa_values = set()
+    wa_options = []
+    for u in UserModel.objects.filter(is_active=True).order_by('username'):
+        phone = getattr(u, 'phone_number', None)
+        if phone:
+            staff_wa_values.add(phone)
+            name = u.get_full_name() or u.username
+            wa_options.append({'value': phone, 'label': f"{name} ({phone})", 'selected': phone in selected_wa})
+    for v in selected_wa:
+        if v not in staff_wa_values:
+            wa_options.append({'value': v, 'label': v, 'selected': True})
+
     return render(request, "desk/whatsapp_status.html", {
         "instance_state": instance_state,
         "qr_base64": qr_base64,
         "last_connected": last_connected,
+        "notif_cfg": notif_cfg,
+        "wa_options": wa_options,
     })
 
 
@@ -3252,7 +3275,7 @@ def whatsapp_status_view(request):
 @login_required
 def apps_connection_view(request):
     """
-    Hub page listing all external app integrations (WhatsApp, Email, Teams, etc.).
+    Hub page listing all external app integrations.
     SuperAdmin only.
     """
     if request.user.role_access != 'SuperAdmin':
@@ -3260,45 +3283,114 @@ def apps_connection_view(request):
         raise PermissionDenied
 
     from core.models import TeamsConfig, NotificationConfig
-    from core.forms import TeamsConfigForm, NotificationConfigForm
+    teams_cfg = TeamsConfig.get_solo()
+    notif_cfg = NotificationConfig.get_solo()
+
+    return render(request, 'desk/apps_connection.html', {
+        'teams_cfg': teams_cfg,
+        'notif_cfg': notif_cfg,
+    })
+
+
+# =====================================================================
+# Email Settings Dashboard
+# =====================================================================
+
+@staff_required
+@feature_required('email_settings')
+def email_settings_view(request):
+    """
+    Dashboard view for monitoring and updating global Email Settings.
+    Also handles saving Email internal notification recipients.
+    """
+    from core.models import EmailConfig, NotificationConfig, User as UserModel
+    from core.forms import EmailConfigForm
+    from django.contrib import messages
+
+    email_config = EmailConfig.get_solo()
+
+    if request.method == "POST":
+        form_type = request.POST.get('form_type', 'email_config')
+
+        if form_type == 'email_notif':
+            notif_cfg = NotificationConfig.get_solo()
+            notif_cfg.notify_new_ticket_email = 'notify_new_ticket_email' in request.POST
+            email_recipients = request.POST.getlist('email_recipients')
+            notif_cfg.email_recipients = ', '.join(r for r in email_recipients if r.strip())
+            notif_cfg.updated_by = request.user
+            notif_cfg.save()
+            messages.success(request, "Email notification settings updated successfully.")
+            return redirect("desk:email_settings")
+
+        else:
+            form = EmailConfigForm(request.POST, instance=email_config)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Email configuration updated successfully! Background services will use the new credentials on their next run.")
+                return redirect("desk:email_settings")
+            else:
+                messages.error(request, "Please correct the errors below.")
+                notif_cfg = NotificationConfig.get_solo()
+                return render(request, "desk/email_settings.html", _email_settings_ctx(form, email_config, notif_cfg))
+    else:
+        form = EmailConfigForm(instance=email_config)
+
+    notif_cfg = NotificationConfig.get_solo()
+    return render(request, "desk/email_settings.html", _email_settings_ctx(form, email_config, notif_cfg))
+
+
+def _email_settings_ctx(form, email_config, notif_cfg):
+    from core.models import User as UserModel
+    selected_emails = {e.strip() for e in (notif_cfg.email_recipients or '').split(',') if e.strip()}
+    staff_email_values = set()
+    email_options = []
+    for u in UserModel.objects.filter(is_active=True).order_by('username'):
+        if u.email:
+            staff_email_values.add(u.email)
+            name = u.get_full_name() or u.username
+            email_options.append({'value': u.email, 'label': f"{name} ({u.email})", 'selected': u.email in selected_emails})
+    for v in selected_emails:
+        if v not in staff_email_values:
+            email_options.append({'value': v, 'label': v, 'selected': True})
+    return {
+        'form': form,
+        'notif_cfg': notif_cfg,
+        'email_options': email_options,
+    }
+
+
+# =====================================================================
+# Microsoft Teams Settings
+# =====================================================================
+
+@login_required
+def teams_settings_view(request):
+    """
+    Dedicated configuration page for Microsoft Teams integration.
+    Covers both the free Incoming Webhook (1-way) and the paid Bot Framework (2-way).
+    SuperAdmin only.
+    """
+    if request.user.role_access != 'SuperAdmin':
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied
+
+    from core.models import TeamsConfig, NotificationConfig
+    from core.forms import TeamsConfigForm
     from django.contrib import messages as dj_messages
 
     teams_cfg = TeamsConfig.get_solo()
     notif_cfg = NotificationConfig.get_solo()
-    teams_form = TeamsConfigForm(instance=teams_cfg)
-    notif_form = NotificationConfigForm(instance=notif_cfg)
+    form = TeamsConfigForm(instance=teams_cfg)
     test_result = None
 
     if request.method == 'POST':
         action = request.POST.get('action', '')
 
-        if action == 'save_teams':
-            teams_form = TeamsConfigForm(request.POST, instance=teams_cfg)
-            if teams_form.is_valid():
-                obj = teams_form.save(commit=False)
-                obj.updated_by = request.user
-                obj.save()
-                dj_messages.success(request, "Konfigurasi Teams berhasil disimpan.")
-                return redirect('desk:apps_connection')
-            else:
-                dj_messages.error(request, "Periksa kembali isian form Teams.")
-
-        elif action == 'save_notification':
-            notif_form = NotificationConfigForm(request.POST, instance=notif_cfg)
-            if notif_form.is_valid():
-                obj = notif_form.save(commit=False)
-                obj.updated_by = request.user
-                obj.save()
-                dj_messages.success(request, "Pengaturan notifikasi berhasil disimpan.")
-                return redirect('desk:apps_connection')
-            else:
-                dj_messages.error(request, "Periksa kembali isian form notifikasi.")
-
-        elif action == 'test_teams_webhook':
+        if action == 'test_webhook':
             import requests as http_requests
             webhook_url = teams_cfg.incoming_webhook_url
             if not webhook_url:
-                test_result = {'status': 'error', 'message': 'Webhook URL belum dikonfigurasi.'}
+                test_result = {'status': 'error', 'message': 'Webhook URL is not configured yet.'}
             else:
                 try:
                     from core.models import SiteConfig
@@ -3314,7 +3406,7 @@ def apps_connection_view(request):
                                 "version": "1.4",
                                 "body": [{
                                     "type": "TextBlock",
-                                    "text": f"✅ Test koneksi dari {site_name} — berhasil!",
+                                    "text": f"✅ Test connection from {site_name} — webhook is working!",
                                     "weight": "Bolder",
                                     "size": "Medium",
                                     "wrap": True,
@@ -3324,15 +3416,28 @@ def apps_connection_view(request):
                     }
                     resp = http_requests.post(webhook_url, json=payload, timeout=10)
                     if resp.status_code == 200:
-                        test_result = {'status': 'success', 'message': 'Berhasil! Pesan test sudah muncul di channel Teams.'}
+                        test_result = {'status': 'success', 'message': 'Success! A test message has been posted to your Teams channel.'}
                     else:
                         test_result = {'status': 'error', 'message': f'HTTP {resp.status_code}: {resp.text[:300]}'}
                 except Exception as exc:
                     test_result = {'status': 'error', 'message': str(exc)[:300]}
 
-    return render(request, 'desk/apps_connection.html', {
-        'teams_form': teams_form,
-        'notif_form': notif_form,
+        else:
+            form = TeamsConfigForm(request.POST, instance=teams_cfg)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                obj.updated_by = request.user
+                obj.save()
+                notif_cfg.notify_new_ticket_teams = 'notify_new_ticket_teams' in request.POST
+                notif_cfg.updated_by = request.user
+                notif_cfg.save()
+                dj_messages.success(request, "Teams configuration saved successfully.")
+                return redirect('desk:teams_settings')
+            else:
+                dj_messages.error(request, "Please review the form errors below.")
+
+    return render(request, 'desk/teams_settings.html', {
+        'form': form,
         'teams_cfg': teams_cfg,
         'notif_cfg': notif_cfg,
         'test_result': test_result,
@@ -3340,36 +3445,26 @@ def apps_connection_view(request):
 
 
 # =====================================================================
-# Email Settings Dashboard
+# Internal Staff Contacts API
 # =====================================================================
 
-@staff_required
-@feature_required('email_settings')
-def email_settings_view(request):
+@login_required
+def api_staff_contacts(request):
     """
-    Dashboard view for monitoring and updating global Email Settings.
-    Requires Staff/Admin access.
+    Returns active staff users with their email and phone for notification selectors.
     """
-    from core.models import EmailConfig
-    from core.forms import EmailConfigForm
-    from django.contrib import messages
+    from django.http import JsonResponse
+    from core.models import User as UserModel
 
-    email_config = EmailConfig.get_solo()
-
-    if request.method == "POST":
-        form = EmailConfigForm(request.POST, instance=email_config)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Email configuration updated successfully! Background services will use the new credentials on their next run.")
-            return redirect("desk:email_settings")
-        else:
-            messages.error(request, "Please correct the errors below.")
-    else:
-        form = EmailConfigForm(instance=email_config)
-
-    return render(request, "desk/email_settings.html", {
-        "form": form,
-    })
+    email_contacts, wa_contacts = [], []
+    for u in UserModel.objects.filter(is_active=True).order_by('username'):
+        name = u.get_full_name() or u.username
+        if u.email:
+            email_contacts.append({'value': u.email, 'label': f"{name} ({u.email})"})
+        phone = getattr(u, 'phone_number', None)
+        if phone:
+            wa_contacts.append({'value': phone, 'label': f"{name} ({phone})"})
+    return JsonResponse({'email': email_contacts, 'whatsapp': wa_contacts})
 
 
 # =====================================================================

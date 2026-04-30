@@ -1,17 +1,17 @@
 """
 Gateways — Webhook Views
 ==========================
-CSRF-exempt endpoint for Evolution API (WhatsApp) webhooks.
+CSRF-exempt endpoints for Evolution API (WhatsApp) and Microsoft Teams Bot webhooks.
 
 Security:
-    Validates the ``X-Evolution-Token`` header against the
-    ``EVOLUTION_WEBHOOK_TOKEN`` setting from ``.env``.
+    WhatsApp: Validates the ``X-Evolution-Token`` header.
+    Teams Bot: Bearer JWT token is forwarded to the Celery task for async validation
+               against Microsoft's JWKS endpoint (avoids blocking the view on HTTPS
+               round-trips; Teams retries on non-200 so fast ack is critical).
 
 Async Rule:
-    The view **never** processes the payload synchronously.  It validates
-    the request, extracts the JSON body, dispatches it to a Celery task,
-    and returns ``HTTP 200 OK`` immediately — preventing Evolution API
-    from timing out and retrying.
+    Views never process payloads synchronously. They validate the request,
+    dispatch to a Celery task, and return HTTP 200 immediately.
 """
 from __future__ import annotations
 
@@ -137,5 +137,75 @@ def evolution_webhook(request: HttpRequest, event_suffix: str = "") -> HttpRespo
 
     # -----------------------------------------------------------------
     # 6. Return 200 immediately — do NOT block
+    # -----------------------------------------------------------------
+    return JsonResponse({"status": "received"}, status=200)
+
+
+@csrf_exempt
+@require_POST
+def teams_bot_webhook(request: HttpRequest) -> HttpResponse:
+    """
+    Receive and enqueue a Microsoft Teams Bot Framework activity payload.
+
+    The Bearer JWT token is forwarded to the Celery task where it is validated
+    asynchronously against Microsoft's JWKS endpoint, keeping this view fast.
+    Teams requires a 200 OK within ~5 s or it will retry the delivery.
+    """
+    # -----------------------------------------------------------------
+    # 1. Check Teams Bot is configured (fast reject before payload parse)
+    # -----------------------------------------------------------------
+    try:
+        from core.models import TeamsConfig
+        if not TeamsConfig.get_solo().is_bot_enabled:
+            logger.debug("Teams Bot webhook hit but bot is disabled — returning 200.")
+            return JsonResponse({"status": "disabled"}, status=200)
+    except Exception:
+        pass
+
+    # -----------------------------------------------------------------
+    # 2. Extract Bearer token from Authorization header
+    # -----------------------------------------------------------------
+    auth_header: str = request.META.get("HTTP_AUTHORIZATION", "")
+    auth_token = ""
+    if auth_header.startswith("Bearer "):
+        auth_token = auth_header[7:].strip()
+
+    if not auth_token:
+        logger.warning(
+            "Teams Bot webhook: missing Authorization header from %s",
+            _get_client_ip(request)[0] or "unknown",
+        )
+        # Return 401 so Azure Bot Service knows the endpoint is live but not yet ready
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
+    # -----------------------------------------------------------------
+    # 3. Parse JSON activity payload
+    # -----------------------------------------------------------------
+    try:
+        payload: dict = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Teams Bot webhook: malformed JSON — %s", exc)
+        return JsonResponse({"error": "Bad Request — invalid JSON body."}, status=400)
+
+    activity_type = payload.get("type", "")
+    logger.info(
+        "Teams Bot webhook: activity_type=%s, conv=%s",
+        activity_type,
+        (payload.get("conversation") or {}).get("id", "(none)")[:30],
+    )
+
+    # -----------------------------------------------------------------
+    # 4. Dispatch to Celery — async processing (JWT validated in task)
+    # -----------------------------------------------------------------
+    try:
+        from gateways.tasks import process_teams_webhook_task
+        process_teams_webhook_task.delay(payload, auth_token)
+        logger.info("Teams Bot activity enqueued (type=%s).", activity_type)
+    except Exception as exc:
+        logger.exception("Teams Bot webhook: failed to enqueue task — %s", exc)
+        return JsonResponse({"error": "Internal error — task dispatch failed."}, status=500)
+
+    # -----------------------------------------------------------------
+    # 5. Return 200 immediately
     # -----------------------------------------------------------------
     return JsonResponse({"status": "received"}, status=200)

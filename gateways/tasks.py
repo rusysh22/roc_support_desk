@@ -1901,6 +1901,11 @@ def _get_site_base_url() -> str:
     for origin in trusted:
         if origin.startswith("https://") and "*" not in origin:
             return origin.rstrip("/")
+    hosts = getattr(settings, "ALLOWED_HOSTS", [])
+    for host in hosts:
+        if host not in ("localhost", "127.0.0.1", "*"):
+            return f"https://{host}"
+    return "http://localhost"
 
 
 def _dispatch_new_ticket_notifs(case_id: str) -> None:
@@ -1917,11 +1922,6 @@ def _dispatch_new_ticket_notifs(case_id: str) -> None:
         send_new_ticket_wa_notif_task.delay(case_id)
     if cfg.notify_new_ticket_email:
         send_new_ticket_email_notif_task.delay(case_id)
-    hosts = getattr(settings, "ALLOWED_HOSTS", [])
-    for host in hosts:
-        if host not in ("localhost", "127.0.0.1", "*"):
-            return f"https://{host}"
-    return "http://localhost"
 
 
 @shared_task(
@@ -1960,17 +1960,18 @@ def send_teams_notification_task(self, case_id: str) -> str:
         category_display = case.category.name if case.category else "—"
 
         priority_emoji = {
-            "critical": "🔴",
-            "high": "🟠",
-            "medium": "🟡",
-            "low": "🟢",
+            "Critical": "🔴",
+            "High": "🟠",
+            "Medium": "🟡",
+            "Low": "🟢",
         }.get(case.priority, "⚪")
 
-        channel_emoji = {
-            "whatsapp": "💬",
-            "email": "📧",
-            "web": "🌐",
-        }.get(case.channel, "📋")
+        source_emoji = {
+            "EvolutionAPI_WA": "💬",
+            "Email": "📧",
+            "WebForm": "🌐",
+            "Teams_Bot": "🟦",
+        }.get(case.source, "📋")
 
         payload = {
             "type": "message",
@@ -1985,7 +1986,7 @@ def send_teams_notification_task(self, case_id: str) -> str:
                         "body": [
                             {
                                 "type": "TextBlock",
-                                "text": f"🎫 Tiket Baru — {site_name}",
+                                "text": f"🎫 New Ticket — {site_name}",
                                 "weight": "Bolder",
                                 "size": "Medium",
                                 "wrap": True,
@@ -1993,19 +1994,19 @@ def send_teams_notification_task(self, case_id: str) -> str:
                             {
                                 "type": "FactSet",
                                 "facts": [
-                                    {"title": "No. Tiket", "value": case.case_number},
-                                    {"title": "Dari", "value": requester_display},
-                                    {"title": "Subjek", "value": case.subject[:120]},
-                                    {"title": "Prioritas", "value": f"{priority_emoji} {case.get_priority_display()}"},
-                                    {"title": "Channel", "value": f"{channel_emoji} {case.get_channel_display()}"},
-                                    {"title": "Kategori", "value": category_display},
+                                    {"title": "Ticket #", "value": case.case_number},
+                                    {"title": "From", "value": requester_display},
+                                    {"title": "Subject", "value": case.subject[:120]},
+                                    {"title": "Priority", "value": f"{priority_emoji} {case.get_priority_display()}"},
+                                    {"title": "Source", "value": f"{source_emoji} {case.get_source_display()}"},
+                                    {"title": "Category", "value": category_display},
                                 ],
                             },
                         ],
                         "actions": [
                             {
                                 "type": "Action.OpenUrl",
-                                "title": "Buka Tiket",
+                                "title": "Open Ticket",
                                 "url": case_url,
                             }
                         ],
@@ -2073,19 +2074,19 @@ def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
             case.requester.full_name if case.requester else (case.requester_name or "—")
         )
         priority_emoji = {
-            "critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢",
+            "Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢",
         }.get(case.priority, "⚪")
-        channel_emoji = {
-            "whatsapp": "💬", "email": "📧", "web": "🌐",
-        }.get(case.channel, "📋")
+        source_emoji = {
+            "EvolutionAPI_WA": "💬", "Email": "📧", "WebForm": "🌐", "Teams_Bot": "🟦",
+        }.get(case.source, "📋")
 
         text = (
-            f"🔔 *Tiket Baru — {site_name}*\n\n"
-            f"📋 *No. Tiket:* `{case.case_number}`\n"
-            f"👤 *Dari:* {requester_display}\n"
-            f"📝 *Subjek:* {case.subject[:100]}\n"
-            f"⚡ *Prioritas:* {priority_emoji} {case.get_priority_display()}\n"
-            f"{channel_emoji} *Channel:* {case.get_channel_display()}\n\n"
+            f"🔔 *New Ticket — {site_name}*\n\n"
+            f"📋 *Ticket #:* `{case.case_number}`\n"
+            f"👤 *From:* {requester_display}\n"
+            f"📝 *Subject:* {case.subject[:100]}\n"
+            f"⚡ *Priority:* {priority_emoji} {case.get_priority_display()}\n"
+            f"{source_emoji} *Source:* {case.get_source_display()}\n\n"
             f"🔗 {case_url}"
         )
 
@@ -2157,16 +2158,16 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
         safe_site = html_mod.escape(site_name)
         safe_case_number = html_mod.escape(case.case_number)
 
-        subject = f"[{safe_site}] Tiket Baru: {safe_case_number} — {safe_subject}"
+        subject = f"[{safe_site}] New Ticket: {safe_case_number} — {safe_subject}"
 
         plain_body = (
-            f"Tiket baru telah masuk di {site_name}.\n\n"
-            f"No. Tiket : {case.case_number}\n"
-            f"Dari      : {requester_display}\n"
-            f"Subjek    : {case.subject}\n"
-            f"Prioritas : {case.get_priority_display()}\n"
-            f"Channel   : {case.get_channel_display()}\n\n"
-            f"Buka tiket: {case_url}\n"
+            f"A new support ticket has been submitted in {site_name}.\n\n"
+            f"Ticket #  : {case.case_number}\n"
+            f"From      : {requester_display}\n"
+            f"Subject   : {case.subject}\n"
+            f"Priority  : {case.get_priority_display()}\n"
+            f"Source    : {case.get_source_display()}\n\n"
+            f"Open ticket: {case_url}\n"
         )
 
         html_body = f"""\
@@ -2185,39 +2186,39 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
         </tr>
         <tr>
           <td style="padding:28px;">
-            <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a;">🎫 Tiket Baru Masuk</p>
+            <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a;">🎫 New Ticket Received</p>
             <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
               <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;width:110px;">No. Tiket</td>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;width:110px;">Ticket #</td>
                 <td style="padding:10px 14px;font-size:13px;font-weight:700;color:#0f172a;font-family:monospace;">{safe_case_number}</td>
               </tr>
               <tr>
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Dari</td>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">From</td>
                 <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_requester}</td>
               </tr>
               <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subjek</td>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subject</td>
                 <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_subject}</td>
               </tr>
               <tr>
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Prioritas</td>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Priority</td>
                 <td style="padding:10px 14px;border-top:1px solid #e2e8f0;">
                   <span style="background:{priority_color};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">{html_mod.escape(case.get_priority_display())}</span>
                 </td>
               </tr>
               <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Channel</td>
-                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{html_mod.escape(case.get_channel_display())}</td>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Source</td>
+                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{html_mod.escape(case.get_source_display())}</td>
               </tr>
             </table>
             <div style="margin-top:20px;text-align:center;">
-              <a href="{case_url}" style="display:inline-block;background:#1e293b;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 24px;border-radius:6px;">Buka Tiket →</a>
+              <a href="{case_url}" style="display:inline-block;background:#1e293b;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 24px;border-radius:6px;">Open Ticket →</a>
             </div>
           </td>
         </tr>
         <tr>
           <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
-            <span style="font-size:11px;color:#94a3b8;">Notifikasi otomatis dari {safe_site} — jangan balas email ini</span>
+            <span style="font-size:11px;color:#94a3b8;">Automated notification from {safe_site} — do not reply to this email</span>
           </td>
         </tr>
       </table>
@@ -2244,6 +2245,269 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
         return "error:case_not_found"
     except Exception as exc:
         logger.error("send_new_ticket_email_notif_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+# =====================================================================
+# Teams Bot 2-Way Webhook Processing
+# =====================================================================
+
+def _validate_teams_jwt(token: str, bot_app_id: str) -> bool:
+    """
+    Validate a Microsoft Bot Framework JWT Bearer token.
+
+    Uses the cryptography package (already a transitive dependency via
+    django-encrypted-model-fields) to verify the RS256 signature against
+    Microsoft's published JWKS endpoint — no extra pip packages required.
+    """
+    import base64
+    import json as _json
+    import time
+
+    import requests as http_requests
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+
+    def _b64url_decode(s: str) -> bytes:
+        pad = 4 - len(s) % 4
+        if pad != 4:
+            s += "=" * pad
+        return base64.urlsafe_b64decode(s)
+
+    def _int_from_b64url(s: str) -> int:
+        return int.from_bytes(_b64url_decode(s), "big")
+
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            logger.warning("Teams JWT: malformed token (not 3 parts)")
+            return False
+
+        header = _json.loads(_b64url_decode(parts[0]))
+        claims = _json.loads(_b64url_decode(parts[1]))
+
+        # Verify basic claims
+        now = time.time()
+        if claims.get("exp", 0) < now:
+            logger.warning("Teams JWT: token expired")
+            return False
+        if claims.get("nbf", now) > now + 300:
+            logger.warning("Teams JWT: token not yet valid (clock skew)")
+            return False
+        if claims.get("aud") != bot_app_id:
+            logger.warning(
+                "Teams JWT: audience mismatch (got %s, expected %s)",
+                claims.get("aud"), bot_app_id,
+            )
+            return False
+        valid_issuers = {
+            "https://api.botframework.com",
+            f"https://sts.windows.net/{claims.get('tid', '')}/",
+            f"https://login.microsoftonline.com/{claims.get('tid', '')}/v2.0",
+        }
+        if claims.get("iss") not in valid_issuers:
+            logger.warning("Teams JWT: unrecognised issuer %s", claims.get("iss"))
+            return False
+
+        alg = header.get("alg", "")
+        kid = header.get("kid", "")
+        if alg != "RS256" or not kid:
+            logger.warning("Teams JWT: unexpected alg=%s or missing kid", alg)
+            return False
+
+        # Fetch JWKS from Microsoft
+        oid_resp = http_requests.get(
+            "https://login.botframework.com/v1/.well-known/openid-configuration",
+            timeout=5,
+        )
+        oid_resp.raise_for_status()
+        jwks_uri = oid_resp.json().get("jwks_uri")
+        if not jwks_uri:
+            logger.warning("Teams JWT: could not find jwks_uri in OpenID config")
+            return False
+
+        jwks_resp = http_requests.get(jwks_uri, timeout=5)
+        jwks_resp.raise_for_status()
+        keys = jwks_resp.json().get("keys", [])
+
+        jwk = next((k for k in keys if k.get("kid") == kid), None)
+        if not jwk:
+            logger.warning("Teams JWT: no matching key for kid=%s", kid)
+            return False
+
+        # Build RSA public key from JWK (n, e fields)
+        pub_key = RSAPublicNumbers(
+            e=_int_from_b64url(jwk["e"]),
+            n=_int_from_b64url(jwk["n"]),
+        ).public_key(default_backend())
+
+        # Verify RS256 signature
+        signing_input = f"{parts[0]}.{parts[1]}".encode()
+        signature = _b64url_decode(parts[2])
+        pub_key.verify(signature, signing_input, asym_padding.PKCS1v15(), hashes.SHA256())
+        return True
+
+    except InvalidSignature:
+        logger.warning("Teams JWT: signature verification failed")
+        return False
+    except Exception as exc:
+        logger.warning("Teams JWT: validation error — %s", exc)
+        return False
+
+
+@shared_task(
+    bind=True,
+    name="gateways.process_teams_webhook_task",
+    max_retries=3,
+    default_retry_delay=10,
+    acks_late=True,
+)
+def process_teams_webhook_task(self, payload: dict, auth_token: str = "") -> str:
+    """
+    Process an inbound Microsoft Teams Bot Framework activity.
+
+    - Validates the JWT Bearer token (if bot_app_id is configured)
+    - Matches or creates a CaseRecord keyed on the Teams conversation ID
+    - Creates an inbound Message record
+    - Dispatches new-ticket notifications on first message in a session
+    """
+    from cases.models import CaseRecord, Message
+    from core.models import TeamsConfig, Employee
+
+    try:
+        teams_cfg = TeamsConfig.get_solo()
+        if not teams_cfg.is_bot_enabled:
+            return "skipped:bot_disabled"
+
+        # JWT validation — skip only if app ID is not yet configured
+        if teams_cfg.bot_app_id and auth_token:
+            if not _validate_teams_jwt(auth_token, teams_cfg.bot_app_id):
+                logger.warning(
+                    "process_teams_webhook_task: JWT validation failed, dropping activity"
+                )
+                return "error:jwt_invalid"
+        elif teams_cfg.bot_app_id and not auth_token:
+            logger.warning("process_teams_webhook_task: no auth token provided")
+            return "error:no_auth_token"
+
+        activity_type = payload.get("type", "")
+        if activity_type != "message":
+            logger.debug("Teams activity type '%s' ignored.", activity_type)
+            return f"skipped:activity_type_{activity_type}"
+
+        # Extract Teams activity fields
+        text = (payload.get("text") or "").strip()
+        if not text:
+            # Ignore empty messages (e.g. attachments only, typing indicators)
+            return "skipped:empty_text"
+
+        from_info = payload.get("from") or {}
+        teams_user_id = from_info.get("id", "")
+        teams_user_name = from_info.get("name", "Unknown Teams User")
+
+        conversation = payload.get("conversation") or {}
+        conversation_id = conversation.get("id", "")
+        if not conversation_id:
+            return "error:no_conversation_id"
+
+        activity_id = payload.get("id", "")
+        service_url = payload.get("serviceUrl", "")
+        tenant_id = (payload.get("channelData") or {}).get("tenant", {}).get("id", "")
+
+        # Dedup: skip if we already have this activity
+        if activity_id and Message.objects.filter(
+            channel=Message.Channel.TEAMS,
+            external_id=activity_id,
+        ).exists():
+            return "skipped:duplicate"
+
+        # Try to match an Employee by display name (best-effort)
+        employee = None
+        if teams_user_name:
+            employee = Employee.objects.filter(
+                full_name__iexact=teams_user_name,
+            ).first()
+
+        # Find an open case threaded on this Teams conversation
+        session_window = timezone.now() - timedelta(minutes=120)
+        active_case = (
+            CaseRecord.objects.filter(
+                source=CaseRecord.Source.TEAMS_BOT,
+                status__in=[
+                    CaseRecord.Status.OPEN,
+                    CaseRecord.Status.INVESTIGATING,
+                    CaseRecord.Status.PENDING_INFO,
+                ],
+                updated_at__gte=session_window,
+            )
+            .filter(form_data__teams_conversation_id=conversation_id)
+            .order_by("-updated_at")
+            .first()
+        )
+
+        is_new_case = False
+        if active_case:
+            case = active_case
+            logger.info(
+                "Threading Teams message into case %s (conv=%s).",
+                case.case_number, conversation_id[:20],
+            )
+        else:
+            default_category = _get_or_create_default_category()
+            case = CaseRecord.objects.create(
+                requester=employee,
+                category=default_category,
+                subject=f"Teams: {text[:80]}",
+                problem_description=text,
+                status=CaseRecord.Status.OPEN,
+                source=CaseRecord.Source.TEAMS_BOT,
+                requester_name=teams_user_name,
+                requester_email=(employee.email if employee else ""),
+                requester_unit_name=(employee.unit.name if employee and employee.unit else ""),
+                requester_job_role=(employee.job_role if employee else ""),
+                form_data={
+                    "teams_conversation_id": conversation_id,
+                    "teams_user_id": teams_user_id,
+                    "teams_service_url": service_url,
+                    "teams_tenant_id": tenant_id,
+                },
+            )
+            is_new_case = True
+            logger.info(
+                "Created new case %s from Teams Bot (conv=%s).",
+                case.case_number, conversation_id[:20],
+            )
+
+        # Update service_url on the TeamsConfig singleton (latest value wins)
+        if service_url and service_url != teams_cfg.service_url:
+            TeamsConfig.objects.filter(pk=teams_cfg.pk).update(service_url=service_url)
+
+        Message.objects.create(
+            case=case,
+            sender_employee=employee,
+            body=text,
+            direction=Message.Direction.INBOUND,
+            channel=Message.Channel.TEAMS,
+            external_id=activity_id,
+        )
+
+        # Mark case as having unread messages
+        case.has_unread_messages = True
+        case.save(update_fields=["has_unread_messages"])
+
+        if is_new_case:
+            _dispatch_new_ticket_notifs(str(case.id))
+
+        return "success"
+
+    except Exception as exc:
+        logger.exception("process_teams_webhook_task failed: %s", exc)
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
