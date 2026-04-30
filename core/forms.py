@@ -116,6 +116,75 @@ class EmailConfigForm(forms.ModelForm):
             return self.instance.smtp_password
         return new_password
 
+class TeamsConfigForm(forms.ModelForm):
+    """
+    Form for configuring Microsoft Teams integration (1-way webhook + 2-way bot).
+    """
+    class Meta:
+        from .models import TeamsConfig
+        model = TeamsConfig
+        fields = [
+            'incoming_webhook_url', 'is_notification_enabled',
+            'is_bot_enabled', 'bot_app_id', 'bot_app_password',
+            'tenant_id', 'bot_webhook_secret',
+        ]
+        widgets = {
+            'incoming_webhook_url': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'https://xxx.webhook.office.com/...'}),
+            'is_notification_enabled': forms.CheckboxInput(attrs={'class': 'jk-checkbox'}),
+            'is_bot_enabled': forms.CheckboxInput(attrs={'class': 'jk-checkbox'}),
+            'bot_app_id': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}),
+            'bot_app_password': forms.PasswordInput(
+                attrs={'class': 'jk-input', 'placeholder': 'Leave blank to keep unchanged'},
+                render_value=False,
+            ),
+            'tenant_id': forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}),
+            'bot_webhook_secret': forms.PasswordInput(
+                attrs={'class': 'jk-input', 'placeholder': 'Leave blank to keep unchanged'},
+                render_value=False,
+            ),
+        }
+
+    def clean_bot_app_password(self):
+        value = self.cleaned_data.get('bot_app_password')
+        if not value and self.instance and self.instance.pk:
+            return self.instance.bot_app_password
+        return value
+
+    def clean_bot_webhook_secret(self):
+        value = self.cleaned_data.get('bot_webhook_secret')
+        if not value and self.instance and self.instance.pk:
+            return self.instance.bot_webhook_secret
+        return value
+
+
+class NotificationConfigForm(forms.ModelForm):
+    """
+    Form for configuring which channels receive new-ticket notifications.
+    """
+    class Meta:
+        from .models import NotificationConfig
+        model = NotificationConfig
+        fields = [
+            'notify_new_ticket_email', 'notify_new_ticket_whatsapp', 'notify_new_ticket_teams',
+            'email_recipients', 'whatsapp_recipients',
+        ]
+        widgets = {
+            'notify_new_ticket_email': forms.CheckboxInput(attrs={'class': 'jk-checkbox'}),
+            'notify_new_ticket_whatsapp': forms.CheckboxInput(attrs={'class': 'jk-checkbox'}),
+            'notify_new_ticket_teams': forms.CheckboxInput(attrs={'class': 'jk-checkbox'}),
+            'email_recipients': forms.Textarea(attrs={
+                'class': 'jk-textarea',
+                'rows': 3,
+                'placeholder': 'agen1@corp.com, agen2@corp.com',
+            }),
+            'whatsapp_recipients': forms.Textarea(attrs={
+                'class': 'jk-textarea',
+                'rows': 3,
+                'placeholder': '628123456789, 628987654321',
+            }),
+        }
+
+
 class DynamicFormForm(forms.ModelForm):
     """
     Form for creating/editing the main settings of a DynamicForm.

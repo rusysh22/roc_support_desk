@@ -1000,6 +1000,9 @@ def create_case(request, slug=None):
                     file_size=uploaded_file.size,
                 )
 
+            from gateways.tasks import _dispatch_new_ticket_notifs
+            _dispatch_new_ticket_notifs(str(case.id))
+
             # Create Audit Log entry
             CaseAuditLog.objects.create(
                 case=case,
@@ -3249,13 +3252,91 @@ def whatsapp_status_view(request):
 @login_required
 def apps_connection_view(request):
     """
-    Hub page listing all external app integrations (WhatsApp, Email, etc.).
+    Hub page listing all external app integrations (WhatsApp, Email, Teams, etc.).
     SuperAdmin only.
     """
     if request.user.role_access != 'SuperAdmin':
         from django.core.exceptions import PermissionDenied
         raise PermissionDenied
-    return render(request, "desk/apps_connection.html")
+
+    from core.models import TeamsConfig, NotificationConfig
+    from core.forms import TeamsConfigForm, NotificationConfigForm
+    from django.contrib import messages as dj_messages
+
+    teams_cfg = TeamsConfig.get_solo()
+    notif_cfg = NotificationConfig.get_solo()
+    teams_form = TeamsConfigForm(instance=teams_cfg)
+    notif_form = NotificationConfigForm(instance=notif_cfg)
+    test_result = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+
+        if action == 'save_teams':
+            teams_form = TeamsConfigForm(request.POST, instance=teams_cfg)
+            if teams_form.is_valid():
+                obj = teams_form.save(commit=False)
+                obj.updated_by = request.user
+                obj.save()
+                dj_messages.success(request, "Konfigurasi Teams berhasil disimpan.")
+                return redirect('desk:apps_connection')
+            else:
+                dj_messages.error(request, "Periksa kembali isian form Teams.")
+
+        elif action == 'save_notification':
+            notif_form = NotificationConfigForm(request.POST, instance=notif_cfg)
+            if notif_form.is_valid():
+                obj = notif_form.save(commit=False)
+                obj.updated_by = request.user
+                obj.save()
+                dj_messages.success(request, "Pengaturan notifikasi berhasil disimpan.")
+                return redirect('desk:apps_connection')
+            else:
+                dj_messages.error(request, "Periksa kembali isian form notifikasi.")
+
+        elif action == 'test_teams_webhook':
+            import requests as http_requests
+            webhook_url = teams_cfg.incoming_webhook_url
+            if not webhook_url:
+                test_result = {'status': 'error', 'message': 'Webhook URL belum dikonfigurasi.'}
+            else:
+                try:
+                    from core.models import SiteConfig
+                    site_name = SiteConfig.get_solo().site_name
+                    payload = {
+                        "type": "message",
+                        "attachments": [{
+                            "contentType": "application/vnd.microsoft.card.adaptive",
+                            "contentUrl": None,
+                            "content": {
+                                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                                "type": "AdaptiveCard",
+                                "version": "1.4",
+                                "body": [{
+                                    "type": "TextBlock",
+                                    "text": f"✅ Test koneksi dari {site_name} — berhasil!",
+                                    "weight": "Bolder",
+                                    "size": "Medium",
+                                    "wrap": True,
+                                }],
+                            },
+                        }],
+                    }
+                    resp = http_requests.post(webhook_url, json=payload, timeout=10)
+                    if resp.status_code == 200:
+                        test_result = {'status': 'success', 'message': 'Berhasil! Pesan test sudah muncul di channel Teams.'}
+                    else:
+                        test_result = {'status': 'error', 'message': f'HTTP {resp.status_code}: {resp.text[:300]}'}
+                except Exception as exc:
+                    test_result = {'status': 'error', 'message': str(exc)[:300]}
+
+    return render(request, 'desk/apps_connection.html', {
+        'teams_form': teams_form,
+        'notif_form': notif_form,
+        'teams_cfg': teams_cfg,
+        'notif_cfg': notif_cfg,
+        'test_result': test_result,
+    })
 
 
 # =====================================================================

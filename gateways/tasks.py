@@ -279,6 +279,8 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 case.case_number,
                 employee.full_name,
             )
+            if not case.is_spam:
+                _dispatch_new_ticket_notifs(str(case.id))
 
         # ---------------------------------------------------------
         # 5. Create Message record
@@ -707,6 +709,8 @@ def poll_imap_emails_task() -> str:
                 )
                 is_new_case = True
                 logger.info("Created new case %s from Email for %s with Priority %s.", case.id, employee.full_name, priority)
+                if not is_spam:
+                    _dispatch_new_ticket_notifs(str(case.id))
 
             # 3. Create Message (store email Message-ID for threading)
             email_message_id = email_data.get("message_id", "")
@@ -1880,6 +1884,366 @@ def react_whatsapp_message_task(self, message_id: str, emoji: str) -> str:
         return "error:message_not_found"
     except Exception as exc:
         logger.error("react_whatsapp_message_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+# =====================================================================
+# Internal New-Ticket Notification Tasks
+# =====================================================================
+
+def _get_site_base_url() -> str:
+    """Return the base URL for building absolute case links inside tasks."""
+    from django.conf import settings
+    trusted = getattr(settings, "CSRF_TRUSTED_ORIGINS", [])
+    for origin in trusted:
+        if origin.startswith("https://") and "*" not in origin:
+            return origin.rstrip("/")
+
+
+def _dispatch_new_ticket_notifs(case_id: str) -> None:
+    """
+    Dispatch enabled new-ticket notification tasks for the given case ID.
+    Reads NotificationConfig once and only queues tasks whose channel is active,
+    so disabled channels incur zero Celery overhead.
+    """
+    from core.models import NotificationConfig
+    cfg = NotificationConfig.get_solo()
+    if cfg.notify_new_ticket_teams:
+        send_teams_notification_task.delay(case_id)
+    if cfg.notify_new_ticket_whatsapp:
+        send_new_ticket_wa_notif_task.delay(case_id)
+    if cfg.notify_new_ticket_email:
+        send_new_ticket_email_notif_task.delay(case_id)
+    hosts = getattr(settings, "ALLOWED_HOSTS", [])
+    for host in hosts:
+        if host not in ("localhost", "127.0.0.1", "*"):
+            return f"https://{host}"
+    return "http://localhost"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.send_teams_notification_task",
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_teams_notification_task(self, case_id: str) -> str:
+    """
+    Post an Adaptive Card to the configured Teams Incoming Webhook
+    when a new support ticket is created.
+    """
+    import requests as http_requests
+    from cases.models import CaseRecord
+    from core.models import TeamsConfig, SiteConfig
+
+    try:
+        from core.models import NotificationConfig
+        if not NotificationConfig.get_solo().notify_new_ticket_teams:
+            return "skipped:teams_notif_disabled"
+
+        teams_cfg = TeamsConfig.get_solo()
+        if not teams_cfg.is_notification_enabled or not teams_cfg.incoming_webhook_url:
+            return "skipped:teams_not_configured"
+
+        case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
+        site_name = SiteConfig.get_solo().site_name
+        base_url = _get_site_base_url()
+        case_url = f"{base_url}/desk/cases/{case.id}/"
+
+        requester_display = (
+            case.requester.full_name if case.requester else (case.requester_name or "—")
+        )
+        category_display = case.category.name if case.category else "—"
+
+        priority_emoji = {
+            "critical": "🔴",
+            "high": "🟠",
+            "medium": "🟡",
+            "low": "🟢",
+        }.get(case.priority, "⚪")
+
+        channel_emoji = {
+            "whatsapp": "💬",
+            "email": "📧",
+            "web": "🌐",
+        }.get(case.channel, "📋")
+
+        payload = {
+            "type": "message",
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "contentUrl": None,
+                    "content": {
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "type": "AdaptiveCard",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "TextBlock",
+                                "text": f"🎫 Tiket Baru — {site_name}",
+                                "weight": "Bolder",
+                                "size": "Medium",
+                                "wrap": True,
+                            },
+                            {
+                                "type": "FactSet",
+                                "facts": [
+                                    {"title": "No. Tiket", "value": case.case_number},
+                                    {"title": "Dari", "value": requester_display},
+                                    {"title": "Subjek", "value": case.subject[:120]},
+                                    {"title": "Prioritas", "value": f"{priority_emoji} {case.get_priority_display()}"},
+                                    {"title": "Channel", "value": f"{channel_emoji} {case.get_channel_display()}"},
+                                    {"title": "Kategori", "value": category_display},
+                                ],
+                            },
+                        ],
+                        "actions": [
+                            {
+                                "type": "Action.OpenUrl",
+                                "title": "Buka Tiket",
+                                "url": case_url,
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+
+        response = http_requests.post(
+            teams_cfg.incoming_webhook_url,
+            json=payload,
+            timeout=10,
+        )
+
+        if response.status_code == 200:
+            logger.info("Teams notification sent for case %s", case.case_number)
+            return "success"
+
+        logger.warning(
+            "Teams webhook returned %s for case %s: %s",
+            response.status_code, case.case_number, response.text[:200],
+        )
+        raise Exception(f"Teams webhook HTTP {response.status_code}: {response.text[:200]}")
+
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        logger.error("send_teams_notification_task failed for case %s: %s", case_id, exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.send_new_ticket_wa_notif_task",
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
+    """
+    Send a WhatsApp notification to internal recipients (agents/admins)
+    when a new support ticket is created.
+    Does NOT send to the requester — that is handled by the auto-reply in
+    process_evolution_webhook_task.
+    """
+    from cases.models import CaseRecord
+    from core.models import NotificationConfig, SiteConfig
+    from gateways.services import EvolutionAPIService
+
+    try:
+        notif_cfg = NotificationConfig.get_solo()
+        recipients = notif_cfg.get_whatsapp_recipients_list()
+        if not recipients:
+            return "skipped:no_whatsapp_recipients"
+
+        case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
+        site_name = SiteConfig.get_solo().site_name
+        base_url = _get_site_base_url()
+        case_url = f"{base_url}/desk/cases/{case.id}/"
+
+        requester_display = (
+            case.requester.full_name if case.requester else (case.requester_name or "—")
+        )
+        priority_emoji = {
+            "critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢",
+        }.get(case.priority, "⚪")
+        channel_emoji = {
+            "whatsapp": "💬", "email": "📧", "web": "🌐",
+        }.get(case.channel, "📋")
+
+        text = (
+            f"🔔 *Tiket Baru — {site_name}*\n\n"
+            f"📋 *No. Tiket:* `{case.case_number}`\n"
+            f"👤 *Dari:* {requester_display}\n"
+            f"📝 *Subjek:* {case.subject[:100]}\n"
+            f"⚡ *Prioritas:* {priority_emoji} {case.get_priority_display()}\n"
+            f"{channel_emoji} *Channel:* {case.get_channel_display()}\n\n"
+            f"🔗 {case_url}"
+        )
+
+        svc = EvolutionAPIService()
+        errors = []
+        for phone in recipients:
+            try:
+                svc.send_whatsapp_message(phone, text)
+                logger.info("WA notif sent to %s for case %s", phone, case.case_number)
+            except Exception as send_exc:
+                logger.warning(
+                    "WA notif failed for %s / case %s: %s", phone, case.case_number, send_exc
+                )
+                errors.append(phone)
+
+        if errors:
+            return f"partial:failed_for_{','.join(errors)}"
+        return "success"
+
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        logger.error("send_new_ticket_wa_notif_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+@shared_task(
+    bind=True,
+    name="gateways.send_new_ticket_email_notif_task",
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_new_ticket_email_notif_task(self, case_id: str) -> str:
+    """
+    Send an email notification to internal recipients (agents/admins)
+    when a new support ticket is created.
+    """
+    import html as html_mod
+    from cases.models import CaseRecord
+    from core.models import NotificationConfig, SiteConfig
+    from django.core.mail import EmailMultiAlternatives
+
+    try:
+        notif_cfg = NotificationConfig.get_solo()
+        recipients = notif_cfg.get_email_recipients_list()
+        if not recipients:
+            return "skipped:no_email_recipients"
+
+        case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
+        site_name = SiteConfig.get_solo().site_name
+        base_url = _get_site_base_url()
+        case_url = f"{base_url}/desk/cases/{case.id}/"
+
+        requester_display = (
+            case.requester.full_name if case.requester else (case.requester_name or "—")
+        )
+        priority_colors = {
+            "critical": "#ef4444", "high": "#f97316",
+            "medium": "#eab308", "low": "#22c55e",
+        }
+        priority_color = priority_colors.get(case.priority, "#6b7280")
+
+        safe_subject = html_mod.escape(case.subject)
+        safe_requester = html_mod.escape(requester_display)
+        safe_site = html_mod.escape(site_name)
+        safe_case_number = html_mod.escape(case.case_number)
+
+        subject = f"[{safe_site}] Tiket Baru: {safe_case_number} — {safe_subject}"
+
+        plain_body = (
+            f"Tiket baru telah masuk di {site_name}.\n\n"
+            f"No. Tiket : {case.case_number}\n"
+            f"Dari      : {requester_display}\n"
+            f"Subjek    : {case.subject}\n"
+            f"Prioritas : {case.get_priority_display()}\n"
+            f"Channel   : {case.get_channel_display()}\n\n"
+            f"Buka tiket: {case_url}\n"
+        )
+
+        html_body = f"""\
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:#1e293b;padding:20px 28px;">
+            <span style="color:#ffffff;font-size:16px;font-weight:700;">{safe_site}</span>
+            <span style="color:#94a3b8;font-size:13px;margin-left:8px;">Support Desk</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a;">🎫 Tiket Baru Masuk</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+              <tr style="background:#f8fafc;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;width:110px;">No. Tiket</td>
+                <td style="padding:10px 14px;font-size:13px;font-weight:700;color:#0f172a;font-family:monospace;">{safe_case_number}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Dari</td>
+                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_requester}</td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subjek</td>
+                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_subject}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Prioritas</td>
+                <td style="padding:10px 14px;border-top:1px solid #e2e8f0;">
+                  <span style="background:{priority_color};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">{html_mod.escape(case.get_priority_display())}</span>
+                </td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Channel</td>
+                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{html_mod.escape(case.get_channel_display())}</td>
+              </tr>
+            </table>
+            <div style="margin-top:20px;text-align:center;">
+              <a href="{case_url}" style="display:inline-block;background:#1e293b;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 24px;border-radius:6px;">Buka Tiket →</a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+            <span style="font-size:11px;color:#94a3b8;">Notifikasi otomatis dari {safe_site} — jangan balas email ini</span>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+        email_msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_body,
+            to=recipients,
+        )
+        email_msg.attach_alternative(html_body, "text/html")
+        email_msg.send(fail_silently=False)
+
+        logger.info(
+            "Email notif sent for case %s to %d recipient(s)",
+            case.case_number, len(recipients),
+        )
+        return "success"
+
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        logger.error("send_new_ticket_email_notif_task failed: %s", exc)
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:

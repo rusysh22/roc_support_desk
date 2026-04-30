@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py makemigrations core --name=\"add_teams_and_notification_config\")",
+      "Bash(echo \"EXIT:$?\")",
+      "PowerShell(Get-Command python3, py, python -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"C:\\\\Users\\\\MShubkhi\\\\Documents\\\\Python314\\\\python.exe\" -c \"import django; print\\(django.__version__\\)\" 2>&1)",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\\\\tasks.py\"\\).Count)"
+    ]
+  }
+}

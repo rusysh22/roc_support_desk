@@ -279,6 +279,9 @@ class RequestAccountView(View):
             channel=Message.Channel.WEB,
         )
 
+        from gateways.tasks import _dispatch_new_ticket_notifs
+        _dispatch_new_ticket_notifs(str(case.id))
+
         cache.set(cache_key, attempts + 1, timeout=300)
 
         return render(request, self.template_name, {

@@ -519,6 +519,142 @@ class EmailConfig(AuditableModel):
 
 
 # =====================================================================
+# Teams Integration Configuration
+# =====================================================================
+
+class TeamsConfig(AuditableModel):
+    """
+    Singleton model for Microsoft Teams integration settings.
+    Supports both 1-way (Incoming Webhook, free) and 2-way (Bot Framework, paid/Azure).
+    """
+    # --- 1-WAY: Incoming Webhook (free) ---
+    incoming_webhook_url = EncryptedCharField(
+        max_length=1000, blank=True, null=True,
+        verbose_name="Incoming Webhook URL",
+        help_text="From Teams channel → Connectors → Incoming Webhook",
+    )
+    is_notification_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable Teams Notifications",
+    )
+
+    # --- 2-WAY: Bot Framework (requires Azure subscription) ---
+    is_bot_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable Teams Bot (2-Way)",
+    )
+    bot_app_id = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Bot App ID",
+        help_text="Azure Bot Service App ID (GUID)",
+    )
+    bot_app_password = EncryptedCharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Bot App Password / Client Secret",
+    )
+    tenant_id = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Azure Tenant ID",
+    )
+    bot_webhook_secret = EncryptedCharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Bot Webhook Secret",
+        help_text="Used to verify inbound webhook requests from Teams",
+    )
+    service_url = models.CharField(
+        max_length=500, blank=True, null=True,
+        verbose_name="Service URL",
+        help_text="Auto-filled from first incoming Teams Bot message — do not edit manually",
+    )
+
+    class Meta:
+        verbose_name = "Teams Configuration"
+        verbose_name_plural = "Teams Configuration"
+
+    def save(self, *args, **kwargs):
+        if TeamsConfig.objects.exclude(pk=self.pk).exists():
+            TeamsConfig.objects.exclude(pk=self.pk).delete()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.first()
+        if not obj:
+            obj = cls.objects.create()
+        return obj
+
+    def __str__(self):
+        return "Teams Configuration"
+
+
+# =====================================================================
+# Notification Channel Configuration
+# =====================================================================
+
+class NotificationConfig(AuditableModel):
+    """
+    Singleton model that controls which channels receive internal notifications
+    when a new support ticket is created.
+    """
+    # Channel toggles
+    notify_new_ticket_email = models.BooleanField(
+        default=False,
+        verbose_name="Email Notification",
+    )
+    notify_new_ticket_whatsapp = models.BooleanField(
+        default=False,
+        verbose_name="WhatsApp Notification",
+    )
+    notify_new_ticket_teams = models.BooleanField(
+        default=False,
+        verbose_name="Teams Notification",
+    )
+
+    # Email: comma-separated addresses of internal recipients
+    email_recipients = models.TextField(
+        blank=True,
+        verbose_name="Email Recipients",
+        help_text="Comma-separated email addresses, e.g. agen1@corp.com, agen2@corp.com",
+    )
+
+    # WhatsApp: comma-separated E.164 phone numbers of internal recipients
+    whatsapp_recipients = models.TextField(
+        blank=True,
+        verbose_name="WhatsApp Recipients",
+        help_text="Comma-separated numbers in E.164 format, e.g. 628123456789, 628987654321",
+    )
+
+    class Meta:
+        verbose_name = "Notification Configuration"
+        verbose_name_plural = "Notification Configuration"
+
+    def save(self, *args, **kwargs):
+        if NotificationConfig.objects.exclude(pk=self.pk).exists():
+            NotificationConfig.objects.exclude(pk=self.pk).delete()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.first()
+        if not obj:
+            obj = cls.objects.create()
+        return obj
+
+    def get_email_recipients_list(self):
+        if not self.email_recipients:
+            return []
+        return [e.strip() for e in self.email_recipients.split(',') if e.strip()]
+
+    def get_whatsapp_recipients_list(self):
+        if not self.whatsapp_recipients:
+            return []
+        return [p.strip() for p in self.whatsapp_recipients.split(',') if p.strip()]
+
+    def __str__(self):
+        return "Notification Configuration"
+
+
+# =====================================================================
 # Dynamic Form Creator
 # =====================================================================
 
