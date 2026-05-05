@@ -140,6 +140,7 @@ class CaseCreateForm(forms.Form):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/x-ole-storage",  # .xls legacy Excel 97-2003 (detected by magic bytes)
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "text/plain", "text/csv",
