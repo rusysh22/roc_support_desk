@@ -219,6 +219,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         user.save()
 
+        # Save the SocialAccount record so respond_user_inactive can find it
+        sociallogin.save(request)
+
         ticket = self._create_whitelist_ticket(user, provider, full_name)
 
         # Store info so pending page can display it
