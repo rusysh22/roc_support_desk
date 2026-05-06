@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Akun Menunggu Persetujuan — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}Account Pending Approval — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}SSO Pending Approval{% endblock %}
 {% block main_class %}full-width{% endblock %}
 
@@ -8,7 +8,7 @@
 
 {% if site_config.login_theme == "theme2" %}
 <!-- ================================================================== -->
-<!-- TEMA 2 — SSO Pending: Light centered card                           -->
+<!-- THEME 2 — SSO Pending: Light centered card                          -->
 <!-- ================================================================== -->
 <div class="min-h-screen flex items-center justify-center px-6 py-12" style="background-color: #f5f5f5;">
     <div class="w-full max-w-md">
@@ -37,14 +37,14 @@
                 </div>
             </div>
 
-            <h1 class="text-xl font-bold text-center mb-1" style="color:#111;">Menunggu Persetujuan</h1>
+            <h1 class="text-xl font-bold text-center mb-1" style="color:#111;">Pending Approval</h1>
             <p class="text-sm text-center mb-6" style="color:#888;">
-                Akun SSO Anda sudah terdaftar, namun belum aktif.
+                Your SSO account has been registered but is not yet active.
             </p>
 
             {% if pending_name %}
             <div class="rounded-xl px-4 py-3 mb-4" style="background:#f8f9fa; border:1px solid #eee;">
-                <p class="text-xs font-semibold mb-1" style="color:#999;">Nama</p>
+                <p class="text-xs font-semibold mb-1" style="color:#999;">Name</p>
                 <p class="text-sm font-medium" style="color:#333;">{{ pending_name }}</p>
             </div>
             {% endif %}
@@ -56,15 +56,15 @@
 
             {% if pending_ticket %}
             <div class="rounded-xl px-4 py-3 mb-6" style="background:#eff6ff; border:1px solid #bfdbfe;">
-                <p class="text-xs font-semibold mb-1" style="color:#3b82f6;">Nomor Tiket Whitelist</p>
+                <p class="text-xs font-semibold mb-1" style="color:#3b82f6;">Whitelist Ticket</p>
                 <p class="text-lg font-bold font-mono" style="color:#1d4ed8;">{{ pending_ticket }}</p>
-                <p class="text-xs mt-1" style="color:#6b7280;">Tiket ini telah diteruskan ke administrator untuk proses whitelist.</p>
+                <p class="text-xs mt-1" style="color:#6b7280;">This ticket has been forwarded to an administrator for access review.</p>
             </div>
             {% endif %}
 
             <div class="rounded-xl px-4 py-3 mb-6 text-sm" style="background:#fff7ed; border:1px solid #fed7aa; color:#92400e; line-height:1.6;">
-                Akun Anda akan diaktifkan setelah administrator memverifikasi dan menyetujui permintaan akses.
-                Hubungi administrator jika membutuhkan bantuan.
+                Your account will be activated once an administrator reviews and approves your access request.
+                Please contact your administrator if you need assistance.
             </div>
 
             {% if site_config.contact_info %}
@@ -75,7 +75,7 @@
 
             <a href="{% url 'login' %}" class="block w-full text-center rounded-full py-3 text-sm font-bold transition-all"
                style="background:#4c1d95; color:#fff;">
-                Kembali ke Halaman Login
+                Back to Login
             </a>
         </div>
     </div>
@@ -83,7 +83,7 @@
 
 {% else %}
 <!-- ================================================================== -->
-<!-- TEMA 1 — SSO Pending: Dark split panel style                        -->
+<!-- THEME 1 — SSO Pending: Dark split panel style                       -->
 <!-- ================================================================== -->
 <div class="min-h-screen flex items-center justify-center px-4" style="background: linear-gradient(135deg, #1a0533 0%, #0f0a1e 50%, #0d0d1a 100%);">
     <div class="w-full max-w-md">
@@ -108,14 +108,14 @@
                 </div>
             </div>
 
-            <h1 class="text-xl font-bold text-center mb-1" style="color:#ffffff;">Menunggu Persetujuan</h1>
+            <h1 class="text-xl font-bold text-center mb-1" style="color:#ffffff;">Pending Approval</h1>
             <p class="text-sm text-center mb-6" style="color:#aaaaaa;">
-                Akun SSO Anda sudah terdaftar, namun belum aktif.
+                Your SSO account has been registered but is not yet active.
             </p>
 
             {% if pending_name %}
             <div class="rounded-xl px-4 py-3 mb-3" style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);">
-                <p class="text-xs font-semibold mb-1" style="color:#888;">Nama</p>
+                <p class="text-xs font-semibold mb-1" style="color:#888;">Name</p>
                 <p class="text-sm font-medium" style="color:#fff;">{{ pending_name }}</p>
             </div>
             {% endif %}
@@ -127,15 +127,15 @@
 
             {% if pending_ticket %}
             <div class="rounded-xl px-4 py-3 mb-5" style="background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.35);">
-                <p class="text-xs font-semibold mb-1" style="color:#60a5fa;">Nomor Tiket Whitelist</p>
+                <p class="text-xs font-semibold mb-1" style="color:#60a5fa;">Whitelist Ticket</p>
                 <p class="text-lg font-bold font-mono" style="color:#93c5fd;">{{ pending_ticket }}</p>
-                <p class="text-xs mt-1" style="color:#888;">Tiket ini telah diteruskan ke administrator untuk proses whitelist.</p>
+                <p class="text-xs mt-1" style="color:#888;">This ticket has been forwarded to an administrator for access review.</p>
             </div>
             {% endif %}
 
             <div class="rounded-xl px-4 py-3 mb-6 text-sm" style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color:#fcd34d; line-height:1.6;">
-                Akun Anda akan diaktifkan setelah administrator memverifikasi dan menyetujui permintaan akses.
-                Hubungi administrator jika membutuhkan bantuan.
+                Your account will be activated once an administrator reviews and approves your access request.
+                Please contact your administrator if you need assistance.
             </div>
 
             {% if site_config.contact_info %}
@@ -147,7 +147,7 @@
             <a href="{% url 'login' %}"
                class="block w-full text-center font-bold rounded-2xl py-3.5 text-sm tracking-widest uppercase transition-all"
                style="background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%); color:#ffffff;">
-                Kembali ke Halaman Login
+                Back to Login
             </a>
         </div>
     </div>

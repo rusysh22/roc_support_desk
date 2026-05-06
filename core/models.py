@@ -434,7 +434,7 @@ class SSOConfig(AuditableModel):
     sso_enabled = models.BooleanField(
         default=False,
         verbose_name="Enable SSO",
-        help_text="Master switch — tampilkan tombol SSO di halaman login.",
+        help_text="Master switch — show SSO login buttons on the login page.",
     )
 
     # --- Microsoft ---
@@ -446,14 +446,14 @@ class SSOConfig(AuditableModel):
         max_length=200,
         blank=True,
         verbose_name="Microsoft Client ID (App ID)",
-        help_text="Application (client) ID dari Azure AD App Registration.",
+        help_text="Application (client) ID from Azure AD App Registration.",
     )
     microsoft_client_secret = EncryptedCharField(
         max_length=500,
         blank=True,
         default="",
         verbose_name="Microsoft Client Secret",
-        help_text="Client secret dari Azure AD App Registration (disimpan terenkripsi).",
+        help_text="Client secret from Azure AD App Registration (stored encrypted).",
     )
     microsoft_tenant_id = models.CharField(
         max_length=200,
@@ -461,9 +461,9 @@ class SSOConfig(AuditableModel):
         default="organizations",
         verbose_name="Microsoft Tenant ID",
         help_text=(
-            "'organizations' = semua akun Microsoft organisasi (work/school). "
-            "Isi dengan Tenant ID spesifik (UUID) untuk membatasi hanya ke satu organisasi. "
-            "'common' = semua akun Microsoft (termasuk personal)."
+            "'organizations' = any Microsoft work/school account. "
+            "Enter a specific Tenant UUID to restrict login to a single organisation. "
+            "'common' = any Microsoft account including personal."
         ),
     )
 
@@ -476,23 +476,23 @@ class SSOConfig(AuditableModel):
         max_length=200,
         blank=True,
         verbose_name="Google Client ID",
-        help_text="Client ID dari Google Cloud Console OAuth 2.0.",
+        help_text="Client ID from Google Cloud Console OAuth 2.0 credentials.",
     )
     google_client_secret = EncryptedCharField(
         max_length=500,
         blank=True,
         default="",
         verbose_name="Google Client Secret",
-        help_text="Client secret dari Google Cloud Console (disimpan terenkripsi).",
+        help_text="Client secret from Google Cloud Console (stored encrypted).",
     )
     google_allowed_domains = models.CharField(
         max_length=500,
         blank=True,
         verbose_name="Google Allowed Domains",
         help_text=(
-            "Domain email yang diizinkan login via Google SSO, pisah koma "
-            "(contoh: perusahaan.com,group.co.id). "
-            "Kosongkan untuk mengizinkan semua domain Google."
+            "Comma-separated list of allowed email domains for Google SSO "
+            "(e.g. company.com,subsidiary.co.id). "
+            "Leave blank to allow any Google account."
         ),
     )
 
@@ -502,10 +502,10 @@ class SSOConfig(AuditableModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        verbose_name="Kategori Tiket Whitelist SSO",
+        verbose_name="SSO Whitelist Ticket Category",
         help_text=(
-            "Kategori tiket yang digunakan untuk permintaan whitelist akun SSO baru. "
-            "Jika kosong, sistem akan membuat/menggunakan kategori 'SSO Access Request' secara otomatis."
+            "Ticket category used for new SSO user whitelist requests. "
+            "If left blank, the system will automatically use or create an 'SSO Access Request' category."
         ),
     )
 

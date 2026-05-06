@@ -101,7 +101,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             defaults={
                 "name": "SSO Access Request",
                 "prefix_code": "SR",
-                "description": "Permintaan akses untuk pengguna baru yang login via SSO.",
+                "description": "Tickets for new users who signed in via SSO and are awaiting whitelist approval.",
                 "icon": "🔑",
             },
         )
@@ -115,16 +115,16 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         ticket = CaseRecord.objects.create(
             category=category,
-            subject=f"[SSO] Permintaan Whitelist Akun — {full_name or user.email}",
+            subject=f"[SSO] Whitelist Request — {full_name or user.email}",
             problem_description=(
-                f"Pengguna baru berhasil autentikasi melalui SSO ({provider_label}) "
-                f"namun belum mendapatkan akses ke sistem.\n\n"
-                f"Detail Akun:\n"
-                f"  • Nama     : {full_name or '-'}\n"
+                f"A new user successfully authenticated via SSO ({provider_label}) "
+                f"but does not yet have access to the system.\n\n"
+                f"Account Details:\n"
+                f"  • Name     : {full_name or '-'}\n"
                 f"  • Email    : {user.email}\n"
                 f"  • Provider : {provider_label}\n"
-                f"  • Status   : Non-Aktif (menunggu whitelist)\n\n"
-                f"Mohon tinjau dan aktifkan akun ini dari User Management jika sesuai."
+                f"  • Status   : Inactive (pending whitelist)\n\n"
+                f"Please review and activate this account from User Management if appropriate."
             ),
             requester_email=user.email,
             requester_name=full_name or user.email,
@@ -132,7 +132,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             source=CaseRecord.Source.WEBFORM,
             priority=CaseRecord.Priority.MEDIUM,
             status=CaseRecord.Status.OPEN,
-            tags="sso-whitelist,akses-baru",
+            tags="sso-whitelist,new-access",
         )
         return ticket
 
@@ -146,18 +146,18 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         config = SSOConfig.get_solo()
 
         if not config.sso_enabled:
-            messages.error(request, "Login SSO saat ini tidak aktif.")
+            messages.error(request, "SSO login is currently disabled.")
             raise ImmediateHttpResponse(HttpResponseRedirect("/auth/login/"))
 
         provider = sociallogin.account.provider
 
         if provider == "microsoft" and not config.microsoft_enabled:
-            messages.error(request, "Login via Microsoft SSO tidak aktif.")
+            messages.error(request, "Microsoft SSO login is not enabled.")
             raise ImmediateHttpResponse(HttpResponseRedirect("/auth/login/"))
 
         if provider == "google":
             if not config.google_enabled:
-                messages.error(request, "Login via Google SSO tidak aktif.")
+                messages.error(request, "Google SSO login is not enabled.")
                 raise ImmediateHttpResponse(HttpResponseRedirect("/auth/login/"))
 
             if config.google_allowed_domains:
@@ -171,7 +171,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 if allowed and domain not in allowed:
                     messages.error(
                         request,
-                        f"Domain email '{domain}' tidak diizinkan untuk login SSO.",
+                        f"Email domain '{domain}' is not authorized for SSO login.",
                     )
                     raise ImmediateHttpResponse(HttpResponseRedirect("/auth/login/"))
 
@@ -182,7 +182,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         # Connect to existing core.User by email to avoid account takeover error
         email = self._get_email(sociallogin)
         if not email:
-            messages.error(request, "Tidak dapat membaca email dari akun SSO Anda.")
+            messages.error(request, "Could not retrieve your email address from the SSO provider.")
             raise ImmediateHttpResponse(HttpResponseRedirect("/auth/login/"))
 
         from django.contrib.auth import get_user_model
@@ -200,7 +200,6 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         User = get_user_model()
 
-        extra = sociallogin.account.extra_data
         provider = sociallogin.account.provider
         email = self._get_email(sociallogin)
         full_name = self._get_display_name(sociallogin)
@@ -227,7 +226,6 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         request.session["sso_pending_name"] = full_name or email
         request.session["sso_pending_ticket"] = ticket.case_number
 
-        # AuditLog
         try:
             from core.models import AuditLog
             from django_ipware import get_client_ip

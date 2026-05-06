@@ -156,11 +156,11 @@ class SiteConfigAdmin(ModelAdmin):
         ("Login Page", {
             "fields": ("login_theme", "login_image", "contact_info"),
             "description": (
-                "Pilih tema halaman login. "
-                "<strong>Tema 1</strong>: Classic purple split panel (default). "
-                "<strong>Tema 2</strong>: Modern — gambar besar di kiri dengan slideshow otomatis. "
-                "<em>Login Page Image</em> adalah gambar utama (fallback). "
-                "Tambahkan slide tambahan melalui <strong>Login Slide Images</strong> di bawah."
+                "Select the login page theme. "
+                "<strong>Theme 1</strong>: Classic purple split panel (default). "
+                "<strong>Theme 2</strong>: Modern — large image on the left with automatic slideshow. "
+                "<em>Login Page Image</em> is the primary image (fallback). "
+                "Add more slides via <strong>Login Slide Images</strong> below."
             ),
         }),
         ("Portal Settings", {
@@ -203,8 +203,8 @@ class SSOConfigAdmin(ModelAdmin):
             {
                 "fields": ("sso_enabled",),
                 "description": (
-                    "Aktifkan atau matikan seluruh fitur SSO. "
-                    "Jika dimatikan, tombol SSO tidak muncul di halaman login."
+                    "Enable or disable the entire SSO feature. "
+                    "When disabled, SSO buttons will not appear on the login page."
                 ),
             },
         ),
@@ -218,12 +218,12 @@ class SSOConfigAdmin(ModelAdmin):
                     "microsoft_tenant_id",
                 ),
                 "description": (
-                    "Dapatkan Client ID, Secret, dan Tenant ID dari "
+                    "Obtain the Client ID, Secret, and Tenant ID from "
                     "<strong>Azure Portal → App Registrations</strong>. "
-                    "Redirect URI yang harus didaftarkan: "
+                    "Redirect URI to register: "
                     "<code>https://&lt;domain&gt;/accounts/microsoft/login/callback/</code>. "
-                    "Tenant ID: isi <code>organizations</code> untuk semua akun Microsoft organisasi, "
-                    "atau UUID tenant spesifik untuk membatasi ke satu organisasi."
+                    "Tenant ID: use <code>organizations</code> for any Microsoft work/school account, "
+                    "or enter a specific Tenant UUID to restrict to a single organisation."
                 ),
             },
         ),
@@ -237,12 +237,12 @@ class SSOConfigAdmin(ModelAdmin):
                     "google_allowed_domains",
                 ),
                 "description": (
-                    "Dapatkan Client ID dan Secret dari "
-                    "<strong>Google Cloud Console → APIs & Services → Credentials</strong>. "
-                    "Redirect URI yang harus didaftarkan: "
+                    "Obtain the Client ID and Secret from "
+                    "<strong>Google Cloud Console → APIs &amp; Services → Credentials</strong>. "
+                    "Redirect URI to register: "
                     "<code>https://&lt;domain&gt;/accounts/google/login/callback/</code>. "
-                    "Allowed Domains: kosongkan untuk semua domain Google, atau isi domain "
-                    "organisasi (contoh: <code>perusahaan.com</code>)."
+                    "Allowed Domains: leave blank to allow any Google account, or enter your "
+                    "organisation's domain (e.g. <code>company.com</code>)."
                 ),
             },
         ),
@@ -251,9 +251,8 @@ class SSOConfigAdmin(ModelAdmin):
             {
                 "fields": ("sso_whitelist_category",),
                 "description": (
-                    "Kategori tiket yang digunakan saat pengguna SSO baru mendaftar dan "
-                    "membutuhkan whitelist. Jika kosong, sistem akan otomatis membuat "
-                    "kategori 'SSO Access Request'."
+                    "Ticket category used when a new SSO user registers and requires whitelisting. "
+                    "If left blank, the system will automatically create or reuse the 'SSO Access Request' category."
                 ),
             },
         ),
