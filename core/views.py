@@ -505,7 +505,32 @@ class CompanyUnitDeleteView(FeatureRequiredMixin, SuperAdminRequiredMixin, Delet
     model = CompanyUnit
     template_name = 'core/company_unit_confirm_delete.html'
     success_url = reverse_lazy('desk:company_unit_list')
-    
+
     def delete(self, request, *args, **kwargs):
         messages.success(self.request, "Company unit deleted successfully")
         return super().delete(request, *args, **kwargs)
+
+
+# =====================================================================
+# SSO Pending Whitelist View
+# =====================================================================
+
+def sso_pending_view(request):
+    """
+    Shown after a new SSO user logs in for the first time.
+    Their account is created as inactive; a whitelist ticket is auto-generated.
+    This page confirms the status and shows the ticket number.
+    """
+    email = request.session.get("sso_pending_email", "")
+    name = request.session.get("sso_pending_name", "")
+    ticket = request.session.get("sso_pending_ticket", "")
+
+    # If someone navigates here directly without going through SSO, redirect to login
+    if not email:
+        return redirect("login")
+
+    return render(request, "registration/sso_pending.html", {
+        "pending_email": email,
+        "pending_name": name,
+        "pending_ticket": ticket,
+    })

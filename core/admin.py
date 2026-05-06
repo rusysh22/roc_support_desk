@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, OTPToken, LoginSlideImage
+from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage
 
 
 # =====================================================================
@@ -185,6 +185,106 @@ class SiteConfigAdmin(ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Prevent deleting the single instance
         return False
+
+
+# =====================================================================
+# SSO Configuration Admin
+# =====================================================================
+
+@admin.register(SSOConfig)
+class SSOConfigAdmin(ModelAdmin):
+    """Admin configuration for SSOConfig — single sign-on provider settings."""
+
+    list_display = ("__str__", "sso_enabled", "microsoft_enabled", "google_enabled", "updated_at")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    fieldsets = (
+        (
+            "Master Switch",
+            {
+                "fields": ("sso_enabled",),
+                "description": (
+                    "Aktifkan atau matikan seluruh fitur SSO. "
+                    "Jika dimatikan, tombol SSO tidak muncul di halaman login."
+                ),
+            },
+        ),
+        (
+            "Microsoft SSO",
+            {
+                "fields": (
+                    "microsoft_enabled",
+                    "microsoft_client_id",
+                    "microsoft_client_secret",
+                    "microsoft_tenant_id",
+                ),
+                "description": (
+                    "Dapatkan Client ID, Secret, dan Tenant ID dari "
+                    "<strong>Azure Portal → App Registrations</strong>. "
+                    "Redirect URI yang harus didaftarkan: "
+                    "<code>https://&lt;domain&gt;/accounts/microsoft/login/callback/</code>. "
+                    "Tenant ID: isi <code>organizations</code> untuk semua akun Microsoft organisasi, "
+                    "atau UUID tenant spesifik untuk membatasi ke satu organisasi."
+                ),
+            },
+        ),
+        (
+            "Google SSO",
+            {
+                "fields": (
+                    "google_enabled",
+                    "google_client_id",
+                    "google_client_secret",
+                    "google_allowed_domains",
+                ),
+                "description": (
+                    "Dapatkan Client ID dan Secret dari "
+                    "<strong>Google Cloud Console → APIs & Services → Credentials</strong>. "
+                    "Redirect URI yang harus didaftarkan: "
+                    "<code>https://&lt;domain&gt;/accounts/google/login/callback/</code>. "
+                    "Allowed Domains: kosongkan untuk semua domain Google, atau isi domain "
+                    "organisasi (contoh: <code>perusahaan.com</code>)."
+                ),
+            },
+        ),
+        (
+            "Whitelist Ticket",
+            {
+                "fields": ("sso_whitelist_category",),
+                "description": (
+                    "Kategori tiket yang digunakan saat pengguna SSO baru mendaftar dan "
+                    "membutuhkan whitelist. Jika kosong, sistem akan otomatis membuat "
+                    "kategori 'SSO Access Request'."
+                ),
+            },
+        ),
+        (
+            "Audit",
+            {
+                "fields": ("id", "created_at", "updated_at", "created_by", "updated_by"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def has_add_permission(self, request):
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        # Reload provider settings after save so changes take effect on next restart
+        try:
+            from core.apps import CoreConfig
+            CoreConfig("core", CoreConfig)._load_sso_providers()
+        except Exception:
+            pass
 
 
 # =====================================================================

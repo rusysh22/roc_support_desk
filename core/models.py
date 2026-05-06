@@ -422,6 +422,120 @@ class SiteConfig(AuditableModel):
 
 
 # =====================================================================
+# SSO Configuration
+# =====================================================================
+
+class SSOConfig(AuditableModel):
+    """
+    Singleton configuration for SSO login via Microsoft and Google accounts.
+    Toggle each provider independently; credentials are encrypted at rest.
+    """
+
+    sso_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable SSO",
+        help_text="Master switch — tampilkan tombol SSO di halaman login.",
+    )
+
+    # --- Microsoft ---
+    microsoft_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable Microsoft SSO",
+    )
+    microsoft_client_id = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Microsoft Client ID (App ID)",
+        help_text="Application (client) ID dari Azure AD App Registration.",
+    )
+    microsoft_client_secret = EncryptedCharField(
+        max_length=500,
+        blank=True,
+        default="",
+        verbose_name="Microsoft Client Secret",
+        help_text="Client secret dari Azure AD App Registration (disimpan terenkripsi).",
+    )
+    microsoft_tenant_id = models.CharField(
+        max_length=200,
+        blank=True,
+        default="organizations",
+        verbose_name="Microsoft Tenant ID",
+        help_text=(
+            "'organizations' = semua akun Microsoft organisasi (work/school). "
+            "Isi dengan Tenant ID spesifik (UUID) untuk membatasi hanya ke satu organisasi. "
+            "'common' = semua akun Microsoft (termasuk personal)."
+        ),
+    )
+
+    # --- Google ---
+    google_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable Google SSO",
+    )
+    google_client_id = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Google Client ID",
+        help_text="Client ID dari Google Cloud Console OAuth 2.0.",
+    )
+    google_client_secret = EncryptedCharField(
+        max_length=500,
+        blank=True,
+        default="",
+        verbose_name="Google Client Secret",
+        help_text="Client secret dari Google Cloud Console (disimpan terenkripsi).",
+    )
+    google_allowed_domains = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Google Allowed Domains",
+        help_text=(
+            "Domain email yang diizinkan login via Google SSO, pisah koma "
+            "(contoh: perusahaan.com,group.co.id). "
+            "Kosongkan untuk mengizinkan semua domain Google."
+        ),
+    )
+
+    # --- Whitelist Ticket ---
+    sso_whitelist_category = models.ForeignKey(
+        "cases.CaseCategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Kategori Tiket Whitelist SSO",
+        help_text=(
+            "Kategori tiket yang digunakan untuk permintaan whitelist akun SSO baru. "
+            "Jika kosong, sistem akan membuat/menggunakan kategori 'SSO Access Request' secara otomatis."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "SSO Configuration"
+        verbose_name_plural = "SSO Configuration"
+
+    def save(self, *args, **kwargs):
+        if SSOConfig.objects.exclude(pk=self.pk).exists():
+            SSOConfig.objects.exclude(pk=self.pk).delete()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.first()
+        if not obj:
+            obj = cls.objects.create()
+        return obj
+
+    def __str__(self):
+        providers = []
+        if self.microsoft_enabled:
+            providers.append("Microsoft")
+        if self.google_enabled:
+            providers.append("Google")
+        status = ", ".join(providers) if providers else "Disabled"
+        return f"SSO Config — {status}"
+
+
+# =====================================================================
 # User Feedback
 # =====================================================================
 

@@ -43,8 +43,12 @@ urlpatterns = [
     path("auth/forgot-password/", core_views.ForgotPasswordView.as_view(), name="forgot_password"),
     path("auth/reset-password/", core_views.ResetPasswordOTPView.as_view(), name="reset_password_otp"),
     path("auth/change-password/", core_views.ForceChangePasswordView.as_view(), name="force_change_password"),
+    path("auth/sso-pending/", core_views.sso_pending_view, name="sso_pending"),
     path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm, redirect_authenticated_user=True), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
+
+    # SSO OAuth2 callbacks (allauth)
+    path("accounts/", include("allauth.urls")),
 
     # Help & About (any logged-in user)
     path("help/", core_views.help_and_about, name="help_about"),

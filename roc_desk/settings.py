@@ -48,6 +48,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
+
+    # SSO — allauth
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.microsoft",
+    "allauth.socialaccount.providers.google",
+
     # Project apps
     "core.apps.CoreConfig",
     "cases.apps.CasesConfig",
@@ -59,6 +68,8 @@ INSTALLED_APPS = [
     # Field-level encryption
     "encrypted_model_fields",
 ]
+
+SITE_ID = 1
 
 from django.utils.functional import lazy
 def get_admin_site_name_for_unfold():
@@ -109,6 +120,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.ContentSecurityPolicyMiddleware",
@@ -275,6 +287,29 @@ X_FRAME_OPTIONS = "DENY"
 # --- Session Expiry ---
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# -----------------------------------------------------------------
+# allauth — SSO (Microsoft & Google)
+# -----------------------------------------------------------------
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "core.adapters.SocialAccountAdapter"
+
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
+# Provider credentials and tenant/domain settings are loaded dynamically
+# from SSOConfig (DB singleton) at app startup in core.apps.CoreConfig.ready().
+SOCIALACCOUNT_PROVIDERS = {}
 
 # --- Install key (used by licensing fingerprint — separate from SECRET_KEY) ---
 INSTALL_KEY = env("INSTALL_KEY", default="")
