@@ -311,6 +311,18 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 # from SSOConfig (DB singleton) at app startup in core.apps.CoreConfig.ready().
 SOCIALACCOUNT_PROVIDERS = {}
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        "allauth": {"handlers": ["console"], "level": "DEBUG", "propagate": False},
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
+
 # --- Install key (used by licensing fingerprint — separate from SECRET_KEY) ---
 INSTALL_KEY = env("INSTALL_KEY", default="")
 

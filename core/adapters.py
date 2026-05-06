@@ -247,5 +247,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         return user
 
+    def is_open_for_signup(self, request, sociallogin):
+        return True
+
     def is_auto_signup_allowed(self, request, sociallogin):
         return True
