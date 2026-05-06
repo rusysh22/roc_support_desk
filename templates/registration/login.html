@@ -563,7 +563,7 @@
             </form>
 
             <!-- SSO Login (Theme 2) -->
-            {% if sso_config.sso_enabled and sso_config.microsoft_enabled or sso_config.sso_enabled and sso_config.google_enabled %}
+            {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id or sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
             <div class="mt-6">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="flex-1 h-px" style="background:#e8e8e8;"></div>
@@ -571,7 +571,7 @@
                     <div class="flex-1 h-px" style="background:#e8e8e8;"></div>
                 </div>
                 <div class="flex flex-col gap-2.5">
-                    {% if sso_config.sso_enabled and sso_config.microsoft_enabled %}
+                    {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id %}
                     <a href="/accounts/microsoft/login/?process=login"
                        class="flex items-center justify-center gap-3 rounded-2xl py-3 text-sm font-semibold transition-all"
                        style="background:#ffffff; border:1.5px solid #e2e2e2; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,0.06);"
@@ -586,7 +586,7 @@
                         Continue with Microsoft
                     </a>
                     {% endif %}
-                    {% if sso_config.sso_enabled and sso_config.google_enabled %}
+                    {% if sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
                     <a href="/accounts/google/login/?process=login"
                        class="flex items-center justify-center gap-3 rounded-2xl py-3 text-sm font-semibold transition-all"
                        style="background:#ffffff; border:1.5px solid #e2e2e2; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,0.06);"
@@ -792,7 +792,7 @@
             </form>
 
             <!-- SSO Login (Theme 1) -->
-            {% if sso_config.sso_enabled and sso_config.microsoft_enabled or sso_config.sso_enabled and sso_config.google_enabled %}
+            {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id or sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
             <div class="mt-6">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="flex-1 h-px bg-slate-200"></div>
@@ -800,7 +800,7 @@
                     <div class="flex-1 h-px bg-slate-200"></div>
                 </div>
                 <div class="flex flex-col gap-2.5">
-                    {% if sso_config.sso_enabled and sso_config.microsoft_enabled %}
+                    {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id %}
                     <a href="/accounts/microsoft/login/?process=login"
                        class="flex items-center justify-center gap-3 rounded-xl py-3 text-sm font-semibold transition-all text-slate-700 bg-white shadow-sm"
                        style="border:1.5px solid #e2e8f0;"
@@ -815,7 +815,7 @@
                         Continue with Microsoft
                     </a>
                     {% endif %}
-                    {% if sso_config.sso_enabled and sso_config.google_enabled %}
+                    {% if sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
                     <a href="/accounts/google/login/?process=login"
                        class="flex items-center justify-center gap-3 rounded-xl py-3 text-sm font-semibold transition-all text-slate-700 bg-white shadow-sm"
                        style="border:1.5px solid #e2e8f0;"
