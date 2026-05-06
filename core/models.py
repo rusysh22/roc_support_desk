@@ -517,6 +517,41 @@ class SSOConfig(AuditableModel):
         if SSOConfig.objects.exclude(pk=self.pk).exists():
             SSOConfig.objects.exclude(pk=self.pk).delete()
         super().save(*args, **kwargs)
+        self._sync_providers_to_settings()
+
+    def _sync_providers_to_settings(self):
+        """Update SOCIALACCOUNT_PROVIDERS in-memory so changes take effect without restart."""
+        try:
+            from django.conf import settings
+
+            providers = {}
+            if self.microsoft_enabled and self.microsoft_client_id:
+                providers["microsoft"] = {
+                    "TENANT": self.microsoft_tenant_id or "organizations",
+                    "APP": {
+                        "client_id": self.microsoft_client_id,
+                        "secret": self.microsoft_client_secret or "",
+                        "key": "",
+                    },
+                }
+            if self.google_enabled and self.google_client_id:
+                google_cfg = {
+                    "APP": {
+                        "client_id": self.google_client_id,
+                        "secret": self.google_client_secret or "",
+                        "key": "",
+                    },
+                    "SCOPE": ["profile", "email"],
+                    "AUTH_PARAMS": {"access_type": "online"},
+                }
+                if self.google_allowed_domains:
+                    domains = [d.strip() for d in self.google_allowed_domains.split(",") if d.strip()]
+                    if domains:
+                        google_cfg["HOSTED_DOMAIN"] = domains[0]
+                providers["google"] = google_cfg
+            settings.SOCIALACCOUNT_PROVIDERS = providers
+        except Exception:
+            pass
 
     @classmethod
     def get_solo(cls):
