@@ -106,18 +106,12 @@
             </span>
             {% endif %}
             <!-- New User -->
-            {% if agent_limit_reached %}
-            <span title="Agent limit reached ({{ current_agents }}/{{ max_agents }}). Upgrade your license to add more agents."
-                  class="jk-btn py-2 px-4 text-sm whitespace-nowrap bg-slate-200 text-slate-400 cursor-not-allowed select-none">
-                <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                New User
-            </span>
-            {% else %}
-            <a href="{% url 'users_desk:user_create' %}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap">
+            <a href="{% url 'users_desk:user_create' %}"
+               class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap"
+               {% if agent_limit_reached %}title="Agent limit reached ({{ current_agents }}/{{ max_agents }}). Non-agent roles (Auditor, PortalUser, SuperAdmin) can still be created."{% endif %}>
                 <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 New User
             </a>
-            {% endif %}
         </div>
     </div>
 
@@ -219,6 +213,7 @@
                         <th>User</th>
                         <th>Login ID &amp; NIK</th>
                         <th>Role</th>
+                        <th>Status</th>
                         <th>Confidential</th>
                         <th class="text-right">Actions</th>
                     </tr>
@@ -262,6 +257,19 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if u.is_active %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                                    Aktif
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
+                                    Non-aktif
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
                             {% if u.can_handle_confidential %}
                                 <span class="text-green-600 text-sm font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Yes</span>
                             {% else %}
@@ -275,17 +283,19 @@
                                 </a>
                                 {% if request.user != u %}
                                     {% if u.is_active %}
-                                    <form method="post" action="{% url 'users_desk:user_archive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Archive User: {{ u.login_username }}?');">
+                                    <form method="post" action="{% url 'users_desk:user_archive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Non-aktifkan user: {{ u.login_username|escapejs }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Archive User">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors" title="Non-aktifkan User">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                                            Non-aktif
                                         </button>
                                     </form>
                                     {% else %}
-                                    <form method="post" action="{% url 'users_desk:user_unarchive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Unarchive User: {{ u.login_username }}?');">
+                                    <form method="post" action="{% url 'users_desk:user_unarchive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Aktifkan user: {{ u.login_username|escapejs }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Unarchive User">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors" title="Aktifkan User">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            Aktifkan
                                         </button>
                                     </form>
                                     {% endif %}
@@ -301,7 +311,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-slate-600">
+                        <td colspan="8" class="px-6 py-10 text-center text-slate-600">
                             {% if search_query or role_filter %}
                             No users found matching your filters.
                             {% else %}
@@ -322,7 +332,7 @@
             </span>
             <div class="flex items-center gap-1">
                 {% if users.has_previous %}
-                    <a href="?page={{ users.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
+                    <a href="?page={{ users.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}{% if status_filter != "active" %}&status={{ status_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </a>
                 {% endif %}
@@ -330,11 +340,11 @@
                     {% if users.number == i %}
                         <span class="px-3 py-1 bg-indigo-50 text-indigo-600 font-semibold rounded-lg text-sm">{{ i }}</span>
                     {% elif i > users.number|add:'-3' and i < users.number|add:'3' %}
-                        <a href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="px-3 py-1 text-slate-600 hover:bg-slate-50 font-medium rounded-lg text-sm transition-colors">{{ i }}</a>
+                        <a href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}{% if status_filter != "active" %}&status={{ status_filter }}{% endif %}" class="px-3 py-1 text-slate-600 hover:bg-slate-50 font-medium rounded-lg text-sm transition-colors">{{ i }}</a>
                     {% endif %}
                 {% endfor %}
                 {% if users.has_next %}
-                    <a href="?page={{ users.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
+                    <a href="?page={{ users.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}{% if status_filter != "active" %}&status={{ status_filter }}{% endif %}" class="p-1 text-slate-600 hover:text-indigo-600 rounded">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </a>
                 {% endif %}

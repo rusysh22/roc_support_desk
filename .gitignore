@@ -51,3 +51,11 @@ LICENSE_SYSTEM.md
 SECURITY_PLAN.md
 MAPS_PLAN.md
 TEAMS_INTEGRATION_PLAN.md
+
+# Internal proposals & personal documents (not for the repo)
+proposal_*.md
+proposal_*.txt
+
+# Demo / Seed scripts
+seed_demo.py
+seed_*.py

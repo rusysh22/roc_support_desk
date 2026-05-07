@@ -12,7 +12,17 @@
       "Bash(Format-Table FullName)",
       "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\")",
       "Bash(python manage.py makemigrations core --name=\"add_parent_to_companyunit\")",
-      "Bash(python manage.py showmigrations core)"
+      "Bash(python manage.py showmigrations core)",
+      "Bash(rtk proxy *)",
+      "Bash(rtk git *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk find *)",
+      "Bash(python3 manage.py showmigrations core)",
+      "Bash(rtk ls *)",
+      "Bash(python3 -c \"import sys; print\\(sys.path\\)\")",
+      "Bash(rtk docker *)",
+      "Bash(docker-compose ps *)",
+      "Bash(docker compose *)"
     ]
   }
 }

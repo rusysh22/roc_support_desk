@@ -143,13 +143,15 @@ def user_create(request):
 def user_edit(request, pk):
     """Edit an existing user."""
     user_obj = get_object_or_404(User, pk=pk)
+    # Read old_role BEFORE form.is_valid() — Django's _post_clean() updates
+    # user_obj's fields in-place, so reading after is_valid() gives the new value.
+    old_role = user_obj.role_access
     current_agents, max_agents = _get_agent_limit()
 
     if request.method == "POST":
         form = UserAdminForm(request.POST, instance=user_obj)
         if form.is_valid():
             new_role = form.cleaned_data.get('role_access')
-            old_role = user_obj.role_access
             # Only check limit when promoting a non-agent to an agent role
             if (new_role in AGENT_ROLES and old_role not in AGENT_ROLES
                     and max_agents is not None and current_agents >= max_agents):
@@ -368,7 +370,15 @@ def user_import(request):
     valid_roles = {r[0] for r in User.RoleAccess.choices}
     errors = []
 
+    seen_usernames = {}
+    seen_emails = {}
+    seen_niks = {}
+
     for i, row in enumerate(data_rows, start=2):  # start=2 because row 1 is header
+        # Skip entirely blank rows (Excel often appends these)
+        if all(cell is None for cell in row):
+            continue
+
         lu = get_col(row, "login_username")
         email = get_col(row, "email")
         nik = get_col(row, "nik")
@@ -387,13 +397,28 @@ def user_import(request):
         if role and role not in valid_roles:
             errors.append(f"Row {i}: invalid role_access '{role}'. Valid options: {', '.join(valid_roles)}.")
 
-        # Check for duplicates in the existing database
-        if lu and User.objects.filter(login_username=lu).exists():
-            errors.append(f"Row {i}: login_username '{lu}' already exists.")
-        if email and User.objects.filter(email=email).exists():
-            errors.append(f"Row {i}: email '{email}' already exists.")
-        if nik and User.objects.filter(nik=nik).exists():
-            errors.append(f"Row {i}: NIK '{nik}' already exists.")
+        # Check for duplicates within the file first, then against the database
+        if lu:
+            if lu in seen_usernames:
+                errors.append(f"Row {i}: login_username '{lu}' duplicates row {seen_usernames[lu]}.")
+            else:
+                seen_usernames[lu] = i
+                if User.objects.filter(login_username=lu).exists():
+                    errors.append(f"Row {i}: login_username '{lu}' already exists.")
+        if email:
+            if email in seen_emails:
+                errors.append(f"Row {i}: email '{email}' duplicates row {seen_emails[email]}.")
+            else:
+                seen_emails[email] = i
+                if User.objects.filter(email=email).exists():
+                    errors.append(f"Row {i}: email '{email}' already exists.")
+        if nik:
+            if nik in seen_niks:
+                errors.append(f"Row {i}: NIK '{nik}' duplicates row {seen_niks[nik]}.")
+            else:
+                seen_niks[nik] = i
+                if User.objects.filter(nik=nik).exists():
+                    errors.append(f"Row {i}: NIK '{nik}' already exists.")
 
     if errors:
         for err in errors:
@@ -424,6 +449,8 @@ def user_import(request):
     try:
         with transaction.atomic():
             for row in data_rows:
+                if all(cell is None for cell in row):
+                    continue
                 lu = get_col(row, "login_username")
                 confidence_raw = get_col(row, "can_handle_confidential").upper()
                 can_confidential = confidence_raw in ("TRUE", "1", "YES")
@@ -753,6 +780,17 @@ def user_import_update(request):
                     skipped += 1
                     continue
 
+                # Check agent limit when promoting a non-agent to an agent role
+                if (role and role in AGENT_ROLES and user_obj.role_access not in AGENT_ROLES):
+                    cur, mx = _get_agent_limit()
+                    if mx is not None and cur >= mx:
+                        warnings.append(
+                            f"Row {i}: cannot promote '{lu}' to '{role}' — "
+                            f"agent limit reached ({cur}/{mx}). Skipped."
+                        )
+                        skipped += 1
+                        continue
+
                 if "display_name" in header:
                     v = get_col(row, "display_name")
                     if v:
@@ -824,6 +862,18 @@ def user_bulk_unarchive(request):
         return redirect("users_desk:user_list")
 
     qs = User.objects.filter(pk__in=selected_ids)
+    current_agents, max_agents = _get_agent_limit()
+    if max_agents is not None:
+        new_agents = qs.filter(role_access__in=AGENT_ROLES, is_active=False).count()
+        if current_agents + new_agents > max_agents:
+            messages.error(
+                request,
+                f"Unarchiving would exceed your agent limit ({current_agents}/{max_agents}). "
+                f"This selection contains {new_agents} inactive agent-role user(s). "
+                "Upgrade your license or unarchive fewer users."
+            )
+            return redirect("users_desk:user_list")
+
     count = qs.count()
     qs.update(is_active=True)
 
@@ -850,6 +900,17 @@ def user_archive(request, pk):
 def user_unarchive(request, pk):
     """Unarchive a single user."""
     user_obj = get_object_or_404(User, pk=pk)
+
+    if user_obj.role_access in AGENT_ROLES:
+        current_agents, max_agents = _get_agent_limit()
+        if max_agents is not None and current_agents >= max_agents:
+            messages.error(
+                request,
+                f"Agent limit reached ({current_agents}/{max_agents}). "
+                "Upgrade your license to reactivate this agent-role user."
+            )
+            return redirect("users_desk:user_list")
+
     user_obj.is_active = True
     user_obj.save()
     messages.success(request, f'User "{user_obj.login_username}" unarchived.')
