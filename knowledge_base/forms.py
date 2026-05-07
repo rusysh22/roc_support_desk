@@ -62,6 +62,7 @@ class ArticleForm(forms.ModelForm):
         self.fields["problem_summary"].required = True
         self.fields["source_case"].required = False
         self.fields["source_case"].queryset = self.fields["source_case"].queryset.select_related("category")
+        self.fields["category"].queryset = CaseCategory.objects.filter(parent__isnull=False).select_related("parent")
 
 
         # Pre-fill tags_input for editing

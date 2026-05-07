@@ -6,7 +6,13 @@
       "PowerShell(Get-Command python3, py, python -ErrorAction SilentlyContinue)",
       "PowerShell(& \"C:\\\\Users\\\\MShubkhi\\\\Documents\\\\Python314\\\\python.exe\" -c \"import django; print\\(django.__version__\\)\" 2>&1)",
       "PowerShell(\\(Get-Content \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\\\\tasks.py\"\\).Count)",
-      "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\")"
+      "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\")",
+      "Bash(python manage.py makemigrations core --name=\"add_parent_to_companyunit\")",
+      "Bash(python manage.py showmigrations core)"
     ]
   }
 }

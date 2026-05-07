@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Delete {{ object.code }} | {{ site_config.site_name }}{% endblock %}
-{% block page_title %}Delete Company Unit{% endblock %}
+{% block page_title %}Delete Unit{% endblock %}
 {% block nav_company_units %}active{% endblock %}
 
 {% block content %}
@@ -15,7 +15,7 @@
         <div>
             <h2 class="text-2xl font-bold text-slate-800">Confirm Deletion</h2>
             <p class="text-slate-600 mt-2">
-                Are you sure you want to delete the company unit 
+                Are you sure you want to delete the unit
                 <span class="font-bold text-slate-800">"{{ object.code }} - {{ object.name }}"</span>?
             </p>
             <p class="text-sm font-medium text-red-700 mt-2 bg-red-50 p-2 rounded border border-red-100">

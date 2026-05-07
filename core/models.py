@@ -171,11 +171,22 @@ class User(AbstractUser):
 
 class CompanyUnit(AuditableModel):
     """
-    Organisational unit within the company.
+    Organisational unit — supports one level of parent-child nesting.
 
-    Examples: IT, FIN, HR, OPS.
+    A unit with ``parent=None`` is a top-level entity (e.g. a holding company
+    or standalone organisation).  A unit with a parent is a child unit
+    (e.g. a department, subsidiary, or branch under the parent).
     """
 
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="children",
+        verbose_name="Parent Unit",
+        help_text="Leave empty for a top-level unit. Select a parent to nest this unit under it.",
+    )
     name = models.CharField(max_length=150, verbose_name="Unit Name")
     code = models.CharField(
         max_length=20,
@@ -221,11 +232,17 @@ class CompanyUnit(AuditableModel):
     )
 
     class Meta:
-        verbose_name = "Company Unit"
-        verbose_name_plural = "Company Units"
+        verbose_name = "Unit"
+        verbose_name_plural = "Units"
         ordering = ["code"]
 
+    @property
+    def is_parent(self):
+        return self.children.exists()
+
     def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
         return f"{self.code} — {self.name}"
 
 

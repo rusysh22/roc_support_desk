@@ -450,8 +450,9 @@ class SuperAdminRequiredMixin(UserPassesTestMixin):
 class CompanyUnitForm(forms.ModelForm):
     class Meta:
         model = CompanyUnit
-        fields = ['name', 'code', 'address', 'city', 'province', 'latitude', 'longitude']
+        fields = ['parent', 'name', 'code', 'address', 'city', 'province', 'latitude', 'longitude']
         widgets = {
+            'parent':    forms.Select(attrs={'class': 'jk-input'}),
             'name':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Information Technology'}),
             'code':      forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. IT'}),
             'address':   forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'Jl. Sudirman No. 1, Jakarta Pusat', 'autocomplete': 'off'}),
@@ -461,15 +462,24 @@ class CompanyUnitForm(forms.ModelForm):
             'longitude': forms.NumberInput(attrs={'class': 'jk-input', 'step': 'any', 'placeholder': '106.8456000', 'id': 'id_longitude'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        instance = kwargs.get('instance')
+        super().__init__(*args, **kwargs)
+        self.fields['parent'].required = False
+        self.fields['parent'].empty_label = '— No parent (top-level unit) —'
+        # Exclude self from parent choices to prevent circular reference
+        if instance and instance.pk:
+            self.fields['parent'].queryset = CompanyUnit.objects.exclude(pk=instance.pk)
+
 class CompanyUnitListView(FeatureRequiredMixin, SuperAdminRequiredMixin, ListView):
     feature_required = 'company_units'
     model = CompanyUnit
     template_name = 'core/company_unit_list.html'
     context_object_name = 'company_units'
     paginate_by = 50
-    
+
     def get_queryset(self):
-        qs = CompanyUnit.objects.all().order_by('code')
+        qs = CompanyUnit.objects.select_related('parent').order_by('code')
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(name__icontains=q) | qs.filter(code__icontains=q)
@@ -481,7 +491,7 @@ class CompanyUnitCreateView(FeatureRequiredMixin, SuperAdminRequiredMixin, Succe
     form_class = CompanyUnitForm
     template_name = 'core/company_unit_form.html'
     success_url = reverse_lazy('desk:company_unit_list')
-    success_message = "Company unit created successfully"
+    success_message = "Unit created successfully"
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
@@ -494,7 +504,7 @@ class CompanyUnitUpdateView(FeatureRequiredMixin, SuperAdminRequiredMixin, Succe
     form_class = CompanyUnitForm
     template_name = 'core/company_unit_form.html'
     success_url = reverse_lazy('desk:company_unit_list')
-    success_message = "Company unit updated successfully"
+    success_message = "Unit updated successfully"
 
     def form_valid(self, form):
         form.instance.updated_by = self.request.user
@@ -507,7 +517,7 @@ class CompanyUnitDeleteView(FeatureRequiredMixin, SuperAdminRequiredMixin, Delet
     success_url = reverse_lazy('desk:company_unit_list')
 
     def delete(self, request, *args, **kwargs):
-        messages.success(self.request, "Company unit deleted successfully")
+        messages.success(self.request, "Unit deleted successfully")
         return super().delete(request, *args, **kwargs)
 
 

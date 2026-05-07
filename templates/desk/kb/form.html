@@ -180,7 +180,58 @@
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Source Case <span class="text-slate-600 font-normal">(optional)</span></label>
-                            {{ form.source_case }}
+                            {% if is_edit and article.source_case %}
+                            <div x-data="sourceCasePicker('{{ article.source_case.id }}', '{{ article.source_case.case_number }}')" class="relative">
+                            {% elif from_case %}
+                            <div x-data="sourceCasePicker('{{ from_case.id }}', '{{ from_case.case_number }}')" class="relative">
+                            {% else %}
+                            <div x-data="sourceCasePicker('', '')" class="relative">
+                            {% endif %}
+                                <input type="hidden" name="source_case" id="id_source_case" :value="selectedId">
+
+                                <!-- Trigger button -->
+                                <button type="button" @click="toggle()" class="jk-input w-full text-left flex items-center justify-between gap-2 pr-3">
+                                    <span :class="selectedId ? 'text-slate-900' : 'text-slate-400'" x-text="selectedLabel || '----------'"></span>
+                                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+
+                                <!-- Dropdown panel -->
+                                <div x-show="open" x-transition @click.outside="close()" class="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg">
+                                    <!-- Search bar -->
+                                    <div class="p-2 border-b border-slate-100">
+                                        <div class="relative">
+                                            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 0 5 11a6 6 0 0 0 12 0z"/></svg>
+                                            <input x-ref="searchInput" type="text" x-model="search" @input="onSearch()" placeholder="Search by ticket ID or subject..." class="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                                        </div>
+                                    </div>
+
+                                    <!-- Results list -->
+                                    <ul class="max-h-52 overflow-y-auto py-1" role="listbox">
+                                        <!-- Clear option -->
+                                        <li @click="clear()" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:bg-slate-50 cursor-pointer">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            <span>Clear selection</span>
+                                        </li>
+
+                                        <template x-if="loading">
+                                            <li class="px-3 py-2 text-sm text-slate-400 text-center">Loading...</li>
+                                        </template>
+
+                                        <template x-if="!loading && results.length === 0">
+                                            <li class="px-3 py-2 text-sm text-slate-400 text-center">No cases found</li>
+                                        </template>
+
+                                        <template x-for="c in results" :key="c.id">
+                                            <li @click="select(c.id, c.case_number)" role="option"
+                                                class="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50"
+                                                :class="selectedId === c.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'">
+                                                <svg class="w-3.5 h-3.5 flex-shrink-0 opacity-0" :class="selectedId === c.id ? 'opacity-100' : ''" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                                <span x-text="c.case_number" class="font-mono"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                         <!-- Allow Comments toggle -->
                         <div class="md:col-span-2">
@@ -234,16 +285,22 @@
                     <div id="editor-problem-summary" class="quill-editor"></div>
                 </div>
 
-                <!-- Root Cause -->
-                <div x-show="articleType === 'Issue'" x-transition>
-                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Root Cause <span class="text-red-700">*</span></h3>
+                <!-- Root Cause / Details -->
+                <div x-transition>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                        <span x-text="articleType === 'Announcement' ? 'Details' : 'Root Cause'"></span>
+                        <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
+                    </h3>
                     {{ form.root_cause }}
                     <div id="editor-root-cause" class="quill-editor"></div>
                 </div>
 
-                <!-- Solution -->
-                <div x-show="articleType === 'Issue'" x-transition>
-                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Solution <span class="text-red-700">*</span></h3>
+                <!-- Solution / Additional Information -->
+                <div x-transition>
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                        <span x-text="articleType === 'Announcement' ? 'Additional Information' : 'Solution'"></span>
+                        <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
+                    </h3>
                     {{ form.solution }}
                     <div id="editor-solution" class="quill-editor"></div>
                 </div>
@@ -800,6 +857,64 @@ function kbForm() {
                 });
             });
         }
+    };
+}
+
+function sourceCasePicker(initialId, initialLabel) {
+    return {
+        open: false,
+        search: '',
+        selectedId: initialId || '',
+        selectedLabel: initialLabel || '',
+        results: [],
+        loading: false,
+        _debounce: null,
+        _searchUrl: '{% url "kb_desk:case_search" %}',
+
+        init() {
+            this.fetchResults('');
+        },
+
+        toggle() {
+            this.open = !this.open;
+            if (this.open) {
+                this.$nextTick(() => { if (this.$refs.searchInput) this.$refs.searchInput.focus(); });
+            }
+        },
+
+        close() {
+            this.open = false;
+            this.search = '';
+            this.fetchResults('');
+        },
+
+        onSearch() {
+            clearTimeout(this._debounce);
+            this._debounce = setTimeout(() => this.fetchResults(this.search), 300);
+        },
+
+        fetchResults(q) {
+            this.loading = true;
+            fetch(this._searchUrl + '?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => { this.results = data.results; this.loading = false; })
+                .catch(() => { this.loading = false; });
+        },
+
+        select(id, label) {
+            this.selectedId = id;
+            this.selectedLabel = label;
+            this.open = false;
+            this.search = '';
+        },
+
+        clear() {
+            this.selectedId = '';
+            this.selectedLabel = '';
+            this.open = false;
+            this.search = '';
+            this.fetchResults('');
+        },
     };
 }
 </script>

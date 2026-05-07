@@ -17,6 +17,13 @@
 {% block content %}
 <div class="max-w-4xl mx-auto space-y-6">
 
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="{% url 'desk:apps_connection' %}" class="hover:text-slate-700 transition-colors">Apps Connection</a>
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-slate-800 font-medium">WhatsApp Integration</span>
+    </div>
+
     {% if messages %}
     <div class="space-y-2">
         {% for message in messages %}
@@ -95,7 +102,7 @@
             </div>
 
             <div class="flex justify-end pt-2 border-t border-slate-100">
-                <button type="submit" class="jk-btn-primary px-8 py-2.5 text-sm shadow-sm">Save Notification Settings</button>
+                <button type="submit" class="jk-btn jk-btn-primary">Save Notification Settings</button>
             </div>
         </form>
     </div>

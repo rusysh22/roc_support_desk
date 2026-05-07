@@ -325,6 +325,40 @@ def kb_article_edit(request, pk):
 
 @staff_required
 @feature_required('kb_manage')
+def kb_case_search(request):
+    """AJAX: search CaseRecord by ticket ID or subject for the source case picker."""
+    from django.db.models.functions import Cast
+    from django.db.models import CharField as DBCharField
+
+    q = request.GET.get("q", "").strip()
+    qs = CaseRecord.objects.select_related("category").order_by("-created_at")
+
+    if q:
+        # Strip common prefix patterns like "RQ-", "INC-" to get the UUID fragment
+        uuid_fragment = q.lower()
+        if "-" in uuid_fragment:
+            parts = uuid_fragment.split("-", 1)
+            if parts[0].isalpha() and len(parts[0]) <= 6:
+                uuid_fragment = parts[1]
+
+        id_filter = (
+            CaseRecord.objects
+            .annotate(id_str=Cast("id", output_field=DBCharField()))
+            .filter(id_str__icontains=uuid_fragment)
+            .values_list("id", flat=True)[:20]
+        )
+        subject_filter = qs.filter(subject__icontains=q).values_list("id", flat=True)[:20]
+        combined_ids = set(list(id_filter) + list(subject_filter))
+        qs = CaseRecord.objects.select_related("category").filter(id__in=combined_ids).order_by("-created_at")[:20]
+    else:
+        qs = qs[:20]
+
+    results = [{"id": str(c.id), "case_number": c.case_number} for c in qs]
+    return JsonResponse({"results": results})
+
+
+@staff_required
+@feature_required('kb_manage')
 @require_POST
 def kb_article_delete(request, pk):
     """Delete a KB article."""
