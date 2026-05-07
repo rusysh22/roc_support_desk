@@ -260,12 +260,12 @@
                             {% if u.is_active %}
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                                    Aktif
+                                    Active
                                 </span>
                             {% else %}
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
                                     <span class="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
-                                    Non-aktif
+                                    Inactive
                                 </span>
                             {% endif %}
                         </td>
@@ -283,19 +283,17 @@
                                 </a>
                                 {% if request.user != u %}
                                     {% if u.is_active %}
-                                    <form method="post" action="{% url 'users_desk:user_archive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Non-aktifkan user: {{ u.login_username|escapejs }}?');">
+                                    <form method="post" action="{% url 'users_desk:user_archive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Deactivate user: {{ u.login_username|escapejs }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors" title="Non-aktifkan User">
-                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
-                                            Non-aktif
+                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Deactivate User">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                                         </button>
                                     </form>
                                     {% else %}
-                                    <form method="post" action="{% url 'users_desk:user_unarchive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Aktifkan user: {{ u.login_username|escapejs }}?');">
+                                    <form method="post" action="{% url 'users_desk:user_unarchive' pk=u.pk %}" class="inline-block" onsubmit="return confirm('Activate user: {{ u.login_username|escapejs }}?');">
                                         {% csrf_token %}
-                                        <button type="submit" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors" title="Aktifkan User">
-                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                            Aktifkan
+                                        <button type="submit" class="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Activate User">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                         </button>
                                     </form>
                                     {% endif %}

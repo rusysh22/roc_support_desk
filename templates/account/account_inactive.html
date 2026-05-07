@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Akun Tidak Aktif — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block page_title %}Akun Tidak Aktif{% endblock %}
+{% block title %}Account Inactive — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Account Inactive{% endblock %}
 {% block main_class %}full-width{% endblock %}
 
 {% block layout %}
@@ -33,9 +33,9 @@
                 </div>
             </div>
 
-            <h1 class="text-xl font-bold text-center mb-1" style="color:#111;">Akun Belum Aktif</h1>
+            <h1 class="text-xl font-bold text-center mb-1" style="color:#111;">Account Inactive</h1>
             <p class="text-sm text-center mb-6" style="color:#888;">
-                Akun Anda saat ini tidak aktif. Hubungi administrator untuk mengaktifkan akses Anda.
+                Your account is currently inactive. Contact your administrator to activate your access.
             </p>
 
             {% if site_config.contact_info %}
@@ -46,7 +46,7 @@
 
             <a href="{% url 'login' %}" class="block w-full text-center rounded-full py-3 text-sm font-bold transition-all"
                style="background:#4c1d95; color:#fff;">
-                Kembali ke Login
+                Back to Login
             </a>
         </div>
     </div>
@@ -75,9 +75,9 @@
                 </div>
             </div>
 
-            <h1 class="text-xl font-bold text-center mb-1" style="color:#ffffff;">Akun Belum Aktif</h1>
+            <h1 class="text-xl font-bold text-center mb-1" style="color:#ffffff;">Account Inactive</h1>
             <p class="text-sm text-center mb-6" style="color:#aaaaaa;">
-                Akun Anda saat ini tidak aktif. Hubungi administrator untuk mengaktifkan akses Anda.
+                Your account is currently inactive. Contact your administrator to activate your access.
             </p>
 
             {% if site_config.contact_info %}
@@ -89,7 +89,7 @@
             <a href="{% url 'login' %}"
                class="block w-full text-center font-bold rounded-2xl py-3.5 text-sm tracking-widest uppercase transition-all"
                style="background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%); color:#ffffff;">
-                Kembali ke Login
+                Back to Login
             </a>
         </div>
     </div>
