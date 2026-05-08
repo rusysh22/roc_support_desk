@@ -65,6 +65,9 @@ urlpatterns = [
     # Client portal (public)
     path("", include("cases.urls", namespace="cases")),
 
+    # Chat portal (public widget + my-tickets)
+    path("portal/chat/", include("cases.urls_chat", namespace="chat")),
+
     # Admin / Support desk
     path("desk/", include("cases.urls_desk", namespace="desk")),
     path("desk/links/", include("links.urls_desk", namespace="links_desk")),

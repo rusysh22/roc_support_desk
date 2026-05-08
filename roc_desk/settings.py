@@ -38,6 +38,9 @@ AUTH_USER_MODEL = "core.User"
 
 # -----------------------------------------------------------------
 INSTALLED_APPS = [
+    # ASGI server — must be first so it can intercept the ASGI lifespan protocol
+    "daphne",
+
     # Admin Theme
     "unfold",
 
@@ -67,6 +70,9 @@ INSTALLED_APPS = [
     "licensing.apps.LicensingConfig",
     # Field-level encryption
     "encrypted_model_fields",
+
+    # WebSocket / real-time
+    "channels",
 ]
 
 SITE_ID = 1
@@ -212,6 +218,19 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
+
+# -----------------------------------------------------------------
+# Django Channels — WebSocket channel layer (Redis db 2)
+# -----------------------------------------------------------------
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            # Dedicated db (2) keeps channel layer traffic separate from Celery (0/1).
+            "hosts": [env("CHANNEL_LAYER_URL", default="redis://127.0.0.1:6379/2")],
+        },
+    },
+}
 
 # -----------------------------------------------------------------
 # Gateways (Evolution API & IMAP)

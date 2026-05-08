@@ -10,9 +10,9 @@ echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "Starting server..."
-# Check if a custom command is passed, else default to gunicorn
+# Daphne handles both HTTP and WebSocket (ASGI). Replaces gunicorn.
 if [ $# -eq 0 ]; then
-    exec gunicorn roc_desk.wsgi:application --bind 0.0.0.0:8001 --workers 3 --timeout 120 --access-logfile -
+    exec daphne -b 0.0.0.0 -p 8001 roc_desk.asgi:application
 else
     exec "$@"
 fi

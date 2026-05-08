@@ -2252,6 +2252,148 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
 
 
 # =====================================================================
+# Chat Portal — Staff Reply Notification
+# =====================================================================
+
+@shared_task(
+    bind=True,
+    name="gateways.notify_staff_chat_reply_task",
+    max_retries=2,
+    default_retry_delay=15,
+    acks_late=True,
+)
+def notify_staff_chat_reply_task(self, message_id: str) -> str:
+    """
+    Email staff when a portal user sends a new message in an existing ticket.
+
+    Only fires when:
+    - NotificationConfig.notify_new_ticket_email is enabled (reuses same setting)
+    - The ticket has not been viewed by staff in the last 2 minutes
+      (avoids flooding when a staff member is actively watching the thread)
+    """
+    import html as html_mod
+    from datetime import timedelta
+
+    from cases.models import CaseRecord, Message
+    from core.models import NotificationConfig, SiteConfig
+    from django.core.mail import EmailMultiAlternatives
+    from django.utils import timezone
+
+    try:
+        msg = Message.objects.select_related(
+            "case__requester", "case__category", "case__assigned_to"
+        ).get(id=message_id)
+    except Message.DoesNotExist:
+        return "error:message_not_found"
+
+    try:
+        case = msg.case
+
+        notif_cfg = NotificationConfig.get_solo()
+        if not notif_cfg.notify_new_ticket_email:
+            return "skipped:email_notif_disabled"
+
+        # Skip if staff has been on this ticket in the last 2 min
+        if case.last_viewed_at and (timezone.now() - case.last_viewed_at) < timedelta(minutes=2):
+            return "skipped:staff_active"
+
+        recipients = notif_cfg.get_email_recipients_list()
+        # Prefer assigned staff's email if set
+        if case.assigned_to and case.assigned_to.email:
+            recipients = [case.assigned_to.email]
+        if not recipients:
+            return "skipped:no_recipients"
+
+        site_name = SiteConfig.get_solo().site_name
+        base_url = _get_site_base_url()
+        case_url = f"{base_url}/desk/cases/{case.id}/"
+
+        safe_site = html_mod.escape(site_name)
+        safe_num = html_mod.escape(case.case_number)
+        safe_subj = html_mod.escape(case.subject)
+        safe_from = html_mod.escape(case.requester_name or case.requester_email or "Portal User")
+        safe_body = html_mod.escape((msg.body or "")[:300])
+
+        email_subject = f"[{safe_site}] New chat message in {safe_num}"
+
+        plain = (
+            f"A portal user sent a new message in ticket {case.case_number}.\n\n"
+            f"From   : {safe_from}\n"
+            f"Ticket : {case.subject}\n"
+            f"Message: {msg.body[:300]}\n\n"
+            f"Open ticket: {case_url}\n"
+        )
+
+        html = f"""\
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
+    <tr><td align="center">
+      <table width="540" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:#4f46e5;padding:20px 28px;">
+            <span style="color:#fff;font-size:15px;font-weight:700;">{safe_site}</span>
+            <span style="color:#a5b4fc;font-size:12px;margin-left:8px;">Chat Notification</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 28px;">
+            <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#0f172a;">💬 New Portal Chat Message</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:16px;">
+              <tr style="background:#f8fafc;">
+                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;width:80px;">Ticket</td>
+                <td style="padding:8px 12px;font-size:12px;font-weight:700;color:#0f172a;font-family:monospace;">{safe_num}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">From</td>
+                <td style="padding:8px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_from}</td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subject</td>
+                <td style="padding:8px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_subj}</td>
+              </tr>
+            </table>
+            <div style="background:#f1f5f9;border-left:3px solid #4f46e5;border-radius:4px;padding:12px 14px;font-size:13px;color:#334155;line-height:1.5;">
+              {safe_body}
+            </div>
+            <div style="margin-top:20px;text-align:center;">
+              <a href="{case_url}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;">
+                Open in Support Desk →
+              </a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">
+            {safe_site} — automated notification. Do not reply to this email.
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+        email_msg = EmailMultiAlternatives(
+            subject=email_subject,
+            body=plain,
+            to=recipients,
+        )
+        email_msg.attach_alternative(html, "text/html")
+        email_msg.send(fail_silently=False)
+        return f"success:{len(recipients)}_recipients"
+
+    except Exception as exc:
+        logger.error("notify_staff_chat_reply_task failed: %s", exc)
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+# =====================================================================
 # Teams Bot 2-Way Webhook Processing
 # =====================================================================
 

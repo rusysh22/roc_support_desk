@@ -4,6 +4,11 @@
 <div class="jk-chat-messages" id="chat-messages-inner" style="scroll-behavior:smooth;">
     {% if chat_messages %}
     {% for msg in chat_messages %}
+    {% if msg.is_system %}
+    <div class="flex justify-center my-2">
+        <span class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{{ msg.body }}</span>
+    </div>
+    {% else %}
     <div class="jk-msg {% if msg.direction == 'OUT' %}jk-msg--out{% else %}jk-msg--in{% endif %}">
         <!-- Selection checkbox (visible only in escalate selection mode via CSS) -->
         <label class="jk-msg__select-check" onclick="event.stopPropagation()">
@@ -42,6 +47,15 @@
                 <span class="jk-msg__badge jk-msg__badge--email">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     Email
+                </span>
+                {% elif msg.channel == "Web" %}
+                <span class="jk-msg__badge" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    Chat
+                </span>
+                {% elif msg.is_system %}
+                <span class="jk-msg__badge" style="background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">
+                    System
                 </span>
                 {% endif %}
                 <span class="jk-msg__time">{{ msg.sent_at|date:"d M H:i" }}</span>
@@ -209,6 +223,7 @@
             </div>
         </div>
     </div>
+    {% endif %}{# end is_system else #}
     {% endfor %}
     {% else %}
     <div class="jk-chat-empty">

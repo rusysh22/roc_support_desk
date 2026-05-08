@@ -29,6 +29,13 @@ class AccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         return False
 
+    def get_login_redirect_url(self, request):
+        from django.urls import reverse
+        user = request.user
+        if user.is_authenticated and getattr(user, "role_access", None) == "PortalUser":
+            return reverse("cases:dashboard")
+        return super().get_login_redirect_url(request)
+
     def respond_user_inactive(self, request, user):
         try:
             from allauth.socialaccount.models import SocialAccount

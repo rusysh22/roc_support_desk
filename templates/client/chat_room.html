@@ -1,0 +1,723 @@
+{% extends "base.html" %}
+{% load text_filters %}
+
+{% block title %}Chat — {{ case.case_number }} · {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Live Chat{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Chat layout helpers */
+  #chat-scroll { scroll-behavior: smooth; }
+  .chat-bubble-in  { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem 1rem 1rem 0.25rem; }
+  .chat-bubble-out { background: #4f46e5; color: #fff;             border-radius: 1rem 1rem 0.25rem 1rem; }
+  .chat-bubble-sys { background: #f1f5f9; color: #94a3b8; border-radius: 9999px; font-size: 0.72rem; }
+
+  /* Typing indicator dots */
+  @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+  .typing-dot { width:6px; height:6px; border-radius:50%; background:#94a3b8; animation: blink 1.4s infinite; }
+  .typing-dot:nth-child(2) { animation-delay:.2s; }
+  .typing-dot:nth-child(3) { animation-delay:.4s; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+
+{# ── Injected variables for JS ── #}
+<script>
+  const CHAT_CASE_UUID   = "{{ case.id }}";
+  const CHAT_GUEST_TOKEN = "{{ guest_token|escapejs }}";
+  const CHAT_IS_AUTH     = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
+  const CHAT_IS_STAFF    = {% if request.user.is_authenticated and request.user.role_access in "SuperAdmin,Manager,SupportDesk,Auditor" %}true{% else %}false{% endif %};
+  const CHAT_WS_URL      = "{{ request.scheme|safe }}".replace("http","ws") + "://" + window.location.host + "/ws/chat/{{ case.id }}/{% if guest_token %}?token={{ guest_token|urlencode }}{% endif %}";
+  const CHAT_SEND_URL    = "{% url 'chat:send' case.id %}";
+  const CHAT_UPLOAD_URL  = "{% url 'chat:upload' case.id %}";
+  const CHAT_RESOLVE_URL = "{% url 'chat:resolve' case.id %}";
+  const CHAT_REOPEN_URL  = "{% url 'chat:reopen' case.id %}";
+  const CHAT_POLL_URL    = "{% url 'chat:poll' case.id %}";
+  const CSRF_TOKEN       = "{{ csrf_token }}";
+</script>
+
+<div class="max-w-2xl mx-auto"
+     x-data="chatRoom()"
+     x-init="init()"
+     @beforeunload.window="disconnect()">
+
+  {# ── Header card ── #}
+  <div class="jk-card mb-3">
+    <div class="jk-card-body py-3 px-4 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
+        {{ case.category.icon|default:"🎫" }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-slate-500 font-medium">{{ case.category.name }}</p>
+        <p class="text-sm font-bold text-slate-800 truncate">{{ case.subject }}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        {# Status badge — updates dynamically #}
+        <span id="chat-status-badge"
+              class="text-xs font-bold px-2.5 py-1 rounded-full
+              {% if case.status == 'Open' %}bg-yellow-100 text-yellow-700
+              {% elif case.status == 'Investigating' %}bg-blue-100 text-blue-700
+              {% elif case.status == 'PendingInfo' %}bg-orange-100 text-orange-700
+              {% elif case.status == 'Resolved' %}bg-emerald-100 text-emerald-700
+              {% else %}bg-slate-100 text-slate-500{% endif %}">
+          {% if case.status == 'Open' %}Waiting
+          {% elif case.status == 'Investigating' %}In Progress
+          {% elif case.status == 'PendingInfo' %}Need Info
+          {% elif case.status == 'Resolved' %}Resolved
+          {% else %}Closed{% endif %}
+        </span>
+        <span class="text-xs text-slate-400 font-mono">{{ case.case_number }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# ── Message thread ── #}
+  <div class="jk-card mb-3">
+    <div class="jk-card-body p-0">
+      {# Scroll area #}
+      <div id="chat-scroll"
+           class="overflow-y-auto px-4 py-4"
+           style="height: 420px;"
+           x-ref="scroll">
+
+        {# Server-rendered history #}
+        <div id="chat-history">
+          {% include "client/partials/chat_messages.html" with messages=messages %}
+        </div>
+
+        {# Live messages appended by JS #}
+        <div id="chat-live"></div>
+
+        {# Typing indicator #}
+        <div x-show="typingVisible" x-cloak class="flex gap-2 mb-4 items-end">
+          <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">S</div>
+          <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Connection status bar ── #}
+  <div x-show="!wsConnected" x-cloak
+       class="text-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+    Reconnecting to chat...
+  </div>
+
+  {# ── Action bar (resolve / reopen) ── #}
+  {% if can_reopen %}
+  <div class="jk-card mb-3 border-amber-200">
+    <div class="jk-card-body py-3 px-4 flex items-center justify-between gap-3">
+      <p class="text-sm text-slate-600">This ticket is resolved. Need more help?</p>
+      <button @click="reopenTicket()"
+              class="jk-btn text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white border-none">
+        Reopen Ticket
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Input area ── #}
+  {% if can_send %}
+  <div class="jk-card" x-show="ticketOpen" x-cloak>
+    <div class="jk-card-body p-3">
+
+      {# Reply preview strip #}
+      <div x-show="replyTo" x-cloak
+           class="flex items-center gap-2 bg-indigo-50 border-l-2 border-indigo-400 rounded-r-lg px-3 py-2 mb-2">
+        <div class="flex-1 min-w-0">
+          <p class="text-[11px] font-semibold text-indigo-600" x-text="'↩ ' + (replyTo?.sender || '')"></p>
+          <p class="text-xs text-slate-500 truncate" x-text="(replyTo?.body || '').replace(/^```\n?/, '').replace(/\n?```$/, '')"></p>
+        </div>
+        <button @click="clearReply()" class="text-slate-400 hover:text-slate-600 flex-shrink-0 text-sm font-bold">✕</button>
+      </div>
+
+      {# File preview strip #}
+      <div x-show="pendingFiles.length > 0" x-cloak class="flex flex-wrap gap-2 mb-3 px-1">
+        <template x-for="(f, idx) in pendingFiles" :key="idx">
+          <div class="relative flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1.5 text-xs text-slate-700 max-w-[160px]">
+            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>
+            <span class="truncate" x-text="f.name"></span>
+            <button @click="removePending(idx)" class="ml-1 flex-shrink-0 text-slate-400 hover:text-rose-500 transition-colors">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <div class="flex items-end gap-2">
+        {# File attach button #}
+        <label class="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
+               title="Lampirkan file (jpg, png, pdf, docx, xlsx, txt — maks 10 MB, 3 file)">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                 @change="onFilePick($event)">
+        </label>
+
+        {# Code snippet toggle #}
+        <button @click="toggleCode()"
+                :class="codeMode ? 'bg-slate-800 text-green-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                class="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors text-xs font-mono font-bold"
+                title="Mode code snippet">&lt;/&gt;</button>
+
+        {# Text input #}
+        <textarea x-ref="msgInput"
+                  x-model="msgText"
+                  @keydown.enter.exact.prevent="send()"
+                  @keydown.enter.shift.exact="msgText += '\n'"
+                  @input="onTyping()"
+                  :placeholder="codeMode ? 'Paste code di sini… (Enter untuk kirim)' : 'Ketik pesan… (Enter kirim, Shift+Enter baris baru)'"
+                  rows="1"
+                  class="jk-input flex-1 resize-none text-sm py-2.5 leading-snug"
+                  :class="codeMode ? 'font-mono bg-slate-900 text-green-400 border-slate-700' : ''"
+                  style="min-height:40px; max-height:120px; overflow-y:auto;"
+                  :disabled="sending"></textarea>
+
+        {# Send button #}
+        <button @click="send()"
+                :disabled="sending || (!msgText.trim() && pendingFiles.length === 0)"
+                class="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
+          <svg x-show="!sending" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+          <svg x-show="sending" x-cloak class="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </svg>
+        </button>
+      </div>
+
+      {# Bottom toolbar: status + resolve #}
+      <div class="flex items-center justify-between mt-2.5 px-1">
+        <p class="text-xs text-slate-400">
+          <span x-text="wsConnected ? '● Terhubung' : '○ Menghubungkan…'"
+                :class="wsConnected ? 'text-emerald-500' : 'text-amber-500'"></span>
+          <span x-show="codeMode" x-cloak class="ml-2 text-green-600 font-semibold text-[10px]">MODE CODE</span>
+        </p>
+        <button @click="resolveTicket()"
+                class="text-xs text-slate-400 hover:text-rose-500 transition-colors underline-offset-2 hover:underline">
+          Tandai Resolved
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ── Closed notice ── #}
+  <div x-show="!ticketOpen" x-cloak class="jk-card">
+    <div class="jk-card-body py-4 px-4 text-center">
+      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">closed</strong>. You can no longer send messages.</p>
+      <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">← Back to Portal</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="jk-card">
+    <div class="jk-card-body py-4 px-4 text-center">
+      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">{{ case.get_status_display }}</strong>.</p>
+      {% if can_reopen %}
+      <button @click="reopenTicket()" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">Reopen Ticket</button>
+      {% else %}
+      <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">← Back to Portal</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Back link #}
+  <div class="mt-4 text-center">
+    {% if user.is_authenticated %}
+    <a href="{% url 'chat:my_tickets' %}" class="text-xs text-slate-400 hover:text-indigo-600 transition-colors">← My Tickets</a>
+    {% else %}
+    <a href="{% url 'cases:dashboard' %}" class="text-xs text-slate-400 hover:text-indigo-600 transition-colors">← Back to Portal</a>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CHAT_DELETE_URL = "/portal/chat/{{ case.id }}/delete-message/";
+const CHAT_USER_DIRECTION = "{{ user_direction }}";
+
+function chatRoom() {
+  return {
+    msgText: '',
+    pendingFiles: [],
+    sending: false,
+    wsConnected: false,
+    typingVisible: false,
+    typingTimer: null,
+    myTypingTimer: null,
+    pollTimer: null,
+    ws: null,
+    ticketOpen: {% if can_send %}true{% else %}false{% endif %},
+    replyTo: null,   // { id, body, sender }
+    codeMode: false,
+
+    init() {
+      this.scrollBottom();
+      this.connectWS();
+      this.setupPasteHandler();
+      this.setupActionDelegation();
+    },
+
+    disconnect() {
+      if (this.ws) this.ws.close();
+      clearInterval(this.pollTimer);
+    },
+
+    // ── Paste handler (Ctrl+V image) ──────────────────────────────
+    setupPasteHandler() {
+      document.addEventListener('paste', (e) => {
+        if (!this.$refs.msgInput || !document.activeElement.isSameNode(this.$refs.msgInput)) return;
+        const items = Array.from(e.clipboardData?.items || []);
+        const images = items.filter(i => i.type.startsWith('image/'));
+        if (!images.length) return;
+        e.preventDefault();
+        images.forEach(item => {
+          const file = item.getAsFile();
+          if (file && this.pendingFiles.length < 3) this.pendingFiles.push(file);
+        });
+      });
+    },
+
+    // ── Event delegation for reply/delete on history bubbles ─────
+    setupActionDelegation() {
+      const handler = (e) => {
+        const replyBtn = e.target.closest('.reply-action');
+        const deleteBtn = e.target.closest('.delete-action');
+        if (replyBtn) {
+          this.setReply(
+            replyBtn.dataset.replyId,
+            replyBtn.dataset.replyBody,
+            replyBtn.dataset.replySender,
+          );
+        }
+        if (deleteBtn) {
+          this.deleteMessage(deleteBtn.dataset.deleteId);
+        }
+      };
+      document.getElementById('chat-history')?.addEventListener('click', handler);
+      document.getElementById('chat-live')?.addEventListener('click', handler);
+    },
+
+    // ── WebSocket ──────────────────────────────────────────────────
+    connectWS() {
+      try {
+        this.ws = new WebSocket(CHAT_WS_URL);
+      } catch(e) {
+        this.startPolling();
+        return;
+      }
+
+      this.ws.onopen = () => {
+        this.wsConnected = true;
+        clearInterval(this.pollTimer);
+      };
+
+      this.ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'chat_message') {
+          this.appendMessage(data);
+        } else if (data.type === 'chat_attachment') {
+          this.appendAttachment(data);
+        } else if (data.type === 'typing') {
+          this.showTyping();
+        } else if (data.type === 'status_update') {
+          this.updateStatus(data.status, data.status_display);
+        } else if (data.type === 'chat_delete') {
+          this.applyDelete(data.message_id);
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.wsConnected = false;
+        setTimeout(() => {
+          if (!this.wsConnected) this.startPolling();
+        }, 3000);
+        setTimeout(() => this.connectWS(), 5000);
+      };
+
+      this.ws.onerror = () => {
+        this.wsConnected = false;
+        this.startPolling();
+      };
+    },
+
+    // ── HTMX polling fallback ──────────────────────────────────────
+    startPolling() {
+      if (this.pollTimer) return;
+      this.pollTimer = setInterval(() => this.pollMessages(), 4000);
+    },
+
+    async pollMessages() {
+      try {
+        const res = await fetch(CHAT_POLL_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!res.ok) return;
+        const html = await res.text();
+        document.getElementById('chat-history').innerHTML = html;
+        document.getElementById('chat-live').innerHTML = '';
+        this.setupActionDelegation();
+        this.scrollBottom();
+      } catch(e) {}
+    },
+
+    // ── Reply / Quote ─────────────────────────────────────────────
+    setReply(id, body, sender) {
+      this.replyTo = { id, body: body || '', sender: sender || '' };
+      this.$nextTick(() => this.$refs.msgInput?.focus());
+    },
+
+    clearReply() {
+      this.replyTo = null;
+    },
+
+    // ── Code mode ─────────────────────────────────────────────────
+    toggleCode() {
+      this.codeMode = !this.codeMode;
+    },
+
+    // ── Delete / retract ──────────────────────────────────────────
+    async deleteMessage(msgId) {
+      if (!confirm('Tarik pesan ini? Tidak dapat dibatalkan.')) return;
+      const res = await fetch(CHAT_DELETE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ message_id: msgId }),
+      });
+      if (res.ok) {
+        this.applyDelete(msgId);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: d.error || 'Gagal menarik pesan.' } }));
+      }
+    },
+
+    applyDelete(msgId) {
+      const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+      if (!el) return;
+      const bubble = el.querySelector('.bubble-content');
+      if (bubble) bubble.innerHTML = '<em class="text-slate-400 text-xs">Pesan ditarik 🚫</em>';
+      // hide action buttons
+      el.querySelectorAll('.reply-action, .delete-action').forEach(b => b.remove());
+    },
+
+    // ── Sending ───────────────────────────────────────────────────
+    async send() {
+      if (this.pendingFiles.length > 0) {
+        await this.sendFiles();
+      }
+      const text = this.msgText.trim();
+      if (!text) return;
+      this.msgText = '';
+      this.$refs.msgInput.style.height = 'auto';
+
+      const finalBody = this.codeMode ? ('```\n' + text + '\n```') : text;
+      const quotedId = this.replyTo?.id || null;
+      this.clearReply();
+
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          type: 'chat_message',
+          body: finalBody,
+          quoted_message_id: quotedId,
+        }));
+      } else {
+        this.sending = true;
+        try {
+          await fetch(CHAT_SEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+            body: JSON.stringify({ body: finalBody, quoted_message_id: quotedId }),
+          });
+        } finally {
+          this.sending = false;
+        }
+      }
+    },
+
+    async sendFiles() {
+      if (this.pendingFiles.length === 0) return;
+      this.sending = true;
+      const fd = new FormData();
+      this.pendingFiles.forEach(f => fd.append('files', f));
+      try {
+        const res = await fetch(CHAT_UPLOAD_URL, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': CSRF_TOKEN },
+          body: fd,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: err.error || 'Upload gagal.' } }));
+        }
+      } catch(e) {
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Upload gagal.' } }));
+      } finally {
+        this.pendingFiles = [];
+        this.sending = false;
+      }
+    },
+
+    // ── File picking ──────────────────────────────────────────────
+    onFilePick(e) {
+      const files = Array.from(e.target.files || []);
+      const total = this.pendingFiles.length + files.length;
+      if (total > 3) {
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Maksimal 3 file per pesan.' } }));
+        e.target.value = '';
+        return;
+      }
+      files.forEach(f => {
+        if (f.size > 10 * 1024 * 1024) {
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: `${f.name} melebihi 10 MB.` } }));
+          return;
+        }
+        this.pendingFiles.push(f);
+      });
+      e.target.value = '';
+    },
+
+    removePending(idx) {
+      this.pendingFiles.splice(idx, 1);
+    },
+
+    // ── Typing indicator ──────────────────────────────────────────
+    onTyping() {
+      const ta = this.$refs.msgInput;
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        clearTimeout(this.myTypingTimer);
+        this.ws.send(JSON.stringify({ type: 'typing' }));
+        this.myTypingTimer = setTimeout(() => {}, 2000);
+      }
+    },
+
+    showTyping() {
+      this.typingVisible = true;
+      clearTimeout(this.typingTimer);
+      this.typingTimer = setTimeout(() => { this.typingVisible = false; }, 3000);
+      this.scrollBottom();
+    },
+
+    // ── DOM helpers ───────────────────────────────────────────────
+    renderBody(body) {
+      if ((body || '').startsWith('```')) {
+        const inner = body.replace(/^```\n?/, '').replace(/\n?```$/, '');
+        return `<pre class="bg-slate-900 text-green-400 rounded-lg p-2.5 text-xs overflow-x-auto font-mono whitespace-pre-wrap">${this.escHtml(inner)}</pre>`;
+      }
+      return this.escHtml(body).replace(/https?:\/\/[^\s<>"']+/g, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100">${url}</a>`);
+    },
+
+    renderQuote(quotedBody, quotedSender, isOut) {
+      if (!quotedBody) return '';
+      const borderColor = isOut ? 'border-indigo-300' : 'border-indigo-400';
+      const bgColor = isOut ? 'bg-indigo-700/40' : 'bg-indigo-50';
+      const senderColor = isOut ? 'text-indigo-200' : 'text-indigo-600';
+      const bodyColor = isOut ? 'text-indigo-100 opacity-80' : 'text-slate-500';
+      const truncated = quotedBody.length > 80 ? quotedBody.slice(0, 80) + '…' : quotedBody;
+      return `<div class="border-l-2 ${borderColor} ${bgColor} px-2.5 py-1.5 rounded-r-lg mb-2 text-xs">
+        <p class="font-semibold ${senderColor} text-[10px]">↩ ${this.escHtml(quotedSender || '')}</p>
+        <p class="${bodyColor} truncate">${this.escHtml(truncated)}</p>
+      </div>`;
+    },
+
+    renderActionBtns(msgId, isOut, senderDisplay) {
+      const side = isOut ? 'left-0 top-5 -translate-x-full pr-1' : 'right-0 top-5 translate-x-full pl-1';
+      const isMyMsg = (CHAT_USER_DIRECTION === 'OUT' && isOut) || (CHAT_USER_DIRECTION === 'IN' && !isOut);
+      const deleteBtn = isMyMsg
+        ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
+                   data-delete-id="${msgId}" title="Tarik pesan">🗑</button>`
+        : '';
+      return `<div class="absolute ${side} opacity-0 hover-actions transition-opacity flex gap-1">
+        <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+                data-reply-id="${msgId}"
+                data-reply-body="${this.escAttr(senderDisplay)}"
+                data-reply-sender="${this.escAttr(senderDisplay)}"
+                title="Reply">↩</button>
+        ${deleteBtn}
+      </div>`;
+    },
+
+    appendMessage(data) {
+      const isOut = data.direction === 'OUT';
+      const isSys = data.is_system;
+      const el = document.createElement('div');
+      el.dataset.msgId = data.message_id;
+
+      if (isSys) {
+        el.className = 'flex justify-center mb-4';
+        el.innerHTML = `<div class="text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full max-w-xs text-center">${this.escHtml(data.body)}</div>`;
+      } else {
+        const init = (data.sender_name || (isOut ? 'S' : 'U')).charAt(0).toUpperCase();
+        const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
+        const quoteHtml = data.quoted_body ? this.renderQuote(data.quoted_body, data.quoted_sender, isOut) : '';
+        const bodyHtml = this.renderBody(data.body);
+        const time = this.formatTime(data.sent_at);
+        const actionBtns = this.renderActionBtns(data.message_id, isOut, data.sender_name);
+
+        if (isOut) {
+          el.className = 'group/bubble relative flex gap-3 mb-4 flex-row-reverse';
+          el.innerHTML = `
+            <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
+            <div class="max-w-[70%]">
+              <p class="text-[11px] text-slate-400 mb-1 text-right">${this.escHtml(data.sender_name)} · ${time}</p>
+              <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">${quoteHtml}${bodyHtml}</div>
+            </div>
+            ${actionBtns}`;
+        } else {
+          el.className = 'group/bubble relative flex gap-3 mb-4';
+          el.innerHTML = `
+            <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
+            <div class="max-w-[70%]">
+              <p class="text-[11px] text-slate-400 mb-1">${this.escHtml(data.sender_name)} · ${time}</p>
+              <div class="bubble-content bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed break-words shadow-sm">${quoteHtml}${bodyHtml}</div>
+            </div>
+            ${actionBtns}`;
+        }
+
+        // CSS hover for dynamic elements
+        el.addEventListener('mouseenter', () => el.querySelector('.hover-actions')?.classList.add('opacity-100'));
+        el.addEventListener('mouseleave', () => el.querySelector('.hover-actions')?.classList.remove('opacity-100'));
+      }
+
+      document.getElementById('chat-live').appendChild(el);
+      this.scrollBottom();
+      if (!isSys && data.body) this._injectLinkPreview(data.body, el);
+    },
+
+    appendAttachment(data) {
+      const el = document.createElement('div');
+      el.dataset.msgId = data.message_id;
+      const isOut = data.direction === 'OUT';
+      el.className = `flex gap-3 mb-4 ${isOut ? 'flex-row-reverse' : ''}`;
+      const init = (data.sender_name || 'U').charAt(0).toUpperCase();
+      const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
+      let mediaHtml = '';
+      if (data.is_image) {
+        mediaHtml = `<a href="${data.file_url}" target="_blank" rel="noopener noreferrer" class="block mt-1">
+          <img src="${data.file_url}" class="max-w-full rounded-lg max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity">
+        </a>`;
+      } else {
+        mediaHtml = `<a href="${data.file_url}" target="_blank" rel="noopener noreferrer"
+          class="flex items-center gap-2 mt-1 bg-slate-100 hover:bg-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 transition-colors">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          <span>${this.escHtml(data.filename)}</span>
+        </a>`;
+      }
+      el.innerHTML = `
+        <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
+        <div class="max-w-[70%]">${mediaHtml}</div>`;
+      document.getElementById('chat-live').appendChild(el);
+      this.scrollBottom();
+    },
+
+    updateStatus(status, display) {
+      const badge = document.getElementById('chat-status-badge');
+      if (!badge) return;
+      const map = {
+        'Open':         ['bg-yellow-100 text-yellow-700',  'Waiting'],
+        'Investigating':['bg-blue-100 text-blue-700',      'In Progress'],
+        'PendingInfo':  ['bg-orange-100 text-orange-700',  'Need Info'],
+        'Resolved':     ['bg-emerald-100 text-emerald-700','Resolved'],
+        'Closed':       ['bg-slate-100 text-slate-500',    'Closed'],
+      };
+      const [cls, label] = map[status] || ['bg-slate-100 text-slate-500', status];
+      badge.className = `text-xs font-bold px-2.5 py-1 rounded-full ${cls}`;
+      badge.textContent = label;
+      if (status === 'Closed') this.ticketOpen = false;
+    },
+
+    scrollBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.scroll;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    _injectLinkPreview(text, parentEl) {
+      const m = text.match(/https?:\/\/[^\s"'<>]+/);
+      if (!m) return;
+      const url = m[0];
+      fetch(`/portal/chat/link-preview/?url=${encodeURIComponent(url)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d || !d.title) return;
+          const card = document.createElement('div');
+          card.className = 'mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden';
+          card.innerHTML = (d.image ? `<img src="${this.escHtml(d.image)}" class="w-full h-28 object-cover" loading="lazy" onerror="this.remove()">` : '') +
+            `<div class="px-3 py-2">
+              <p class="text-xs font-semibold text-slate-700 truncate">${this.escHtml(d.title)}</p>
+              ${d.description ? `<p class="text-[11px] text-slate-400 line-clamp-2 mt-0.5">${this.escHtml(d.description)}</p>` : ''}
+              <p class="text-[11px] text-indigo-500 truncate mt-0.5">${this.escHtml(d.site_name || url)}</p>
+            </div>`;
+          const bubble = parentEl.querySelector('.bubble-content, .max-w-\\[70\\%\\]') || parentEl;
+          bubble.appendChild(card);
+          this.scrollBottom();
+        })
+        .catch(() => {});
+    },
+
+    // ── Ticket actions ────────────────────────────────────────────
+    async resolveTicket() {
+      if (!confirm('Tandai tiket ini sebagai resolved?')) return;
+      const res = await fetch(CHAT_RESOLVE_URL, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+      });
+      if (res.ok) {
+        this.ticketOpen = false;
+        this.updateStatus('Resolved', 'Resolved');
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Tiket ditandai resolved.' } }));
+      }
+    },
+
+    async reopenTicket() {
+      const res = await fetch(CHAT_REOPEN_URL, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+      });
+      if (res.ok) {
+        this.ticketOpen = true;
+        this.updateStatus('Open', 'Open');
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Tiket dibuka kembali.' } }));
+      }
+    },
+
+    // ── Utilities ─────────────────────────────────────────────────
+    escHtml(str) {
+      const d = document.createElement('div');
+      d.appendChild(document.createTextNode(str || ''));
+      return d.innerHTML;
+    },
+
+    escAttr(str) {
+      return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    },
+
+    formatTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) + ' ' +
+             d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    },
+  };
+}
+</script>
+{% endblock %}

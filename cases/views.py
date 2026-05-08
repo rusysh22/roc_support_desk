@@ -2136,11 +2136,31 @@ def case_send_reply(request, case_id):
                 elif reply_channel == Message.Channel.WHATSAPP:
                     from gateways.tasks import send_outbound_whatsapp_task
                     send_outbound_whatsapp_task.delay(str(msg.id))
-                    
+
                     # Reset the 60-minute session countdown for the employee
                     from gateways.tasks import check_wa_session_warning_task, check_wa_session_timeout_task
                     check_wa_session_warning_task.apply_async((str(case.id),), countdown=2700)   # 45 min: confirmation
                     check_wa_session_timeout_task.apply_async((str(case.id),), countdown=3600)   # 60 min: expiry
+                elif reply_channel == Message.Channel.WEB:
+                    # Push staff reply to portal user's WebSocket in real time
+                    try:
+                        from asgiref.sync import async_to_sync
+                        from channels.layers import get_channel_layer
+                        sender_name = request.user.get_full_name() or str(request.user)
+                        async_to_sync(get_channel_layer().group_send)(
+                            f"chat_{case.id}",
+                            {
+                                "type": "chat.message",
+                                "message_id": str(msg.id),
+                                "body": msg.body,
+                                "direction": msg.direction,
+                                "sender_name": sender_name,
+                                "sent_at": msg.sent_at.isoformat(),
+                                "is_system": False,
+                            },
+                        )
+                    except Exception:
+                        pass  # channel layer unavailable — portal user falls back to polling
             except Exception as e:
                 msg.delivery_status = Message.DeliveryStatus.FAILED
                 msg.delivery_error = f"Celery connection failed: {str(e)}"

@@ -23,8 +23,13 @@ qrcode>=7.4
 # Static file serving
 whitenoise>=6.7
 
-# Production WSGI server
+# Production ASGI server (replaces gunicorn for WebSocket support)
 gunicorn>=23.0
+daphne>=4.1
+
+# Real-time WebSocket (Django Channels + Redis channel layer)
+channels>=4.0
+channels-redis>=4.2
 
 # Excel export
 openpyxl>=3.1

@@ -376,6 +376,15 @@ class CaseRecord(AuditableModel):
         help_text="If merged, this links to the primary ticket. Sub-tickets are hidden from the main list."
     )
 
+    # --- Chat portal guest access ---
+    guest_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        verbose_name="Guest Token",
+        help_text="Random token that allows anonymous users to access their own ticket via chat.",
+    )
+
     # --- SLA Tracking ---
     response_due_at = models.DateTimeField(
         null=True,
@@ -514,6 +523,11 @@ class Message(AuditableModel):
     is_deleted = models.BooleanField(
         default=False,
         verbose_name="Is Deleted",
+    )
+    is_system = models.BooleanField(
+        default=False,
+        verbose_name="Is System Message",
+        help_text="Auto-generated messages: ticket created, status changed, etc.",
     )
     is_edited = models.BooleanField(
         default=False,

@@ -124,6 +124,13 @@
                 <span x-show="!sidebarCollapsed" x-transition.opacity>Knowledge Base</span>
             </a>
 
+            {% if user.is_authenticated and user.role_access == 'PortalUser' %}
+            <a href="{% url 'chat:my_tickets' %}" class="jk-sidebar-link {% block nav_my_tickets %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">🗂️</span>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>My Tickets</span>
+            </a>
+            {% endif %}
+
             {% if user.is_authenticated %}
             {% if user.role_access != 'PortalUser' %}
             <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>{{ user.get_role_access_display }}</div>
@@ -467,6 +474,576 @@
     </div>
 
     {% block extra_scripts %}{% endblock %}
+
+    {# ── Floating Chat Widget — portal pages only (not /desk/) ── #}
+    {% if not request.path|slice:":6" == "/desk/" and not request.path|slice:":7" == "/admin/" %}
+    {% if not request.path|slice:":13" == "/portal/chat/" %}
+    <script>
+    const WIDGET_START_URL      = "{% url 'chat:start' %}";
+    const WIDGET_CATEGORIES_URL = "{% url 'chat:categories' %}";
+    const WIDGET_UNITS_URL      = "{% url 'chat:units' %}";
+    const WIDGET_CSRF           = "{{ csrf_token }}";
+    const WIDGET_USER_AUTH      = {% if user.is_authenticated %}true{% else %}false{% endif %};
+    const WIDGET_USER_EMAIL     = "{{ user.email|escapejs }}";
+    const WIDGET_USER_NAME      = "{{ user.get_full_name|default:user.username|escapejs }}";
+    </script>
+
+    <div x-data="chatWidget()"
+         x-init="init()"
+         class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
+         x-cloak>
+
+      {# ── Panel ── #}
+      <div x-show="open"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+           x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+           x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+           class="w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+           style="max-height: 540px;">
+
+        {# Panel header #}
+        <div class="bg-indigo-600 px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm">🛠️</div>
+            <div>
+              <p class="text-white font-bold text-sm leading-tight">Support Chat</p>
+              <p class="text-indigo-200 text-[10px]" x-text="wsConnected ? '● Online' : '○ Connecting…'"></p>
+            </div>
+          </div>
+          <button @click="open = false" class="text-white/60 hover:text-white transition-colors p-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {# ── STEP 1: Welcome / category picker ── #}
+        <div x-show="step === 'welcome'" class="flex-1 overflow-y-auto px-4 py-4">
+          <p class="text-sm font-semibold text-slate-700 mb-3">How can we help you?</p>
+
+          <div x-show="loadingCats" class="text-xs text-slate-400 text-center py-4">Loading categories…</div>
+
+          <template x-for="cat in categories" :key="cat.id">
+            <div>
+              {# Parent or leaf category button #}
+              <button @click="selectCategory(cat)"
+                      class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 transition-colors mb-1.5 group">
+                <span class="text-xl w-7 text-center flex-shrink-0" x-text="cat.icon"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-slate-700 group-hover:text-indigo-700 truncate" x-text="cat.name"></p>
+                  <p class="text-[11px] text-slate-400 truncate" x-text="cat.description"></p>
+                </div>
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+
+              {# Sub-categories (revealed inline) #}
+              <div x-show="expandedParent === cat.id && cat.has_children" x-cloak class="ml-4 mb-2 space-y-1">
+                <template x-for="child in cat.children" :key="child.id">
+                  <button @click="selectLeaf(child)"
+                          class="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-slate-600 hover:text-indigo-700 transition-colors">
+                    <span x-text="child.icon || '→'"></span>
+                    <span x-text="child.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        {# ── STEP 2: Guest info form ── #}
+        <div x-show="step === 'guest_form'" class="flex-1 overflow-y-auto px-4 py-4">
+          <button @click="step = 'welcome'; selectedCategory = null" class="text-xs text-slate-400 hover:text-indigo-600 mb-3 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            Back
+          </button>
+          <p class="text-sm font-semibold text-slate-700 mb-1" x-text="'Category: ' + (selectedCategory?.name || '')"></p>
+          <p class="text-xs text-slate-400 mb-4">Please provide your details so we can follow up.</p>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Full Name <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="guestName" placeholder="Your full name" class="jk-input text-sm w-full">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Email <span class="text-rose-500">*</span></label>
+              <input type="email" x-model="guestEmail" placeholder="your@email.com" class="jk-input text-sm w-full">
+            </div>
+            <div x-data="{ open: false }" class="relative">
+              <label class="block text-xs font-medium text-slate-600 mb-1">Unit <span class="text-rose-500">*</span></label>
+              <button type="button"
+                      @click="open = !open; if(open) $nextTick(() => $refs.unitSearch.focus())"
+                      class="jk-input text-sm w-full text-left flex items-center justify-between"
+                      :class="!selectedUnitId ? 'text-slate-400' : 'text-slate-800'">
+                <span x-text="selectedUnitName || 'Select unit…'"></span>
+                <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div x-show="open" x-cloak @click.outside="open = false"
+                   class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                <div class="p-2 border-b border-slate-100">
+                  <input type="text" x-ref="unitSearch" x-model="unitSearch"
+                         placeholder="Search unit…"
+                         class="jk-input text-xs w-full py-1.5"
+                         @keydown.escape="open = false">
+                </div>
+                <div class="overflow-y-auto" style="max-height:160px;">
+                  <div x-show="loadingUnits" class="text-xs text-slate-400 text-center py-3">Loading…</div>
+                  <template x-for="u in filteredUnits" :key="u.id">
+                    <button type="button"
+                            @click="selectedUnitId = u.id; selectedUnitName = u.name; unitSearch = ''; open = false"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 flex items-center justify-between gap-2"
+                            :class="selectedUnitId === u.id ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'">
+                      <span x-text="u.name"></span>
+                      <span x-show="u.parent_name" class="text-[10px] text-slate-400 truncate" x-text="u.parent_name"></span>
+                    </button>
+                  </template>
+                  <p x-show="!loadingUnits && filteredUnits.length === 0" class="text-xs text-slate-400 text-center py-3">No units found.</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Describe your issue <span class="text-rose-500">*</span></label>
+              <textarea x-model="firstMessage" rows="3" placeholder="Tell us what's happening…" class="jk-input text-sm w-full resize-none"></textarea>
+            </div>
+            <p x-show="formError" x-cloak class="text-xs text-rose-500" x-text="formError"></p>
+            <button @click="startChat()"
+                    :disabled="starting"
+                    class="w-full jk-btn jk-btn-primary justify-center text-sm">
+              <svg x-show="starting" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <span x-show="!starting">Start Chat</span>
+              <span x-show="starting" x-cloak>Creating ticket…</span>
+            </button>
+          </div>
+        </div>
+
+        {# ── STEP 3: Active chat ── #}
+        <div x-show="step === 'chat'" class="flex flex-col flex-1 min-h-0" style="height:380px;">
+          {# Ticket info strip #}
+          <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+            <span class="text-xs text-slate-500 truncate" x-text="activeCaseNumber"></span>
+            <a :href="'/portal/chat/' + activeCaseUUID + '/'" target="_blank"
+               class="text-xs text-indigo-600 hover:underline flex-shrink-0">Full view ↗</a>
+          </div>
+
+          {# Resolved notice #}
+          <div x-show="ticketResolved" x-cloak
+               class="px-4 py-2.5 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-2">
+            <p class="text-[11px] text-emerald-700 font-medium">Ticket resolved ✓</p>
+            <button @click="clearSession()"
+                    class="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline flex-shrink-0">
+              New ticket
+            </button>
+          </div>
+
+          {# Messages #}
+          <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3" x-ref="widgetScroll" id="widget-messages"></div>
+
+          {# Pending files strip #}
+          <div x-show="widgetPendingFiles.length > 0" x-cloak class="px-3 pt-2 flex flex-wrap gap-1.5">
+            <template x-for="(f, idx) in widgetPendingFiles" :key="idx">
+              <div class="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 text-[10px] text-slate-600 max-w-[120px]">
+                <span class="truncate" x-text="f.name"></span>
+                <button @click="widgetRemovePending(idx)" class="text-slate-400 hover:text-rose-500 flex-shrink-0">✕</button>
+              </div>
+            </template>
+          </div>
+
+          {# Input — hidden when resolved #}
+          <div x-show="!ticketResolved" class="px-3 py-2 border-t border-slate-100 flex items-end gap-2">
+            {# File attach #}
+            <label class="flex-shrink-0 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors" title="Lampirkan file">
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+              </svg>
+              <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                     @change="widgetOnFilePick($event)">
+            </label>
+
+            <textarea x-ref="widgetInput"
+                      x-model="widgetMsg"
+                      @keydown.enter.exact.prevent="widgetSend()"
+                      @keydown.enter.shift.exact="widgetMsg += '\n'"
+                      rows="1"
+                      placeholder="Ketik pesan…"
+                      class="jk-input flex-1 resize-none text-sm py-1.5 leading-snug"
+                      style="min-height:34px;max-height:80px;overflow-y:auto;"></textarea>
+            <button @click="widgetSend()"
+                    :disabled="!widgetMsg.trim() && widgetPendingFiles.length === 0"
+                    class="flex-shrink-0 w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {# ── Bubble button ── #}
+      <button @click="toggleWidget()"
+              class="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 shadow-xl hover:shadow-indigo-500/30 flex items-center justify-center transition-all text-white relative">
+        {# Chat icon (closed) #}
+        <svg x-show="!open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        </svg>
+        {# Close icon (open) #}
+        <svg x-show="open" x-cloak class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        {# Unread dot #}
+        <span x-show="unreadCount > 0" x-cloak
+              class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center"
+              x-text="unreadCount > 9 ? '9+' : unreadCount"></span>
+      </button>
+
+    </div>
+
+    <script>
+    function chatWidget() {
+      return {
+        open: false,
+        step: 'welcome',          // welcome | guest_form | chat
+        categories: [],
+        loadingCats: false,
+        expandedParent: null,
+        selectedCategory: null,   // { id, name }
+        guestName: WIDGET_USER_NAME,
+        guestEmail: WIDGET_USER_EMAIL,
+        units: [],
+        loadingUnits: false,
+        unitSearch: '',
+        selectedUnitId: null,
+        selectedUnitName: '',
+        firstMessage: '',
+        formError: '',
+        starting: false,
+        activeCaseUUID: null,
+        activeCaseNumber: '',
+        guestToken: '',
+        ticketResolved: false,
+        ws: null,
+        wsConnected: false,
+        widgetMsg: '',
+        unreadCount: 0,
+        pollTimer: null,
+        widgetPendingFiles: [],
+
+        get filteredUnits() {
+          const q = this.unitSearch.toLowerCase();
+          if (!q) return this.units;
+          return this.units.filter(u =>
+            u.name.toLowerCase().includes(q) ||
+            u.code.toLowerCase().includes(q) ||
+            (u.parent_name || '').toLowerCase().includes(q)
+          );
+        },
+
+        init() {
+          const saved = localStorage.getItem('roc_chat_session');
+          if (saved) {
+            try {
+              const s = JSON.parse(saved);
+              this.activeCaseUUID   = s.uuid;
+              this.activeCaseNumber = s.number;
+              this.guestToken       = s.token || '';
+              this.ticketResolved   = !!(s.resolved);
+              this.step = 'chat';
+              this.$nextTick(() => this.connectWidgetWS());
+            } catch(e) { localStorage.removeItem('roc_chat_session'); }
+          }
+          // Ctrl+V paste image into widget input
+          document.addEventListener('paste', (e) => {
+            if (!this.$refs.widgetInput || !document.activeElement.isSameNode(this.$refs.widgetInput)) return;
+            const items = Array.from(e.clipboardData?.items || []);
+            const images = items.filter(i => i.type.startsWith('image/'));
+            if (!images.length) return;
+            e.preventDefault();
+            images.forEach(item => {
+              const file = item.getAsFile();
+              if (file && this.widgetPendingFiles.length < 3) this.widgetPendingFiles.push(file);
+            });
+          });
+        },
+
+        toggleWidget() {
+          this.open = !this.open;
+          if (this.open) {
+            this.unreadCount = 0;
+            if (this.step === 'welcome' && this.categories.length === 0) this.loadCategories();
+            if (this.step === 'chat') this.$nextTick(() => this.scrollWidgetBottom());
+          }
+        },
+
+        async loadCategories() {
+          this.loadingCats = true;
+          try {
+            const res = await fetch(WIDGET_CATEGORIES_URL);
+            const data = await res.json();
+            this.categories = data.categories || [];
+          } finally { this.loadingCats = false; }
+        },
+
+        selectCategory(cat) {
+          if (cat.has_children) {
+            this.expandedParent = this.expandedParent === cat.id ? null : cat.id;
+          } else {
+            this.selectLeaf(cat);
+          }
+        },
+
+        selectLeaf(cat) {
+          this.selectedCategory = cat;
+          this.expandedParent = null;
+          if (WIDGET_USER_AUTH) {
+            this.guestName  = WIDGET_USER_NAME;
+            this.guestEmail = WIDGET_USER_EMAIL;
+          }
+          this.step = 'guest_form';
+          if (this.units.length === 0) this.loadUnits();
+        },
+
+        async loadUnits() {
+          this.loadingUnits = true;
+          try {
+            const res = await fetch(WIDGET_UNITS_URL);
+            const data = await res.json();
+            this.units = data.units || [];
+          } finally { this.loadingUnits = false; }
+        },
+
+        async startChat() {
+          this.formError = '';
+          if (!this.guestName.trim())    return (this.formError = 'Nama wajib diisi.');
+          if (!this.guestEmail.trim())   return (this.formError = 'Email wajib diisi.');
+          if (!this.selectedUnitId)      return (this.formError = 'Unit wajib dipilih.');
+          if (!this.firstMessage.trim()) return (this.formError = 'Deskripsi masalah wajib diisi.');
+
+          this.starting = true;
+          try {
+            const res = await fetch(WIDGET_START_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': WIDGET_CSRF },
+              body: JSON.stringify({
+                category_id: this.selectedCategory.id,
+                name: this.guestName,
+                email: this.guestEmail,
+                unit_id: this.selectedUnitId,
+                message: this.firstMessage,
+                _hp: '',
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) return (this.formError = data.error || 'Failed to create ticket.');
+
+            this.activeCaseUUID   = data.case_uuid;
+            this.activeCaseNumber = data.case_number;
+            this.guestToken       = data.guest_token || '';
+            this.firstMessage     = '';
+            this.step = 'chat';
+
+            this._persistSession({ uuid: data.case_uuid, number: data.case_number, token: data.guest_token, resolved: false });
+
+            this.$nextTick(() => {
+              this.connectWidgetWS();
+              this.appendWidgetMsg({ body: `Ticket ${data.case_number} created. We'll reply shortly.`, direction: 'OUT', is_system: true, sender_name: 'System', sent_at: new Date().toISOString() });
+            });
+          } catch(e) {
+            this.formError = 'Something went wrong. Please try again.';
+          } finally {
+            this.starting = false;
+          }
+        },
+
+        connectWidgetWS() {
+          if (!this.activeCaseUUID) return;
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+          const tokenPart = this.guestToken ? `?token=${encodeURIComponent(this.guestToken)}` : '';
+          const url = `${proto}://${location.host}/ws/chat/${this.activeCaseUUID}/${tokenPart}`;
+          this.ws = new WebSocket(url);
+          this.ws.onopen = () => { this.wsConnected = true; clearInterval(this.pollTimer); };
+          this.ws.onmessage = (e) => {
+            const d = JSON.parse(e.data);
+            if (d.type === 'chat_message' || d.type === 'chat_attachment') {
+              this.appendWidgetMsg(d);
+              if (!this.open) this.unreadCount++;
+            } else if (d.type === 'status_update') {
+              const resolved = d.status === 'Resolved' || d.status === 'Closed';
+              this.ticketResolved = resolved;
+              this._persistSession({ resolved });
+            }
+          };
+          this.ws.onclose = () => {
+            this.wsConnected = false;
+            if (!this.pollTimer) {
+              this.pollTimer = setInterval(() => this.pollWidget(), 5000);
+            }
+            setTimeout(() => this.connectWidgetWS(), 6000);
+          };
+        },
+
+        async pollWidget() {
+          if (!this.activeCaseUUID) return;
+          try {
+            const res = await fetch(`/portal/chat/${this.activeCaseUUID}/poll/`);
+            if (res.ok) {
+              // Minimal: just increment badge so user knows there's an update
+              if (!this.open) this.unreadCount++;
+            }
+          } catch(e) {}
+        },
+
+        async widgetSend() {
+          if (this.widgetPendingFiles.length > 0) {
+            await this.widgetSendFiles();
+          }
+          const text = this.widgetMsg.trim();
+          if (!text || !this.activeCaseUUID) return;
+          this.widgetMsg = '';
+
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'chat_message', body: text }));
+          } else {
+            await fetch(`/portal/chat/${this.activeCaseUUID}/send/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': WIDGET_CSRF },
+              body: JSON.stringify({ body: text }),
+            });
+          }
+          this.appendWidgetMsg({ body: text, direction: 'IN', is_system: false, sender_name: this.guestName || 'You', sent_at: new Date().toISOString() });
+        },
+
+        async widgetSendFiles() {
+          if (!this.activeCaseUUID || this.widgetPendingFiles.length === 0) return;
+          const fd = new FormData();
+          this.widgetPendingFiles.forEach(f => fd.append('files', f));
+          this.widgetPendingFiles = [];
+          try {
+            await fetch(`/portal/chat/${this.activeCaseUUID}/upload/`, {
+              method: 'POST',
+              headers: { 'X-CSRFToken': WIDGET_CSRF },
+              body: fd,
+            });
+          } catch(e) {}
+        },
+
+        widgetOnFilePick(e) {
+          const files = Array.from(e.target.files || []);
+          files.forEach(f => {
+            if (this.widgetPendingFiles.length >= 3) return;
+            if (f.size <= 10 * 1024 * 1024) this.widgetPendingFiles.push(f);
+          });
+          e.target.value = '';
+        },
+
+        widgetRemovePending(idx) {
+          this.widgetPendingFiles.splice(idx, 1);
+        },
+
+        appendWidgetMsg(data) {
+          const container = document.getElementById('widget-messages');
+          if (!container) return;
+          const el = document.createElement('div');
+          const isOut = data.direction === 'OUT';
+          const isSys = data.is_system;
+
+          if (isSys) {
+            el.className = 'flex justify-center';
+            el.innerHTML = `<div class="text-[11px] bg-slate-100 text-slate-400 px-3 py-1.5 rounded-full text-center max-w-[90%]">${this.escHtml(data.body)}</div>`;
+          } else if (isOut) {
+            el.className = 'flex gap-2';
+            el.innerHTML = `
+              <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">S</div>
+              <div class="max-w-[80%] bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 text-xs text-slate-700 break-words">${this.escHtml(data.body)}</div>`;
+          } else {
+            el.className = 'flex gap-2 flex-row-reverse';
+            el.innerHTML = `
+              <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-[10px] font-bold flex-shrink-0 mt-0.5">${(data.sender_name||'U').charAt(0).toUpperCase()}</div>
+              <div class="max-w-[80%] bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${this.escHtml(data.body)}</div>`;
+          }
+          container.appendChild(el);
+          this.scrollWidgetBottom();
+          if (!isSys && data.body) this._injectLinkPreview(data.body, el);
+        },
+
+        _injectLinkPreview(text, parentEl) {
+          const m = text.match(/https?:\/\/[^\s"'<>]+/);
+          if (!m) return;
+          const url = m[0];
+          fetch(`/portal/chat/link-preview/?url=${encodeURIComponent(url)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (!d || !d.title) return;
+              const card = document.createElement('div');
+              card.className = 'mt-1.5 rounded-xl border border-slate-200 bg-white overflow-hidden text-left max-w-[80%]';
+              card.innerHTML = (d.image
+                ? `<img src="${this.escHtml(d.image)}" class="w-full h-20 object-cover" loading="lazy" onerror="this.remove()">`
+                : '') +
+                `<div class="px-2.5 py-2">
+                  <p class="text-[11px] font-semibold text-slate-700 truncate">${this.escHtml(d.title)}</p>
+                  ${d.description ? `<p class="text-[10px] text-slate-400 line-clamp-2 mt-0.5">${this.escHtml(d.description)}</p>` : ''}
+                  <p class="text-[10px] text-indigo-500 truncate mt-0.5">${this.escHtml(d.site_name || url)}</p>
+                </div>`;
+              const bubble = parentEl.querySelector('div.max-w-\\[80\\%\\]') || parentEl;
+              bubble.appendChild(card);
+              this.scrollWidgetBottom();
+            })
+            .catch(() => {});
+        },
+
+        _persistSession(patch) {
+          try {
+            const cur = JSON.parse(localStorage.getItem('roc_chat_session') || '{}');
+            localStorage.setItem('roc_chat_session', JSON.stringify({ ...cur, ...patch }));
+          } catch(e) {}
+        },
+
+        clearSession() {
+          localStorage.removeItem('roc_chat_session');
+          if (this.ws) { try { this.ws.close(); } catch(e) {} }
+          clearInterval(this.pollTimer);
+          this.activeCaseUUID = null;
+          this.activeCaseNumber = '';
+          this.guestToken = '';
+          this.ticketResolved = false;
+          this.ws = null;
+          this.wsConnected = false;
+          this.pollTimer = null;
+          this.selectedCategory = null;
+          this.selectedUnitId = null;
+          this.selectedUnitName = '';
+          this.unitSearch = '';
+          this.firstMessage = '';
+          this.formError = '';
+          this.step = 'welcome';
+          if (this.categories.length === 0) this.loadCategories();
+        },
+
+        scrollWidgetBottom() {
+          this.$nextTick(() => {
+            const el = document.getElementById('widget-messages');
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+        },
+
+        escHtml(str) {
+          const d = document.createElement('div');
+          d.appendChild(document.createTextNode(str || ''));
+          return d.innerHTML;
+        },
+      };
+    }
+    </script>
+    {% endif %}
+    {% endif %}
 
     <!-- Browser Notification Handler -->
     <script>
