@@ -850,22 +850,32 @@ def my_tickets(request):
     Portal history page for authenticated users.
     Shows all CaseRecords where requester_email matches the logged-in user's email.
     Staff roles are redirected to the main desk dashboard.
+    Supports filtering by status/keyword and pagination (20 per page).
     """
+    from django.core.paginator import Paginator
     user = request.user
 
-    # Staff shouldn't land here — they have the desk dashboard
     if user.role_access in STAFF_ROLES:
         from django.shortcuts import redirect
         return redirect("desk:case_list")
 
-    cases = (
+    qs = (
         CaseRecord.objects
         .filter(requester_email__iexact=user.email)
         .select_related("category")
+        .prefetch_related("messages")
         .order_by("-created_at")
     )
 
-    # Map internal status → user-facing label
+    # Filters
+    status_filter = request.GET.get("status", "").strip()
+    search_query = request.GET.get("q", "").strip()
+
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    if search_query:
+        qs = qs.filter(subject__icontains=search_query)
+
     STATUS_LABEL = {
         CaseRecord.Status.OPEN: ("Waiting", "yellow"),
         CaseRecord.Status.INVESTIGATING: ("In Progress", "blue"),
@@ -874,24 +884,59 @@ def my_tickets(request):
         CaseRecord.Status.CLOSED: ("Closed", "slate"),
     }
 
-    enriched = []
+    paginator = Paginator(qs, 20)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+
     now = timezone.now()
-    for c in cases:
+    enriched = []
+    for c in page_obj:
         label, color = STATUS_LABEL.get(c.status, (c.status, "slate"))
         can_chat = c.status not in (CaseRecord.Status.CLOSED,)
         can_reopen = (
             c.status == CaseRecord.Status.RESOLVED
             and (now - c.updated_at).days < REOPEN_WINDOW_DAYS
         )
+        # Unread staff replies: OUT messages sent after last portal visit
+        session_key = f"chat_lr_{c.id}"
+        last_read_str = request.session.get(session_key)
+        unread_count = 0
+        if last_read_str:
+            try:
+                last_read_dt = datetime.datetime.fromisoformat(last_read_str)
+                if last_read_dt.tzinfo is None:
+                    last_read_dt = last_read_dt.replace(tzinfo=datetime.timezone.utc)
+                unread_count = c.messages.filter(
+                    direction="OUT", is_system=False, sent_at__gt=last_read_dt
+                ).count()
+            except (ValueError, TypeError):
+                pass
+        else:
+            unread_count = c.messages.filter(direction="OUT", is_system=False).count()
+
         enriched.append({
             "case": c,
             "status_label": label,
             "status_color": color,
             "can_chat": can_chat,
             "can_reopen": can_reopen,
+            "unread_count": unread_count,
         })
 
-    return render(request, "client/my_tickets.html", {"tickets": enriched})
+    return render(request, "client/my_tickets.html", {
+        "tickets": enriched,
+        "page_obj": page_obj,
+        "status_filter": status_filter,
+        "search_query": search_query,
+        "status_choices": [
+            ("", "All statuses"),
+            (CaseRecord.Status.OPEN, "Waiting"),
+            (CaseRecord.Status.INVESTIGATING, "In Progress"),
+            (CaseRecord.Status.PENDING_INFO, "Need Info"),
+            (CaseRecord.Status.RESOLVED, "Resolved"),
+            (CaseRecord.Status.CLOSED, "Closed"),
+        ],
+    })
 
 
 # ---------------------------------------------------------------------------

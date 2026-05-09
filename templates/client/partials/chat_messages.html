@@ -3,7 +3,7 @@
 {% if first_unread_id and msg.id|stringformat:"s" == first_unread_id %}
 <div id="unread-divider" class="flex items-center gap-3 my-4">
   <div class="flex-1 h-px bg-indigo-200"></div>
-  <span class="text-xs font-semibold text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-3 py-1 flex-shrink-0 whitespace-nowrap">&#x2193; Pesan Baru</span>
+  <span class="text-xs font-semibold text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-3 py-1 flex-shrink-0 whitespace-nowrap">&#x2193; New Messages</span>
   <div class="flex-1 h-px bg-indigo-200"></div>
 </div>
 {% endif %}
@@ -32,7 +32,7 @@
     </p>
     <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">
       {% if msg.is_deleted %}
-      <em class="text-indigo-200 text-xs">Pesan ditarik 🚫</em>
+      <em class="text-indigo-200 text-xs">Message retracted 🚫</em>
       {% else %}
         {% if msg.quoted_message and not msg.quoted_message.is_deleted %}
         <div class="border-l-2 border-indigo-300 bg-indigo-700/40 px-2.5 py-1.5 rounded-r-lg mb-2 text-xs">
@@ -91,7 +91,7 @@
     </p>
     <div class="bubble-content bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed break-words shadow-sm">
       {% if msg.is_deleted %}
-      <em class="text-slate-400 text-xs">Pesan ditarik 🚫</em>
+      <em class="text-slate-400 text-xs">Message retracted 🚫</em>
       {% else %}
         {% if msg.quoted_message and not msg.quoted_message.is_deleted %}
         <div class="border-l-2 border-indigo-400 bg-indigo-50 px-2.5 py-1.5 rounded-r-lg mb-2 text-xs">
@@ -137,5 +137,5 @@
 
 </div>
 {% empty %}
-<div class="text-center text-slate-400 text-sm py-8">Belum ada pesan. Mulai percakapan!</div>
+<div class="text-center text-slate-400 text-sm py-8">No messages yet. Start the conversation!</div>
 {% endfor %}
