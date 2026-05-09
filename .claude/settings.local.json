@@ -3,14 +3,6 @@
     "allow": [
       "Bash(python manage.py makemigrations core --name=\"add_teams_and_notification_config\")",
       "Bash(echo \"EXIT:$?\")",
-      "PowerShell(Get-Command python3, py, python -ErrorAction SilentlyContinue)",
-      "PowerShell(& \"C:\\\\Users\\\\MShubkhi\\\\Documents\\\\Python314\\\\python.exe\" -c \"import django; print\\(django.__version__\\)\" 2>&1)",
-      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\\\\tasks.py\"\\).Count)",
-      "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\\\\gateways\")",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\" -Recurse -Force)",
-      "Bash(Select-Object -First 50)",
-      "Bash(Format-Table FullName)",
-      "Bash(dir \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\")",
       "Bash(python manage.py makemigrations core --name=\"add_parent_to_companyunit\")",
       "Bash(python manage.py showmigrations core)",
       "Bash(rtk proxy *)",
@@ -23,8 +15,16 @@
       "Bash(rtk docker *)",
       "Bash(docker-compose ps *)",
       "Bash(docker compose *)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\" -Recurse -File)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(rtk read *)",
+      "WebSearch",
+      "Bash(rtk cat *)",
+      "Bash(rtk pip *)",
+      "Bash(python -c \"import channels; print\\(channels.__version__\\)\")",
+      "Bash(python -c \"import daphne; print\\(daphne.__version__\\)\")",
+      "Bash(python -c \"import channels_redis; print\\(channels_redis.__version__\\)\")",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(docker cp *)"
     ]
   }
 }
