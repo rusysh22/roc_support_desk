@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.3.0</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.3.5</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.3.0
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.3.5
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,35 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.3.0 -->
+                <!-- v1.3.5 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.3.5</span>
+                        <span class="text-xs text-slate-600">09 May 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>Live Chat: Correct message alignment</strong> — Messages sent by the current viewer always appear on the right; messages from the other party appear on the left, matching standard chat conventions for both portal users and staff.</li>
+                        <li><strong>Live Chat: Real sender names and avatars</strong> — WebSocket messages now resolve the sender's actual name and display the first letter of that name as the avatar, replacing the hardcoded "S"/"U" placeholders.</li>
+                        <li><strong>Live Chat: Typing indicator with sender identity</strong> — The typing indicator shows the name of the person currently typing and updates its avatar initial accordingly. The indicator is suppressed for the sender themselves (no self-echo).</li>
+                        <li><strong>Live Chat: Duplicate message fix</strong> — A single WebSocket connection is enforced per chat room session. Old connections are fully torn down (all event handlers cleared) before a new one is opened, eliminating duplicate message delivery.</li>
+                        <li><strong>Live Chat: Browser push notifications</strong> — When a new message arrives and the browser tab is not in focus, the browser's native Notification API delivers a push notification with the sender's name and a message preview. Requires one-time permission grant from the user.</li>
+                        <li><strong>Live Chat: Unread message divider</strong> — On entering a chat room, a "New Messages" divider line is inserted above the first unread staff reply since the user's last visit, so users immediately see where to catch up from.</li>
+                        <li><strong>Live Chat: Go to Bottom button</strong> — A floating button appears when the user scrolls up in the chat. It shows an unread message count badge when new messages arrive off-screen; clicking it scrolls to the latest message and clears the badge.</li>
+                        <li><strong>My Tickets: Keyword and status filters</strong> — Portal users can filter their ticket list by subject keyword and/or ticket status. Filters persist across pagination and can be cleared with a single button.</li>
+                        <li><strong>My Tickets: Pagination</strong> — The ticket list is paginated at 20 tickets per page with page navigation that preserves active filters.</li>
+                        <li><strong>My Tickets: Unread reply badges</strong> — Tickets with unread staff replies show a count badge and a highlighted border. The "Open Chat" button gains a ring accent when unread messages are present.</li>
+                        <li><strong>UI language: Full English throughout</strong> — All code-level strings, UI labels, toast messages, confirmation dialogs, and status indicators in the chat portal are now in English.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.3.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.3.0</span>
                         <span class="text-xs text-slate-600">28 Apr 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>Knowledge Base: Highlighted Articles</strong> — Manager/SuperAdmin can pin up to 10 published articles as "Highlighted". Pinned articles appear in a dedicated gold-accented section on the KB home page and float to the top of every category listing with a star badge. Auto-unpinned when an article is unpublished.</li>

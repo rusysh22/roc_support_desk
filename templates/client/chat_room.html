@@ -95,11 +95,15 @@
 
         {# Typing indicator #}
         <div x-show="typingVisible" x-cloak class="flex gap-2 mb-4 items-end">
-          <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">S</div>
-          <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
+          <div class="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center text-slate-700 text-xs font-bold flex-shrink-0"
+               x-text="(typingSenderName || '?').charAt(0).toUpperCase()"></div>
+          <div class="flex flex-col gap-0.5">
+            <p class="text-[11px] text-slate-400" x-text="typingSenderName" x-show="typingSenderName"></p>
+            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -107,10 +111,10 @@
       {# Go to Bottom button #}
       <button x-show="showScrollBtn" x-cloak
               @click="goToBottom()"
-              class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full shadow-lg px-3 py-1.5 transition-all z-10">
+              class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full shadow-lg px-2.5 py-1.5 transition-all z-10">
         <template x-if="unreadCount > 0">
           <span x-text="unreadCount"
-                class="bg-white text-indigo-600 text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 -ml-0.5"></span>
+                class="bg-white text-indigo-600 text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1"></span>
         </template>
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
@@ -173,7 +177,7 @@
       <div class="flex items-end gap-2">
         {# File attach button #}
         <label class="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
-               title="Lampirkan file (jpg, png, pdf, docx, xlsx, txt — maks 10 MB, 3 file)">
+               title="Attach file (jpg, png, pdf, docx, xlsx, txt — max 10 MB, 3 files)">
           <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
           </svg>
@@ -185,7 +189,7 @@
         <button @click="toggleCode()"
                 :class="codeMode ? 'bg-slate-800 text-green-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
                 class="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors text-xs font-mono font-bold"
-                title="Mode code snippet">&lt;/&gt;</button>
+                title="Code snippet mode">&lt;/&gt;</button>
 
         {# Text input #}
         <textarea x-ref="msgInput"
@@ -193,7 +197,7 @@
                   @keydown.enter.exact.prevent="send()"
                   @keydown.enter.shift.exact="msgText += '\n'"
                   @input="onTyping()"
-                  :placeholder="codeMode ? 'Paste code di sini… (Enter untuk kirim)' : 'Ketik pesan… (Enter kirim, Shift+Enter baris baru)'"
+                  :placeholder="codeMode ? 'Paste code here… (Enter to send)' : 'Type a message… (Enter to send, Shift+Enter for new line)'"
                   rows="1"
                   class="jk-input flex-1 resize-none text-sm py-2.5 leading-snug"
                   :class="codeMode ? 'font-mono bg-slate-900 text-green-400 border-slate-700' : ''"
@@ -217,13 +221,13 @@
       {# Bottom toolbar: status + resolve #}
       <div class="flex items-center justify-between mt-2.5 px-1">
         <p class="text-xs text-slate-400">
-          <span x-text="wsConnected ? '● Terhubung' : '○ Menghubungkan…'"
+          <span x-text="wsConnected ? '● Connected' : '○ Connecting…'"
                 :class="wsConnected ? 'text-emerald-500' : 'text-amber-500'"></span>
-          <span x-show="codeMode" x-cloak class="ml-2 text-green-600 font-semibold text-[10px]">MODE CODE</span>
+          <span x-show="codeMode" x-cloak class="ml-2 text-green-600 font-semibold text-[10px]">CODE MODE</span>
         </p>
         <button @click="resolveTicket()"
                 class="text-xs text-slate-400 hover:text-rose-500 transition-colors underline-offset-2 hover:underline">
-          Tandai Resolved
+          Mark as Resolved
         </button>
       </div>
     </div>
@@ -283,6 +287,7 @@ function chatRoom() {
     codeMode: false,
     unreadCount: 0,
     showScrollBtn: false,
+    typingSenderName: '',
 
     init() {
       this.$nextTick(() => {
@@ -297,14 +302,28 @@ function chatRoom() {
           scrollEl.scrollTop = scrollEl.scrollHeight;
         }
       });
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
       this.connectWS();
       this.setupPasteHandler();
       this.setupActionDelegation();
     },
 
     disconnect() {
-      if (this.ws) this.ws.close();
+      this._closeWS();
       clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    },
+
+    _closeWS() {
+      if (!this.ws) return;
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.close();
+      this.ws = null;
     },
 
     // ── Paste handler (Ctrl+V image) ──────────────────────────────
@@ -344,6 +363,7 @@ function chatRoom() {
 
     // ── WebSocket ──────────────────────────────────────────────────
     connectWS() {
+      this._closeWS();  // ensure only one connection is open at a time
       try {
         this.ws = new WebSocket(CHAT_WS_URL);
       } catch(e) {
@@ -354,6 +374,7 @@ function chatRoom() {
       this.ws.onopen = () => {
         this.wsConnected = true;
         clearInterval(this.pollTimer);
+        this.pollTimer = null;
       };
 
       this.ws.onmessage = (e) => {
@@ -363,7 +384,7 @@ function chatRoom() {
         } else if (data.type === 'chat_attachment') {
           this.appendAttachment(data);
         } else if (data.type === 'typing') {
-          this.showTyping();
+          this.showTyping(data.sender_name);
         } else if (data.type === 'status_update') {
           this.updateStatus(data.status, data.status_display);
         } else if (data.type === 'chat_delete') {
@@ -373,10 +394,9 @@ function chatRoom() {
 
       this.ws.onclose = () => {
         this.wsConnected = false;
-        setTimeout(() => {
-          if (!this.wsConnected) this.startPolling();
-        }, 3000);
-        setTimeout(() => this.connectWS(), 5000);
+        this.ws = null;
+        setTimeout(() => { if (!this.wsConnected) this.startPolling(); }, 3000);
+        setTimeout(() => { if (!this.wsConnected) this.connectWS(); }, 5000);
       };
 
       this.ws.onerror = () => {
@@ -421,7 +441,7 @@ function chatRoom() {
 
     // ── Delete / retract ──────────────────────────────────────────
     async deleteMessage(msgId) {
-      if (!confirm('Tarik pesan ini? Tidak dapat dibatalkan.')) return;
+      if (!confirm('Retract this message? This cannot be undone.')) return;
       const res = await fetch(CHAT_DELETE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
@@ -431,7 +451,7 @@ function chatRoom() {
         this.applyDelete(msgId);
       } else {
         const d = await res.json().catch(() => ({}));
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: d.error || 'Gagal menarik pesan.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: d.error || 'Failed to retract message.' } }));
       }
     },
 
@@ -491,10 +511,10 @@ function chatRoom() {
         });
         if (!res.ok) {
           const err = await res.json();
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: err.error || 'Upload gagal.' } }));
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: err.error || 'Upload failed.' } }));
         }
       } catch(e) {
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Upload gagal.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Upload failed.' } }));
       } finally {
         this.pendingFiles = [];
         this.sending = false;
@@ -506,13 +526,13 @@ function chatRoom() {
       const files = Array.from(e.target.files || []);
       const total = this.pendingFiles.length + files.length;
       if (total > 3) {
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Maksimal 3 file per pesan.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Maximum 3 files per message.' } }));
         e.target.value = '';
         return;
       }
       files.forEach(f => {
         if (f.size > 10 * 1024 * 1024) {
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: `${f.name} melebihi 10 MB.` } }));
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: `${f.name} exceeds the 10 MB limit.` } }));
           return;
         }
         this.pendingFiles.push(f);
@@ -538,11 +558,12 @@ function chatRoom() {
       }
     },
 
-    showTyping() {
+    showTyping(senderName) {
       this.typingVisible = true;
+      this.typingSenderName = senderName || '';
       clearTimeout(this.typingTimer);
       this.typingTimer = setTimeout(() => { this.typingVisible = false; }, 3000);
-      this.scrollBottom();
+      if (this.isAtBottom()) this.scrollBottom();
     },
 
     // ── DOM helpers ───────────────────────────────────────────────
@@ -633,6 +654,9 @@ function chatRoom() {
       } else if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
         this.unreadCount++;
         this.showScrollBtn = true;
+      }
+      if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
+        this.showBrowserNotification(data.sender_name, data.body);
       }
       if (!isSys && data.body) this._injectLinkPreview(data.body, el);
     },
@@ -744,7 +768,7 @@ function chatRoom() {
 
     // ── Ticket actions ────────────────────────────────────────────
     async resolveTicket() {
-      if (!confirm('Tandai tiket ini sebagai resolved?')) return;
+      if (!confirm('Mark this ticket as resolved?')) return;
       const res = await fetch(CHAT_RESOLVE_URL, {
         method: 'POST',
         headers: { 'X-CSRFToken': CSRF_TOKEN },
@@ -752,7 +776,7 @@ function chatRoom() {
       if (res.ok) {
         this.ticketOpen = false;
         this.updateStatus('Resolved', 'Resolved');
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Tiket ditandai resolved.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket marked as resolved.' } }));
       }
     },
 
@@ -764,8 +788,21 @@ function chatRoom() {
       if (res.ok) {
         this.ticketOpen = true;
         this.updateStatus('Open', 'Open');
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Tiket dibuka kembali.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket reopened.' } }));
       }
+    },
+
+    // ── Browser Notifications ─────────────────────────────────────
+    showBrowserNotification(senderName, body) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (document.hasFocus()) return;
+      const preview = (body || 'New attachment').replace(/^```\n?/, '').slice(0, 80);
+      const notif = new Notification(senderName || 'New message', {
+        body: preview,
+        icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% endif %}",
+        tag: 'chat-{{ case.id }}',
+      });
+      notif.onclick = () => { window.focus(); notif.close(); };
     },
 
     // ── Utilities ─────────────────────────────────────────────────

@@ -72,11 +72,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
         elif event_type == "typing":
+            sender_name = await self._get_current_user_name()
             await self.channel_layer.group_send(
                 self.group_name,
                 {
                     "type": "chat.typing",
                     "sender_channel": self.channel_name,
+                    "sender_name": sender_name,
                 },
             )
 
@@ -101,7 +103,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_typing(self, event):
         if event["sender_channel"] == self.channel_name:
             return
-        await self.send(text_data=json.dumps({"type": "typing"}))
+        await self.send(text_data=json.dumps({
+            "type": "typing",
+            "sender_name": event.get("sender_name", ""),
+        }))
 
     async def chat_attachment(self, event):
         await self.send(text_data=json.dumps({
@@ -175,6 +180,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def _save_message(self, body, quoted_message_id=None):
         from .models import CaseRecord, Message
+        from core.models import Employee
         from django.contrib.auth.models import AnonymousUser
 
         try:
@@ -190,12 +196,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             and user.role_access in ("SuperAdmin", "Manager", "SupportDesk", "Auditor")
         )
 
+        sender_employee = None
+        if not is_staff:
+            sender_employee = Employee.objects.filter(
+                email__iexact=case.requester_email
+            ).first()
+
         msg = Message.objects.create(
             case=case,
             body=body,
             direction=Message.Direction.OUTBOUND if is_staff else Message.Direction.INBOUND,
             channel=Message.Channel.WEB,
             sender_staff=user if is_staff else None,
+            sender_employee=sender_employee,
             is_system=False,
             quoted_message_id=quoted_message_id,
         )
@@ -210,10 +223,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def _get_sender_name(self, message):
         if message.sender_staff:
-            return message.sender_staff.get_full_name() or str(message.sender_staff)
+            name = message.sender_staff.get_full_name()
+            return name or getattr(message.sender_staff, "username", None) or str(message.sender_staff)
         if message.sender_employee:
-            return message.sender_employee.full_name or "User"
-        return "User"
+            return message.sender_employee.full_name or "Unknown"
+        # Guest/anonymous — fall back to the case's requester name
+        try:
+            return message.case.requester_name or "User"
+        except Exception:
+            return "User"
+
+    @database_sync_to_async
+    def _get_current_user_name(self):
+        from django.contrib.auth.models import AnonymousUser
+        user = self.scope.get("user")
+        if user and not isinstance(user, AnonymousUser) and user.is_authenticated:
+            name = user.get_full_name()
+            return name or getattr(user, "username", None) or str(user)
+        # Guest — use case's requester name
+        try:
+            from .models import CaseRecord
+            case = CaseRecord.objects.get(id=self.case_uuid)
+            return case.requester_name or "Guest"
+        except Exception:
+            return "Guest"
 
     @database_sync_to_async
     def _get_quoted_info(self, message):
