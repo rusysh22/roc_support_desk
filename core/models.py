@@ -80,7 +80,7 @@ class User(AbstractUser):
 
     Additional fields:
         login_username  — unique credential used for logging in.
-        NIK             — Nomor Induk Karyawan (employee ID), unique.
+        NIK             — employee identification number, unique.
         role_access     — determines permission tier.
         initials        — user initials used as a signature.
     """

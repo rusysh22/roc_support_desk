@@ -8,6 +8,7 @@ Access control:
   Authenticated staff       — all staff roles can view any chat.
   Anonymous guest           — matched by guest_token stored in a signed cookie.
 """
+import datetime
 import io
 import os
 import secrets
@@ -371,7 +372,7 @@ def chat_start(request):
         if update_fields:
             employee.save(update_fields=update_fields)
 
-    subject = category.template_subject or f"[Chat] {category.name}"
+    subject = (category.template_subject or f"[Chat] {category.name}").replace("{requester_name}", name)
 
     # Guest token — only assigned if user is not authenticated
     guest_token = ""
@@ -469,6 +470,28 @@ def chat_room(request, case_uuid):
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
     user_direction = "OUT" if is_staff else "IN"
 
+    # WhatsApp-style unread divider: find the first unread staff (OUT) message
+    first_unread_id = None
+    if not is_staff:
+        session_key = f"chat_lr_{case_uuid}"
+        last_read_str = request.session.get(session_key)
+        if last_read_str:
+            try:
+                last_read_dt = datetime.datetime.fromisoformat(last_read_str)
+                if last_read_dt.tzinfo is None:
+                    last_read_dt = last_read_dt.replace(tzinfo=datetime.timezone.utc)
+                first_unread = (
+                    case.messages
+                    .filter(direction="OUT", is_system=False, sent_at__gt=last_read_dt)
+                    .order_by("sent_at")
+                    .values_list("id", flat=True)
+                    .first()
+                )
+                first_unread_id = str(first_unread) if first_unread else None
+            except (ValueError, TypeError):
+                pass
+        request.session[session_key] = timezone.now().isoformat()
+
     return render(request, "client/chat_room.html", {
         "case": case,
         "messages": messages_qs,
@@ -477,6 +500,7 @@ def chat_room(request, case_uuid):
         "guest_token": _get_guest_token(request, case_uuid),
         "user_direction": user_direction,
         "is_staff": is_staff,
+        "first_unread_id": first_unread_id,
     })
 
 
@@ -722,6 +746,10 @@ def chat_poll(request, case_uuid):
     if not _can_access_case(request, case):
         return HttpResponseForbidden()
 
+    user = request.user
+    is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
+    user_direction = "OUT" if is_staff else "IN"
+
     messages_qs = (
         case.messages
         .prefetch_related("attachments")
@@ -730,6 +758,8 @@ def chat_poll(request, case_uuid):
     return render(request, "client/partials/chat_messages.html", {
         "case": case,
         "messages": messages_qs,
+        "user_direction": user_direction,
+        "first_unread_id": None,
     })
 
 

@@ -430,8 +430,9 @@
     <!-- Global Toast Notifications -->
     <div x-data="{
              toasts: [],
+             _tid: 0,
              addToast(type, message) {
-                 const id = Date.now();
+                 const id = ++this._tid;
                  this.toasts.push({ id, type, message });
                  setTimeout(() => this.removeToast(id), 5000);
              },
@@ -442,7 +443,7 @@
          @show-toast.window="addToast($event.detail.type, $event.detail.message)"
          class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         <template x-for="toast in toasts" :key="toast.id">
-            <div x-show="true" 
+            <div
                  x-transition:enter="transition ease-out duration-300 transform"
                  x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
                  x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"

@@ -1,7 +1,16 @@
 {% load text_filters %}
 {% for msg in messages %}
+{% if first_unread_id and msg.id|stringformat:"s" == first_unread_id %}
+<div id="unread-divider" class="flex items-center gap-3 my-4">
+  <div class="flex-1 h-px bg-indigo-200"></div>
+  <span class="text-xs font-semibold text-indigo-500 bg-indigo-50 border border-indigo-200 rounded-full px-3 py-1 flex-shrink-0 whitespace-nowrap">&#x2193; Pesan Baru</span>
+  <div class="flex-1 h-px bg-indigo-200"></div>
+</div>
+{% endif %}
+{# is_self: True if this msg was sent by the current viewer (matches user_direction) #}
 <div class="group/bubble relative flex gap-3 mb-4
-     {% if msg.direction == 'OUT' and not msg.is_system %}flex-row-reverse{% elif msg.is_system %}justify-center{% endif %}"
+     {% if msg.is_system %}justify-center
+     {% elif msg.direction == user_direction %}flex-row-reverse{% endif %}"
      data-msg-id="{{ msg.id }}">
 
   {% if msg.is_system %}
@@ -10,16 +19,18 @@
     {{ msg.body }}
   </div>
 
-  {% elif msg.direction == 'OUT' %}
-  {# ── Staff / outbound bubble ── #}
+  {% elif msg.direction == user_direction %}
+  {# ── SELF message: right-aligned, indigo bubble ── #}
   <div class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
-    {{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
+    {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
+    {% else %}{{ msg.sender_employee.full_name|default:"U"|slice:":1"|upper }}{% endif %}
   </div>
-  <div class="max-w-[70%]">
+  <div class="relative max-w-[70%]">
     <p class="text-[11px] text-slate-400 mb-1 text-right">
-      {{ msg.sender_staff.username|default:"Support" }} · {{ msg.sent_at|date:"d M H:i" }}
+      {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"Support" }}
+      {% else %}{{ msg.sender_employee.full_name|default:"You" }}{% endif %} · {{ msg.sent_at|date:"d M H:i" }}
     </p>
-    <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">
+    <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">
       {% if msg.is_deleted %}
       <em class="text-indigo-200 text-xs">Pesan ditarik 🚫</em>
       {% else %}
@@ -52,33 +63,33 @@
         {% endfor %}
       {% endif %}
     </div>
-  </div>
-  {# Hover actions — outbound (staff) #}
-  {% if not msg.is_deleted %}
-  <div class="absolute left-0 top-5 -translate-x-full pr-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
-    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
-            data-reply-id="{{ msg.id }}"
-            data-reply-body="{{ msg.body|truncatechars:80 }}"
-            data-reply-sender="{{ msg.sender_staff.username|default:'Support' }}"
-            title="Reply">↩</button>
-    {% if user_direction == 'OUT' %}
-    <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
-            data-delete-id="{{ msg.id }}"
-            title="Tarik pesan">🗑</button>
+    {# Action buttons — positioned to the LEFT of the self bubble via right-full #}
+    {% if not msg.is_deleted %}
+    <div class="absolute right-full top-5 pr-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
+      <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+              data-reply-id="{{ msg.id }}"
+              data-reply-body="{{ msg.body|truncatechars:80 }}"
+              data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'You' }}{% endif %}"
+              title="Reply">↩</button>
+      <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
+              data-delete-id="{{ msg.id }}"
+              title="Tarik pesan">🗑</button>
+    </div>
     {% endif %}
   </div>
-  {% endif %}
 
   {% else %}
-  {# ── User / inbound bubble ── #}
+  {# ── OTHER message: left-aligned, white bubble ── #}
   <div class="flex-shrink-0 w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center text-slate-700 text-xs font-bold">
-    {{ msg.sender_employee.full_name|default:"U"|slice:":1"|upper }}
+    {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
+    {% else %}{{ msg.sender_employee.full_name|default:"U"|slice:":1"|upper }}{% endif %}
   </div>
-  <div class="max-w-[70%]">
+  <div class="relative max-w-[70%]">
     <p class="text-[11px] text-slate-400 mb-1">
-      {{ msg.sender_employee.full_name|default:"You" }} · {{ msg.sent_at|date:"d M H:i" }}
+      {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"Support" }}
+      {% else %}{{ msg.sender_employee.full_name|default:"User" }}{% endif %} · {{ msg.sent_at|date:"d M H:i" }}
     </p>
-    <div class="bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed break-words shadow-sm">
+    <div class="bubble-content bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed break-words shadow-sm">
       {% if msg.is_deleted %}
       <em class="text-slate-400 text-xs">Pesan ditarik 🚫</em>
       {% else %}
@@ -111,22 +122,17 @@
         {% endfor %}
       {% endif %}
     </div>
-  </div>
-  {# Hover actions — inbound (user) #}
-  {% if not msg.is_deleted %}
-  <div class="absolute right-0 top-5 translate-x-full pl-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
-    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
-            data-reply-id="{{ msg.id }}"
-            data-reply-body="{{ msg.body|truncatechars:80 }}"
-            data-reply-sender="{{ msg.sender_employee.full_name|default:'User' }}"
-            title="Reply">↩</button>
-    {% if user_direction == 'IN' %}
-    <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
-            data-delete-id="{{ msg.id }}"
-            title="Tarik pesan">🗑</button>
+    {# Action buttons — positioned to the RIGHT of the other bubble via left-full #}
+    {% if not msg.is_deleted %}
+    <div class="absolute left-full top-5 pl-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
+      <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+              data-reply-id="{{ msg.id }}"
+              data-reply-body="{{ msg.body|truncatechars:80 }}"
+              data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'User' }}{% endif %}"
+              title="Reply">↩</button>
+    </div>
     {% endif %}
   </div>
-  {% endif %}
   {% endif %}
 
 </div>

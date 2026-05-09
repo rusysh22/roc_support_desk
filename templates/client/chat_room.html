@@ -35,8 +35,9 @@
   const CHAT_UPLOAD_URL  = "{% url 'chat:upload' case.id %}";
   const CHAT_RESOLVE_URL = "{% url 'chat:resolve' case.id %}";
   const CHAT_REOPEN_URL  = "{% url 'chat:reopen' case.id %}";
-  const CHAT_POLL_URL    = "{% url 'chat:poll' case.id %}";
-  const CSRF_TOKEN       = "{{ csrf_token }}";
+  const CHAT_POLL_URL          = "{% url 'chat:poll' case.id %}";
+  const CSRF_TOKEN             = "{{ csrf_token }}";
+  const CHAT_FIRST_UNREAD_ID   = "{{ first_unread_id|default:'' }}";
 </script>
 
 <div class="max-w-2xl mx-auto"
@@ -76,16 +77,17 @@
 
   {# ── Message thread ── #}
   <div class="jk-card mb-3">
-    <div class="jk-card-body p-0">
+    <div class="jk-card-body p-0 relative">
       {# Scroll area #}
       <div id="chat-scroll"
            class="overflow-y-auto px-4 py-4"
            style="height: 420px;"
-           x-ref="scroll">
+           x-ref="scroll"
+           @scroll="onScroll()">
 
         {# Server-rendered history #}
         <div id="chat-history">
-          {% include "client/partials/chat_messages.html" with messages=messages %}
+          {% include "client/partials/chat_messages.html" with messages=messages user_direction=user_direction first_unread_id=first_unread_id %}
         </div>
 
         {# Live messages appended by JS #}
@@ -101,6 +103,19 @@
           </div>
         </div>
       </div>
+
+      {# Go to Bottom button #}
+      <button x-show="showScrollBtn" x-cloak
+              @click="goToBottom()"
+              class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full shadow-lg px-3 py-1.5 transition-all z-10">
+        <template x-if="unreadCount > 0">
+          <span x-text="unreadCount"
+                class="bg-white text-indigo-600 text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 -ml-0.5"></span>
+        </template>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -266,9 +281,22 @@ function chatRoom() {
     ticketOpen: {% if can_send %}true{% else %}false{% endif %},
     replyTo: null,   // { id, body, sender }
     codeMode: false,
+    unreadCount: 0,
+    showScrollBtn: false,
 
     init() {
-      this.scrollBottom();
+      this.$nextTick(() => {
+        const scrollEl = this.$refs.scroll;
+        const divider = document.getElementById('unread-divider');
+        if (divider && scrollEl) {
+          const containerRect = scrollEl.getBoundingClientRect();
+          const dividerRect = divider.getBoundingClientRect();
+          scrollEl.scrollTop += dividerRect.top - containerRect.top - 16;
+          this.showScrollBtn = true;
+        } else if (scrollEl) {
+          scrollEl.scrollTop = scrollEl.scrollHeight;
+        }
+      });
       this.connectWS();
       this.setupPasteHandler();
       this.setupActionDelegation();
@@ -365,13 +393,14 @@ function chatRoom() {
 
     async pollMessages() {
       try {
+        const wasAtBottom = this.isAtBottom();
         const res = await fetch(CHAT_POLL_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         if (!res.ok) return;
         const html = await res.text();
         document.getElementById('chat-history').innerHTML = html;
         document.getElementById('chat-live').innerHTML = '';
         this.setupActionDelegation();
-        this.scrollBottom();
+        if (wasAtBottom) this.scrollBottom();
       } catch(e) {}
     },
 
@@ -489,6 +518,7 @@ function chatRoom() {
         this.pendingFiles.push(f);
       });
       e.target.value = '';
+      this.$nextTick(() => this.$refs.msgInput?.focus());
     },
 
     removePending(idx) {
@@ -555,6 +585,7 @@ function chatRoom() {
     },
 
     appendMessage(data) {
+      const wasAtBottom = this.isAtBottom();
       const isOut = data.direction === 'OUT';
       const isSys = data.is_system;
       const el = document.createElement('div');
@@ -597,11 +628,17 @@ function chatRoom() {
       }
 
       document.getElementById('chat-live').appendChild(el);
-      this.scrollBottom();
+      if (wasAtBottom) {
+        this.scrollBottom();
+      } else if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
+        this.unreadCount++;
+        this.showScrollBtn = true;
+      }
       if (!isSys && data.body) this._injectLinkPreview(data.body, el);
     },
 
     appendAttachment(data) {
+      const wasAtBottom = this.isAtBottom();
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
       const isOut = data.direction === 'OUT';
@@ -626,7 +663,12 @@ function chatRoom() {
         <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
         <div class="max-w-[70%]">${mediaHtml}</div>`;
       document.getElementById('chat-live').appendChild(el);
-      this.scrollBottom();
+      if (wasAtBottom) {
+        this.scrollBottom();
+      } else if (data.direction !== CHAT_USER_DIRECTION) {
+        this.unreadCount++;
+        this.showScrollBtn = true;
+      }
     },
 
     updateStatus(status, display) {
@@ -645,10 +687,35 @@ function chatRoom() {
       if (status === 'Closed') this.ticketOpen = false;
     },
 
+    // ── Scroll helpers ────────────────────────────────────────────
+    isAtBottom() {
+      const el = this.$refs.scroll;
+      if (!el) return true;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    },
+
+    onScroll() {
+      if (this.isAtBottom()) {
+        this.unreadCount = 0;
+        this.showScrollBtn = false;
+      } else {
+        this.showScrollBtn = true;
+      }
+    },
+
+    goToBottom() {
+      const el = this.$refs.scroll;
+      if (el) el.scrollTop = el.scrollHeight;
+      this.unreadCount = 0;
+      this.showScrollBtn = false;
+    },
+
     scrollBottom() {
       this.$nextTick(() => {
         const el = this.$refs.scroll;
         if (el) el.scrollTop = el.scrollHeight;
+        this.unreadCount = 0;
+        this.showScrollBtn = false;
       });
     },
 

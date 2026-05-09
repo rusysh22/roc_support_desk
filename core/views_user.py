@@ -302,7 +302,7 @@ def user_import_template(request):
         ["login_username", "Unique username used to log in", "Yes", "-"],
         ["display_name", "Full name displayed in the system", "Yes", "-"],
         ["email", "Unique email address", "Yes", "-"],
-        ["nik", "Employee ID (Nomor Induk Karyawan)", "No", "-"],
+        ["nik", "Employee ID number (NIK)", "No", "-"],
         ["role_access", "Permission level", "Yes", valid_roles],
         ["initials", "Short initials (e.g. jd)", "Yes", "-"],
         ["can_handle_confidential", "Access to confidential tickets", "No", "TRUE / FALSE"],
