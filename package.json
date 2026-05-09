@@ -1,0 +1,27 @@
+{
+  "name": "roc_support_desk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i static/css/tailwind.src.css -o static/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -i static/css/tailwind.src.css -o static/css/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rusysh22/roc_support_desk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rusysh22/roc_support_desk/issues"
+  },
+  "homepage": "https://github.com/rusysh22/roc_support_desk#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
+  }
+}
