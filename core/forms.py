@@ -249,6 +249,9 @@ class UserAdminForm(forms.ModelForm):
             "can_handle_confidential": forms.CheckboxInput(attrs={"class": "jk-checkbox"}),
         }
 
+    def clean_nik(self):
+        return self.cleaned_data.get("nik") or None
+
     def save(self, commit=True):
         user = super().save(commit=False)
         password = self.cleaned_data.get("password")

@@ -115,6 +115,7 @@ class User(AbstractUser):
         max_length=50,
         unique=True,
         null=True,
+        blank=True,
         verbose_name="NIK",
         help_text="Nomor Induk Karyawan — unique employee identifier.",
     )
