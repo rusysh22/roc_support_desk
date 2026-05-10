@@ -494,7 +494,7 @@ def chat_room(request, case_uuid):
 
     return render(request, "client/chat_room.html", {
         "case": case,
-        "messages": messages_qs,
+        "chat_messages": messages_qs,
         "can_send": can_send,
         "can_reopen": can_reopen,
         "guest_token": _get_guest_token(request, case_uuid),
@@ -757,7 +757,7 @@ def chat_poll(request, case_uuid):
     )
     return render(request, "client/partials/chat_messages.html", {
         "case": case,
-        "messages": messages_qs,
+        "chat_messages": messages_qs,
         "user_direction": user_direction,
         "first_unread_id": None,
     })

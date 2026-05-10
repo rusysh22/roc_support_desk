@@ -7,7 +7,7 @@ from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 
 from core import views as core_views
 from core.auth_forms import CustomAuthenticationForm
@@ -30,6 +30,8 @@ admin.site.site_title = lazy(get_admin_site_name, str)()
 admin.site.index_title = "Administration"
 
 urlpatterns = [
+    # Suppress browser's automatic /favicon.ico request with an empty 204 response.
+    path("favicon.ico", lambda r: HttpResponse(status=204)),
     # Docker health check — used by compose healthcheck probe
     path("health/", lambda r: JsonResponse({"status": "ok"})),
 

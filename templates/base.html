@@ -915,6 +915,8 @@
               const resolved = d.status === 'Resolved' || d.status === 'Closed';
               this.ticketResolved = resolved;
               this._persistSession({ resolved });
+            } else if (d.type === 'read_receipt') {
+              this.markWidgetMessagesRead();
             }
           };
           this.ws.onclose = () => {
@@ -1017,14 +1019,27 @@
               <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">S</div>
               <div class="max-w-[80%] bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 text-xs text-slate-700 break-words">${this.escHtml(data.body)}</div>`;
           } else {
+            const msgId = data.message_id || '';
             el.className = 'flex gap-2 flex-row-reverse';
+            if (msgId) el.dataset.msgId = msgId;
             el.innerHTML = `
               <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-[10px] font-bold flex-shrink-0 mt-0.5">${(data.sender_name||'U').charAt(0).toUpperCase()}</div>
-              <div class="max-w-[80%] bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${this.escHtml(data.body)}</div>`;
+              <div class="max-w-[80%]">
+                <div class="bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${this.escHtml(data.body)}</div>
+                <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Terkirim</p>
+              </div>`;
           }
           container.appendChild(el);
           this.scrollWidgetBottom();
           if (!isSys && data.body) this._injectLinkPreview(data.body, el);
+        },
+
+        markWidgetMessagesRead() {
+          document.querySelectorAll('#widget-messages .read-status').forEach(el => {
+            el.textContent = '✓✓ Dibaca';
+            el.classList.remove('text-slate-400');
+            el.classList.add('text-indigo-400');
+          });
         },
 
         _injectLinkPreview(text, parentEl) {

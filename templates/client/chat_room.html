@@ -7,8 +7,8 @@
 
 {% block extra_head %}
 {# Quill WYSIWYG editor — rich text without manual markdown parsing #}
-<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
 <style>
   /* Chat layout helpers */
   #chat-scroll { scroll-behavior: smooth; }
@@ -27,8 +27,50 @@
   #quill-editor .ql-editor { padding: 8px 12px; }
   .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border-color: #e2e8f0; padding: 4px 8px; }
   .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border-color: #e2e8f0; }
+  /* Prevent Quill placeholder from being included in text selection/copy */
+  .ql-editor.ql-blank::before { user-select: none; -webkit-user-select: none; pointer-events: none; }
   /* Quill code block colour overrides to match existing design */
   .ql-editor pre.ql-syntax { background: #0f172a; color: #4ade80; border-radius: 0.5rem; font-size: 0.75rem; }
+  /* Render Quill HTML content inside chat bubbles */
+  .bubble-content p { margin: 0 0 0.2rem; }
+  .bubble-content p:last-child { margin-bottom: 0; }
+  .bubble-content pre.ql-syntax { background: rgba(0,0,0,0.3); border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.72rem; font-family: monospace; white-space: pre-wrap; overflow-x: auto; margin: 0.25rem 0; }
+  .bubble-content code { background: rgba(0,0,0,0.15); border-radius: 0.2rem; padding: 0.05rem 0.3rem; font-size: 0.8em; font-family: monospace; }
+  .bubble-content ul { list-style: disc; padding-left: 1.25rem; margin: 0.2rem 0; }
+  .bubble-content ol { list-style: decimal; padding-left: 1.25rem; margin: 0.2rem 0; }
+  .bubble-content strong { font-weight: 700; }
+  .bubble-content em { font-style: italic; }
+  .bubble-content s { text-decoration: line-through; }
+  .bubble-content a { text-decoration: underline; opacity: 0.85; }
+  /* Clickable image thumbnails in bubbles */
+  .chat-img-thumb { max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 0.5rem; cursor: zoom-in; transition: opacity 0.15s; display: block; margin-top: 0.25rem; }
+  .chat-img-thumb:hover { opacity: 0.88; }
+  /* Quoted message block — clickable */
+  .quote-block { cursor: pointer; transition: opacity 0.15s; }
+  .quote-block:hover { opacity: 0.8; }
+  /* Flash highlight when jumping to a quoted message */
+  @keyframes msgHighlight { 0%,100%{background:transparent} 25%,75%{background:rgba(99,102,241,0.18)} }
+  .msg-highlight { animation: msgHighlight 1.2s ease; border-radius: 0.75rem; }
+  /* Lightbox — identical to desk/cases/ */
+  .jk-lightbox { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); opacity:0; visibility:hidden; transition:opacity .2s,visibility .2s; }
+  .jk-lightbox.active { opacity:1; visibility:visible; }
+  .jk-lightbox__img { max-width:90vw; max-height:calc(100vh - 160px); object-fit:contain; border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.4); }
+  .jk-lightbox__close { position:absolute; top:1rem; right:1rem; width:2.5rem; height:2.5rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; font-size:1.5rem; cursor:pointer; transition:background .15s; }
+  .jk-lightbox__close:hover { background:rgba(255,255,255,.3); }
+  .jk-lightbox__nav { position:absolute; top:50%; transform:translateY(-50%); width:2.75rem; height:2.75rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; cursor:pointer; transition:background .15s; }
+  .jk-lightbox__nav:hover { background:rgba(255,255,255,.3); }
+  .jk-lightbox__nav--prev { left:1rem; } .jk-lightbox__nav--next { right:1rem; }
+  .jk-lightbox__main { display:flex; align-items:center; justify-content:center; width:100%; height:calc(100% - 100px); padding:3rem 4rem; }
+  .jk-lightbox__zoom-controls { position:absolute; bottom:5rem; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,.5); border-radius:2rem; padding:0.4rem 0.9rem; }
+  .jk-lightbox__zoom-controls button { background:none; border:none; color:#fff; cursor:pointer; display:flex; align-items:center; opacity:.8; transition:opacity .15s; padding:0.2rem; }
+  .jk-lightbox__zoom-controls button:hover { opacity:1; }
+  #jk-lightbox-zoom-level { color:rgba(255,255,255,.85); font-size:0.8rem; min-width:2.5rem; text-align:center; }
+  .jk-lightbox__filename { position:absolute; top:1rem; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.8); font-size:0.8rem; max-width:60vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .jk-lightbox__counter { position:absolute; bottom:5.5rem; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.7); font-size:0.875rem; }
+  .jk-lightbox__strip { position:absolute; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.75rem 1rem; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); overflow-x:auto; }
+  .jk-lightbox__strip-thumb { width:52px; height:52px; object-fit:cover; border-radius:5px; cursor:pointer; border:2px solid transparent; opacity:.5; transition:opacity .15s,border-color .15s; flex-shrink:0; }
+  .jk-lightbox__strip-thumb:hover { opacity:.8; }
+  .jk-lightbox__strip-thumb.active { opacity:1; border-color:#6366f1; }
 </style>
 {% endblock %}
 
@@ -92,13 +134,13 @@
       {# Scroll area #}
       <div id="chat-scroll"
            class="overflow-y-auto px-4 py-4"
-           style="height: 420px;"
+           style="height: 420px; max-height: calc(100dvh - 460px); min-height: 200px;"
            x-ref="scroll"
            @scroll="onScroll()">
 
         {# Server-rendered history #}
         <div id="chat-history">
-          {% include "client/partials/chat_messages.html" with messages=messages user_direction=user_direction first_unread_id=first_unread_id %}
+          {% include "client/partials/chat_messages.html" with messages=chat_messages user_direction=user_direction first_unread_id=first_unread_id %}
         </div>
 
         {# Live messages appended by JS #}
@@ -168,19 +210,32 @@
         <button @click="clearReply()" class="text-slate-400 hover:text-slate-600 flex-shrink-0 text-sm font-bold">✕</button>
       </div>
 
-      {# File preview strip #}
+      {# File preview strip — image files show thumbnail, others show filename chip #}
       <div x-show="pendingFiles.length > 0" x-cloak class="flex flex-wrap gap-2 mb-3 px-1">
         <template x-for="(f, idx) in pendingFiles" :key="idx">
-          <div class="relative flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1.5 text-xs text-slate-700 max-w-[160px]">
-            <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-            </svg>
-            <span class="truncate" x-text="f.name"></span>
-            <button @click="removePending(idx)" class="ml-1 flex-shrink-0 text-slate-400 hover:text-rose-500 transition-colors">
-              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-              </svg>
-            </button>
+          <div class="relative group/fp">
+            {# Image thumbnail #}
+            <template x-if="f.type.startsWith('image/')">
+              <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                <img :src="filePreviews[idx] || ''" alt="" class="w-full h-full object-cover">
+                <button @click="removePending(idx)"
+                        class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white flex items-center justify-center text-[10px] opacity-0 group-hover/fp:opacity-100 transition-opacity">✕</button>
+              </div>
+            </template>
+            {# Non-image file chip #}
+            <template x-if="!f.type.startsWith('image/')">
+              <div class="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1.5 text-xs text-slate-700 max-w-[160px]">
+                <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                <span class="truncate" x-text="f.name"></span>
+                <button @click="removePending(idx)" class="ml-1 flex-shrink-0 text-slate-400 hover:text-rose-500">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+            </template>
           </div>
         </template>
       </div>
@@ -261,6 +316,29 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{# ── Lightbox modal (must be in <body>) ── #}
+<div class="jk-lightbox" id="jk-lightbox" onclick="closeLightboxOutside(event)">
+  <button class="jk-lightbox__close" onclick="closeLightbox()" title="Close (Esc)">&times;</button>
+  <button class="jk-lightbox__nav jk-lightbox__nav--prev" onclick="navigateLightbox(-1)" title="Prev">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="jk-lightbox__main" id="jk-lightbox-main">
+    <img class="jk-lightbox__img" id="jk-lightbox-img" src="" alt="">
+  </div>
+  <button class="jk-lightbox__nav jk-lightbox__nav--next" onclick="navigateLightbox(1)" title="Next">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+  </button>
+  <div class="jk-lightbox__zoom-controls">
+    <button onclick="zoomLightbox(-1)" title="Zoom Out (-)"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <span id="jk-lightbox-zoom-level">100%</span>
+    <button onclick="zoomLightbox(1)" title="Zoom In (+)"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="8" x2="11" y2="14" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <button onclick="resetZoom()" title="Reset (0)"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+  </div>
+  <span class="jk-lightbox__filename" id="jk-lightbox-name"></span>
+  <span class="jk-lightbox__counter" id="jk-lightbox-counter"></span>
+  <div class="jk-lightbox__strip" id="jk-lightbox-strip"></div>
+</div>
+
 <script>
 const CHAT_DELETE_URL = "/portal/chat/{{ case.id }}/delete-message/";
 const CHAT_USER_DIRECTION = "{{ user_direction }}";
@@ -271,6 +349,7 @@ function chatRoom() {
     messages: [],          // Alpine-tracked array (used for reactive unread count)
     hasContent: false,     // tracks whether Quill editor has text
     pendingFiles: [],
+    filePreviews: [],      // object URLs for image thumbnails, parallel to pendingFiles
     sending: false,
     wsConnected: false,
     typingVisible: false,
@@ -302,10 +381,6 @@ function chatRoom() {
         }
       });
 
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-
       this._initQuill();
       this.connectWS();
       this.setupReadReceipts();
@@ -313,6 +388,7 @@ function chatRoom() {
     },
 
     _initQuill() {
+      if (this.quill) return;
       this.quill = new Quill('#quill-editor', {
         theme: 'snow',
         placeholder: 'Type a message… (Ctrl+Enter to send)',
@@ -334,10 +410,15 @@ function chatRoom() {
         this._onTypingDebounced();
       });
 
-      // Ctrl+Enter to send (Enter alone creates a new line inside Quill).
-      this.quill.keyboard.addBinding({ key: 13, ctrlKey: true }, () => {
-        this.send();
-      });
+      // Ctrl+Enter / Cmd+Enter to send. Native keydown bypasses Quill's keyboard
+      // module priority so it fires reliably before Quill's own Enter handler.
+      this.quill.root.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.keyCode === 13) && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.send();
+        }
+      }, true);
 
       // Intercept paste of images inside the Quill editor —
       // convert to File and upload via REST; never inject base64 into WS.
@@ -349,7 +430,10 @@ function chatRoom() {
         e.stopPropagation();
         images.forEach(item => {
           const file = item.getAsFile();
-          if (file && this.pendingFiles.length < 3) this.pendingFiles.push(file);
+          if (file && this.pendingFiles.length < 3) {
+            this.filePreviews.push(URL.createObjectURL(file));
+            this.pendingFiles.push(file);
+          }
         });
       });
     },
@@ -425,6 +509,8 @@ function chatRoom() {
           this.updateStatus(data.status, data.status_display);
         } else if (data.type === 'chat_delete') {
           this.applyDelete(data.message_id);
+        } else if (data.type === 'read_receipt') {
+          this.applyReadReceipt(data.latest_message_id);
         }
       };
 
@@ -498,6 +584,14 @@ function chatRoom() {
       el.querySelectorAll('.reply-action, .delete-action').forEach(b => b.remove());
     },
 
+    applyReadReceipt(latestMessageId) {
+      // Mark own messages (matching CHAT_USER_DIRECTION) as read.
+      document.querySelectorAll(`[data-direction="${CHAT_USER_DIRECTION}"] .read-status`).forEach(el => {
+        el.textContent = '✓✓ Dibaca';
+        el.classList.add('text-indigo-400');
+      });
+    },
+
     // ── Sending ───────────────────────────────────────────────────
     async send() {
       if (this.pendingFiles.length > 0) {
@@ -553,6 +647,8 @@ function chatRoom() {
       } catch(e) {
         window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Upload failed.' } }));
       } finally {
+        this.filePreviews.forEach(url => url && URL.revokeObjectURL(url));
+        this.filePreviews = [];
         this.pendingFiles = [];
         this.sending = false;
       }
@@ -572,6 +668,7 @@ function chatRoom() {
           window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: `${f.name} exceeds the 10 MB limit.` } }));
           return;
         }
+        this.filePreviews.push(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
         this.pendingFiles.push(f);
       });
       e.target.value = '';
@@ -579,6 +676,8 @@ function chatRoom() {
     },
 
     removePending(idx) {
+      if (this.filePreviews[idx]) URL.revokeObjectURL(this.filePreviews[idx]);
+      this.filePreviews.splice(idx, 1);
       this.pendingFiles.splice(idx, 1);
     },
 
@@ -619,37 +718,51 @@ function chatRoom() {
         }
       }, { root: this.$refs.scroll, threshold: 0.5 });
 
-      // Observe all already-rendered inbound messages.
-      document.querySelectorAll('[data-msg-id][data-direction="IN"]').forEach(el => {
+      // Observe all already-rendered other-party messages (direction ≠ mine).
+      const otherDir = CHAT_USER_DIRECTION === 'OUT' ? 'IN' : 'OUT';
+      document.querySelectorAll(`[data-msg-id][data-direction="${otherDir}"]`).forEach(el => {
         this._readObserver.observe(el);
       });
     },
 
     // ── DOM helpers ───────────────────────────────────────────────
     renderBody(body) {
-      // Body is now HTML from Quill; sanitise XSS but preserve trusted markup.
-      // For plain-text fallback (old messages, WhatsApp, email) auto-link URLs.
       if (body && body.startsWith('<')) {
-        // Already HTML from Quill — render directly (server stores editor output).
-        return body;
+        // 1. Wrap <img> for lightbox (strip existing class/onclick to avoid duplicates).
+        let html = body.replace(/<img([^>]*?)>/gi, (match, attrs) => {
+          const srcMatch = attrs.match(/src="([^"]+)"/);
+          const src = srcMatch ? srcMatch[1] : '';
+          const altMatch = attrs.match(/alt="([^"]*)"/);
+          const alt = altMatch ? altMatch[1] : '';
+          // Remove existing class/onclick/data-lightbox attrs before adding ours.
+          const clean = attrs.replace(/\s*(?:class|onclick|data-lightbox-\w+)="[^"]*"/g, '');
+          return `<img${clean} class="chat-img-thumb" loading="lazy" data-lightbox-src="${src}" data-lightbox-name="${alt}" data-lightbox-group="chat-gallery" onclick="openLightbox(this)">`;
+        });
+        // 2. Auto-link bare URLs in text nodes (not inside existing <a> tags).
+        html = html.replace(/(<a[\s\S]*?<\/a>)|(https?:\/\/[^\s<>"']+)/g, (m, anchor, url) => {
+          if (anchor) return anchor;
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100 break-all">${url}</a>`;
+        });
+        return html;
       }
-      // Legacy plain-text body — escape and auto-link.
       return this.escHtml(body).replace(
         /https?:\/\/[^\s<>"']+/g,
         url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100">${url}</a>`
       );
-      }
-      return this.escHtml(body).replace(/https?:\/\/[^\s<>"']+/g, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100">${url}</a>`);
     },
 
-    renderQuote(quotedBody, quotedSender, isOut) {
+    renderQuote(quotedBody, quotedSender, isOut, quotedMsgId) {
       if (!quotedBody) return '';
       const borderColor = isOut ? 'border-indigo-300' : 'border-indigo-400';
       const bgColor = isOut ? 'bg-indigo-700/40' : 'bg-indigo-50';
       const senderColor = isOut ? 'text-indigo-200' : 'text-indigo-600';
       const bodyColor = isOut ? 'text-indigo-100 opacity-80' : 'text-slate-500';
-      const truncated = quotedBody.length > 80 ? quotedBody.slice(0, 80) + '…' : quotedBody;
-      return `<div class="border-l-2 ${borderColor} ${bgColor} px-2.5 py-1.5 rounded-r-lg mb-2 text-xs">
+      const plain = quotedBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const truncated = plain.length > 80 ? plain.slice(0, 80) + '…' : plain;
+      const clickAttr = quotedMsgId
+        ? `data-quote-id="${quotedMsgId}" onclick="document.querySelector('[x-data]').__x.$data.jumpToMessage('${quotedMsgId}')"`
+        : '';
+      return `<div class="quote-block border-l-2 ${borderColor} ${bgColor} px-2.5 py-1.5 rounded-r-lg mb-2 text-xs" ${clickAttr}>
         <p class="font-semibold ${senderColor} text-[10px]">↩ ${this.escHtml(quotedSender || '')}</p>
         <p class="${bodyColor} truncate">${this.escHtml(truncated)}</p>
       </div>`;
@@ -657,7 +770,7 @@ function chatRoom() {
 
     renderActionBtns(msgId, isOut, senderDisplay) {
       const side = isOut ? 'left-0 top-5 -translate-x-full pr-1' : 'right-0 top-5 translate-x-full pl-1';
-      const isMyMsg = (CHAT_USER_DIRECTION === 'OUT' && isOut) || (CHAT_USER_DIRECTION === 'IN' && !isOut);
+      const isMyMsg = isOut;
       const deleteBtn = isMyMsg
         ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
                    data-delete-id="${msgId}" title="Tarik pesan">🗑</button>`
@@ -674,7 +787,9 @@ function chatRoom() {
 
     appendMessage(data) {
       const wasAtBottom = this.isAtBottom();
-      const isOut = data.direction === 'OUT';
+      // isOut = "this message is from me (current user)" → rendered on the right.
+      // Portal users send IN-direction messages; staff send OUT-direction messages.
+      const isOut = data.direction === CHAT_USER_DIRECTION;
       const isSys = data.is_system;
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
@@ -686,8 +801,9 @@ function chatRoom() {
       } else {
         const init = (data.sender_name || (isOut ? 'S' : 'U')).charAt(0).toUpperCase();
         const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
-        // Render quote 1-level deep only — never recurse into quoted.quoted.
-        const quoteHtml = data.quoted_body ? this.renderQuote(data.quoted_body, data.quoted_sender, isOut) : '';
+        const quoteHtml = data.quoted_body
+          ? this.renderQuote(data.quoted_body, data.quoted_sender, isOut, data.quoted_message_id)
+          : '';
         const bodyHtml = this.renderBody(data.body);
         const time = this.formatTime(data.sent_at);
         const actionBtns = this.renderActionBtns(data.message_id, isOut, data.sender_name);
@@ -699,6 +815,7 @@ function chatRoom() {
             <div class="max-w-[70%]">
               <p class="text-[11px] text-slate-400 mb-1 text-right">${this.escHtml(data.sender_name)} · ${time}</p>
               <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">${quoteHtml}${bodyHtml}</div>
+              <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Terkirim</p>
             </div>
             ${actionBtns}`;
         } else {
@@ -718,8 +835,8 @@ function chatRoom() {
 
       document.getElementById('chat-live').appendChild(el);
 
-      // Observe newly appended inbound message for read receipts.
-      if (CHAT_IS_STAFF && !isOut && this._readObserver) {
+      // Observe newly appended other-party messages for read receipts.
+      if (!isOut && !isSys && this._readObserver) {
         this._readObserver.observe(el);
       }
 
@@ -731,9 +848,6 @@ function chatRoom() {
       } else if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
         this.unreadCount++;
         this.showScrollBtn = true;
-      }
-      if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
-        this.showBrowserNotification(data.sender_name, data.body);
       }
       if (!isSys && data.body && !data.body.startsWith('<')) this._injectLinkPreview(data.body, el);
     },
@@ -758,17 +872,21 @@ function chatRoom() {
       const wasAtBottom = this.isAtBottom();
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
-      const isOut = data.direction === 'OUT';
+      const isOut = data.direction === CHAT_USER_DIRECTION;
       el.className = `flex gap-3 mb-4 ${isOut ? 'flex-row-reverse' : ''}`;
       const init = (data.sender_name || 'U').charAt(0).toUpperCase();
       const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
+      const time = this.formatTime(data.sent_at);
       let mediaHtml = '';
       if (data.is_image) {
-        mediaHtml = `<a href="${data.file_url}" target="_blank" rel="noopener noreferrer" class="block mt-1">
-          <img src="${data.file_url}" class="max-w-full rounded-lg max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity">
-        </a>`;
+        mediaHtml = `<img src="${this.escAttr(data.file_url)}" alt="${this.escAttr(data.filename)}"
+          class="chat-img-thumb" loading="lazy"
+          data-lightbox-src="${this.escAttr(data.file_url)}"
+          data-lightbox-name="${this.escAttr(data.filename)}"
+          data-lightbox-group="chat-gallery"
+          onclick="openLightbox(this)">`;
       } else {
-        mediaHtml = `<a href="${data.file_url}" target="_blank" rel="noopener noreferrer"
+        mediaHtml = `<a href="${this.escAttr(data.file_url)}" target="_blank" rel="noopener noreferrer"
           class="flex items-center gap-2 mt-1 bg-slate-100 hover:bg-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 transition-colors">
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -778,7 +896,10 @@ function chatRoom() {
       }
       el.innerHTML = `
         <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
-        <div class="max-w-[70%]">${mediaHtml}</div>`;
+        <div class="max-w-[70%]">
+          <p class="text-[11px] text-slate-400 mb-1 ${isOut ? 'text-right' : ''}">${this.escHtml(data.sender_name)} · ${time}</p>
+          ${mediaHtml}
+        </div>`;
       document.getElementById('chat-live').appendChild(el);
       if (wasAtBottom) {
         this.scrollBottom();
@@ -885,19 +1006,6 @@ function chatRoom() {
       }
     },
 
-    // ── Browser Notifications ─────────────────────────────────────
-    showBrowserNotification(senderName, body) {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      if (document.hasFocus()) return;
-      const preview = (body || 'New attachment').replace(/^```\n?/, '').slice(0, 80);
-      const notif = new Notification(senderName || 'New message', {
-        body: preview,
-        icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% endif %}",
-        tag: 'chat-{{ case.id }}',
-      });
-      notif.onclick = () => { window.focus(); notif.close(); };
-    },
-
     // ── Utilities ─────────────────────────────────────────────────
     escHtml(str) {
       const d = document.createElement('div');
@@ -914,7 +1022,170 @@ function chatRoom() {
       return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) + ' ' +
              d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     },
+
+    // Jump to a quoted message and briefly highlight it.
+    jumpToMessage(msgId) {
+      const target = document.querySelector(`[data-msg-id="${msgId}"]`);
+      if (!target) return;
+      const scrollEl = this.$refs.scroll;
+      const containerRect = scrollEl.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      scrollEl.scrollTop += targetRect.top - containerRect.top - (scrollEl.clientHeight / 2) + (target.clientHeight / 2);
+      target.classList.remove('msg-highlight');
+      void target.offsetWidth; // reflow to restart animation
+      target.classList.add('msg-highlight');
+      setTimeout(() => target.classList.remove('msg-highlight'), 1400);
+    },
   };
 }
+</script>
+
+<script>
+(function () {
+  // ── Lightbox ──────────────────────────────────────────────────────
+  var gallery = [], currentIdx = 0, zoomLevel = 1;
+  var panX = 0, panY = 0, isPanning = false, panStartX = 0, panStartY = 0;
+  var box     = document.getElementById('jk-lightbox');
+  var mainEl  = document.getElementById('jk-lightbox-main');
+  var img     = document.getElementById('jk-lightbox-img');
+  var nameEl  = document.getElementById('jk-lightbox-name');
+  var counterEl = document.getElementById('jk-lightbox-counter');
+  var stripEl = document.getElementById('jk-lightbox-strip');
+  var zoomEl  = document.getElementById('jk-lightbox-zoom-level');
+  var prevBtn = box.querySelector('.jk-lightbox__nav--prev');
+  var nextBtn = box.querySelector('.jk-lightbox__nav--next');
+
+  function applyTransform() {
+    img.style.transform = 'scale('+zoomLevel+') translate('+(panX/zoomLevel)+'px,'+(panY/zoomLevel)+'px)';
+    zoomEl.textContent = Math.round(zoomLevel * 100) + '%';
+  }
+  function resetTransform() { zoomLevel = 1; panX = 0; panY = 0; applyTransform(); }
+
+  window.zoomLightbox = function(dir) {
+    zoomLevel = Math.max(0.25, Math.min(5, zoomLevel + dir * 0.25));
+    if (zoomLevel <= 1) { panX = 0; panY = 0; }
+    applyTransform();
+  };
+  window.resetZoom = function() { resetTransform(); };
+
+  window.openLightbox = function(el) {
+    var group = el.dataset.lightboxGroup || 'chat-gallery';
+    var thumbs = document.querySelectorAll('[data-lightbox-group="' + group + '"]');
+    gallery = Array.from(thumbs).map(function(t) {
+      return { src: t.dataset.lightboxSrc, name: t.dataset.lightboxName || '' };
+    });
+    currentIdx = Array.from(thumbs).indexOf(el);
+    if (currentIdx < 0) currentIdx = 0;
+    resetTransform();
+    buildStrip();
+    showImage();
+    box.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeLightbox = function() {
+    box.classList.remove('active');
+    document.body.style.overflow = '';
+    resetTransform();
+  };
+  window.closeLightboxOutside = function(e) {
+    if (e.target === box || (e.target === mainEl && zoomLevel <= 1)) closeLightbox();
+  };
+  window.navigateLightbox = function(dir) {
+    currentIdx = (currentIdx + dir + gallery.length) % gallery.length;
+    resetTransform(); showImage();
+  };
+
+  mainEl.addEventListener('wheel', function(e) {
+    if (!box.classList.contains('active')) return;
+    e.preventDefault();
+    zoomLightbox(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+
+  img.addEventListener('mousedown', function(e) {
+    if (zoomLevel <= 1) return;
+    e.preventDefault(); isPanning = true;
+    panStartX = e.clientX - panX; panStartY = e.clientY - panY;
+    img.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!isPanning) return;
+    panX = e.clientX - panStartX; panY = e.clientY - panStartY; applyTransform();
+  });
+  document.addEventListener('mouseup', function() {
+    if (isPanning) { isPanning = false; img.style.cursor = zoomLevel > 1 ? 'grab' : ''; }
+  });
+
+  var lastTouchDist = 0;
+  mainEl.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    } else if (e.touches.length === 1 && zoomLevel > 1) {
+      isPanning = true; panStartX = e.touches[0].clientX - panX; panStartY = e.touches[0].clientY - panY;
+    }
+  }, { passive: true });
+  mainEl.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      zoomLevel = Math.max(0.25, Math.min(5, zoomLevel + (dist - lastTouchDist) * 0.01));
+      lastTouchDist = dist; applyTransform();
+    } else if (e.touches.length === 1 && isPanning) {
+      panX = e.touches[0].clientX - panStartX; panY = e.touches[0].clientY - panStartY; applyTransform();
+    }
+  }, { passive: false });
+  mainEl.addEventListener('touchend', function() { isPanning = false; lastTouchDist = 0; });
+
+  img.addEventListener('dblclick', function() {
+    if (zoomLevel > 1) { resetTransform(); } else { zoomLevel = 2.5; applyTransform(); }
+  });
+
+  function buildStrip() {
+    stripEl.innerHTML = '';
+    if (gallery.length <= 1) { stripEl.style.display = 'none'; return; }
+    stripEl.style.display = '';
+    gallery.forEach(function(item, i) {
+      var thumb = document.createElement('img');
+      thumb.src = item.src; thumb.alt = item.name;
+      thumb.className = 'jk-lightbox__strip-thumb' + (i === currentIdx ? ' active' : '');
+      thumb.onclick = function(e) { e.stopPropagation(); currentIdx = i; resetTransform(); showImage(); };
+      stripEl.appendChild(thumb);
+    });
+  }
+  function showImage() {
+    var item = gallery[currentIdx];
+    img.src = item.src; img.alt = item.name; nameEl.textContent = item.name;
+    var multi = gallery.length > 1;
+    prevBtn.style.display = multi ? '' : 'none'; nextBtn.style.display = multi ? '' : 'none';
+    counterEl.textContent = multi ? (currentIdx + 1) + ' / ' + gallery.length : '';
+    img.style.cursor = '';
+    var thumbs = stripEl.querySelectorAll('.jk-lightbox__strip-thumb');
+    thumbs.forEach(function(t, i) { t.classList.toggle('active', i === currentIdx); });
+    if (thumbs[currentIdx]) thumbs[currentIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (!box.classList.contains('active')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') navigateLightbox(-1);
+    if (e.key === 'ArrowRight') navigateLightbox(1);
+    if (e.key === '+' || e.key === '=') zoomLightbox(1);
+    if (e.key === '-') zoomLightbox(-1);
+    if (e.key === '0') resetZoom();
+  });
+
+  // Global helper for server-rendered quote blocks (onclick="chatJumpToMessage(...)").
+  window.chatJumpToMessage = function(msgId) {
+    var scrollEl = document.getElementById('chat-scroll');
+    var target = document.querySelector('[data-msg-id="' + msgId + '"]');
+    if (!target || !scrollEl) return;
+    var containerRect = scrollEl.getBoundingClientRect();
+    var targetRect = target.getBoundingClientRect();
+    scrollEl.scrollTop += targetRect.top - containerRect.top - (scrollEl.clientHeight / 2) + (target.clientHeight / 2);
+    target.classList.remove('msg-highlight');
+    void target.offsetWidth;
+    target.classList.add('msg-highlight');
+    setTimeout(function() { target.classList.remove('msg-highlight'); }, 1400);
+  };
+})();
 </script>
 {% endblock %}

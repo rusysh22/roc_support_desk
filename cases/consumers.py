@@ -105,6 +105,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         elif event_type == "messages_read":
             latest_message_id = (data.get("latest_message_id") or "").strip()
             if latest_message_id:
+                # Broadcast read receipt immediately for real-time "Dibaca" indicator.
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "chat.read_receipt",
+                        "latest_message_id": latest_message_id,
+                        "reader_channel": self.channel_name,
+                    },
+                )
+                # Persist to DB via Celery (decoupled from real-time path).
                 await self._dispatch_batch_read(latest_message_id)
 
     # ----------------------------------------------------------------
@@ -169,6 +179,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "chat_delete",
             "message_id": event["message_id"],
+        }))
+
+    async def chat_read_receipt(self, event):
+        # Forward to all connected clients — portal user sees "Dibaca" indicator.
+        await self.send(text_data=json.dumps({
+            "type": "read_receipt",
+            "latest_message_id": event["latest_message_id"],
         }))
 
     # ----------------------------------------------------------------
