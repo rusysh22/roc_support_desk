@@ -482,7 +482,7 @@
 
     <div x-data="chatWidget()"
          x-init="init()"
-         class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
+         class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3"
          x-cloak>
 
       {# ── Panel ── #}
@@ -493,23 +493,46 @@
            x-transition:leave="transition ease-in duration-150"
            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
            x-transition:leave-end="opacity-0 translate-y-2 scale-95"
-           class="w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
-           style="max-height: 540px;">
+           class="w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+           style="max-height: min(560px, calc(100dvh - 7rem));">
 
         {# Panel header #}
-        <div class="bg-indigo-600 px-4 py-3 flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm">🛠️</div>
-            <div>
-              <p class="text-white font-bold text-sm leading-tight">Support Chat</p>
-              <p class="text-indigo-200 text-[10px]" x-text="wsConnected ? '● Online' : '○ Connecting…'"></p>
+        <div class="bg-indigo-600 px-4 py-3 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm flex-shrink-0">🛠️</div>
+            <div class="min-w-0">
+              <p class="text-white font-bold text-sm leading-tight truncate"
+                 x-text="step === 'chat' ? activeCaseNumber : 'Support Chat'"></p>
+              <p class="text-indigo-200 text-[10px]"
+                 x-text="step === 'chat' ? (wsConnected ? '● Terhubung' : '○ Menyambung…') : 'Kami siap membantu'"></p>
             </div>
           </div>
-          <button @click="open = false" class="text-white/60 hover:text-white transition-colors p-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+          <div class="flex items-center gap-0.5 flex-shrink-0">
+            {# Riwayat tiket — tampil saat di step chat #}
+            <a x-show="step === 'chat'" x-cloak
+               href="{% url 'chat:my_tickets' %}"
+               class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
+               title="Riwayat Tiket">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+            </a>
+            {# Buat tiket baru — tampil saat di step chat #}
+            <button x-show="step === 'chat'" x-cloak
+                    @click="clearSession()"
+                    class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
+                    title="Buat Tiket Baru">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+            {# Tutup panel #}
+            <button @click="open = false" class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {# ── STEP 1: Welcome / category picker ── #}
@@ -618,7 +641,7 @@
         </div>
 
         {# ── STEP 3: Active chat ── #}
-        <div x-show="step === 'chat'" class="flex flex-col flex-1 min-h-0" style="height:380px;">
+        <div x-show="step === 'chat'" class="flex flex-col flex-1 min-h-0" style="min-height:300px;">
           {# Ticket info strip #}
           <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
             <span class="text-xs text-slate-500 truncate" x-text="activeCaseNumber"></span>
@@ -669,10 +692,14 @@
                       class="jk-input flex-1 resize-none text-sm py-1.5 leading-snug"
                       style="min-height:34px;max-height:80px;overflow-y:auto;"></textarea>
             <button @click="widgetSend()"
-                    :disabled="!widgetMsg.trim() && widgetPendingFiles.length === 0"
+                    :disabled="widgetSending || (!widgetMsg.trim() && widgetPendingFiles.length === 0)"
                     class="flex-shrink-0 w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
-              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg x-show="!widgetSending" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+              <svg x-show="widgetSending" x-cloak class="w-3.5 h-3.5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
             </button>
           </div>
@@ -707,7 +734,7 @@
         categories: [],
         loadingCats: false,
         expandedParent: null,
-        selectedCategory: null,   // { id, name }
+        selectedCategory: null,
         guestName: WIDGET_USER_NAME,
         guestEmail: WIDGET_USER_EMAIL,
         units: [],
@@ -725,6 +752,8 @@
         ws: null,
         wsConnected: false,
         widgetMsg: '',
+        widgetSending: false,
+        _wsReconnectDelay: 1000,
         unreadCount: 0,
         pollTimer: null,
         widgetPendingFiles: [],
@@ -744,15 +773,20 @@
           if (saved) {
             try {
               const s = JSON.parse(saved);
-              this.activeCaseUUID   = s.uuid;
-              this.activeCaseNumber = s.number;
-              this.guestToken       = s.token || '';
-              this.ticketResolved   = !!(s.resolved);
-              this.step = 'chat';
-              this.$nextTick(() => this.connectWidgetWS());
+              // Hapus sesi yang sudah lebih dari 7 hari
+              const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
+              if (s.created_at && (Date.now() - s.created_at) > SESSION_TTL) {
+                localStorage.removeItem('roc_chat_session');
+              } else {
+                this.activeCaseUUID   = s.uuid;
+                this.activeCaseNumber = s.number;
+                this.guestToken       = s.token || '';
+                this.ticketResolved   = !!(s.resolved);
+                this.step = 'chat';
+                this.$nextTick(() => this.connectWidgetWS());
+              }
             } catch(e) { localStorage.removeItem('roc_chat_session'); }
           }
-          // Ctrl+V paste image into widget input
           document.addEventListener('paste', (e) => {
             if (!this.$refs.widgetInput || !document.activeElement.isSameNode(this.$refs.widgetInput)) return;
             const items = Array.from(e.clipboardData?.items || []);
@@ -857,14 +891,24 @@
 
         connectWidgetWS() {
           if (!this.activeCaseUUID) return;
+          if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
           const proto = location.protocol === 'https:' ? 'wss' : 'ws';
           const tokenPart = this.guestToken ? `?token=${encodeURIComponent(this.guestToken)}` : '';
           const url = `${proto}://${location.host}/ws/chat/${this.activeCaseUUID}/${tokenPart}`;
-          this.ws = new WebSocket(url);
-          this.ws.onopen = () => { this.wsConnected = true; clearInterval(this.pollTimer); };
+          try { this.ws = new WebSocket(url); } catch(e) { return; }
+
+          this.ws.onopen = () => {
+            this.wsConnected = true;
+            this._wsReconnectDelay = 1000;
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
+          };
           this.ws.onmessage = (e) => {
-            const d = JSON.parse(e.data);
-            if (d.type === 'chat_message' || d.type === 'chat_attachment') {
+            let d;
+            try { d = JSON.parse(e.data); } catch { return; }
+            if (d.type === 'ping') {
+              this.ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (d.type === 'chat_message' || d.type === 'chat_attachment') {
               this.appendWidgetMsg(d);
               if (!this.open) this.unreadCount++;
             } else if (d.type === 'status_update') {
@@ -878,7 +922,10 @@
             if (!this.pollTimer) {
               this.pollTimer = setInterval(() => this.pollWidget(), 5000);
             }
-            setTimeout(() => this.connectWidgetWS(), 6000);
+            // Exponential backoff: 1s → 2s → 4s… max 30s
+            const delay = this._wsReconnectDelay;
+            this._wsReconnectDelay = Math.min(this._wsReconnectDelay * 2, 30000);
+            setTimeout(() => { if (!this.wsConnected) this.connectWidgetWS(); }, delay);
           };
         },
 
@@ -894,23 +941,37 @@
         },
 
         async widgetSend() {
+          if (this.widgetSending) return;
           if (this.widgetPendingFiles.length > 0) {
             await this.widgetSendFiles();
           }
           const text = this.widgetMsg.trim();
           if (!text || !this.activeCaseUUID) return;
+
+          this.widgetSending = true;
           this.widgetMsg = '';
 
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type: 'chat_message', body: text }));
-          } else {
-            await fetch(`/portal/chat/${this.activeCaseUUID}/send/`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': WIDGET_CSRF },
-              body: JSON.stringify({ body: text }),
-            });
+          try {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              // Kirim via WS — server akan broadcast kembali ke kita via onmessage,
+              // jadi JANGAN panggil appendWidgetMsg di sini (mencegah duplikasi).
+              this.ws.send(JSON.stringify({ type: 'chat_message', body: text }));
+            } else {
+              // Fallback HTTP — tidak ada echo dari server, append manual.
+              await fetch(`/portal/chat/${this.activeCaseUUID}/send/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': WIDGET_CSRF },
+                body: JSON.stringify({ body: text }),
+              });
+              this.appendWidgetMsg({
+                body: text, direction: 'IN', is_system: false,
+                sender_name: this.guestName || 'Anda',
+                sent_at: new Date().toISOString(),
+              });
+            }
+          } finally {
+            this.widgetSending = false;
           }
-          this.appendWidgetMsg({ body: text, direction: 'IN', is_system: false, sender_name: this.guestName || 'You', sent_at: new Date().toISOString() });
         },
 
         async widgetSendFiles() {
@@ -994,6 +1055,8 @@
         _persistSession(patch) {
           try {
             const cur = JSON.parse(localStorage.getItem('roc_chat_session') || '{}');
+            // Simpan waktu pertama kali sesi dibuat untuk keperluan TTL
+            if (!cur.created_at) patch.created_at = Date.now();
             localStorage.setItem('roc_chat_session', JSON.stringify({ ...cur, ...patch }));
           } catch(e) {}
         },
@@ -1002,19 +1065,25 @@
           localStorage.removeItem('roc_chat_session');
           if (this.ws) { try { this.ws.close(); } catch(e) {} }
           clearInterval(this.pollTimer);
-          this.activeCaseUUID = null;
+          const msgEl = document.getElementById('widget-messages');
+          if (msgEl) msgEl.innerHTML = '';
+          this.activeCaseUUID   = null;
           this.activeCaseNumber = '';
-          this.guestToken = '';
-          this.ticketResolved = false;
-          this.ws = null;
-          this.wsConnected = false;
-          this.pollTimer = null;
+          this.guestToken       = '';
+          this.ticketResolved   = false;
+          this.ws               = null;
+          this.wsConnected      = false;
+          this.widgetSending    = false;
+          this._wsReconnectDelay = 1000;
+          this.pollTimer        = null;
+          this.widgetMsg        = '';
+          this.widgetPendingFiles = [];
           this.selectedCategory = null;
-          this.selectedUnitId = null;
+          this.selectedUnitId   = null;
           this.selectedUnitName = '';
-          this.unitSearch = '';
-          this.firstMessage = '';
-          this.formError = '';
+          this.unitSearch       = '';
+          this.firstMessage     = '';
+          this.formError        = '';
           this.step = 'welcome';
           if (this.categories.length === 0) this.loadCategories();
         },
