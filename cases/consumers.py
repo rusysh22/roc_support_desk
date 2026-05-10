@@ -1,9 +1,9 @@
+import asyncio
 import json
-import uuid
+import time
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
-from django.utils import timezone
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -11,20 +11,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
     WebSocket consumer for the live chat panel.
 
     Each ticket gets its own channel group: chat_<case_uuid>.
-    Both the public user and support staff subscribe to this group so
-    messages sent by either side are pushed to all connected clients
-    in real time.
+    Both the portal user and support staff subscribe so messages are
+    pushed to all connected clients in real time.
 
     Authentication:
-      - Authenticated users (staff or portal login) are identified via
-        Django's session middleware (AuthMiddlewareStack in asgi.py).
-      - Guest users must supply their guest_token as a query parameter:
+      - Authenticated users (staff or portal login) identified via
+        Django session middleware (AuthMiddlewareStack in asgi.py).
+      - Guest users supply their guest_token as a query param:
         ws://host/ws/chat/<uuid>/?token=<guest_token>
     """
+
+    HEARTBEAT_INTERVAL = 30  # seconds between server-sent ping frames
+    TYPING_COOLDOWN = 2      # minimum seconds between forwarded typing events
 
     async def connect(self):
         self.case_uuid = self.scope["url_route"]["kwargs"]["case_uuid"]
         self.group_name = f"chat_{self.case_uuid}"
+        self._last_typing_at: float = 0.0
 
         if not await self._can_access():
             await self.close(code=4003)
@@ -32,8 +35,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        self._heartbeat_task = asyncio.ensure_future(self._heartbeat())
 
     async def disconnect(self, code):
+        if hasattr(self, "_heartbeat_task"):
+            self._heartbeat_task.cancel()
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
@@ -43,6 +49,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         event_type = data.get("type")
+
+        if event_type == "pong":
+            # Client acknowledged our heartbeat ping — no-op.
+            return
 
         if event_type == "chat_message":
             body = (data.get("body") or "").strip()
@@ -71,7 +81,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 },
             )
 
+            # Inbound = portal user sent to staff. Delay 15 s so real-time
+            # delivery is attempted first; Celery checks has_unread_messages.
+            if message.direction == "IN":
+                await self._dispatch_offline_notification(str(message.id))
+
         elif event_type == "typing":
+            now = time.monotonic()
+            # Server-side guard: never forward faster than TYPING_COOLDOWN seconds.
+            if now - self._last_typing_at < self.TYPING_COOLDOWN:
+                return
+            self._last_typing_at = now
             sender_name = await self._get_current_user_name()
             await self.channel_layer.group_send(
                 self.group_name,
@@ -81,6 +101,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "sender_name": sender_name,
                 },
             )
+
+        elif event_type == "messages_read":
+            latest_message_id = (data.get("latest_message_id") or "").strip()
+            if latest_message_id:
+                await self._dispatch_batch_read(latest_message_id)
+
+    # ----------------------------------------------------------------
+    # Heartbeat — keeps alive and surfaces silent disconnections
+    # ----------------------------------------------------------------
+
+    async def _heartbeat(self):
+        while True:
+            await asyncio.sleep(self.HEARTBEAT_INTERVAL)
+            try:
+                await self.send(text_data=json.dumps({"type": "ping"}))
+            except Exception:
+                break
 
     # ----------------------------------------------------------------
     # Group event handlers
@@ -135,7 +172,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     # ----------------------------------------------------------------
-    # Helpers
+    # DB helpers
     # ----------------------------------------------------------------
 
     @database_sync_to_async
@@ -144,9 +181,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         from django.contrib.auth.models import AnonymousUser
 
         try:
-            case = CaseRecord.objects.select_related("category").get(
-                id=self.case_uuid
-            )
+            case = CaseRecord.objects.select_related("category").get(id=self.case_uuid)
         except (CaseRecord.DoesNotExist, Exception):
             return False
 
@@ -214,9 +249,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
         if not is_staff:
-            CaseRecord.objects.filter(id=self.case_uuid).update(
-                has_unread_messages=True
-            )
+            CaseRecord.objects.filter(id=self.case_uuid).update(has_unread_messages=True)
 
         return msg
 
@@ -227,7 +260,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return name or getattr(message.sender_staff, "username", None) or str(message.sender_staff)
         if message.sender_employee:
             return message.sender_employee.full_name or "Unknown"
-        # Guest/anonymous — fall back to the case's requester name
         try:
             return message.case.requester_name or "User"
         except Exception:
@@ -240,7 +272,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if user and not isinstance(user, AnonymousUser) and user.is_authenticated:
             name = user.get_full_name()
             return name or getattr(user, "username", None) or str(user)
-        # Guest — use case's requester name
         try:
             from .models import CaseRecord
             case = CaseRecord.objects.get(id=self.case_uuid)
@@ -267,3 +298,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return body, sender
         except Exception:
             return None, None
+
+    @database_sync_to_async
+    def _dispatch_offline_notification(self, message_id):
+        from cases.tasks import send_chat_offline_notification
+        send_chat_offline_notification.apply_async(
+            args=[str(self.case_uuid), message_id],
+            countdown=15,
+            queue="chat_tasks",
+        )
+
+    @database_sync_to_async
+    def _dispatch_batch_read(self, latest_message_id):
+        from cases.tasks import batch_mark_messages_read
+        batch_mark_messages_read.delay(str(self.case_uuid), latest_message_id)

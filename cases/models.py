@@ -538,6 +538,12 @@ class Message(AuditableModel):
         verbose_name="Original Body",
         help_text="Stores the body before edit, for audit trail.",
     )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Metadata",
+        help_text="Arbitrary structured data for actionable message types (polls, approvals, etc.).",
+    )
     quoted_message = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,

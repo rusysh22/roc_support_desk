@@ -20,11 +20,26 @@ def debug_task(self):
     print(f"Request: {self.request!r}")
 
 # -----------------------------------------------------------------
+# Celery Task Routing — isolate chat tasks from heavy system jobs
+# -----------------------------------------------------------------
+app.conf.task_routes = {
+    "cases.send_chat_offline_notification": {"queue": "chat_tasks"},
+    "cases.batch_mark_messages_read": {"queue": "chat_tasks"},
+    "cases.auto_close_idle_tickets": {"queue": "chat_tasks"},
+}
+
+# -----------------------------------------------------------------
 # Celery Beat Schedule
 # -----------------------------------------------------------------
+from celery.schedules import crontab  # noqa: E402
+
 app.conf.beat_schedule = {
     "poll-imap-emails-every-1-minute": {
         "task": "gateways.poll_imap_emails_task",
-        "schedule": 60.0,  # every 60 seconds
+        "schedule": 60.0,
+    },
+    "auto-close-idle-tickets-nightly": {
+        "task": "cases.auto_close_idle_tickets",
+        "schedule": crontab(hour=2, minute=0),  # 02:00 server time daily
     },
 }

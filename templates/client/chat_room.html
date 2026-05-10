@@ -6,6 +6,9 @@
 {% block nav_dashboard %}active{% endblock %}
 
 {% block extra_head %}
+{# Quill WYSIWYG editor — rich text without manual markdown parsing #}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <style>
   /* Chat layout helpers */
   #chat-scroll { scroll-behavior: smooth; }
@@ -18,6 +21,14 @@
   .typing-dot { width:6px; height:6px; border-radius:50%; background:#94a3b8; animation: blink 1.4s infinite; }
   .typing-dot:nth-child(2) { animation-delay:.2s; }
   .typing-dot:nth-child(3) { animation-delay:.4s; }
+
+  /* Quill editor sizing inside chat input */
+  #quill-editor { min-height: 40px; max-height: 120px; overflow-y: auto; font-size: 0.875rem; }
+  #quill-editor .ql-editor { padding: 8px 12px; }
+  .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border-color: #e2e8f0; padding: 4px 8px; }
+  .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border-color: #e2e8f0; }
+  /* Quill code block colour overrides to match existing design */
+  .ql-editor pre.ql-syntax { background: #0f172a; color: #4ade80; border-radius: 0.5rem; font-size: 0.75rem; }
 </style>
 {% endblock %}
 
@@ -152,7 +163,7 @@
            class="flex items-center gap-2 bg-indigo-50 border-l-2 border-indigo-400 rounded-r-lg px-3 py-2 mb-2">
         <div class="flex-1 min-w-0">
           <p class="text-[11px] font-semibold text-indigo-600" x-text="'↩ ' + (replyTo?.sender || '')"></p>
-          <p class="text-xs text-slate-500 truncate" x-text="(replyTo?.body || '').replace(/^```\n?/, '').replace(/\n?```$/, '')"></p>
+          <p class="text-xs text-slate-500 truncate" x-text="(replyTo?.body || '').replace(/<[^>]+>/g, ' ').trim()"></p>
         </div>
         <button @click="clearReply()" class="text-slate-400 hover:text-slate-600 flex-shrink-0 text-sm font-bold">✕</button>
       </div>
@@ -174,9 +185,14 @@
         </template>
       </div>
 
-      <div class="flex items-end gap-2">
+      {# Quill WYSIWYG editor + send row #}
+      <div class="border border-slate-200 rounded-xl overflow-hidden mb-2">
+        <div id="quill-editor"></div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
         {# File attach button #}
-        <label class="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
+        <label class="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
                title="Attach file (jpg, png, pdf, docx, xlsx, txt — max 10 MB, 3 files)">
           <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -185,29 +201,20 @@
                  @change="onFilePick($event)">
         </label>
 
-        {# Code snippet toggle #}
-        <button @click="toggleCode()"
-                :class="codeMode ? 'bg-slate-800 text-green-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
-                class="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors text-xs font-mono font-bold"
-                title="Code snippet mode">&lt;/&gt;</button>
+        <p class="text-xs flex-1 text-slate-400">
+          <span x-text="wsConnected ? '● Connected' : '○ Connecting…'"
+                :class="wsConnected ? 'text-emerald-500' : 'text-amber-500'"></span>
+        </p>
 
-        {# Text input #}
-        <textarea x-ref="msgInput"
-                  x-model="msgText"
-                  @keydown.enter.exact.prevent="send()"
-                  @keydown.enter.shift.exact="msgText += '\n'"
-                  @input="onTyping()"
-                  :placeholder="codeMode ? 'Paste code here… (Enter to send)' : 'Type a message… (Enter to send, Shift+Enter for new line)'"
-                  rows="1"
-                  class="jk-input flex-1 resize-none text-sm py-2.5 leading-snug"
-                  :class="codeMode ? 'font-mono bg-slate-900 text-green-400 border-slate-700' : ''"
-                  style="min-height:40px; max-height:120px; overflow-y:auto;"
-                  :disabled="sending"></textarea>
+        <button @click="resolveTicket()"
+                class="text-xs text-slate-400 hover:text-rose-500 transition-colors underline-offset-2 hover:underline flex-shrink-0">
+          Mark as Resolved
+        </button>
 
         {# Send button #}
         <button @click="send()"
-                :disabled="sending || (!msgText.trim() && pendingFiles.length === 0)"
-                class="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
+                :disabled="sending || pendingFiles.length === 0 && !hasContent"
+                class="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
           <svg x-show="!sending" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
           </svg>
@@ -215,19 +222,6 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
           </svg>
-        </button>
-      </div>
-
-      {# Bottom toolbar: status + resolve #}
-      <div class="flex items-center justify-between mt-2.5 px-1">
-        <p class="text-xs text-slate-400">
-          <span x-text="wsConnected ? '● Connected' : '○ Connecting…'"
-                :class="wsConnected ? 'text-emerald-500' : 'text-amber-500'"></span>
-          <span x-show="codeMode" x-cloak class="ml-2 text-green-600 font-semibold text-[10px]">CODE MODE</span>
-        </p>
-        <button @click="resolveTicket()"
-                class="text-xs text-slate-400 hover:text-rose-500 transition-colors underline-offset-2 hover:underline">
-          Mark as Resolved
         </button>
       </div>
     </div>
@@ -273,23 +267,28 @@ const CHAT_USER_DIRECTION = "{{ user_direction }}";
 
 function chatRoom() {
   return {
-    msgText: '',
+    // ── State ──────────────────────────────────────────────────────
+    messages: [],          // Alpine-tracked array (used for reactive unread count)
+    hasContent: false,     // tracks whether Quill editor has text
     pendingFiles: [],
     sending: false,
     wsConnected: false,
     typingVisible: false,
     typingTimer: null,
-    myTypingTimer: null,
+    _typingCooldown: false,  // true while within 2-second debounce window
     pollTimer: null,
     ws: null,
+    quill: null,
+    _readObserver: null,
+    _reconnectDelay: 1000,  // exponential backoff, starts at 1 s, caps at 30 s
     ticketOpen: {% if can_send %}true{% else %}false{% endif %},
     replyTo: null,   // { id, body, sender }
-    codeMode: false,
     unreadCount: 0,
     showScrollBtn: false,
     typingSenderName: '',
 
     init() {
+      // ── Scroll to unread divider or bottom ────────────────────────
       this.$nextTick(() => {
         const scrollEl = this.$refs.scroll;
         const divider = document.getElementById('unread-divider');
@@ -302,16 +301,62 @@ function chatRoom() {
           scrollEl.scrollTop = scrollEl.scrollHeight;
         }
       });
+
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
+
+      this._initQuill();
       this.connectWS();
-      this.setupPasteHandler();
+      this.setupReadReceipts();
       this.setupActionDelegation();
+    },
+
+    _initQuill() {
+      this.quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: 'Type a message… (Ctrl+Enter to send)',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['code', 'code-block'],
+            ['link'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['clean'],
+          ],
+        },
+      });
+
+      // Track whether there is real content for the send-button disabled state.
+      this.quill.on('text-change', () => {
+        const text = this.quill.getText().trim();
+        this.hasContent = text.length > 0;
+        this._onTypingDebounced();
+      });
+
+      // Ctrl+Enter to send (Enter alone creates a new line inside Quill).
+      this.quill.keyboard.addBinding({ key: 13, ctrlKey: true }, () => {
+        this.send();
+      });
+
+      // Intercept paste of images inside the Quill editor —
+      // convert to File and upload via REST; never inject base64 into WS.
+      this.quill.root.addEventListener('paste', (e) => {
+        const items = Array.from(e.clipboardData?.items || []);
+        const images = items.filter(i => i.type.startsWith('image/'));
+        if (!images.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        images.forEach(item => {
+          const file = item.getAsFile();
+          if (file && this.pendingFiles.length < 3) this.pendingFiles.push(file);
+        });
+      });
     },
 
     disconnect() {
       this._closeWS();
+      if (this._readObserver) this._readObserver.disconnect();
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     },
@@ -324,21 +369,6 @@ function chatRoom() {
       this.ws.onerror = null;
       this.ws.close();
       this.ws = null;
-    },
-
-    // ── Paste handler (Ctrl+V image) ──────────────────────────────
-    setupPasteHandler() {
-      document.addEventListener('paste', (e) => {
-        if (!this.$refs.msgInput || !document.activeElement.isSameNode(this.$refs.msgInput)) return;
-        const items = Array.from(e.clipboardData?.items || []);
-        const images = items.filter(i => i.type.startsWith('image/'));
-        if (!images.length) return;
-        e.preventDefault();
-        images.forEach(item => {
-          const file = item.getAsFile();
-          if (file && this.pendingFiles.length < 3) this.pendingFiles.push(file);
-        });
-      });
     },
 
     // ── Event delegation for reply/delete on history bubbles ─────
@@ -363,7 +393,7 @@ function chatRoom() {
 
     // ── WebSocket ──────────────────────────────────────────────────
     connectWS() {
-      this._closeWS();  // ensure only one connection is open at a time
+      this._closeWS();
       try {
         this.ws = new WebSocket(CHAT_WS_URL);
       } catch(e) {
@@ -373,13 +403,19 @@ function chatRoom() {
 
       this.ws.onopen = () => {
         this.wsConnected = true;
+        this._reconnectDelay = 1000;  // reset backoff on successful connect
         clearInterval(this.pollTimer);
         this.pollTimer = null;
       };
 
       this.ws.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        if (data.type === 'chat_message') {
+        let data;
+        try { data = JSON.parse(e.data); } catch { return; }
+
+        if (data.type === 'ping') {
+          // Respond to server heartbeat to confirm we are alive.
+          this.ws.send(JSON.stringify({ type: 'pong' }));
+        } else if (data.type === 'chat_message') {
           this.appendMessage(data);
         } else if (data.type === 'chat_attachment') {
           this.appendAttachment(data);
@@ -395,8 +431,11 @@ function chatRoom() {
       this.ws.onclose = () => {
         this.wsConnected = false;
         this.ws = null;
-        setTimeout(() => { if (!this.wsConnected) this.startPolling(); }, 3000);
-        setTimeout(() => { if (!this.wsConnected) this.connectWS(); }, 5000);
+        this.startPolling();
+        // Exponential backoff: 1s → 2s → 4s … capped at 30s
+        const delay = this._reconnectDelay;
+        this._reconnectDelay = Math.min(this._reconnectDelay * 2, 30000);
+        setTimeout(() => { if (!this.wsConnected) this.connectWS(); }, delay);
       };
 
       this.ws.onerror = () => {
@@ -427,16 +466,11 @@ function chatRoom() {
     // ── Reply / Quote ─────────────────────────────────────────────
     setReply(id, body, sender) {
       this.replyTo = { id, body: body || '', sender: sender || '' };
-      this.$nextTick(() => this.$refs.msgInput?.focus());
+      this.$nextTick(() => this.quill?.focus());
     },
 
     clearReply() {
       this.replyTo = null;
-    },
-
-    // ── Code mode ─────────────────────────────────────────────────
-    toggleCode() {
-      this.codeMode = !this.codeMode;
     },
 
     // ── Delete / retract ──────────────────────────────────────────
@@ -469,19 +503,22 @@ function chatRoom() {
       if (this.pendingFiles.length > 0) {
         await this.sendFiles();
       }
-      const text = this.msgText.trim();
-      if (!text) return;
-      this.msgText = '';
-      this.$refs.msgInput.style.height = 'auto';
 
-      const finalBody = this.codeMode ? ('```\n' + text + '\n```') : text;
+      // Get HTML content from Quill; the empty-editor sentinel is '<p><br></p>'.
+      const html = this.quill.root.innerHTML.trim();
+      const isEmpty = html === '<p><br></p>' || html === '' || !this.hasContent;
+      if (isEmpty) return;
+
+      this.quill.setText('');
+      this.hasContent = false;
+
       const quotedId = this.replyTo?.id || null;
       this.clearReply();
 
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'chat_message',
-          body: finalBody,
+          body: html,
           quoted_message_id: quotedId,
         }));
       } else {
@@ -490,7 +527,7 @@ function chatRoom() {
           await fetch(CHAT_SEND_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-            body: JSON.stringify({ body: finalBody, quoted_message_id: quotedId }),
+            body: JSON.stringify({ body: html, quoted_message_id: quotedId }),
           });
         } finally {
           this.sending = false;
@@ -538,7 +575,7 @@ function chatRoom() {
         this.pendingFiles.push(f);
       });
       e.target.value = '';
-      this.$nextTick(() => this.$refs.msgInput?.focus());
+      this.$nextTick(() => this.quill?.focus());
     },
 
     removePending(idx) {
@@ -546,31 +583,61 @@ function chatRoom() {
     },
 
     // ── Typing indicator ──────────────────────────────────────────
-    onTyping() {
-      const ta = this.$refs.msgInput;
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
-
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        clearTimeout(this.myTypingTimer);
+    // Called by Quill's text-change event via _onTypingDebounced.
+    _onTypingDebounced() {
+      if (this._typingCooldown) return;
+      if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'typing' }));
-        this.myTypingTimer = setTimeout(() => {}, 2000);
       }
+      // Lock emissions for 2 seconds (client-side guard; server also rate-limits).
+      this._typingCooldown = true;
+      setTimeout(() => { this._typingCooldown = false; }, 2000);
     },
 
     showTyping(senderName) {
       this.typingVisible = true;
       this.typingSenderName = senderName || '';
       clearTimeout(this.typingTimer);
+      // Auto-clear indicator after 3 seconds of silence from the other side.
       this.typingTimer = setTimeout(() => { this.typingVisible = false; }, 3000);
       if (this.isAtBottom()) this.scrollBottom();
     },
 
+    // ── Read receipts (IntersectionObserver) ─────────────────────
+    setupReadReceipts() {
+      // Only staff marks inbound messages as read.
+      if (!CHAT_IS_STAFF) return;
+
+      this._readObserver = new IntersectionObserver((entries) => {
+        const visible = entries.filter(e => e.isIntersecting);
+        if (!visible.length) return;
+        // Emit a single event for the latest visible message — backend does
+        // a batch sent_at__lte update so we never flood with per-message events.
+        const latestId = visible[visible.length - 1].target.dataset.msgId;
+        if (latestId && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'messages_read', latest_message_id: latestId }));
+        }
+      }, { root: this.$refs.scroll, threshold: 0.5 });
+
+      // Observe all already-rendered inbound messages.
+      document.querySelectorAll('[data-msg-id][data-direction="IN"]').forEach(el => {
+        this._readObserver.observe(el);
+      });
+    },
+
     // ── DOM helpers ───────────────────────────────────────────────
     renderBody(body) {
-      if ((body || '').startsWith('```')) {
-        const inner = body.replace(/^```\n?/, '').replace(/\n?```$/, '');
-        return `<pre class="bg-slate-900 text-green-400 rounded-lg p-2.5 text-xs overflow-x-auto font-mono whitespace-pre-wrap">${this.escHtml(inner)}</pre>`;
+      // Body is now HTML from Quill; sanitise XSS but preserve trusted markup.
+      // For plain-text fallback (old messages, WhatsApp, email) auto-link URLs.
+      if (body && body.startsWith('<')) {
+        // Already HTML from Quill — render directly (server stores editor output).
+        return body;
+      }
+      // Legacy plain-text body — escape and auto-link.
+      return this.escHtml(body).replace(
+        /https?:\/\/[^\s<>"']+/g,
+        url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100">${url}</a>`
+      );
       }
       return this.escHtml(body).replace(/https?:\/\/[^\s<>"']+/g, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100">${url}</a>`);
     },
@@ -611,6 +678,7 @@ function chatRoom() {
       const isSys = data.is_system;
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
+      el.dataset.direction = data.direction;
 
       if (isSys) {
         el.className = 'flex justify-center mb-4';
@@ -618,6 +686,7 @@ function chatRoom() {
       } else {
         const init = (data.sender_name || (isOut ? 'S' : 'U')).charAt(0).toUpperCase();
         const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
+        // Render quote 1-level deep only — never recurse into quoted.quoted.
         const quoteHtml = data.quoted_body ? this.renderQuote(data.quoted_body, data.quoted_sender, isOut) : '';
         const bodyHtml = this.renderBody(data.body);
         const time = this.formatTime(data.sent_at);
@@ -643,12 +712,20 @@ function chatRoom() {
             ${actionBtns}`;
         }
 
-        // CSS hover for dynamic elements
         el.addEventListener('mouseenter', () => el.querySelector('.hover-actions')?.classList.add('opacity-100'));
         el.addEventListener('mouseleave', () => el.querySelector('.hover-actions')?.classList.remove('opacity-100'));
       }
 
       document.getElementById('chat-live').appendChild(el);
+
+      // Observe newly appended inbound message for read receipts.
+      if (CHAT_IS_STAFF && !isOut && this._readObserver) {
+        this._readObserver.observe(el);
+      }
+
+      // DOM windowing — prune oldest nodes once we exceed 100 visible messages.
+      this._pruneMessages();
+
       if (wasAtBottom) {
         this.scrollBottom();
       } else if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
@@ -658,7 +735,23 @@ function chatRoom() {
       if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
         this.showBrowserNotification(data.sender_name, data.body);
       }
-      if (!isSys && data.body) this._injectLinkPreview(data.body, el);
+      if (!isSys && data.body && !data.body.startsWith('<')) this._injectLinkPreview(data.body, el);
+    },
+
+    // ── DOM windowing — keep at most 100 message nodes in the DOM ──
+    _pruneMessages() {
+      const MAX = 100;
+      const history = document.getElementById('chat-history');
+      const live = document.getElementById('chat-live');
+      const all = [
+        ...history.querySelectorAll('[data-msg-id]'),
+        ...live.querySelectorAll('[data-msg-id]'),
+      ];
+      if (all.length <= MAX) return;
+      all.slice(0, all.length - MAX).forEach(el => {
+        if (this._readObserver) this._readObserver.unobserve(el);
+        el.remove();
+      });
     },
 
     appendAttachment(data) {
