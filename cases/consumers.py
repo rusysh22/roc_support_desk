@@ -28,19 +28,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.case_uuid = self.scope["url_route"]["kwargs"]["case_uuid"]
         self.group_name = f"chat_{self.case_uuid}"
         self._last_typing_at: float = 0.0
+        self.is_staff = False
 
         if not await self._can_access():
             await self.close(code=4003)
             return
 
+        self.is_staff = await self._check_is_staff()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
         self._heartbeat_task = asyncio.ensure_future(self._heartbeat())
+
+        if self.is_staff:
+            await self._set_staff_online_cache(True)
+            await self.channel_layer.group_send(
+                self.group_name,
+                {"type": "chat.staff_presence", "online": True},
+            )
 
     async def disconnect(self, code):
         if hasattr(self, "_heartbeat_task"):
             self._heartbeat_task.cancel()
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if getattr(self, "is_staff", False):
+            await self._set_staff_online_cache(False)
+            await self.channel_layer.group_send(
+                self.group_name,
+                {"type": "chat.staff_presence", "online": False},
+            )
 
     async def receive(self, text_data):
         try:
@@ -126,6 +141,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await asyncio.sleep(self.HEARTBEAT_INTERVAL)
             try:
                 await self.send(text_data=json.dumps({"type": "ping"}))
+                if self.is_staff:
+                    # Refresh TTL so portal users see staff as online while they are active.
+                    await self._set_staff_online_cache(True)
             except Exception:
                 break
 
@@ -186,6 +204,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "read_receipt",
             "latest_message_id": event["latest_message_id"],
+        }))
+
+    async def chat_staff_presence(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "staff_presence",
+            "online": event["online"],
         }))
 
     # ----------------------------------------------------------------
@@ -315,6 +339,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return body, sender
         except Exception:
             return None, None
+
+    @database_sync_to_async
+    def _check_is_staff(self):
+        from django.contrib.auth.models import AnonymousUser
+        from core.models import User
+        user = self.scope.get("user")
+        return bool(
+            user
+            and not isinstance(user, AnonymousUser)
+            and user.is_authenticated
+            and user.role_access in (
+                User.RoleAccess.SUPERADMIN,
+                User.RoleAccess.MANAGER,
+                User.RoleAccess.SUPPORTDESK,
+                User.RoleAccess.AUDITOR,
+            )
+        )
+
+    @database_sync_to_async
+    def _set_staff_online_cache(self, online: bool):
+        from django.core.cache import cache
+        key = f"staff_online_{self.case_uuid}"
+        if online:
+            cache.set(key, True, timeout=90)
+        else:
+            cache.delete(key)
 
     @database_sync_to_async
     def _dispatch_offline_notification(self, message_id):

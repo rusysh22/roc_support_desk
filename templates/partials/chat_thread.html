@@ -140,7 +140,7 @@
                     <div class="font-semibold text-xs text-indigo-700 mb-0.5">
                         {% if msg.quoted_message.direction == "OUT" %}{{ msg.quoted_message.sender_staff.username|default:"Support" }}{% else %}{{ msg.quoted_message.sender_employee.full_name|default:"Employee" }}{% endif %}
                     </div>
-                    <div class="text-slate-500 line-clamp-2">{{ msg.quoted_message.body|truncatechars:120 }}</div>
+                    <div class="text-slate-500 line-clamp-2">{{ msg.quoted_message.body|strip_html_tags|truncatechars:120 }}</div>
                 </div>
                 {% endif %}
 
@@ -160,7 +160,7 @@
                     </div>
                 </form>
                 <!-- Normal message text -->
-                <div x-show="!editing" class="jk-msg__text whitespace-pre-wrap break-words break-all">{{ msg.body|urlize_target_blank }}{% if msg.is_edited %}<span class="jk-msg__edited-tag">edited</span>{% endif %}</div>
+                <div x-show="!editing" class="jk-msg__text bubble-content break-words">{{ msg.body|render_chat_body }}{% if msg.is_edited %}<span class="jk-msg__edited-tag">edited</span>{% endif %}</div>
                 {% endif %}
 
                 {% if msg.attachments.all %}

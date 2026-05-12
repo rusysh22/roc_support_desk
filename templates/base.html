@@ -486,6 +486,19 @@
          class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3"
          x-cloak>
 
+      {# ── Mobile backdrop — taps outside the panel close the widget ── #}
+      {# Positioned before the panel so it paints below it in the same stacking context. #}
+      <div x-show="open"
+           x-cloak
+           @click="open = false"
+           x-transition:enter="transition-opacity ease-out duration-200"
+           x-transition:enter-start="opacity-0"
+           x-transition:enter-end="opacity-100"
+           x-transition:leave="transition-opacity ease-in duration-150"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
+           class="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+
       {# ── Panel ── #}
       <div x-show="open"
            x-transition:enter="transition ease-out duration-200"
@@ -494,8 +507,8 @@
            x-transition:leave="transition ease-in duration-150"
            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
            x-transition:leave-end="opacity-0 translate-y-2 scale-95"
-           class="w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
-           style="max-height: min(560px, calc(100dvh - 7rem));">
+           class="w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col relative"
+           style="max-height: clamp(300px, 65svh, 560px);">
 
         {# Panel header #}
         <div class="bg-indigo-600 px-4 py-3 flex items-center justify-between gap-2">
@@ -701,8 +714,8 @@
                       @keydown.enter.shift.exact="widgetMsg += '\n'"
                       rows="1"
                       placeholder="Ketik pesan…"
-                      class="jk-input flex-1 resize-none text-sm py-1.5 leading-snug"
-                      style="min-height:34px;max-height:80px;overflow-y:auto;"></textarea>
+                      class="jk-input flex-1 resize-none py-1.5 leading-snug"
+                      style="min-height:34px;max-height:80px;overflow-y:auto;font-size:16px;"></textarea>
             <button @click="widgetSend()"
                     :disabled="widgetSending || (!widgetMsg.trim() && widgetPendingFiles.length === 0)"
                     class="flex-shrink-0 w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
@@ -808,7 +821,10 @@
             e.preventDefault();
             images.forEach(item => {
               const file = item.getAsFile();
-              if (file && this.widgetPendingFiles.length < 3) this.widgetPendingFiles.push(file);
+              if (file && this.widgetPendingFiles.length < 3) {
+                this.widgetFilePreviews.push(URL.createObjectURL(file));
+                this.widgetPendingFiles.push(file);
+              }
             });
           });
         },
@@ -999,7 +1015,10 @@
           if (!this.activeCaseUUID || this.widgetPendingFiles.length === 0) return;
           const fd = new FormData();
           this.widgetPendingFiles.forEach(f => fd.append('files', f));
+          // Revoke object URLs before clearing to free memory.
+          this.widgetFilePreviews.forEach(url => url && URL.revokeObjectURL(url));
           this.widgetPendingFiles = [];
+          this.widgetFilePreviews = [];
           try {
             await fetch(`/portal/chat/${this.activeCaseUUID}/upload/`, {
               method: 'POST',

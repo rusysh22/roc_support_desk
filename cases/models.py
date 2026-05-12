@@ -175,6 +175,7 @@ class CaseRecord(AuditableModel):
         EVOLUTION_WA = "EvolutionAPI_WA", "WhatsApp (Evolution API)"
         EMAIL = "Email", "Email"
         WEBFORM = "WebForm", "Web Form"
+        WEBCHAT = "WebChat", "Web Chat"
         TEAMS_BOT = "Teams_Bot", "Microsoft Teams (Bot)"
 
     class Priority(models.TextChoices):

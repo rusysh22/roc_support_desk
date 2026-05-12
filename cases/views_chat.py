@@ -387,7 +387,7 @@ def chat_start(request):
         category=category,
         subject=subject,
         problem_description=first_message,
-        source=CaseRecord.Source.WEBFORM,
+        source=CaseRecord.Source.WEBCHAT,
         status=CaseRecord.Status.OPEN,
         has_unread_messages=True,
         guest_token=guest_token,
@@ -492,6 +492,8 @@ def chat_room(request, case_uuid):
                 pass
         request.session[session_key] = timezone.now().isoformat()
 
+    staff_online = cache.get(f"staff_online_{case_uuid}", False)
+
     return render(request, "client/chat_room.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -501,6 +503,7 @@ def chat_room(request, case_uuid):
         "user_direction": user_direction,
         "is_staff": is_staff,
         "first_unread_id": first_unread_id,
+        "staff_online": staff_online,
     })
 
 
@@ -761,7 +764,7 @@ def chat_poll(request, case_uuid):
     )
     return render(request, "client/partials/chat_messages.html", {
         "case": case,
-        "chat_messages": messages_qs,
+        "messages": messages_qs,
         "user_direction": user_direction,
         "first_unread_id": None,
     })

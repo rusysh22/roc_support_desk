@@ -949,6 +949,11 @@
                         <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" checked>
                         <span>Send Reply via Email</span>
                     </label>
+                    {% elif case.source == "WebChat" and case.requester.email or case.source == "WebChat" and case.requester_email %}
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-600 hover:text-indigo-600 select-none transition-colors" title="WebChat — reply via chat; check to also send by email">
+                        <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <span>Send Reply via Email</span>
+                    </label>
                     {% endif %}
                     
                     <button type="button" @click="showCc = !showCc; if(showCc) $nextTick(() => $refs.ccInput.focus())" class="text-xs font-medium text-slate-600 hover:text-indigo-600 transition-colors">

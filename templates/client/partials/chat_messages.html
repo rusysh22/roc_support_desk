@@ -11,7 +11,8 @@
 <div class="group/bubble relative flex gap-3 mb-4
      {% if msg.is_system %}justify-center
      {% elif msg.direction == user_direction %}flex-row-reverse{% endif %}"
-     data-msg-id="{{ msg.id }}">
+     data-msg-id="{{ msg.id }}"
+     data-direction="{{ msg.direction }}">
 
   {% if msg.is_system %}
   {# ── System message ── #}

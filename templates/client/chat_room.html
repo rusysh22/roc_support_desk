@@ -24,9 +24,15 @@
 
   /* Quill editor sizing inside chat input */
   #quill-editor { min-height: 40px; max-height: 120px; overflow-y: auto; font-size: 0.875rem; }
-  #quill-editor .ql-editor { padding: 8px 12px; }
+  /* iOS requires font-size >= 16px on inputs to prevent auto-zoom on focus. */
+  #quill-editor .ql-editor { padding: 8px 12px; font-size: 16px; }
   .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border-color: #e2e8f0; padding: 4px 8px; }
   .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border-color: #e2e8f0; }
+  /* Toolbar wrapping on narrow screens — prevent horizontal scroll */
+  @media (max-width: 480px) {
+    .ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; gap: 2px; }
+    .ql-toolbar.ql-snow .ql-formats { margin-right: 4px !important; }
+  }
   /* Prevent Quill placeholder from being included in text selection/copy */
   .ql-editor.ql-blank::before { user-select: none; -webkit-user-select: none; pointer-events: none; }
   /* Quill code block colour overrides to match existing design */
@@ -111,6 +117,17 @@
         <p class="text-sm font-bold text-slate-800 truncate">{{ case.subject }}</p>
       </div>
       <div class="flex items-center gap-2">
+        {# Staff online/offline indicator — only shown to non-staff portal users #}
+        {% if not is_staff %}
+        <span id="staff-presence-badge"
+              class="flex items-center gap-1 text-xs font-medium
+              {% if staff_online %}text-emerald-600{% else %}text-slate-400{% endif %}">
+          <span id="staff-presence-dot"
+                class="inline-block w-2 h-2 rounded-full
+                {% if staff_online %}bg-emerald-500{% else %}bg-slate-300{% endif %}"></span>
+          <span id="staff-presence-label">{% if staff_online %}Online{% else %}Offline{% endif %}</span>
+        </span>
+        {% endif %}
         {# Status badge — updates dynamically #}
         <span id="chat-status-badge"
               class="text-xs font-bold px-2.5 py-1 rounded-full
@@ -513,6 +530,8 @@ function chatRoom() {
           this.applyDelete(data.message_id);
         } else if (data.type === 'read_receipt') {
           this.applyReadReceipt(data.latest_message_id);
+        } else if (data.type === 'staff_presence') {
+          this.updateStaffPresence(data.online);
         }
       };
 
@@ -592,6 +611,21 @@ function chatRoom() {
         el.textContent = '✓✓ Dibaca';
         el.classList.add('text-indigo-400');
       });
+    },
+
+    updateStaffPresence(online) {
+      const dot   = document.getElementById('staff-presence-dot');
+      const label = document.getElementById('staff-presence-label');
+      if (!dot || !label) return;
+      if (online) {
+        dot.className   = 'inline-block w-2 h-2 rounded-full bg-emerald-500';
+        label.textContent = 'Online';
+        label.parentElement.className = 'flex items-center gap-1 text-xs font-medium text-emerald-600';
+      } else {
+        dot.className   = 'inline-block w-2 h-2 rounded-full bg-slate-300';
+        label.textContent = 'Offline';
+        label.parentElement.className = 'flex items-center gap-1 text-xs font-medium text-slate-400';
+      }
     },
 
     // ── Sending ───────────────────────────────────────────────────

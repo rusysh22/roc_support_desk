@@ -758,6 +758,18 @@
     word-break: break-all;
 }
 
+/* bubble-content: renders Quill HTML inside chat bubbles (desk + portal) */
+.bubble-content p { margin: 0 0 0.2rem; }
+.bubble-content p:last-child { margin-bottom: 0; }
+.bubble-content pre.ql-syntax { background: rgba(0,0,0,0.3); border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.72rem; font-family: monospace; white-space: pre-wrap; overflow-x: auto; margin: 0.25rem 0; }
+.bubble-content code { background: rgba(0,0,0,0.12); border-radius: 0.2rem; padding: 0.05rem 0.3rem; font-size: 0.8em; font-family: monospace; }
+.bubble-content ul { list-style: disc; padding-left: 1.25rem; margin: 0.2rem 0; }
+.bubble-content ol { list-style: decimal; padding-left: 1.25rem; margin: 0.2rem 0; }
+.bubble-content strong { font-weight: 700; }
+.bubble-content em { font-style: italic; }
+.bubble-content s { text-decoration: line-through; }
+.bubble-content a { text-decoration: underline; opacity: 0.85; word-break: break-all; }
+
 /* --- Attachments inside bubble --- */
 .jk-msg__file {
     display: inline-flex;

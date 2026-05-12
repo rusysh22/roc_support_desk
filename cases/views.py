@@ -2089,7 +2089,10 @@ def case_send_reply(request, case_id):
             reply_channel = Message.Channel.WEB
             
             send_as_email = request.POST.get("send_as_email") == "true"
-            if case.source == CaseRecord.Source.WEBFORM and send_as_email:
+            if send_as_email and case.source in (
+                CaseRecord.Source.WEBFORM,
+                CaseRecord.Source.WEBCHAT,
+            ):
                 reply_channel = Message.Channel.EMAIL
             elif case.source == CaseRecord.Source.EMAIL:
                 reply_channel = Message.Channel.EMAIL
@@ -2577,7 +2580,11 @@ def case_close_and_notify(request, case_id):
     if send_notification:
         # Determine the reply channel based on the source
         reply_channel = Message.Channel.WEB
-        if case.source in [CaseRecord.Source.WEBFORM, CaseRecord.Source.EMAIL]:
+        if case.source in (
+            CaseRecord.Source.WEBFORM,
+            CaseRecord.Source.WEBCHAT,
+            CaseRecord.Source.EMAIL,
+        ):
             reply_channel = Message.Channel.EMAIL
         elif case.source == CaseRecord.Source.EVOLUTION_WA:
             reply_channel = Message.Channel.WHATSAPP
