@@ -1251,7 +1251,11 @@ def case_list(request):
         cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
 
     if search_query:
-        cases = cases.filter(
+        # Support full case number format (e.g. "RQ-E8973E6D"):
+        # strip any PREFIX- prefix and search the UUID hex portion directly.
+        dash_idx = search_query.find('-')
+        uuid_part = search_query[dash_idx + 1:].lower() if dash_idx != -1 else None
+        q = (
             Q(id__icontains=search_query) |
             Q(subject__icontains=search_query) |
             Q(requester_name__icontains=search_query) |
@@ -1262,6 +1266,9 @@ def case_list(request):
             Q(requester_unit_name__icontains=search_query) |
             Q(requester__unit__name__icontains=search_query)
         )
+        if uuid_part:
+            q |= Q(id__istartswith=uuid_part)
+        cases = cases.filter(q)
     if date_from:
         cases = cases.filter(created_at__date__gte=date_from)
     if date_to:

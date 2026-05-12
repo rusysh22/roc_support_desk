@@ -18,6 +18,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -777,15 +778,26 @@ def chat_poll(request, case_uuid):
 @require_POST
 def chat_resolve(request, case_uuid):
     """User marks their own ticket as Resolved."""
+    import json as _json
+
     case = get_object_or_404(CaseRecord, id=case_uuid)
     if not _can_access_case(request, case):
         return HttpResponseForbidden()
     if case.status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED):
         return JsonResponse({"error": "Ticket is already resolved or closed."}, status=400)
 
+    try:
+        comment = (_json.loads(request.body).get("comment") or "").strip()
+    except (ValueError, AttributeError):
+        comment = ""
+
+    if not comment:
+        comment = f"No comment from {case.requester_name or 'User'}"
+
     case.status = CaseRecord.Status.RESOLVED
     case.save(update_fields=["status", "updated_at"])
 
+    # System announcement
     Message.objects.create(
         case=case,
         body="The requester has marked this ticket as resolved.",
@@ -794,6 +806,23 @@ def chat_resolve(request, case_uuid):
         is_system=True,
     )
 
+    # Closing note from requester — visible to staff as resolution context
+    sender_employee = Employee.objects.filter(
+        email__iexact=case.requester_email
+    ).first()
+    closing_msg = Message.objects.create(
+        case=case,
+        body=comment,
+        direction=Message.Direction.INBOUND,
+        channel=Message.Channel.WEB,
+        sender_employee=sender_employee,
+        is_system=False,
+    )
+
+    # Store as root cause analysis if not already filled
+    if not case.root_cause_analysis:
+        CaseRecord.objects.filter(id=case_uuid).update(root_cause_analysis=comment)
+
     CaseAuditLog.objects.create(
         case=case,
         action=CaseAuditLog.ActionText.STATUS_CHANGE,
@@ -801,6 +830,7 @@ def chat_resolve(request, case_uuid):
     )
 
     _broadcast_status(case_uuid, CaseRecord.Status.RESOLVED, "Resolved")
+    _broadcast_message(case_uuid, closing_msg, case.requester_name or "User")
 
     return JsonResponse({"status": CaseRecord.Status.RESOLVED})
 
@@ -881,7 +911,14 @@ def my_tickets(request):
     if status_filter:
         qs = qs.filter(status=status_filter)
     if search_query:
-        qs = qs.filter(subject__icontains=search_query)
+        # Support full case number format (e.g. "RQ-E8973E6D"):
+        # strip any PREFIX- prefix and search the UUID hex portion directly.
+        dash_idx = search_query.find('-')
+        uuid_part = search_query[dash_idx + 1:].lower() if dash_idx != -1 else None
+        q = Q(subject__icontains=search_query) | Q(id__icontains=search_query)
+        if uuid_part:
+            q |= Q(id__istartswith=uuid_part)
+        qs = qs.filter(q)
 
     STATUS_LABEL = {
         CaseRecord.Status.OPEN: ("Waiting", "yellow"),

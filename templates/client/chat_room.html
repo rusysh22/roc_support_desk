@@ -99,6 +99,7 @@
   const CHAT_POLL_URL          = "{% url 'chat:poll' case.id %}";
   const CSRF_TOKEN             = "{{ csrf_token }}";
   const CHAT_FIRST_UNREAD_ID   = "{{ first_unread_id|default:'' }}";
+  const CHAT_REQUESTER_NAME    = "{{ case.requester_name|default:''|escapejs }}";
 </script>
 
 <div class="max-w-2xl mx-auto"
@@ -115,6 +116,9 @@
       <div class="flex-1 min-w-0">
         <p class="text-xs text-slate-500 font-medium">{{ case.category.name }}</p>
         <p class="text-sm font-bold text-slate-800 truncate">{{ case.subject }}</p>
+        {% if case.problem_description %}
+        <p class="text-xs text-slate-400 truncate mt-0.5">{{ case.problem_description|truncatechars:100 }}</p>
+        {% endif %}
       </div>
       <div class="flex items-center gap-2">
         {# Staff online/offline indicator — only shown to non-staff portal users #}
@@ -330,6 +334,49 @@
     {% endif %}
   </div>
 
+  {# ── Resolve confirmation modal ── #}
+  <div x-show="resolveModal"
+       x-cloak
+       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+       @keydown.escape.window="resolveModal = false">
+    {# Backdrop #}
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="resolveModal = false"></div>
+    {# Dialog #}
+    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 p-6 z-10"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0">
+      <div class="flex items-start gap-3 mb-4">
+        <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-800">Mark as Resolved</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Add a closing note so the support team knows how the issue was resolved.</p>
+        </div>
+      </div>
+      <textarea x-model="resolveComment"
+                rows="3"
+                :placeholder="`Leave a note (optional) — if empty, will be recorded as: No comment from ${CHAT_REQUESTER_NAME || 'User'}`"
+                class="jk-input w-full text-sm resize-none mb-4"
+                style="font-size:16px;"
+                x-init="$nextTick(() => { if (resolveModal) $el.focus(); })"
+                @keydown.escape.prevent="resolveModal = false"></textarea>
+      <div class="flex gap-2 justify-end">
+        <button @click="resolveModal = false"
+                class="jk-btn text-sm px-4 py-2">
+          Cancel
+        </button>
+        <button @click="submitResolve()"
+                class="jk-btn text-sm px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none font-semibold">
+          Confirm Resolved
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 {% endblock %}
@@ -384,6 +431,8 @@ function chatRoom() {
     unreadCount: 0,
     showScrollBtn: false,
     typingSenderName: '',
+    resolveModal: false,
+    resolveComment: '',
 
     init() {
       // ── Scroll to unread divider or bottom ────────────────────────
@@ -1017,11 +1066,17 @@ function chatRoom() {
     },
 
     // ── Ticket actions ────────────────────────────────────────────
-    async resolveTicket() {
-      if (!confirm('Mark this ticket as resolved?')) return;
+    resolveTicket() {
+      this.resolveComment = '';
+      this.resolveModal = true;
+    },
+
+    async submitResolve() {
+      this.resolveModal = false;
       const res = await fetch(CHAT_RESOLVE_URL, {
         method: 'POST',
-        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ comment: this.resolveComment.trim() }),
       });
       if (res.ok) {
         this.ticketOpen = false;
