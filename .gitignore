@@ -66,3 +66,6 @@ proposal_*.txt
 # Demo / Seed scripts
 seed_demo.py
 seed_*.py
+
+# Claude Code local settings (machine-specific, not for the repo)
+.claude/settings.local.json
