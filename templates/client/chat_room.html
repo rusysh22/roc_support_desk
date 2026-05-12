@@ -1159,13 +1159,26 @@ function chatRoom() {
   };
   window.resetZoom = function() { resetTransform(); };
 
+  var IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','bmp','svg','avif','ico'];
+  function isImageUrl(url) {
+    var ext = (url || '').split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+    return IMAGE_EXTS.indexOf(ext) !== -1;
+  }
+
   window.openLightbox = function(el) {
+    var src = el.dataset.lightboxSrc || el.src || '';
+    // Non-image URLs open directly rather than showing broken image in lightbox.
+    if (!isImageUrl(src)) {
+      window.open(src, '_blank', 'noopener,noreferrer');
+      return;
+    }
     var group = el.dataset.lightboxGroup || 'chat-gallery';
-    var thumbs = document.querySelectorAll('[data-lightbox-group="' + group + '"]');
-    gallery = Array.from(thumbs).map(function(t) {
+    var thumbs = Array.from(document.querySelectorAll('[data-lightbox-group="' + group + '"]'))
+                      .filter(function(t) { return isImageUrl(t.dataset.lightboxSrc || ''); });
+    gallery = thumbs.map(function(t) {
       return { src: t.dataset.lightboxSrc, name: t.dataset.lightboxName || '' };
     });
-    currentIdx = Array.from(thumbs).indexOf(el);
+    currentIdx = thumbs.indexOf(el);
     if (currentIdx < 0) currentIdx = 0;
     resetTransform();
     buildStrip();

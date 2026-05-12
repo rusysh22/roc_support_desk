@@ -31,11 +31,13 @@
              placeholder="Search by subject or ticket number (e.g. RQ-E8973E6D)…"
              class="jk-input pl-9 w-full text-sm">
     </div>
-    <select name="status" class="jk-input text-sm sm:w-44">
+    <div class="sm:flex-shrink-0 sm:w-44">
+    <select name="status" class="jk-input text-sm">
       {% for val, label in status_choices %}
       <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    </div>
     <button type="submit" class="jk-btn jk-btn-primary text-sm px-4 whitespace-nowrap">Filter</button>
     {% if status_filter or search_query %}
     <a href="{% url 'chat:my_tickets' %}" class="jk-btn text-sm px-4 whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-600 border-none">Clear</a>
