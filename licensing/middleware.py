@@ -26,13 +26,15 @@ logger = logging.getLogger(__name__)
 LICENSE_EXEMPT_PREFIXES = (
     '/license/',      # All license management pages
     '/auth/',         # Login, logout, password reset
-    '/admin/',        # Django admin (setup before license)
     '/static/',       # Static assets
     '/media/',        # Uploaded media
     '/api/gateways/', # Evolution API / WhatsApp webhook
     '/s/',            # Short link redirects (public)
     '/favicon',       # Browser favicon
     '/docs/',         # Public portal user documentation (no login required)
+    # '/admin/' is intentionally NOT exempt — Django admin is gated by license status.
+    # expired/suspended blocks admin for all users including superadmin.
+    # Initial setup uses CLI (createsuperuser) and /license/ URLs which remain exempt.
 )
 
 # Status groups for routing decisions

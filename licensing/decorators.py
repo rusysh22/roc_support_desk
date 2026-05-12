@@ -1,7 +1,7 @@
 from functools import wraps
 from django.shortcuts import redirect
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.urls import reverse
 from .models import LicenseRecord
 
@@ -53,14 +53,12 @@ def feature_required(feature_name):
                 has_access = False
 
             if not has_access:
-                if request.headers.get('HX-Request') or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    # If HTMX, we can return a message or trigger a client-side redirect
-                    response = HttpResponseForbidden(f"Upgrade required for {feature_name}.")
-                    response['HX-Trigger'] = 'show-upgrade-modal' # Example trigger
+                upgrade_url = reverse('licensing:upgrade')
+                if request.headers.get('HX-Request'):
+                    response = HttpResponse()
+                    response['HX-Redirect'] = upgrade_url
                     return response
-                
-                # For regular requests, redirect to the upgrade page
-                return redirect('licensing:upgrade')
+                return redirect(upgrade_url)
 
             return view_func(request, *args, **kwargs)
         
@@ -131,8 +129,11 @@ class FeatureRequiredMixin:
             has_access = False
 
         if not has_access:
-            if request.headers.get('HX-Request') or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return HttpResponseForbidden(f"Upgrade required for {self.feature_required}.")
-            return redirect('licensing:upgrade')
+            upgrade_url = reverse('licensing:upgrade')
+            if request.headers.get('HX-Request'):
+                response = HttpResponse()
+                response['HX-Redirect'] = upgrade_url
+                return response
+            return redirect(upgrade_url)
 
         return super().dispatch(request, *args, **kwargs)

@@ -99,16 +99,24 @@ class LicenseRecord(models.Model):
         """
         Compute the *real* license state.
 
-        Priority: suspended > active/grace/partial_lock from expiry calc > raw status.
+        Priority: suspended > structural integrity > expiry calc > raw status.
 
-        This is computed from `expires_at` to prevent fraud via direct DB edit
-        of the `status` field to 'active'.
+        Structural integrity checks block naive DB-level bypasses (e.g. setting
+        status='active' directly in the database without going through proper
+        activation). Paid statuses are only trusted when the record has a valid
+        signed key, a verification timestamp, and a fingerprint that matches this
+        installation.
         """
         from django.conf import settings
 
         # Suspended cannot be overridden
         if self.status == 'suspended':
             return 'suspended'
+
+        # Paid statuses must pass structural integrity before any expiry logic
+        if self.status not in ('trial', 'unlicensed'):
+            if not self._is_structurally_valid():
+                return 'unlicensed'
 
         # Still within validity period (or perpetual)
         if self.expires_at is None or self.expires_at >= timezone.now():
@@ -127,6 +135,41 @@ class LicenseRecord(models.Model):
             return 'partial_lock'
         else:
             return 'expired'
+
+    def _is_structurally_valid(self) -> bool:
+        """
+        Verify structural markers of a properly activated license record.
+
+        Three checks:
+        1. A signed license key must be stored and decodable.
+        2. At least one successful online verification must have occurred.
+        3. The stored installation fingerprint must match this server.
+
+        A record that passes all three could only have been created by going
+        through the real activation flow on this specific server.
+        """
+        from django.core import signing
+        from .validators import generate_fingerprint
+
+        # 1. Key must exist and be a valid Django-signed value
+        if not self.license_key:
+            return False
+        try:
+            signing.loads(self.license_key, salt='roc-license-v1')
+        except signing.BadSignature:
+            return False
+
+        # 2. Must have been verified online at least once
+        if not self.last_verified_at:
+            return False
+
+        # 3. Fingerprint must be stored and must match this installation
+        if not self.install_fingerprint:
+            return False
+        if self.install_fingerprint != generate_fingerprint():
+            return False
+
+        return True
 
     # -----------------------------------------------------------------------
     # Helpers for templates
@@ -179,6 +222,8 @@ class LicenseAuditLog(models.Model):
     EVENT_CHOICES = [
         ('webhook_received',   'Webhook Received'),
         ('activated',          'License Activated'),
+        ('renewed',            'License Renewed'),
+        ('upgraded',           'License Upgraded'),
         ('deactivated',        'License Deactivated'),
         ('expired',            'License Expired'),
         ('suspended',          'License Suspended'),

@@ -32,6 +32,9 @@ app.conf.task_routes = {
 # Celery Beat Schedule
 # -----------------------------------------------------------------
 from celery.schedules import crontab  # noqa: E402
+from django.conf import settings as django_settings  # noqa: E402
+
+_verify_interval_hours = django_settings.LICENSE_SETTINGS.get('VERIFY_INTERVAL_HOURS', 24)
 
 app.conf.beat_schedule = {
     "poll-imap-emails-every-1-minute": {
@@ -41,5 +44,9 @@ app.conf.beat_schedule = {
     "auto-close-idle-tickets-nightly": {
         "task": "cases.auto_close_idle_tickets",
         "schedule": crontab(hour=2, minute=0),  # 02:00 server time daily
+    },
+    "verify-license-periodic": {
+        "task": "licensing.verify_license_periodic",
+        "schedule": _verify_interval_hours * 3600,
     },
 }

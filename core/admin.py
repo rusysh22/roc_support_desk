@@ -4,6 +4,7 @@ Core App — Django Admin Registration
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.shortcuts import redirect
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
@@ -17,7 +18,7 @@ from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig,
 @admin.register(User)
 class UserAdmin(BaseUserAdmin, ModelAdmin):
     """Admin configuration for the custom User model."""
-    
+
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
@@ -76,6 +77,73 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             },
         ),
     )
+
+    # Roles that consume an agent seat (mirrors core/views_user.py)
+    _AGENT_ROLES = {User.RoleAccess.SUPPORTDESK, User.RoleAccess.MANAGER}
+
+    def _check_agent_limit(self, request, obj, change) -> bool:
+        """
+        Return True if the save should be blocked because it would exceed
+        the max_agents license limit.
+
+        Triggers when the resulting record would be a new *active* agent seat:
+        - New user with an agent role and is_active=True
+        - Existing user whose role or active status changes so that a net new
+          active agent seat is consumed.
+        """
+        from django.contrib import messages as django_messages
+
+        if obj.role_access not in self._AGENT_ROLES or not obj.is_active:
+            return False
+
+        is_new_active_agent = not change
+        if change:
+            try:
+                old = User.objects.get(pk=obj.pk)
+                was_active_agent = old.role_access in self._AGENT_ROLES and old.is_active
+                is_new_active_agent = not was_active_agent
+            except User.DoesNotExist:
+                is_new_active_agent = True
+
+        if not is_new_active_agent:
+            return False
+
+        try:
+            from licensing.models import LicenseRecord
+            license_obj = LicenseRecord.get_current()
+            max_allowed = license_obj.max_agents
+        except Exception:
+            return False
+
+        current_count = User.objects.filter(
+            role_access__in=self._AGENT_ROLES, is_active=True
+        ).count()
+
+        if max_allowed is not None and current_count >= max_allowed:
+            django_messages.error(
+                request,
+                f"Agent limit reached ({current_count}/{max_allowed}). "
+                "Upgrade your license to add more agents. User was NOT saved.",
+            )
+            return True
+
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if self._check_agent_limit(request, obj, change):
+            request._admin_agent_limit_blocked = True
+            return
+        super().save_model(request, obj, form, change)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        if getattr(request, '_admin_agent_limit_blocked', False):
+            return redirect(request.path)
+        return super().response_add(request, obj, post_url_continue)
+
+    def response_change(self, request, obj):
+        if getattr(request, '_admin_agent_limit_blocked', False):
+            return redirect(request.path)
+        return super().response_change(request, obj)
 
 
 # =====================================================================

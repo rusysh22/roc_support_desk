@@ -187,24 +187,29 @@ def _process_license_created(record, data: dict, fingerprint: str):
 
 
 def _process_license_renewed(record, data: dict):
-    """Handle license.renewed: extend expires_at, ensure status=active."""
+    """Handle license.renewed: extend expires_at, sync agent limit, ensure status=active."""
     if data.get('expires_at'):
         record.expires_at = parse_datetime(data['expires_at'])
+    if data.get('max_agents') is not None:
+        record.max_agents = data['max_agents']
     record.status = 'active'
     record.last_verified_at = timezone.now()
     record.save()
-    LicenseAuditLog.objects.create(event='activated', payload=data, signature_valid=True)
+    LicenseAuditLog.objects.create(event='renewed', payload=data, signature_valid=True)
     logger.info(f"[License] Renewed — new expires_at={record.expires_at}")
 
 
 def _process_license_upgraded(record, data: dict):
-    """Handle license.upgraded: update tier, features, and agent limit."""
+    """Handle license.upgraded: update tier, features, agent limit, and expiry."""
     plan = data.get('plan', record.plan_tier)
     record.plan_tier      = plan
     record.max_agents     = data.get('max_agents', record.max_agents)
     record.features_json  = data.get('features', TIER_DEFAULT_FEATURES.get(plan, record.features_json))
+    if data.get('expires_at'):
+        record.expires_at = parse_datetime(data['expires_at'])
+    record.last_verified_at = timezone.now()
     record.save()
-    LicenseAuditLog.objects.create(event='activated', payload=data, signature_valid=True)
+    LicenseAuditLog.objects.create(event='upgraded', payload=data, signature_valid=True)
     logger.info(f"[License] Upgraded — new plan={plan}")
 
 

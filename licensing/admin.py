@@ -23,9 +23,15 @@ class LicenseRecordAdmin(admin.ModelAdmin):
         'id', 'plan_tier', 'status', 'issued_to',
         'issued_at', 'expires_at', 'last_verified_at', 'max_agents',
     ]
+    # All license state fields are read-only in admin.
+    # License activation and renewal must go through the proper licensing views,
+    # not direct admin edits — which would bypass the integrity checks in
+    # get_effective_status() / _is_structurally_valid().
     readonly_fields = [
-        'id', 'install_fingerprint', 'last_verified_at',
-        'issued_at',
+        'id', 'license_key', 'status', 'plan_tier',
+        'issued_at', 'expires_at', 'last_verified_at',
+        'install_fingerprint', 'marketplace_endpoint',
+        'max_agents', 'features_json',
     ]
     fieldsets = [
         ('License Identity', {

@@ -6,6 +6,7 @@ from django.http import JsonResponse, HttpResponseForbidden
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from core.models import User
+from licensing.decorators import FeatureRequiredMixin
 
 from .models import ShortLink
 from .forms import ShortLinkForm
@@ -52,14 +53,16 @@ class RedirectLinkView(View):
 # Desk — Management (login required)
 # ---------------------------------------------------------
 
-class LinkListView(StaffRequiredMixin, ListView):
+class LinkListView(FeatureRequiredMixin, StaffRequiredMixin, ListView):
+    feature_required = 'short_links'
     model = ShortLink
     template_name = "desk/links/list.html"
     context_object_name = "links"
     paginate_by = 25
 
 
-class LinkCreateView(StaffRequiredMixin, CreateView):
+class LinkCreateView(FeatureRequiredMixin, StaffRequiredMixin, CreateView):
+    feature_required = 'short_links'
     model = ShortLink
     form_class = ShortLinkForm
     template_name = "desk/links/form.html"
@@ -71,7 +74,8 @@ class LinkCreateView(StaffRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class LinkUpdateView(StaffRequiredMixin, UpdateView):
+class LinkUpdateView(FeatureRequiredMixin, StaffRequiredMixin, UpdateView):
+    feature_required = 'short_links'
     model = ShortLink
     form_class = ShortLinkForm
     template_name = "desk/links/form.html"
@@ -82,7 +86,8 @@ class LinkUpdateView(StaffRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class LinkDeleteView(StaffRequiredMixin, DeleteView):
+class LinkDeleteView(FeatureRequiredMixin, StaffRequiredMixin, DeleteView):
+    feature_required = 'short_links'
     model = ShortLink
     template_name = "desk/links/confirm_delete.html"
     success_url = reverse_lazy("links_desk:list")
@@ -92,8 +97,9 @@ class LinkDeleteView(StaffRequiredMixin, DeleteView):
 # API — Slug Availability Check
 # ---------------------------------------------------------
 
-class CheckSlugView(StaffRequiredMixin, View):
+class CheckSlugView(FeatureRequiredMixin, StaffRequiredMixin, View):
     """AJAX endpoint: returns {available: true/false} for the requested slug."""
+    feature_required = 'short_links'
 
     def get(self, request):
         slug = request.GET.get("slug", "").strip()

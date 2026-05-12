@@ -48,7 +48,7 @@ def license_context(request):
                     trial_seconds_left = max(0, duration_s - today_trial.total_seconds_used)
                 else:
                     trial_seconds_left = duration_s
-            except:
+            except Exception:
                 trial_seconds_left = 0
         
         trial_seconds_left = trial_seconds_left or 0

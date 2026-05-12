@@ -24,7 +24,8 @@
       "Bash(python -c \"import channels_redis; print\\(channels_redis.__version__\\)\")",
       "Bash(python *)",
       "Bash(python3 *)",
-      "Bash(docker cp *)"
+      "Bash(docker cp *)",
+      "Bash(echo \"Exit: $?\")"
     ]
   }
 }

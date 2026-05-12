@@ -10,10 +10,13 @@ Layer 5: Periodic Online Verification
 import hashlib
 import hmac
 import json
+import logging
 import uuid
 from typing import Optional
 
 import requests
+
+logger = logging.getLogger(__name__)
 from django.conf import settings
 from django.core import signing
 from django.utils import timezone
@@ -157,8 +160,8 @@ def verify_license_online(license_obj) -> bool:
     is unreachable beyond the grace period.
 
     Called by:
-    - manage.py verify_license (cron / manual)
-    - LicenseGateMiddleware every N hours (Phase 3)
+    - manage.py verify_license (manual)
+    - licensing.verify_license_periodic Celery Beat task (every VERIFY_INTERVAL_HOURS)
     """
     from .models import LicenseAuditLog
 
@@ -212,10 +215,8 @@ def verify_license_online(license_obj) -> bool:
             plan = data.get('license_type') or data.get('plan')
             if plan:
                 license_obj.plan_tier = plan
-                # Update features based on plan if not explicitly provided
-                if 'features' not in data:
-                    license_obj.features_json = TIER_DEFAULT_FEATURES.get(plan, {})
-            if data.get('max_agents'):
+                license_obj.features_json = data.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
+            if data.get('max_agents') is not None:
                 license_obj.max_agents = data['max_agents']
 
             license_obj.last_verified_at = timezone.now()
