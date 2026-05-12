@@ -467,9 +467,10 @@
 
     {% block extra_scripts %}{% endblock %}
 
-    {# ── Floating Chat Widget — portal pages only (not /desk/) ── #}
-    {% if not request.path|slice:":6" == "/desk/" and not request.path|slice:":7" == "/admin/" %}
-    {% if not request.path|slice:":13" == "/portal/chat/" %}
+    {# ── Floating Chat Widget — service portal pages only ── #}
+    {# Whitelist: only show on client-facing portal URLs, never on auth/desk/admin/license pages #}
+    {% with path=request.path %}
+    {% if path == "/" or path|slice:":10" == "/category/" or path|slice:":8" == "/submit/" or path|slice:":11" == "/submitted/" or path|slice:":12" == "/send-email/" or path|slice:":3" == "/f/" or path|slice:":4" == "/kb/" %}
     <script>
     const WIDGET_START_URL      = "{% url 'chat:start' %}";
     const WIDGET_CATEGORIES_URL = "{% url 'chat:categories' %}";
@@ -662,12 +663,23 @@
           {# Messages #}
           <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3" x-ref="widgetScroll" id="widget-messages"></div>
 
-          {# Pending files strip #}
+          {# Pending files strip — images show thumbnail, others show filename chip #}
           <div x-show="widgetPendingFiles.length > 0" x-cloak class="px-3 pt-2 flex flex-wrap gap-1.5">
             <template x-for="(f, idx) in widgetPendingFiles" :key="idx">
-              <div class="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 text-[10px] text-slate-600 max-w-[120px]">
-                <span class="truncate" x-text="f.name"></span>
-                <button @click="widgetRemovePending(idx)" class="text-slate-400 hover:text-rose-500 flex-shrink-0">✕</button>
+              <div class="relative group/wfp">
+                <template x-if="widgetFilePreviews[idx]">
+                  <div class="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                    <img :src="widgetFilePreviews[idx]" alt="" class="w-full h-full object-cover">
+                    <button @click="widgetRemovePending(idx)"
+                            class="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[11px] opacity-0 group-hover/wfp:opacity-100 transition-opacity">✕</button>
+                  </div>
+                </template>
+                <template x-if="!widgetFilePreviews[idx]">
+                  <div class="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 text-[10px] text-slate-600 max-w-[120px]">
+                    <span class="truncate" x-text="f.name"></span>
+                    <button @click="widgetRemovePending(idx)" class="text-slate-400 hover:text-rose-500 flex-shrink-0">✕</button>
+                  </div>
+                </template>
               </div>
             </template>
           </div>
@@ -757,6 +769,7 @@
         unreadCount: 0,
         pollTimer: null,
         widgetPendingFiles: [],
+        widgetFilePreviews: [],
 
         get filteredUnits() {
           const q = this.unitSearch.toLowerCase();
@@ -804,6 +817,10 @@
           this.open = !this.open;
           if (this.open) {
             this.unreadCount = 0;
+            // Lazily request browser notification permission the first time the widget is opened.
+            if ('Notification' in window && Notification.permission === 'default') {
+              Notification.requestPermission();
+            }
             if (this.step === 'welcome' && this.categories.length === 0) this.loadCategories();
             if (this.step === 'chat') this.$nextTick(() => this.scrollWidgetBottom());
           }
@@ -910,7 +927,13 @@
               this.ws.send(JSON.stringify({ type: 'pong' }));
             } else if (d.type === 'chat_message' || d.type === 'chat_attachment') {
               this.appendWidgetMsg(d);
-              if (!this.open) this.unreadCount++;
+              // Only count/notify for the other party's messages (direction OUT = staff reply).
+              if (d.direction === 'OUT' && !d.is_system) {
+                if (!this.open) {
+                  this.unreadCount++;
+                  this._triggerWidgetNotification(d.sender_name, d.body || d.filename);
+                }
+              }
             } else if (d.type === 'status_update') {
               const resolved = d.status === 'Resolved' || d.status === 'Closed';
               this.ticketResolved = resolved;
@@ -933,13 +956,9 @@
 
         async pollWidget() {
           if (!this.activeCaseUUID) return;
-          try {
-            const res = await fetch(`/portal/chat/${this.activeCaseUUID}/poll/`);
-            if (res.ok) {
-              // Minimal: just increment badge so user knows there's an update
-              if (!this.open) this.unreadCount++;
-            }
-          } catch(e) {}
+          // Polling is a heartbeat when WS is down. Badge updates come via WS normally;
+          // here we just keep the connection alive and avoid double-counting.
+          try { await fetch(`/portal/chat/${this.activeCaseUUID}/poll/`); } catch(e) {}
         },
 
         async widgetSend() {
@@ -994,12 +1013,16 @@
           const files = Array.from(e.target.files || []);
           files.forEach(f => {
             if (this.widgetPendingFiles.length >= 3) return;
-            if (f.size <= 10 * 1024 * 1024) this.widgetPendingFiles.push(f);
+            if (f.size > 10 * 1024 * 1024) return;
+            this.widgetFilePreviews.push(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+            this.widgetPendingFiles.push(f);
           });
           e.target.value = '';
         },
 
         widgetRemovePending(idx) {
+          if (this.widgetFilePreviews[idx]) URL.revokeObjectURL(this.widgetFilePreviews[idx]);
+          this.widgetFilePreviews.splice(idx, 1);
           this.widgetPendingFiles.splice(idx, 1);
         },
 
@@ -1009,29 +1032,50 @@
           const el = document.createElement('div');
           const isOut = data.direction === 'OUT';
           const isSys = data.is_system;
+          const isAttachment = data.type === 'chat_attachment';
+
+          // Build content HTML — image attachment, file attachment, or text body.
+          let contentHtml;
+          if (isAttachment && data.is_image) {
+            contentHtml = `<img src="${this.escAttr(data.file_url)}" alt="${this.escAttr(data.filename)}"
+              class="rounded-lg mt-1 cursor-zoom-in" style="max-width:100%;max-height:140px;object-fit:cover;"
+              loading="lazy" onclick="window.open('${this.escAttr(data.file_url)}','_blank')">`;
+          } else if (isAttachment) {
+            contentHtml = `<a href="${this.escAttr(data.file_url)}" target="_blank" rel="noopener noreferrer"
+              class="flex items-center gap-1.5 mt-1 bg-black/10 hover:bg-black/20 rounded-lg px-2.5 py-1.5 text-[11px] transition-colors">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+              </svg>
+              <span class="truncate max-w-[120px]">${this.escHtml(data.filename)}</span></a>`;
+          } else {
+            contentHtml = this.renderWidgetBody(data.body);
+          }
 
           if (isSys) {
             el.className = 'flex justify-center';
             el.innerHTML = `<div class="text-[11px] bg-slate-100 text-slate-400 px-3 py-1.5 rounded-full text-center max-w-[90%]">${this.escHtml(data.body)}</div>`;
           } else if (isOut) {
+            // Staff message — left side, grey bubble.
+            const init = (data.sender_name || 'S').charAt(0).toUpperCase();
             el.className = 'flex gap-2';
             el.innerHTML = `
-              <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">S</div>
-              <div class="max-w-[80%] bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 text-xs text-slate-700 break-words">${this.escHtml(data.body)}</div>`;
+              <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">${init}</div>
+              <div class="max-w-[80%] bubble-content bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 text-xs text-slate-700 break-words">${contentHtml}</div>`;
           } else {
+            // Portal user message — right side, indigo bubble.
             const msgId = data.message_id || '';
             el.className = 'flex gap-2 flex-row-reverse';
             if (msgId) el.dataset.msgId = msgId;
             el.innerHTML = `
               <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-[10px] font-bold flex-shrink-0 mt-0.5">${(data.sender_name||'U').charAt(0).toUpperCase()}</div>
               <div class="max-w-[80%]">
-                <div class="bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${this.escHtml(data.body)}</div>
+                <div class="bubble-content bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${contentHtml}</div>
                 <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Terkirim</p>
               </div>`;
           }
           container.appendChild(el);
           this.scrollWidgetBottom();
-          if (!isSys && data.body) this._injectLinkPreview(data.body, el);
+          if (!isSys && !isAttachment && data.body) this._injectLinkPreview(data.body, el);
         },
 
         markWidgetMessagesRead() {
@@ -1082,23 +1126,26 @@
           clearInterval(this.pollTimer);
           const msgEl = document.getElementById('widget-messages');
           if (msgEl) msgEl.innerHTML = '';
-          this.activeCaseUUID   = null;
-          this.activeCaseNumber = '';
-          this.guestToken       = '';
-          this.ticketResolved   = false;
-          this.ws               = null;
-          this.wsConnected      = false;
-          this.widgetSending    = false;
+          // Revoke any pending file object URLs to avoid memory leaks.
+          this.widgetFilePreviews.forEach(url => url && URL.revokeObjectURL(url));
+          this.activeCaseUUID    = null;
+          this.activeCaseNumber  = '';
+          this.guestToken        = '';
+          this.ticketResolved    = false;
+          this.ws                = null;
+          this.wsConnected       = false;
+          this.widgetSending     = false;
           this._wsReconnectDelay = 1000;
-          this.pollTimer        = null;
-          this.widgetMsg        = '';
-          this.widgetPendingFiles = [];
-          this.selectedCategory = null;
-          this.selectedUnitId   = null;
-          this.selectedUnitName = '';
-          this.unitSearch       = '';
-          this.firstMessage     = '';
-          this.formError        = '';
+          this.pollTimer         = null;
+          this.widgetMsg         = '';
+          this.widgetPendingFiles  = [];
+          this.widgetFilePreviews  = [];
+          this.selectedCategory  = null;
+          this.selectedUnitId    = null;
+          this.selectedUnitName  = '';
+          this.unitSearch        = '';
+          this.firstMessage      = '';
+          this.formError         = '';
           this.step = 'welcome';
           if (this.categories.length === 0) this.loadCategories();
         },
@@ -1110,6 +1157,42 @@
           });
         },
 
+        // Render a message body for widget bubbles.
+        // Quill HTML (starts with '<') is passed through with image thumbnails;
+        // plain text has URLs auto-linked.
+        renderWidgetBody(body) {
+          if (!body) return '';
+          if (body.startsWith('<')) {
+            return body.replace(/<img([^>]*?)>/gi, (match, attrs) => {
+              const src = (attrs.match(/src="([^"]+)"/) || [])[1] || '';
+              if (!src) return '';
+              const alt = (attrs.match(/alt="([^"]*)"/) || [])[1] || '';
+              return `<img src="${src}" alt="${this.escAttr(alt)}" loading="lazy"
+                class="rounded-lg mt-1 cursor-zoom-in" style="max-width:100%;max-height:140px;object-fit:cover;"
+                onclick="window.open('${src}','_blank')">`;
+            });
+          }
+          return this.escHtml(body).replace(
+            /https?:\/\/[^\s"'<>]+/g,
+            url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 break-all">${url}</a>`
+          );
+        },
+
+        escAttr(str) {
+          return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        },
+
+        _triggerWidgetNotification(senderName, body) {
+          if (Notification.permission !== 'granted') return;
+          const plain = (body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+          const notif = new Notification(`New reply — ${this.activeCaseNumber || 'your ticket'}`, {
+            body: senderName ? `${senderName}: ${plain}` : plain,
+            icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% else %}/static/img/favicon.png{% endif %}",
+            tag: `widget-${this.activeCaseUUID}`,   // collapse duplicate notifications
+          });
+          notif.onclick = () => { this.open = true; window.focus(); notif.close(); };
+        },
+
         escHtml(str) {
           const d = document.createElement('div');
           d.appendChild(document.createTextNode(str || ''));
@@ -1119,7 +1202,7 @@
     }
     </script>
     {% endif %}
-    {% endif %}
+    {% endwith %}
 
     <!-- Browser Notification Handler -->
     <script>

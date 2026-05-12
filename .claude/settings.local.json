@@ -25,7 +25,9 @@
       "Bash(python *)",
       "Bash(python3 *)",
       "Bash(docker cp *)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MShubkhi\\\\Downloads\\\\dani_coding\\\\roc_support_desk\" -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

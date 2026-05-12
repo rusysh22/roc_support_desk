@@ -48,6 +48,8 @@
   /* Quoted message block — clickable */
   .quote-block { cursor: pointer; transition: opacity 0.15s; }
   .quote-block:hover { opacity: 0.8; }
+  /* On touch devices, always show action buttons (no hover state available) */
+  @media (hover: none) { .hover-actions { opacity: 1 !important; } }
   /* Flash highlight when jumping to a quoted message */
   @keyframes msgHighlight { 0%,100%{background:transparent} 25%,75%{background:rgba(99,102,241,0.18)} }
   .msg-highlight { animation: msgHighlight 1.2s ease; border-radius: 0.75rem; }
@@ -134,7 +136,7 @@
       {# Scroll area #}
       <div id="chat-scroll"
            class="overflow-y-auto px-4 py-4"
-           style="height: 420px; max-height: calc(100dvh - 460px); min-height: 200px;"
+           style="height: clamp(200px, calc(100svh - 320px), 420px);"
            x-ref="scroll"
            @scroll="onScroll()">
 

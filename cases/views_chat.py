@@ -752,6 +752,10 @@ def chat_poll(request, case_uuid):
 
     messages_qs = (
         case.messages
+        .select_related(
+            "sender_staff", "sender_employee",
+            "quoted_message__sender_staff", "quoted_message__sender_employee",
+        )
         .prefetch_related("attachments")
         .order_by("sent_at")
     )
