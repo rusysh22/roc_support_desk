@@ -3539,8 +3539,10 @@ def form_list_view(request):
 @feature_required('form_builder')
 def form_create_view(request):
     """
-    Create a new DynamicForm (Settings only).
+    Create a new DynamicForm. Auditors are not allowed.
     """
+    if request.user.role_access == User.RoleAccess.AUDITOR:
+        return HttpResponseForbidden("Access denied. Auditors cannot create forms.")
     from core.forms import DynamicFormForm
     from django.contrib import messages
     import uuid
@@ -3623,8 +3625,10 @@ def form_duplicate_view(request, pk):
 @feature_required('form_builder')
 def form_edit_view(request, pk):
     """
-    Drag and drop builder to edit form fields and form settings.
+    Drag and drop builder to edit form fields and form settings. Auditors are not allowed.
     """
+    if request.user.role_access == User.RoleAccess.AUDITOR:
+        return HttpResponseForbidden("Access denied. Auditors cannot edit forms.")
     from core.models import DynamicForm, FormField
     from core.forms import DynamicFormForm
     from django.contrib import messages

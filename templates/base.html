@@ -479,6 +479,10 @@
     const WIDGET_USER_AUTH      = {% if user.is_authenticated %}true{% else %}false{% endif %};
     const WIDGET_USER_EMAIL     = "{{ user.email|escapejs }}";
     const WIDGET_USER_NAME      = "{{ user.get_full_name|default:user.username|escapejs }}";
+    // Namespace localStorage per user so sessions don't bleed across accounts.
+    const WIDGET_SESSION_KEY    = WIDGET_USER_AUTH
+      ? 'roc_chat_u_' + WIDGET_USER_EMAIL
+      : 'roc_chat_guest';
     </script>
 
     <div x-data="chatWidget()"
@@ -860,14 +864,14 @@
 
         init() {
           let saved = null;
-          try { saved = localStorage.getItem('roc_chat_session'); } catch(e) {}
+          try { saved = localStorage.getItem(WIDGET_SESSION_KEY); } catch(e) {}
           if (saved) {
             try {
               const s = JSON.parse(saved);
               // Hapus sesi yang sudah lebih dari 7 hari
               const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
               if (s.created_at && (Date.now() - s.created_at) > SESSION_TTL) {
-                try { localStorage.removeItem('roc_chat_session'); } catch(e) {}
+                try { localStorage.removeItem(WIDGET_SESSION_KEY); } catch(e) {}
               } else {
                 this.activeCaseUUID   = s.uuid;
                 this.activeCaseNumber = s.number;
@@ -876,7 +880,7 @@
                 this.step = 'chat';
                 this.$nextTick(() => this.connectWidgetWS());
               }
-            } catch(e) { try { localStorage.removeItem('roc_chat_session'); } catch(e2) {} }
+            } catch(e) { try { localStorage.removeItem(WIDGET_SESSION_KEY); } catch(e2) {} }
           }
           document.addEventListener('paste', (e) => {
             if (!this.$refs.widgetInput || !document.activeElement.isSameNode(this.$refs.widgetInput)) return;
@@ -1036,15 +1040,22 @@
               this.markWidgetMessagesRead();
             }
           };
-          this.ws.onclose = () => {
+          this.ws.onclose = (e) => {
             this.wsConnected = false;
-            if (!this.pollTimer) {
-              this.pollTimer = setInterval(() => this.pollWidget(), 5000);
+            this.ws = null;
+            // Code 1006 = abnormal closure (server rejected handshake, e.g. 403).
+            // Validate the session via HTTP before attempting to reconnect.
+            if (e.code === 1006) {
+              this._validateSession().then(valid => {
+                if (!valid) {
+                  this.clearSession();
+                  return;
+                }
+                this._scheduleReconnect();
+              });
+              return;
             }
-            // Exponential backoff: 1s → 2s → 4s… max 30s
-            const delay = this._wsReconnectDelay;
-            this._wsReconnectDelay = Math.min(this._wsReconnectDelay * 2, 30000);
-            setTimeout(() => { if (!this.wsConnected) this.connectWidgetWS(); }, delay);
+            this._scheduleReconnect();
           };
         },
 
@@ -1210,15 +1221,39 @@
 
         _persistSession(patch) {
           try {
-            const cur = JSON.parse(localStorage.getItem('roc_chat_session') || '{}');
+            const cur = JSON.parse(localStorage.getItem(WIDGET_SESSION_KEY) || '{}');
             // Simpan waktu pertama kali sesi dibuat untuk keperluan TTL
             if (!cur.created_at) patch.created_at = Date.now();
-            localStorage.setItem('roc_chat_session', JSON.stringify({ ...cur, ...patch }));
+            localStorage.setItem(WIDGET_SESSION_KEY, JSON.stringify({ ...cur, ...patch }));
           } catch(e) {}
         },
 
+        // Validate that the current session is still accessible by this user.
+        // Returns true if the session is valid, false if access is denied (403/404).
+        async _validateSession() {
+          if (!this.activeCaseUUID) return false;
+          try {
+            const tokenPart = this.guestToken ? `?token=${encodeURIComponent(this.guestToken)}` : '';
+            const res = await fetch(`/portal/chat/${this.activeCaseUUID}/poll/${tokenPart}`, {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            return res.status !== 403 && res.status !== 404;
+          } catch(e) {
+            return true; // Network error — keep session, retry later
+          }
+        },
+
+        _scheduleReconnect() {
+          if (!this.pollTimer) {
+            this.pollTimer = setInterval(() => this.pollWidget(), 5000);
+          }
+          const delay = this._wsReconnectDelay;
+          this._wsReconnectDelay = Math.min(this._wsReconnectDelay * 2, 30000);
+          setTimeout(() => { if (!this.wsConnected) this.connectWidgetWS(); }, delay);
+        },
+
         clearSession() {
-          try { localStorage.removeItem('roc_chat_session'); } catch(e) {}
+          try { localStorage.removeItem(WIDGET_SESSION_KEY); } catch(e) {}
           if (this.ws) { try { this.ws.close(); } catch(e) {} }
           clearInterval(this.pollTimer);
           const msgEl = document.getElementById('widget-messages');

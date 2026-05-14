@@ -14,8 +14,11 @@ from .forms import ShortLinkForm
 class StaffRequiredMixin(LoginRequiredMixin):
     """
     Mixin to ensure user is authenticated AND has staff-level access.
-    Portal users are blocked. Auditors are blocked from POST operations.
+    Portal users are blocked. Auditors can only view the list and QR codes.
     """
+    # Set to True on views that Auditors are allowed to access.
+    auditor_allowed = False
+
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
@@ -29,8 +32,8 @@ class StaffRequiredMixin(LoginRequiredMixin):
         if getattr(request.user, "role_access", None) not in allowed_roles:
             return HttpResponseForbidden("Access denied.")
 
-        if request.user.role_access == User.RoleAccess.AUDITOR and request.method not in ("GET", "HEAD", "OPTIONS"):
-            return HttpResponseForbidden("Access denied. Auditors have read-only access.")
+        if request.user.role_access == User.RoleAccess.AUDITOR and not self.auditor_allowed:
+            return HttpResponseForbidden("Access denied. Auditors can only view the link list.")
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -55,6 +58,7 @@ class RedirectLinkView(View):
 
 class LinkListView(FeatureRequiredMixin, StaffRequiredMixin, ListView):
     feature_required = 'short_links'
+    auditor_allowed = True
     model = ShortLink
     template_name = "desk/links/list.html"
     context_object_name = "links"

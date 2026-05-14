@@ -19,11 +19,13 @@
                 <input type="text" name="q" value="{{ search_query }}" placeholder="Search forms..." class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 bg-slate-50 transition-all shadow-sm">
                 <svg class="h-4 w-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </form>
+            {% if request.user.role_access != 'Auditor' %}
             <a href="{% url 'desk:form_create' %}" class="jk-btn-primary flex justify-center items-center gap-2 px-4 py-2 rounded-2xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all whitespace-nowrap text-sm">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 <span class="hidden sm:inline">Create New</span>
                 <span class="sm:hidden">New Form</span>
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -59,11 +61,13 @@
                         <span class="text-xs text-slate-600"><span class="font-semibold text-slate-700">{{ form.submissions.count }}</span> responses</span>
                         <div class="flex items-center gap-1.5">
                             <a href="{% url 'desk:form_responses' form.pk %}" class="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">Responses</a>
+                            {% if request.user.role_access != 'Auditor' %}
                             <a href="{% url 'desk:form_edit' form.pk %}" class="text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors">Edit</a>
                             <form method="post" action="{% url 'desk:form_delete' form.pk %}" onsubmit="return confirm('Are you sure you want to delete the form \'{{ form.title }}\'? All responses will be permanently lost.')">
                                 {% csrf_token %}
                                 <button type="submit" class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors">Delete</button>
                             </form>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -104,11 +108,13 @@
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <a href="{% url 'desk:form_responses' form.pk %}" class="text-sm font-medium text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Responses</a>
+                                        {% if request.user.role_access != 'Auditor' %}
                                         <a href="{% url 'desk:form_edit' form.pk %}" class="text-sm font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Edit</a>
                                         <form method="post" action="{% url 'desk:form_delete' form.pk %}" onsubmit="return confirm('Are you sure you want to delete the form \'{{ form.title }}\'? All responses will be permanently lost.')">
                                             {% csrf_token %}
                                             <button type="submit" class="text-sm font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Delete</button>
                                         </form>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -155,11 +161,13 @@
                 </div>
                 <h3 class="text-lg font-medium text-slate-900">No Forms Created</h3>
                 <p class="mt-1 text-slate-600 max-w-sm mx-auto">Create beautiful, dynamic forms to easily collect data from your clients.</p>
+                {% if request.user.role_access != 'Auditor' %}
                 <div class="mt-6">
                     <a href="{% url 'desk:form_create' %}" class="jk-btn jk-btn-primary inline-flex px-6 py-2.5 rounded-xl shadow-sm text-sm">
                         Create Form
                     </a>
                 </div>
+                {% endif %}
             </div>
         {% endif %}
     </div>
