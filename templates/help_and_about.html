@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.3.5</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.4.0</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.3.5
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.4.0
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,33 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.3.5 -->
+                <!-- v1.4.0 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.4.0</span>
+                        <span class="text-xs text-slate-600">14 May 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>User Manual</strong> — A new documentation section is now available, where staff can write and publish step-by-step guides for any application. Guides are organised into chapters and sub-chapters with no depth limit. Each page is written using a rich editor that supports headings, lists, images, tables, and embedded YouTube videos.</li>
+                        <li><strong>User Manual: FAQ pages</strong> — Any page in the manual can be marked as an FAQ, visually distinguished in the navigation with an amber indicator.</li>
+                        <li><strong>User Manual: Role-based publishing</strong> — Support Desk staff can write and save draft pages. Only Managers and Super Admins can publish pages to make them visible to all users.</li>
+                        <li><strong>User Manual: Sidebar shortcut</strong> — A "📖 User Manual" link is now available in the sidebar for all users, opening the manual in a new tab.</li>
+                        <li><strong>Timezone preference</strong> — Each user can now choose their own timezone from their Profile page. All dates and times shown throughout the system — tickets, chat messages, activity logs — will automatically display in the user's selected timezone.</li>
+                        <li><strong>Timezone auto-detect</strong> — The Profile page detects the user's browser timezone and suggests applying it automatically with a single click.</li>
+                        <li><strong>Knowledge Base: Markdown editor</strong> — When writing a Knowledge Base article, staff can now switch between a visual rich-text editor and a plain Markdown editor depending on their preference. The article's public view follows the same format the author chose.</li>
+                        <li><strong>My Tickets: Unread badge redesign</strong> — The unread message counter on My Tickets now sits cleanly inside the "Open Chat" button, making it easier to spot without cluttering the surrounding layout.</li>
+                        <li><strong>Fix: Chat widget connection stability</strong> — Fixed an issue where the chat widget would sometimes log errors in the background when a session had expired. The widget now checks whether the session is still valid before attempting to connect.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.3.5 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.3.5</span>
                         <span class="text-xs text-slate-600">09 May 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>Live Chat: Correct message alignment</strong> — Messages sent by the current viewer always appear on the right; messages from the other party appear on the left, matching standard chat conventions for both portal users and staff.</li>

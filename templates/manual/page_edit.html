@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if page %}Edit: {{ page.title }}{% else %}New Page{% endif %} — {{ manual.title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    {# TipTap via ESM CDN #}
+    <script type="importmap">
+    {
+        "imports": {
+            "@tiptap/core": "https://esm.sh/@tiptap/core@2.11.5",
+            "@tiptap/pm": "https://esm.sh/@tiptap/pm@2.11.5",
+            "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.11.5",
+            "@tiptap/extension-image": "https://esm.sh/@tiptap/extension-image@2.11.5",
+            "@tiptap/extension-link": "https://esm.sh/@tiptap/extension-link@2.11.5",
+            "@tiptap/extension-youtube": "https://esm.sh/@tiptap/extension-youtube@2.11.5",
+            "@tiptap/extension-table": "https://esm.sh/@tiptap/extension-table@2.11.5",
+            "@tiptap/extension-table-row": "https://esm.sh/@tiptap/extension-table-row@2.11.5",
+            "@tiptap/extension-table-header": "https://esm.sh/@tiptap/extension-table-header@2.11.5",
+            "@tiptap/extension-table-cell": "https://esm.sh/@tiptap/extension-table-cell@2.11.5",
+            "@tiptap/extension-text-align": "https://esm.sh/@tiptap/extension-text-align@2.11.5",
+            "@tiptap/extension-highlight": "https://esm.sh/@tiptap/extension-highlight@2.11.5",
+            "@tiptap/extension-text-style": "https://esm.sh/@tiptap/extension-text-style@2.11.5",
+            "@tiptap/extension-color": "https://esm.sh/@tiptap/extension-color@2.11.5",
+            "@tiptap/extension-underline": "https://esm.sh/@tiptap/extension-underline@2.11.5",
+            "@tiptap/extension-placeholder": "https://esm.sh/@tiptap/extension-placeholder@2.11.5"
+        }
+    }
+    </script>
+
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f8fafc; }
+
+        /* TipTap editor area */
+        .ProseMirror {
+            outline: none;
+            min-height: 400px;
+            padding: 1.5rem;
+            font-size: 0.9375rem;
+            line-height: 1.75;
+            color: #334155;
+        }
+        .ProseMirror h1 { font-size: 1.875rem; font-weight: 900; color: #0f172a; margin: 1.5rem 0 .75rem; }
+        .ProseMirror h2 { font-size: 1.375rem; font-weight: 800; color: #1e293b; margin: 1.4rem 0 .6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: .4rem; }
+        .ProseMirror h3 { font-size: 1.1rem; font-weight: 700; color: #334155; margin: 1.2rem 0 .5rem; }
+        .ProseMirror h4 { font-size: 1rem; font-weight: 700; color: #475569; margin: 1rem 0 .4rem; }
+        .ProseMirror p { margin: .5rem 0; }
+        .ProseMirror ul { list-style: disc; padding-left: 1.5rem; margin: .75rem 0; }
+        .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; margin: .75rem 0; }
+        .ProseMirror li { margin: .25rem 0; }
+        .ProseMirror blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: .75rem 1rem;
+                                   border-radius: 0 8px 8px 0; margin: 1rem 0; color: #3730a3; }
+        .ProseMirror code { background: #f1f5f9; color: #7c3aed; padding: .15em .4em; border-radius: 4px; font-family: monospace; font-size: .85em; }
+        .ProseMirror pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 10px; overflow-x: auto; margin: 1rem 0; font-family: monospace; }
+        .ProseMirror pre code { background: none; color: inherit; padding: 0; }
+        .ProseMirror a { color: #4f46e5; text-decoration: underline; }
+        .ProseMirror img { max-width: 100%; border-radius: 10px; margin: .75rem 0; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+        .ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
+        .ProseMirror table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        .ProseMirror th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .5rem .75rem; border: 1px solid #e2e8f0; }
+        .ProseMirror td { padding: .5rem .75rem; border: 1px solid #e2e8f0; }
+        .ProseMirror p.is-editor-empty:first-child::before {
+            color: #cbd5e1; content: attr(data-placeholder); float: left; height: 0; pointer-events: none;
+        }
+        /* YouTube embed in editor */
+        .ProseMirror div[data-youtube-video] { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; margin: 1rem 0; }
+        .ProseMirror div[data-youtube-video] iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* Toolbar */
+        .toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 12px;
+                   border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+        .tb-btn { display: inline-flex; align-items: center; justify-content: center;
+                  min-width: 30px; height: 30px; padding: 0 6px;
+                  border-radius: 6px; border: none; background: transparent;
+                  cursor: pointer; font-size: 13px; font-weight: 600; color: #475569;
+                  transition: background .15s, color .15s; }
+        .tb-btn:hover { background: #e2e8f0; color: #1e293b; }
+        .tb-btn.active { background: #eef2ff; color: #4338ca; }
+        .tb-sep { width: 1px; background: #e2e8f0; margin: 4px 4px; align-self: stretch; }
+        select.tb-select { height: 30px; border: 1px solid #e2e8f0; border-radius: 6px;
+                           background: #fff; font-size: 12px; font-weight: 600; color: #475569;
+                           padding: 0 6px; cursor: pointer; }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 h-14 flex items-center">
+        <div class="max-w-5xl mx-auto px-6 flex items-center gap-3 w-full">
+            <a href="{% url 'manual:manual_edit' manual_slug=manual.slug %}" class="text-slate-400 hover:text-slate-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <span class="text-slate-200">|</span>
+            <span class="text-sm font-black text-slate-700 truncate">
+                {{ manual.icon }} {{ manual.title }} /
+                {% if page %}{{ page.title }}{% else %}New Page{% endif %}
+            </span>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-6 py-8">
+
+        {% if messages %}
+        <div class="mb-5 space-y-2">
+            {% for msg in messages %}
+            <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                {% if 'error' in msg.tags %}bg-rose-50 border border-rose-200 text-rose-700
+                {% else %}bg-emerald-50 border border-emerald-200 text-emerald-700{% endif %}">
+                <span>{% if 'error' in msg.tags %}⚠{% else %}✓{% endif %}</span>
+                <span>{{ msg }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="POST" id="page-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save" id="page-action">
+            <input type="hidden" name="content" id="content-field" value="{{ content_json }}">
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {# Right sidebar: meta settings #}
+                <div class="order-2 lg:order-2">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 sticky top-20">
+                        <h3 class="font-bold text-slate-800">Page Settings</h3>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Title *</label>
+                            <input type="text" name="title" value="{{ page.title|default:'' }}" required
+                                   placeholder="Page title..."
+                                   class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Parent</label>
+                            <select name="parent_id"
+                                    class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                                <option value="">— Root level —</option>
+                                {% for p in all_pages %}
+                                {% if not page or p.pk != page.pk %}
+                                <option value="{{ p.pk }}" {% if page and page.parent_id == p.pk %}selected{% endif %}>{{ p.title }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Order</label>
+                            <input type="number" name="order" value="{{ page.order|default:'0' }}" min="0"
+                                   class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        </div>
+
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <div class="relative flex-shrink-0">
+                                <input type="checkbox" name="is_faq" value="1" id="is_faq_check"
+                                       class="sr-only peer" {% if page and page.is_faq %}checked{% endif %}>
+                                <div class="w-10 h-5 bg-slate-200 rounded-full peer-checked:bg-amber-400 transition-colors"></div>
+                                <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-slate-700">Mark as FAQ</span>
+                        </label>
+
+                        <button type="submit"
+                                class="w-full py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                            💾 Save Page
+                        </button>
+
+                        {% if can_publish and page %}
+                        <button type="submit" onclick="document.getElementById('page-action').value='toggle_publish'"
+                                class="w-full py-2 rounded-xl text-sm font-bold transition-colors
+                                {% if page.is_published %}bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100
+                                {% else %}bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100{% endif %}">
+                            {% if page.is_published %}⛔ Unpublish{% else %}✅ Publish{% endif %}
+                        </button>
+                        {% endif %}
+
+                        {% if page %}
+                        {% if can_publish %}
+                        <button type="submit"
+                                onclick="if(!confirm('Delete this page?')) return false; document.getElementById('page-action').value='delete'"
+                                class="w-full py-2 rounded-xl text-sm font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors">
+                            🗑 Delete Page
+                        </button>
+                        {% endif %}
+                        <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}"
+                           target="_blank"
+                           class="block text-center w-full py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                            👁 Preview
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Main editor #}
+                <div class="lg:col-span-2 order-1 lg:order-1">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        {# Toolbar #}
+                        <div class="toolbar" id="editor-toolbar">
+                            <select class="tb-select" id="heading-select" onchange="setHeading(this.value)">
+                                <option value="0">Paragraph</option>
+                                <option value="1">Heading 1</option>
+                                <option value="2">Heading 2</option>
+                                <option value="3">Heading 3</option>
+                                <option value="4">Heading 4</option>
+                            </select>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" id="btn-bold" onclick="editor.chain().focus().toggleBold().run()" title="Bold"><b>B</b></button>
+                            <button type="button" class="tb-btn" id="btn-italic" onclick="editor.chain().focus().toggleItalic().run()" title="Italic"><i>I</i></button>
+                            <button type="button" class="tb-btn" id="btn-underline" onclick="editor.chain().focus().toggleUnderline().run()" title="Underline"><u>U</u></button>
+                            <button type="button" class="tb-btn" id="btn-strike" onclick="editor.chain().focus().toggleStrike().run()" title="Strike">S̶</button>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" id="btn-bullet" onclick="editor.chain().focus().toggleBulletList().run()" title="Bullet list">• List</button>
+                            <button type="button" class="tb-btn" id="btn-ordered" onclick="editor.chain().focus().toggleOrderedList().run()" title="Numbered list">1. List</button>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" id="btn-quote" onclick="editor.chain().focus().toggleBlockquote().run()" title="Blockquote">❝</button>
+                            <button type="button" class="tb-btn" id="btn-code" onclick="editor.chain().focus().toggleCode().run()" title="Inline code">&lt;/&gt;</button>
+                            <button type="button" class="tb-btn" id="btn-codeblock" onclick="editor.chain().focus().toggleCodeBlock().run()" title="Code block">```</button>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" onclick="insertLink()" title="Link">🔗</button>
+                            <button type="button" class="tb-btn" onclick="insertImage()" title="Insert image">🖼</button>
+                            <button type="button" class="tb-btn" onclick="insertYoutube()" title="YouTube embed">▶️</button>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" onclick="editor.chain().focus().insertTable({rows:3,cols:3,withHeaderRow:true}).run()" title="Table">⊞</button>
+                            <button type="button" class="tb-btn" onclick="editor.chain().focus().setHorizontalRule().run()" title="Horizontal rule">—</button>
+                            <span class="tb-sep"></span>
+                            <button type="button" class="tb-btn" onclick="editor.chain().focus().undo().run()" title="Undo">↩</button>
+                            <button type="button" class="tb-btn" onclick="editor.chain().focus().redo().run()" title="Redo">↪</button>
+                        </div>
+
+                        {# Editor mount point #}
+                        <div id="editor-mount" class="min-h-[420px]"></div>
+                    </div>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <script type="module">
+    import { Editor } from '@tiptap/core';
+    import StarterKit from '@tiptap/starter-kit';
+    import Image from '@tiptap/extension-image';
+    import Link from '@tiptap/extension-link';
+    import Youtube from '@tiptap/extension-youtube';
+    import Table from '@tiptap/extension-table';
+    import TableRow from '@tiptap/extension-table-row';
+    import TableHeader from '@tiptap/extension-table-header';
+    import TableCell from '@tiptap/extension-table-cell';
+    import TextAlign from '@tiptap/extension-text-align';
+    import Highlight from '@tiptap/extension-highlight';
+    import TextStyle from '@tiptap/extension-text-style';
+    import Color from '@tiptap/extension-color';
+    import Underline from '@tiptap/extension-underline';
+    import Placeholder from '@tiptap/extension-placeholder';
+
+    const initialContent = (() => {
+        try {
+            const raw = document.getElementById('content-field').value;
+            const parsed = JSON.parse(raw);
+            return parsed && parsed.type === 'doc' ? parsed : null;
+        } catch (e) { return null; }
+    })();
+
+    window.editor = new Editor({
+        element: document.getElementById('editor-mount'),
+        extensions: [
+            StarterKit,
+            Underline,
+            Image.configure({ inline: false, allowBase64: true }),
+            Link.configure({ openOnClick: false, HTMLAttributes: { target: '_blank', rel: 'noopener' } }),
+            Youtube.configure({ controls: true, nocookie: false }),
+            Table.configure({ resizable: true }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            Highlight.configure({ multicolor: true }),
+            TextStyle,
+            Color,
+            Placeholder.configure({ placeholder: 'Mulai menulis konten halaman di sini...' }),
+        ],
+        content: initialContent,
+        onUpdate({ editor }) {
+            document.getElementById('content-field').value = JSON.stringify(editor.getJSON());
+            updateToolbarState(editor);
+        },
+        onSelectionUpdate({ editor }) {
+            updateToolbarState(editor);
+        },
+    });
+
+    function updateToolbarState(ed) {
+        const states = {
+            'btn-bold': ed.isActive('bold'),
+            'btn-italic': ed.isActive('italic'),
+            'btn-underline': ed.isActive('underline'),
+            'btn-strike': ed.isActive('strike'),
+            'btn-bullet': ed.isActive('bulletList'),
+            'btn-ordered': ed.isActive('orderedList'),
+            'btn-quote': ed.isActive('blockquote'),
+            'btn-code': ed.isActive('code'),
+            'btn-codeblock': ed.isActive('codeBlock'),
+        };
+        for (const [id, active] of Object.entries(states)) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('active', active);
+        }
+        // Heading select
+        const sel = document.getElementById('heading-select');
+        if (sel) {
+            for (let i = 1; i <= 4; i++) {
+                if (ed.isActive('heading', { level: i })) { sel.value = String(i); return; }
+            }
+            sel.value = '0';
+        }
+    }
+
+    window.setHeading = function (val) {
+        const lvl = parseInt(val, 10);
+        if (lvl === 0) editor.chain().focus().setParagraph().run();
+        else editor.chain().focus().toggleHeading({ level: lvl }).run();
+    };
+
+    window.insertLink = function () {
+        const url = prompt('Enter URL:');
+        if (url) editor.chain().focus().setLink({ href: url }).run();
+    };
+
+    window.insertImage = function () {
+        const url = prompt('Enter image URL (or paste base64):');
+        if (url) editor.chain().focus().setImage({ src: url }).run();
+    };
+
+    window.insertYoutube = function () {
+        const url = prompt('YouTube video URL:');
+        if (url) editor.commands.setYoutubeVideo({ src: url });
+    };
+
+    // Sync content on form submit
+    document.getElementById('page-form').addEventListener('submit', function () {
+        document.getElementById('content-field').value = JSON.stringify(editor.getJSON());
+    });
+    </script>
+</body>
+</html>

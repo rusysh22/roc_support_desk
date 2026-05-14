@@ -68,6 +68,8 @@ INSTALLED_APPS = [
     "links.apps.LinksConfig",
     # License management
     "licensing.apps.LicensingConfig",
+    # User Manual
+    "manual.apps.ManualConfig",
     # Field-level encryption
     "encrypted_model_fields",
 

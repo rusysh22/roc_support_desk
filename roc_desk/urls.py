@@ -87,6 +87,9 @@ urlpatterns = [
 
     # License management
     path("license/", include("licensing.urls", namespace="licensing")),
+
+    # User Manual
+    path("usermanual/", include("manual.urls", namespace="manual")),
 ]
 
 # Custom Error Handlers

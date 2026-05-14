@@ -1,0 +1,35 @@
+{% comment %}Recursive edit tree: shows all pages with edit/publish/delete actions{% endcomment %}
+{% for page in pages %}
+<div class="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 group"
+     style="padding-left: {{ depth|add:"1" }}rem;">
+    {% if page.is_faq %}
+    <span class="text-amber-500 text-xs font-bold" title="FAQ">❓</span>
+    {% else %}
+    <span class="text-slate-300 text-xs">📄</span>
+    {% endif %}
+    <span class="flex-1 font-medium text-slate-700 truncate">{{ page.title }}</span>
+    {% if not page.is_published %}
+    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Draft</span>
+    {% endif %}
+    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <a href="{% url 'manual:page_edit' manual_slug=manual.slug page_id=page.pk %}"
+           class="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100">Edit</a>
+        {% if can_publish %}
+        <form method="POST" action="{% url 'manual:page_edit' manual_slug=manual.slug page_id=page.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle_publish">
+            <button type="submit"
+                    class="text-xs px-2 py-1 rounded-lg font-semibold transition-colors
+                    {% if page.is_published %}bg-rose-50 text-rose-600 hover:bg-rose-100{% else %}bg-emerald-50 text-emerald-700 hover:bg-emerald-100{% endif %}">
+                {% if page.is_published %}Unpublish{% else %}Publish{% endif %}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% with children=page.get_all_children %}
+{% if children %}
+{% include "manual/_edit_tree.html" with pages=children manual=manual depth=depth|add:"1" can_publish=can_publish %}
+{% endif %}
+{% endwith %}
+{% endfor %}

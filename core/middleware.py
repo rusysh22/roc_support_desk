@@ -133,7 +133,7 @@ class PublicLoginRestrictionMiddleware:
 
         # ---- Rule 2: Unauthenticated users blocked from public portal if config requires login ----
         if not request.user.is_authenticated:
-            if namespace in ("cases", "knowledge_base"):
+            if namespace in ("cases", "knowledge_base", "manual"):
                 config = SiteConfig.get_solo()
                 if config.require_public_login:
                     return redirect(f"{settings.LOGIN_URL}?next={request.path}")

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit: {{ manual.title }} — User Manual</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>* { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10 h-14 flex items-center">
+        <div class="max-w-5xl mx-auto px-6 flex items-center justify-between w-full gap-4">
+            <div class="flex items-center gap-3">
+                <a href="{% url 'manual:manage_list' %}" class="text-slate-400 hover:text-slate-700 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                </a>
+                <span class="text-slate-200">|</span>
+                <span class="font-black text-slate-800">{{ manual.icon }} {{ manual.title }}</span>
+                {% if manual.is_published %}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Published</span>
+                {% else %}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Draft</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'manual:viewer' manual_slug=manual.slug %}"
+               class="text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                👁 Preview
+            </a>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-6 py-8">
+
+        {% if messages %}
+        <div class="mb-5 space-y-2">
+            {% for msg in messages %}
+            <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                {% if 'error' in msg.tags %}bg-rose-50 border border-rose-200 text-rose-700
+                {% else %}bg-emerald-50 border border-emerald-200 text-emerald-700{% endif %}">
+                <span>{% if 'error' in msg.tags %}⚠{% else %}✓{% endif %}</span>
+                <span>{{ msg }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {# Left: Edit manual metadata #}
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-4">
+                    <h2 class="font-bold text-slate-800 mb-4">Manual Settings</h2>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Title *</label>
+                                <input type="text" name="title" value="{{ manual.title }}" required
+                                       class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Icon (emoji)</label>
+                                <input type="text" name="icon" value="{{ manual.icon }}" maxlength="5"
+                                       class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Description</label>
+                                <textarea name="description" rows="3"
+                                          class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none">{{ manual.description }}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Order</label>
+                                <input type="number" name="order" value="{{ manual.order }}" min="0"
+                                       class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                            </div>
+                            <button type="submit"
+                                    class="w-full py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                                💾 Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {# Publish / Delete #}
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+                    {% if can_publish %}
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_publish">
+                        <button type="submit"
+                                class="w-full py-2 rounded-xl text-sm font-bold transition-colors
+                                {% if manual.is_published %}bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100
+                                {% else %}bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100{% endif %}">
+                            {% if manual.is_published %}⛔ Unpublish Manual{% else %}✅ Publish Manual{% endif %}
+                        </button>
+                    </form>
+                    <form method="POST" onsubmit="return confirm('Delete this manual and ALL its pages?')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit"
+                                class="w-full py-2 rounded-xl text-sm font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors">
+                            🗑 Delete Manual
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Right: Page tree #}
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-slate-800">Pages ({{ manual.pages.count }})</h2>
+                        <a href="{% url 'manual:page_new' manual_slug=manual.slug %}"
+                           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                            ＋ New Page
+                        </a>
+                    </div>
+
+                    {% if root_pages %}
+                    <div class="space-y-1 text-sm" id="page-tree">
+                        {% include "manual/_edit_tree.html" with pages=root_pages manual=manual depth=0 can_publish=can_publish %}
+                    </div>
+                    {% else %}
+                    <p class="text-slate-400 text-sm text-center py-8">
+                        No pages yet. <a href="{% url 'manual:page_new' manual_slug=manual.slug %}" class="text-indigo-600 underline">Create the first page →</a>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

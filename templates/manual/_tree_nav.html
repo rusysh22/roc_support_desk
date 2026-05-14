@@ -1,0 +1,33 @@
+{% comment %}Recursive tree nav partial. Called with: pages, current_page, manual, can_edit{% endcomment %}
+{% for page in pages %}
+<div class="nav-item {% if current_page and current_page.pk == page.pk %}active{% endif %} mb-0.5">
+    {% if can_edit %}
+    {% with visible_children=page.get_all_children %}
+    <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}">
+        {% if page.is_faq %}<span class="faq-dot" title="FAQ"></span>{% endif %}
+        {% if not page.is_published %}<span class="draft-dot" title="Draft"></span>{% endif %}
+        <span class="flex-1 leading-snug">{{ page.title }}</span>
+        {% if visible_children %}<svg class="w-3 h-3 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>{% endif %}
+    </a>
+    {% if visible_children %}
+    <div class="nav-children">
+        {% include "manual/_tree_nav.html" with pages=visible_children current_page=current_page manual=manual can_edit=can_edit %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% else %}
+    {% with visible_children=page.get_children %}
+    <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}">
+        {% if page.is_faq %}<span class="faq-dot" title="FAQ"></span>{% endif %}
+        <span class="flex-1 leading-snug">{{ page.title }}</span>
+        {% if visible_children %}<svg class="w-3 h-3 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>{% endif %}
+    </a>
+    {% if visible_children %}
+    <div class="nav-children">
+        {% include "manual/_tree_nav.html" with pages=visible_children current_page=current_page manual=manual can_edit=can_edit %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% endif %}
+</div>
+{% endfor %}

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if page %}{{ page.title }} — {% endif %}{{ manual.title }} — User Manual</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f8fafc; }
+
+        /* Sidebar nav tree */
+        .nav-tree { font-size: 13.5px; }
+        .nav-item { border-radius: 8px; cursor: pointer; transition: background .15s; }
+        .nav-item:hover { background: #eef2ff; }
+        .nav-item.active { background: #eef2ff; color: #4338ca; font-weight: 700; }
+        .nav-item a { display: flex; align-items: center; gap: 7px; padding: 7px 10px;
+                      text-decoration: none; color: inherit; width: 100%; }
+        .nav-children { padding-left: 18px; border-left: 2px solid #e2e8f0; margin-left: 10px; margin-top: 2px; }
+        .faq-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+                   background: #f59e0b; flex-shrink: 0; }
+        .draft-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+                     background: #94a3b8; flex-shrink: 0; }
+
+        /* TipTap content rendering */
+        .tiptap-content h1 { font-size: 1.875rem; font-weight: 900; color: #0f172a; margin: 1.5rem 0 .75rem; line-height: 1.2; }
+        .tiptap-content h2 { font-size: 1.375rem; font-weight: 800; color: #1e293b; margin: 1.4rem 0 .6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: .4rem; }
+        .tiptap-content h3 { font-size: 1.1rem; font-weight: 700; color: #334155; margin: 1.2rem 0 .5rem; }
+        .tiptap-content h4 { font-size: 1rem; font-weight: 700; color: #475569; margin: 1rem 0 .4rem; }
+        .tiptap-content p { margin: .6rem 0; line-height: 1.75; color: #334155; font-size: .9375rem; }
+        .tiptap-content ul { list-style: disc; padding-left: 1.5rem; margin: .75rem 0; }
+        .tiptap-content ol { list-style: decimal; padding-left: 1.5rem; margin: .75rem 0; }
+        .tiptap-content li { margin: .3rem 0; line-height: 1.7; color: #334155; font-size: .9375rem; }
+        .tiptap-content blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: .75rem 1rem;
+                                     border-radius: 0 8px 8px 0; margin: 1rem 0; color: #3730a3; font-style: italic; }
+        .tiptap-content code { background: #f1f5f9; color: #7c3aed; padding: .15em .4em;
+                               border-radius: 4px; font-size: .85em; font-family: monospace; }
+        .tiptap-content pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 10px;
+                              overflow-x: auto; margin: 1rem 0; font-size: .85rem; font-family: monospace; }
+        .tiptap-content pre code { background: none; color: inherit; padding: 0; }
+        .tiptap-content a { color: #4f46e5; text-decoration: underline; }
+        .tiptap-content strong { font-weight: 700; color: #1e293b; }
+        .tiptap-content em { font-style: italic; }
+        .tiptap-content img { max-width: 100%; border-radius: 10px; margin: .75rem 0;
+                              box-shadow: 0 2px 12px rgba(0,0,0,.1); cursor: zoom-in; }
+        .tiptap-content hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
+        .tiptap-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+        .tiptap-content th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .6rem .9rem;
+                             border: 1px solid #e2e8f0; }
+        .tiptap-content td { padding: .55rem .9rem; border: 1px solid #e2e8f0; vertical-align: top; }
+        .tiptap-content tr:nth-child(even) td { background: #fafafa; }
+        .tiptap-content .iframe-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;
+                                          border-radius: 10px; margin: 1rem 0; }
+        .tiptap-content .iframe-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* Lightbox */
+        #img-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 9999;
+                        align-items: center; justify-content: center; cursor: zoom-out; }
+        #img-lightbox.active { display: flex; }
+        #img-lightbox img { max-width: 92vw; max-height: 90vh; border-radius: 10px;
+                            box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    </style>
+</head>
+<body x-data="{ mobileNavOpen: false }" class="bg-slate-50">
+
+    {# ─── Top bar ─── #}
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 h-14 flex items-center">
+        <div class="max-w-[1200px] mx-auto px-4 flex items-center gap-3 w-full">
+            <a href="{% url 'manual:landing' %}" class="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0" title="All Manuals">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <span class="text-slate-200">|</span>
+            <span class="text-sm font-black text-slate-800 truncate">{{ manual.icon }} {{ manual.title }}</span>
+
+            {% if not manual.is_published %}
+            <span class="ml-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex-shrink-0">Draft</span>
+            {% endif %}
+
+            <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+                {% if can_edit %}
+                <a href="{% url 'manual:manual_edit' manual_slug=manual.slug %}"
+                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
+                    ⚙️ Edit Manual
+                </a>
+                {% if page %}
+                <a href="{% url 'manual:page_edit' manual_slug=manual.slug page_id=page.pk %}"
+                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors">
+                    ✏️ Edit Page
+                </a>
+                {% endif %}
+                {% endif %}
+
+                {# Mobile nav toggle #}
+                <button @click="mobileNavOpen = !mobileNavOpen"
+                        class="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-[1200px] mx-auto flex min-h-[calc(100vh-56px)]">
+
+        {# ─── Sidebar Tree Nav ─── #}
+        <aside class="hidden lg:block w-64 flex-shrink-0 border-r border-slate-200 bg-white overflow-y-auto"
+               style="position: sticky; top: 56px; max-height: calc(100vh - 56px);">
+            <div class="p-4 nav-tree">
+                {% if can_edit %}
+                <a href="{% url 'manual:page_new' manual_slug=manual.slug %}"
+                   class="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 border border-dashed border-indigo-300 hover:bg-indigo-100 transition-colors">
+                    ＋ New Page
+                </a>
+                {% endif %}
+                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+                {% if not root_pages %}
+                <p class="text-xs text-slate-400 italic px-2">No pages yet.</p>
+                {% endif %}
+            </div>
+        </aside>
+
+        {# Mobile nav drawer #}
+        <div x-show="mobileNavOpen" x-transition.opacity
+             class="lg:hidden fixed inset-0 z-30 bg-black/40"
+             @click="mobileNavOpen = false">
+        </div>
+        <div x-show="mobileNavOpen" x-transition
+             class="lg:hidden fixed top-14 left-0 bottom-0 z-40 w-72 bg-white border-r border-slate-200 overflow-y-auto p-4 nav-tree">
+            {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+        </div>
+
+        {# ─── Content area ─── #}
+        <main class="flex-1 min-w-0 p-6 md:p-10">
+            {% if page %}
+            {# Breadcrumb #}
+            {% with crumbs=page.breadcrumb %}
+            {% if crumbs|length > 1 %}
+            <nav class="flex items-center gap-1 text-xs text-slate-400 mb-6 flex-wrap">
+                <a href="{% url 'manual:viewer' manual_slug=manual.slug %}" class="hover:text-indigo-600 transition-colors">{{ manual.title }}</a>
+                {% for crumb in crumbs %}
+                <span class="text-slate-300">/</span>
+                {% if crumb.pk == page.pk %}
+                <span class="text-slate-600 font-semibold">{{ crumb.title }}</span>
+                {% else %}
+                <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=crumb.pk %}"
+                   class="hover:text-indigo-600 transition-colors">{{ crumb.title }}</a>
+                {% endif %}
+                {% endfor %}
+            </nav>
+            {% endif %}
+            {% endwith %}
+
+            {# Page header #}
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        {% if page.is_faq %}
+                        <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">❓ FAQ</span>
+                        {% endif %}
+                        {% if not page.is_published %}
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Draft</span>
+                        {% endif %}
+                    </div>
+                    <h1 class="text-2xl md:text-3xl font-black text-slate-900">{{ page.title }}</h1>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Diperbarui {{ page.updated_at|date:"d M Y, H:i" }}
+                        {% if page.created_by %} oleh {{ page.created_by.username }}{% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {# TipTap content #}
+            <div class="tiptap-content bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm"
+                 id="tiptap-render">
+            </div>
+
+            {# Child pages list (if this is a parent node) #}
+            {% if page.children.exists %}
+            <div class="mt-8">
+                <h2 class="text-base font-bold text-slate-700 mb-3">📂 Sub-pages</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {% for child in page.get_all_children %}
+                    {% if child.is_published or can_edit %}
+                    <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=child.pk %}"
+                       class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                        <span class="text-xl">{% if child.is_faq %}❓{% else %}📄{% endif %}</span>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-slate-800 group-hover:text-indigo-700 truncate">{{ child.title }}</div>
+                            {% if not child.is_published %}<div class="text-xs text-slate-400">Draft</div>{% endif %}
+                        </div>
+                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-auto flex-shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="flex flex-col items-center justify-center py-24 text-center">
+                <div class="text-6xl mb-5">{{ manual.icon }}</div>
+                <h1 class="text-2xl font-black text-slate-800 mb-2">{{ manual.title }}</h1>
+                {% if manual.description %}
+                <p class="text-slate-500 max-w-md">{{ manual.description }}</p>
+                {% endif %}
+                {% if not root_pages %}
+                <p class="mt-6 text-sm text-slate-400">
+                    {% if can_edit %}
+                    Belum ada halaman. <a href="{% url 'manual:page_new' manual_slug=manual.slug %}" class="text-indigo-600 underline font-semibold">Buat halaman pertama →</a>
+                    {% else %}
+                    Belum ada konten tersedia.
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    {# Lightbox #}
+    <div id="img-lightbox" onclick="this.classList.remove('active')">
+        <img id="img-lightbox-src" src="" alt="">
+    </div>
+
+    {{ page_content|json_script:"page-content-data" }}
+
+    {# TipTap viewer + Alpine #}
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+    const PAGE_CONTENT = JSON.parse(document.getElementById('page-content-data').textContent || 'null');
+
+    // Lightweight TipTap JSON → HTML renderer (no ProseMirror dependency needed for read-only)
+    function renderTipTap(doc) {
+        if (!doc || !doc.content) return '<p class="text-slate-400 italic">Belum ada konten.</p>';
+        return renderNodes(doc.content);
+    }
+
+    function renderNodes(nodes) {
+        return (nodes || []).map(renderNode).join('');
+    }
+
+    function renderNode(node) {
+        switch (node.type) {
+            case 'doc': return renderNodes(node.content);
+            case 'paragraph': return `<p>${renderNodes(node.content)}</p>`;
+            case 'text': return renderText(node);
+            case 'heading': {
+                const lvl = node.attrs?.level || 1;
+                return `<h${lvl}>${renderNodes(node.content)}</h${lvl}>`;
+            }
+            case 'bulletList': return `<ul>${renderNodes(node.content)}</ul>`;
+            case 'orderedList': return `<ol>${renderNodes(node.content)}</ol>`;
+            case 'listItem': return `<li>${renderNodes(node.content)}</li>`;
+            case 'blockquote': return `<blockquote>${renderNodes(node.content)}</blockquote>`;
+            case 'codeBlock': return `<pre><code>${escHtml(node.content?.[0]?.text || '')}</code></pre>`;
+            case 'code': return `<code>${escHtml(node.content?.[0]?.text || '')}</code>`;
+            case 'horizontalRule': return '<hr>';
+            case 'hardBreak': return '<br>';
+            case 'image': {
+                const src = node.attrs?.src || '';
+                const alt = node.attrs?.alt || '';
+                const title = node.attrs?.title || '';
+                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" onclick="openLightbox(this.src)">`;
+            }
+            case 'table': return `<table>${renderNodes(node.content)}</table>`;
+            case 'tableRow': return `<tr>${renderNodes(node.content)}</tr>`;
+            case 'tableHeader': return `<th>${renderNodes(node.content)}</th>`;
+            case 'tableCell': return `<td>${renderNodes(node.content)}</td>`;
+            case 'youtube': {
+                const src = node.attrs?.src || '';
+                return `<div class="iframe-wrapper"><iframe src="${escAttr(src)}" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>`;
+            }
+            case 'video': {
+                const src = node.attrs?.src || '';
+                return `<video controls style="max-width:100%;border-radius:10px;margin:.75rem 0;"><source src="${escAttr(src)}"></video>`;
+            }
+            default: return renderNodes(node.content);
+        }
+    }
+
+    function renderText(node) {
+        let text = escHtml(node.text || '');
+        (node.marks || []).forEach(mark => {
+            switch (mark.type) {
+                case 'bold': text = `<strong>${text}</strong>`; break;
+                case 'italic': text = `<em>${text}</em>`; break;
+                case 'underline': text = `<u>${text}</u>`; break;
+                case 'strike': text = `<s>${text}</s>`; break;
+                case 'code': text = `<code>${text}</code>`; break;
+                case 'link': {
+                    const href = mark.attrs?.href || '#';
+                    const target = mark.attrs?.target || '_blank';
+                    text = `<a href="${escAttr(href)}" target="${escAttr(target)}" rel="noopener">${text}</a>`;
+                    break;
+                }
+                case 'highlight': {
+                    const color = mark.attrs?.color || '#fef08a';
+                    text = `<mark style="background:${escAttr(color)};padding:.1em .2em;border-radius:3px;">${text}</mark>`;
+                    break;
+                }
+                case 'textStyle': {
+                    const color = mark.attrs?.color;
+                    if (color) text = `<span style="color:${escAttr(color)}">${text}</span>`;
+                    break;
+                }
+            }
+        });
+        return text;
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function escAttr(str) {
+        return String(str).replace(/"/g,'&quot;');
+    }
+
+    function openLightbox(src) {
+        document.getElementById('img-lightbox-src').src = src;
+        document.getElementById('img-lightbox').classList.add('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('tiptap-render');
+        if (el && PAGE_CONTENT) {
+            el.innerHTML = renderTipTap(PAGE_CONTENT);
+        }
+    });
+    </script>
+</body>
+</html>
