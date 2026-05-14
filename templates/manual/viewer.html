@@ -42,8 +42,11 @@
         .tiptap-content a { color: #4f46e5; text-decoration: underline; }
         .tiptap-content strong { font-weight: 700; color: #1e293b; }
         .tiptap-content em { font-style: italic; }
-        .tiptap-content img { max-width: 100%; border-radius: 10px; margin: .75rem 0;
+        .tiptap-content img { max-width: 100%; border-radius: 8px; vertical-align: middle;
                               box-shadow: 0 2px 12px rgba(0,0,0,.1); cursor: zoom-in; }
+        /* Images inside a paragraph are inline; standalone images keep their margin */
+        .tiptap-content p img { margin: 0 3px; }
+        .tiptap-content > img { display: block; margin: .75rem 0; }
         .tiptap-content hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
         .tiptap-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
         .tiptap-content th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .6rem .9rem;
@@ -266,7 +269,9 @@
                 const src = node.attrs?.src || '';
                 const alt = node.attrs?.alt || '';
                 const title = node.attrs?.title || '';
-                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" onclick="openLightbox(this.src)">`;
+                const w = node.attrs?.width;
+                const style = w ? `width:${w}px;max-width:100%` : 'max-width:100%';
+                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" style="${style}" onclick="openLightbox(this.src)">`;
             }
             case 'table': return `<table>${renderNodes(node.content)}</table>`;
             case 'tableRow': return `<tr>${renderNodes(node.content)}</tr>`;
@@ -275,6 +280,10 @@
             case 'youtube': {
                 const src = node.attrs?.src || '';
                 return `<div class="iframe-wrapper"><iframe src="${escAttr(src)}" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>`;
+            }
+            case 'iframe': {
+                const src = node.attrs?.src || '';
+                return `<div class="iframe-wrapper"><iframe src="${escAttr(src)}" frameborder="0" allowfullscreen></iframe></div>`;
             }
             case 'video': {
                 const src = node.attrs?.src || '';

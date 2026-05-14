@@ -58,7 +58,15 @@
         .ProseMirror pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 10px; overflow-x: auto; margin: 1rem 0; font-family: monospace; }
         .ProseMirror pre code { background: none; color: inherit; padding: 0; }
         .ProseMirror a { color: #4f46e5; text-decoration: underline; }
-        .ProseMirror img { max-width: 100%; border-radius: 10px; margin: .75rem 0; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+        /* Image wrapper (inline + block) */
+        .ProseMirror .image-wrapper { display: inline-block; position: relative; line-height: 0; vertical-align: middle; margin: 0 3px; cursor: default; }
+        .ProseMirror .image-wrapper img { display: block; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+        .ProseMirror .image-wrapper .img-resize-handle {
+            position: absolute; bottom: -5px; right: -5px;
+            width: 14px; height: 14px; background: #4f46e5; border: 2px solid #fff;
+            border-radius: 3px; cursor: se-resize; display: none; z-index: 10;
+        }
+        .ProseMirror .image-wrapper:hover .img-resize-handle { display: block; }
         .ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
         .ProseMirror table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
         .ProseMirror th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .5rem .75rem; border: 1px solid #e2e8f0; }
@@ -66,9 +74,11 @@
         .ProseMirror p.is-editor-empty:first-child::before {
             color: #cbd5e1; content: attr(data-placeholder); float: left; height: 0; pointer-events: none;
         }
-        /* YouTube embed in editor */
+        /* YouTube / iframe embed in editor */
         .ProseMirror div[data-youtube-video] { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; margin: 1rem 0; }
         .ProseMirror div[data-youtube-video] iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .ProseMirror .iframe-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 10px; margin: 1rem 0; }
+        .ProseMirror .iframe-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
 
         /* Toolbar */
         .toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 12px;
@@ -225,6 +235,7 @@
                             <button type="button" class="tb-btn" onclick="insertLink()" title="Link">🔗</button>
                             <button type="button" class="tb-btn" onclick="insertImage()" title="Insert image">🖼</button>
                             <button type="button" class="tb-btn" onclick="insertYoutube()" title="YouTube embed">▶️</button>
+                            <button type="button" class="tb-btn" onclick="insertEmbed()" title="Embed (SharePoint, dll)">📎</button>
                             <span class="tb-sep"></span>
                             <button type="button" class="tb-btn" onclick="editor.chain().focus().insertTable({rows:3,cols:3,withHeaderRow:true}).run()" title="Table">⊞</button>
                             <button type="button" class="tb-btn" onclick="editor.chain().focus().setHorizontalRule().run()" title="Horizontal rule">—</button>
@@ -243,9 +254,9 @@
     </div>
 
     <script type="module">
-    import { Editor } from '@tiptap/core';
+    import { Editor, Node, mergeAttributes } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
-    import Image from '@tiptap/extension-image';
+    import ImageBase from '@tiptap/extension-image';
     import Link from '@tiptap/extension-link';
     import Youtube from '@tiptap/extension-youtube';
     import Table from '@tiptap/extension-table';
@@ -258,6 +269,103 @@
     import Color from '@tiptap/extension-color';
     import Underline from '@tiptap/extension-underline';
     import Placeholder from '@tiptap/extension-placeholder';
+
+    // Inline-capable image with drag-to-resize handle
+    const ResizableImage = ImageBase.extend({
+        inline: true,
+        group: 'inline',
+        addAttributes() {
+            return {
+                src:   { default: null },
+                alt:   { default: null },
+                title: { default: null },
+                width: { default: null },
+            };
+        },
+        addNodeView() {
+            return ({ node, updateAttributes }) => {
+                const wrapper = document.createElement('span');
+                wrapper.className = 'image-wrapper';
+
+                const img = document.createElement('img');
+                img.src = node.attrs.src || '';
+                img.alt = node.attrs.alt || '';
+                if (node.attrs.width) img.style.width = node.attrs.width + 'px';
+
+                const handle = document.createElement('span');
+                handle.className = 'img-resize-handle';
+                handle.title = 'Drag to resize';
+
+                let startX, startW;
+                handle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startX = e.clientX;
+                    startW = img.offsetWidth;
+                    const onMove = (ev) => {
+                        const w = Math.max(30, startW + (ev.clientX - startX));
+                        img.style.width = w + 'px';
+                    };
+                    const onUp = (ev) => {
+                        updateAttributes({ width: Math.max(30, startW + (ev.clientX - startX)) });
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(handle);
+
+                return {
+                    dom: wrapper,
+                    update(updated) {
+                        if (updated.type.name !== 'image') return false;
+                        img.src = updated.attrs.src || '';
+                        img.alt = updated.attrs.alt || '';
+                        if (updated.attrs.width) img.style.width = updated.attrs.width + 'px';
+                        return true;
+                    },
+                };
+            };
+        },
+    });
+
+    // Custom iframe embed node (supports SharePoint, and any other iframe source)
+    const IframeNode = Node.create({
+        name: 'iframe',
+        group: 'block',
+        atom: true,
+        addAttributes() {
+            return { src: { default: null } };
+        },
+        parseHTML() {
+            return [{ tag: 'div[data-iframe-src]' }];
+        },
+        renderHTML({ node }) {
+            return ['div', { 'data-iframe-src': node.attrs.src, class: 'iframe-wrapper' },
+                ['iframe', { src: node.attrs.src || '', frameborder: '0', allowfullscreen: 'true' }]
+            ];
+        },
+        addNodeView() {
+            return ({ node }) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'iframe-wrapper';
+                const iframe = document.createElement('iframe');
+                iframe.src = node.attrs.src || '';
+                iframe.setAttribute('frameborder', '0');
+                iframe.setAttribute('allowfullscreen', '');
+                wrapper.appendChild(iframe);
+                return { dom: wrapper };
+            };
+        },
+        addCommands() {
+            return {
+                setIframe: (attrs) => ({ commands }) => commands.insertContent({ type: 'iframe', attrs }),
+            };
+        },
+    });
 
     const initialContent = (() => {
         try {
@@ -272,7 +380,7 @@
         extensions: [
             StarterKit,
             Underline,
-            Image.configure({ inline: false, allowBase64: true }),
+            ResizableImage.configure({ allowBase64: true }),
             Link.configure({ openOnClick: false, HTMLAttributes: { target: '_blank', rel: 'noopener' } }),
             Youtube.configure({ controls: true, nocookie: false }),
             Table.configure({ resizable: true }),
@@ -284,6 +392,7 @@
             TextStyle,
             Color,
             Placeholder.configure({ placeholder: 'Mulai menulis konten halaman di sini...' }),
+            IframeNode,
         ],
         content: initialContent,
         onUpdate({ editor }) {
@@ -340,6 +449,14 @@
     window.insertYoutube = function () {
         const url = prompt('YouTube video URL:');
         if (url) editor.commands.setYoutubeVideo({ src: url });
+    };
+
+    window.insertEmbed = function () {
+        const input = prompt('Paste kode embed (<iframe ...>) atau URL langsung dari SharePoint / sumber lain:');
+        if (!input) return;
+        const srcMatch = input.match(/src=["']([^"']+)["']/i);
+        const src = srcMatch ? srcMatch[1] : input.trim();
+        if (src) editor.commands.setIframe({ src });
     };
 
     // Sync content on form submit
