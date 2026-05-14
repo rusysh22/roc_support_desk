@@ -310,7 +310,9 @@
                         <span class="text-red-700">*</span>
                     </h3>
                     {{ form.problem_summary }}
-                    <div id="editor-problem-summary" class="quill-editor" x-show="!useMarkdown"></div>
+                    <div id="quill-wrap-problem-summary" x-show="!useMarkdown">
+                        <div id="editor-problem-summary" class="quill-editor"></div>
+                    </div>
                     <textarea id="md-problem-summary"
                               x-show="useMarkdown"
                               @input="syncMd('problem_summary', $event.target.value)"
@@ -327,7 +329,9 @@
                         <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
                     </h3>
                     {{ form.root_cause }}
-                    <div id="editor-root-cause" class="quill-editor" x-show="!useMarkdown"></div>
+                    <div id="quill-wrap-root-cause" x-show="!useMarkdown">
+                        <div id="editor-root-cause" class="quill-editor"></div>
+                    </div>
                     <textarea id="md-root-cause"
                               x-show="useMarkdown"
                               @input="syncMd('root_cause', $event.target.value)"
@@ -344,7 +348,9 @@
                         <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
                     </h3>
                     {{ form.solution }}
-                    <div id="editor-solution" class="quill-editor" x-show="!useMarkdown"></div>
+                    <div id="quill-wrap-solution" x-show="!useMarkdown">
+                        <div id="editor-solution" class="quill-editor"></div>
+                    </div>
                     <textarea id="md-solution"
                               x-show="useMarkdown"
                               @input="syncMd('solution', $event.target.value)"
