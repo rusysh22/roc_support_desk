@@ -469,11 +469,17 @@ def chat_room(request, case_uuid):
 
     user = request.user
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
-    user_direction = "OUT" if is_staff else "IN"
+    is_requester = (
+        user.is_authenticated
+        and (user.email or "").lower() == (case.requester_email or "").lower()
+    )
+    # Staff who are also the case requester should see the chat from the
+    # portal user's perspective (their own messages on the right).
+    user_direction = "OUT" if (is_staff and not is_requester) else "IN"
 
     # WhatsApp-style unread divider: find the first unread staff (OUT) message
     first_unread_id = None
-    if not is_staff:
+    if not is_staff or is_requester:
         session_key = f"chat_lr_{case_uuid}"
         last_read_str = request.session.get(session_key)
         if last_read_str:
@@ -502,7 +508,7 @@ def chat_room(request, case_uuid):
         "can_reopen": can_reopen,
         "guest_token": _get_guest_token(request, case_uuid),
         "user_direction": user_direction,
-        "is_staff": is_staff,
+        "is_staff": is_staff and not is_requester,
         "first_unread_id": first_unread_id,
         "staff_online": staff_online,
     })
@@ -752,7 +758,11 @@ def chat_poll(request, case_uuid):
 
     user = request.user
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
-    user_direction = "OUT" if is_staff else "IN"
+    is_requester = (
+        user.is_authenticated
+        and (user.email or "").lower() == (case.requester_email or "").lower()
+    )
+    user_direction = "OUT" if (is_staff and not is_requester) else "IN"
 
     messages_qs = (
         case.messages

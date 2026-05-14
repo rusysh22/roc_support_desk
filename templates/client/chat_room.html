@@ -90,7 +90,7 @@
   const CHAT_CASE_UUID   = "{{ case.id }}";
   const CHAT_GUEST_TOKEN = "{{ guest_token|escapejs }}";
   const CHAT_IS_AUTH     = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
-  const CHAT_IS_STAFF    = {% if request.user.is_authenticated and request.user.role_access in "SuperAdmin,Manager,SupportDesk,Auditor" %}true{% else %}false{% endif %};
+  const CHAT_IS_STAFF    = {% if is_staff %}true{% else %}false{% endif %};
   const CHAT_WS_URL      = "{{ request.scheme|safe }}".replace("http","ws") + "://" + window.location.host + "/ws/chat/{{ case.id }}/{% if guest_token %}?token={{ guest_token|urlencode }}{% endif %}";
   const CHAT_SEND_URL    = "{% url 'chat:send' case.id %}";
   const CHAT_UPLOAD_URL  = "{% url 'chat:upload' case.id %}";
