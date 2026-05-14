@@ -1,6 +1,6 @@
 """Manual app admin registration."""
 from django.contrib import admin
-from .models import Manual, ManualPage
+from .models import Manual, ManualLandingConfig, ManualPage
 
 
 class ManualPageInline(admin.TabularInline):
@@ -16,6 +16,11 @@ class ManualAdmin(admin.ModelAdmin):
     list_editable = ("order", "is_published")
     prepopulated_fields = {"slug": ("title",)}
     inlines = [ManualPageInline]
+
+
+@admin.register(ManualLandingConfig)
+class ManualLandingConfigAdmin(admin.ModelAdmin):
+    fields = ("hero_title", "hero_subtitle")
 
 
 @admin.register(ManualPage)

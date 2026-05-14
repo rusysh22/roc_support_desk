@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if page %}Edit: {{ page.title }}{% else %}New Page{% endif %} — {{ manual.title }}</title>
+    {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
@@ -59,7 +60,7 @@
         .ProseMirror pre code { background: none; color: inherit; padding: 0; }
         .ProseMirror a { color: #4f46e5; text-decoration: underline; }
         /* Block image with resize handle */
-        .ProseMirror .image-wrapper { display: block; position: relative; line-height: 0; margin: .75rem 0; }
+        .ProseMirror .image-wrapper { display: block; width: fit-content; position: relative; line-height: 0; margin: .75rem 0; }
         .ProseMirror .image-wrapper img { display: block; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
         .ProseMirror .image-wrapper .img-resize-handle {
             position: absolute; bottom: -5px; right: -5px;
@@ -238,7 +239,7 @@
                             <button type="button" class="tb-btn" onclick="insertImage()" title="Insert image (block)">🖼</button>
                             <button type="button" class="tb-btn" onclick="insertInlineImage()" title="Insert inline image (in text)">🖼✏</button>
                             <button type="button" class="tb-btn" onclick="insertYoutube()" title="YouTube embed">▶️</button>
-                            <button type="button" class="tb-btn" onclick="insertEmbed()" title="Embed (SharePoint, dll)">📎</button>
+                            <button type="button" class="tb-btn" onclick="insertEmbed()" title="Embed (SharePoint, etc.)">📎</button>
                             <span class="tb-sep"></span>
                             <button type="button" class="tb-btn" onclick="editor.chain().focus().insertTable({rows:3,cols:3,withHeaderRow:true}).run()" title="Table">⊞</button>
                             <button type="button" class="tb-btn" onclick="editor.chain().focus().setHorizontalRule().run()" title="Horizontal rule">—</button>
@@ -426,7 +427,7 @@
             Highlight.configure({ multicolor: true }),
             TextStyle,
             Color,
-            Placeholder.configure({ placeholder: 'Mulai menulis konten halaman di sini...' }),
+            Placeholder.configure({ placeholder: 'Start writing page content here...' }),
             IframeNode,
             InlineImageNode,
         ],
@@ -483,9 +484,9 @@
     };
 
     window.insertInlineImage = function () {
-        const url = prompt('URL gambar yang ingin disisipkan dalam teks:');
+        const url = prompt('Image URL to insert inline within text:');
         if (!url) return;
-        const sizeStr = prompt('Lebar gambar dalam pixel (contoh: 24, 48, 100):', '48');
+        const sizeStr = prompt('Width in pixels (e.g. 24, 48, 100):', '48');
         const width = Math.max(10, parseInt(sizeStr, 10) || 48);
         editor.chain().focus().insertContent({ type: 'inlineImage', attrs: { src: url, width } }).run();
     };
@@ -496,7 +497,7 @@
     };
 
     window.insertEmbed = function () {
-        const input = prompt('Paste kode embed (<iframe ...>) atau URL langsung dari SharePoint / sumber lain:');
+        const input = prompt('Paste embed code (<iframe ...>) or a direct URL from SharePoint or any other source:');
         if (!input) return;
         const srcMatch = input.match(/src=["']([^"']+)["']/i);
         const src = srcMatch ? srcMatch[1] : input.trim();

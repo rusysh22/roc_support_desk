@@ -4,6 +4,32 @@ from django.conf import settings
 from django.utils.text import slugify
 
 
+class ManualLandingConfig(models.Model):
+    """Singleton: controls the hero section text on the User Manual landing page."""
+    hero_title = models.CharField(
+        max_length=200,
+        default="Documentation & User Guide",
+    )
+    hero_subtitle = models.TextField(
+        blank=True,
+        default="Select an application manual to get started.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Landing Page Config"
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.first()
+        if not obj:
+            obj = cls.objects.create()
+        return obj
+
+    def __str__(self):
+        return "Landing Page Config"
+
+
 class Manual(models.Model):
     """Top-level application manual (e.g. D365, HR System)."""
     title = models.CharField(max_length=200)

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if page %}{{ page.title }} — {% endif %}{{ manual.title }} — User Manual</title>
+    {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -12,11 +13,17 @@
 
         /* Sidebar nav tree */
         .nav-tree { font-size: 13.5px; }
-        .nav-item { border-radius: 8px; cursor: pointer; transition: background .15s; }
-        .nav-item:hover { background: #eef2ff; }
-        .nav-item.active { background: #eef2ff; color: #4338ca; font-weight: 700; }
-        .nav-item a { display: flex; align-items: center; gap: 7px; padding: 7px 10px;
-                      text-decoration: none; color: inherit; width: 100%; }
+        .nav-item { border-radius: 8px; transition: background .15s; }
+        .nav-item-row { display: flex; align-items: center; border-radius: 8px; }
+        .nav-item-row:hover { background: #eef2ff; }
+        .nav-item.active > .nav-item-row { background: #eef2ff; color: #4338ca; font-weight: 700; }
+        .nav-item a { flex: 1; display: flex; align-items: center; gap: 7px; padding: 7px 8px;
+                      text-decoration: none; color: inherit; min-width: 0; overflow: hidden; }
+        .nav-toggle { flex-shrink: 0; width: 26px; height: 26px; display: flex; align-items: center;
+                      justify-content: center; border: none; background: transparent; cursor: pointer;
+                      color: #94a3b8; border-radius: 6px; margin-right: 3px; }
+        .nav-toggle:hover { color: #475569; background: #e2e8f0; }
+        .nav-toggle svg { transition: transform .2s; }
         .nav-children { padding-left: 18px; border-left: 2px solid #e2e8f0; margin-left: 10px; margin-top: 2px; }
         .faq-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
                    background: #f59e0b; flex-shrink: 0; }
@@ -32,6 +39,8 @@
         .tiptap-content ul { list-style: disc; padding-left: 1.5rem; margin: .75rem 0; }
         .tiptap-content ol { list-style: decimal; padding-left: 1.5rem; margin: .75rem 0; }
         .tiptap-content li { margin: .3rem 0; line-height: 1.7; color: #334155; font-size: .9375rem; }
+        .tiptap-content li > p { margin: 0; display: inline; }
+        .tiptap-content li > p + p { display: block; margin-top: .4rem; }
         .tiptap-content blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: .75rem 1rem;
                                      border-radius: 0 8px 8px 0; margin: 1rem 0; color: #3730a3; font-style: italic; }
         .tiptap-content code { background: #f1f5f9; color: #7c3aed; padding: .15em .4em;
@@ -170,8 +179,8 @@
                     </div>
                     <h1 class="text-2xl md:text-3xl font-black text-slate-900">{{ page.title }}</h1>
                     <p class="text-xs text-slate-400 mt-1">
-                        Diperbarui {{ page.updated_at|date:"d M Y, H:i" }}
-                        {% if page.created_by %} oleh {{ page.created_by.username }}{% endif %}
+                        Last updated {{ page.updated_at|date:"d M Y, H:i" }}
+                        {% if page.created_by %} by {{ page.created_by.username }}{% endif %}
                     </p>
                 </div>
             </div>
@@ -215,9 +224,9 @@
                 {% if not root_pages %}
                 <p class="mt-6 text-sm text-slate-400">
                     {% if can_edit %}
-                    Belum ada halaman. <a href="{% url 'manual:page_new' manual_slug=manual.slug %}" class="text-indigo-600 underline font-semibold">Buat halaman pertama →</a>
+                    No pages yet. <a href="{% url 'manual:page_new' manual_slug=manual.slug %}" class="text-indigo-600 underline font-semibold">Create the first page →</a>
                     {% else %}
-                    Belum ada konten tersedia.
+                    No content available yet.
                     {% endif %}
                 </p>
                 {% endif %}
@@ -240,7 +249,7 @@
 
     // Lightweight TipTap JSON → HTML renderer (no ProseMirror dependency needed for read-only)
     function renderTipTap(doc) {
-        if (!doc || !doc.content) return '<p class="text-slate-400 italic">Belum ada konten.</p>';
+        if (!doc || !doc.content) return '<p class="text-slate-400 italic">No content yet.</p>';
         return renderNodes(doc.content);
     }
 
@@ -251,7 +260,10 @@
     function renderNode(node) {
         switch (node.type) {
             case 'doc': return renderNodes(node.content);
-            case 'paragraph': return `<p>${renderNodes(node.content)}</p>`;
+            case 'paragraph': {
+                const inner = renderNodes(node.content);
+                return `<p>${inner || '<br>'}</p>`;
+            }
             case 'text': return renderText(node);
             case 'heading': {
                 const lvl = node.attrs?.level || 1;
@@ -271,7 +283,7 @@
                 const title = node.attrs?.title || '';
                 const w = node.attrs?.width;
                 const style = w ? `width:${w}px;max-width:100%` : 'max-width:100%';
-                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" style="${style}" onclick="openLightbox(this.src)">`;
+                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" style="${style}" loading="lazy" decoding="async" onclick="openLightbox(this.src)">`;
             }
             case 'table': return `<table>${renderNodes(node.content)}</table>`;
             case 'tableRow': return `<tr>${renderNodes(node.content)}</tr>`;
@@ -295,7 +307,7 @@
                 const src = node.attrs?.src || '';
                 return `<video controls style="max-width:100%;border-radius:10px;margin:.75rem 0;"><source src="${escAttr(src)}"></video>`;
             }
-            default: return renderNodes(node.content);
+            default: return node.content ? renderNodes(node.content) : '';
         }
     }
 

@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from core.models import SiteConfig
-from .models import Manual, ManualPage
+from .models import Manual, ManualLandingConfig, ManualPage
 
 EDITOR_ROLES = {"SuperAdmin", "Manager", "SupportDesk"}
 PUBLISHER_ROLES = {"SuperAdmin", "Manager"}
@@ -45,7 +45,10 @@ def landing(request):
     else:
         manuals = Manual.objects.filter(is_published=True).order_by("order", "title")
 
-    return render(request, "manual/landing.html", {"manuals": manuals})
+    return render(request, "manual/landing.html", {
+        "manuals": manuals,
+        "manual_config": ManualLandingConfig.get_solo(),
+    })
 
 
 def viewer(request, manual_slug, page_id=None):
@@ -96,10 +99,23 @@ def manage_list(request):
     if not _can_edit(request.user):
         return redirect("manual:landing")
 
+    is_superadmin = getattr(request.user, "role_access", None) == "SuperAdmin"
+
+    if request.method == "POST" and request.POST.get("action") == "save_hero":
+        if is_superadmin:
+            config = ManualLandingConfig.get_solo()
+            config.hero_title = request.POST.get("hero_title", "").strip() or config.hero_title
+            config.hero_subtitle = request.POST.get("hero_subtitle", "").strip()
+            config.save()
+            messages.success(request, "Landing page hero updated.")
+        return redirect("manual:manage_list")
+
     manuals = Manual.objects.all().order_by("order", "title")
     return render(request, "manual/manage_list.html", {
         "manuals": manuals,
         "can_publish": _can_publish(request.user),
+        "is_superadmin": is_superadmin,
+        "manual_config": ManualLandingConfig.get_solo(),
     })
 
 
