@@ -6,7 +6,7 @@
 
 {% block content %}
 <!-- Hero Section -->
-<div class="mb-8">
+<div class="mb-6">
     <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">
         How can we help you today?
     </h2>
@@ -15,9 +15,28 @@
     </p>
 </div>
 
+<!-- Search Bar -->
+<div class="relative mb-8">
+    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+    </svg>
+    <input type="text" id="portal-search"
+           placeholder="Search services by name or description…"
+           class="jk-input w-full text-sm"
+           style="padding-left:2.5rem; padding-right:2.5rem;"
+           autocomplete="off">
+    <button id="portal-search-clear"
+            class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-100"
+            title="Clear search" type="button">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+</div>
+
 <!-- ===== SERVICES SECTION ===== -->
 {% if categories or user.role_access == "SuperAdmin" %}
-<div class="mb-10">
+<div id="services-section" class="mb-10">
     <div class="flex items-center gap-2.5 mb-5">
         <div class="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
             <svg class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
@@ -31,9 +50,11 @@
         </button>
         {% endif %}
     </div>
-    <div class="jk-category-grid">
+    <div id="services-grid" class="jk-category-grid">
         {% for category in categories %}
-        <div class="jk-card jk-category-card group relative">
+        <div class="jk-card jk-category-card group relative"
+             data-name="{{ category.name }}"
+             data-desc="{{ category.description|default:'' }}">
             {% if user.role_access == "SuperAdmin" %}
             <!-- Admin Actions -->
             <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -77,7 +98,7 @@
 
 <!-- ===== FORMS SECTION ===== -->
 {% if portal_forms %}
-<div class="mb-10">
+<div id="forms-section" class="mb-10">
     <div class="flex items-center gap-2.5 mb-5">
         <div class="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center">
             <svg class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -85,10 +106,12 @@
         <h3 class="text-lg font-extrabold text-slate-800 tracking-tight">Forms</h3>
         <span class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200">{{ portal_forms|length }}</span>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="forms-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for form in portal_forms %}
         <a href="{% url 'cases:public_form' slug=form.slug %}"
-            class="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 transition-all duration-200">
+            class="portal-form-card group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 transition-all duration-200"
+            data-name="{{ form.title }}"
+            data-desc="{{ form.description|default:''|striptags }}">
 
             <!-- Form Card Header -->
             <div class="flex items-start gap-3 mb-3">
@@ -136,10 +159,84 @@
 </div>
 {% endif %}
 
+<!-- Search empty state — shown only when search yields zero results -->
+<div id="search-no-results" class="hidden jk-card mb-10">
+    <div class="jk-card-body py-14 text-center">
+        <div class="text-4xl mb-4">🔍</div>
+        <h3 class="text-lg font-bold text-slate-700 mb-1">No services found</h3>
+        <p class="text-sm text-slate-500">Try a different keyword or <button onclick="document.getElementById('portal-search').value=''; document.getElementById('portal-search').dispatchEvent(new Event('input')); document.getElementById('portal-search').focus();" class="text-indigo-600 hover:underline font-medium">clear the search</button>.</p>
+    </div>
+</div>
+
 <!-- Info Footer -->
 <div class="mt-10 text-center text-xs text-slate-600">
     <p>Need urgent help? Contact the IT Helpdesk directly via WhatsApp or email.</p>
 </div>
+
+<script>
+(function () {
+  const input      = document.getElementById('portal-search');
+  const clearBtn   = document.getElementById('portal-search-clear');
+  const svcSection = document.getElementById('services-section');
+  const frmSection = document.getElementById('forms-section');
+  const noResults  = document.getElementById('search-no-results');
+
+  if (!input) return;
+
+  function filter() {
+    const q = input.value.trim().toLowerCase();
+    clearBtn.classList.toggle('hidden', !q);
+
+    let svcVisible = 0;
+    let frmVisible = 0;
+
+    // Filter category cards
+    document.querySelectorAll('.jk-category-card').forEach(card => {
+      const match = !q
+        || (card.dataset.name  || '').toLowerCase().includes(q)
+        || (card.dataset.desc  || '').toLowerCase().includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) svcVisible++;
+    });
+
+    // Filter form cards
+    document.querySelectorAll('.portal-form-card').forEach(card => {
+      const match = !q
+        || (card.dataset.name  || '').toLowerCase().includes(q)
+        || (card.dataset.desc  || '').toLowerCase().includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) frmVisible++;
+    });
+
+    if (svcSection) svcSection.style.display = svcVisible || !q ? '' : 'none';
+    if (frmSection) frmSection.style.display = frmVisible || !q ? '' : 'none';
+
+    const totalVisible = svcVisible + frmVisible;
+    if (noResults) noResults.classList.toggle('hidden', !q || totalVisible > 0);
+  }
+
+  input.addEventListener('input', filter);
+
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    filter();
+    input.focus();
+  });
+
+  // Keyboard shortcut: "/" focuses the search bar
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement !== input && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      input.focus();
+    }
+    if (e.key === 'Escape' && document.activeElement === input) {
+      input.value = '';
+      filter();
+      input.blur();
+    }
+  });
+})();
+</script>
 
 {% if user.role_access == "SuperAdmin" %}
 <!-- Create Category Modal -->
