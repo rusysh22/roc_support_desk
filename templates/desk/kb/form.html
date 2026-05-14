@@ -290,7 +290,7 @@
                             :class="useMarkdown ? 'bg-indigo-600 shadow-inner' : 'bg-slate-200'"
                             role="switch" :aria-checked="useMarkdown.toString()">
                         <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ease-in-out"
-                              :class="useMarkdown ? 'translate-x-6' : 'translate-x-0'"></span>
+                              :style="useMarkdown ? 'transform: translateX(1.5rem)' : 'transform: translateX(0)'"></span>
                     </button>
                 </div>
                 {{ form.use_markdown }}
