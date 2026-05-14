@@ -26,15 +26,21 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(add_timezone_safe, noop),
-        migrations.AlterField(
-            model_name="user",
-            name="timezone",
-            field=models.CharField(
-                default="Asia/Jakarta",
-                help_text="User's local timezone for displaying dates and times.",
-                max_length=64,
-                verbose_name="Timezone",
-            ),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(add_timezone_safe, noop),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name="user",
+                    name="timezone",
+                    field=models.CharField(
+                        default="Asia/Jakarta",
+                        help_text="User's local timezone for displaying dates and times.",
+                        max_length=64,
+                        verbose_name="Timezone",
+                    ),
+                ),
+            ],
         ),
     ]
