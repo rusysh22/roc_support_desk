@@ -84,6 +84,7 @@ class ContentSecurityPolicyMiddleware:
         "frame-src 'self' "
             "https://www.youtube.com "
             "https://www.youtube-nocookie.com "
+            "https://youtu.be "
             "https://*.sharepoint.com; "
         "connect-src 'self' "
             "https://cdn.jsdelivr.net "

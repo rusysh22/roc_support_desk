@@ -58,8 +58,8 @@
         .ProseMirror pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 10px; overflow-x: auto; margin: 1rem 0; font-family: monospace; }
         .ProseMirror pre code { background: none; color: inherit; padding: 0; }
         .ProseMirror a { color: #4f46e5; text-decoration: underline; }
-        /* Image wrapper (inline + block) */
-        .ProseMirror .image-wrapper { display: inline-block; position: relative; line-height: 0; vertical-align: middle; margin: 0 3px; cursor: default; }
+        /* Block image with resize handle */
+        .ProseMirror .image-wrapper { display: block; position: relative; line-height: 0; margin: .75rem 0; }
         .ProseMirror .image-wrapper img { display: block; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
         .ProseMirror .image-wrapper .img-resize-handle {
             position: absolute; bottom: -5px; right: -5px;
@@ -67,6 +67,8 @@
             border-radius: 3px; cursor: se-resize; display: none; z-index: 10;
         }
         .ProseMirror .image-wrapper:hover .img-resize-handle { display: block; }
+        /* Inline image (small icon within text) */
+        .ProseMirror img[data-inline-image] { display: inline; vertical-align: middle; border-radius: 3px; margin: 0 2px; }
         .ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
         .ProseMirror table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
         .ProseMirror th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .5rem .75rem; border: 1px solid #e2e8f0; }
@@ -233,7 +235,8 @@
                             <button type="button" class="tb-btn" id="btn-codeblock" onclick="editor.chain().focus().toggleCodeBlock().run()" title="Code block">```</button>
                             <span class="tb-sep"></span>
                             <button type="button" class="tb-btn" onclick="insertLink()" title="Link">🔗</button>
-                            <button type="button" class="tb-btn" onclick="insertImage()" title="Insert image">🖼</button>
+                            <button type="button" class="tb-btn" onclick="insertImage()" title="Insert image (block)">🖼</button>
+                            <button type="button" class="tb-btn" onclick="insertInlineImage()" title="Insert inline image (in text)">🖼✏</button>
                             <button type="button" class="tb-btn" onclick="insertYoutube()" title="YouTube embed">▶️</button>
                             <button type="button" class="tb-btn" onclick="insertEmbed()" title="Embed (SharePoint, dll)">📎</button>
                             <span class="tb-sep"></span>
@@ -270,10 +273,8 @@
     import Underline from '@tiptap/extension-underline';
     import Placeholder from '@tiptap/extension-placeholder';
 
-    // Inline-capable image with drag-to-resize handle
+    // Block image with drag-to-resize handle
     const ResizableImage = ImageBase.extend({
-        inline: true,
-        group: 'inline',
         addAttributes() {
             return {
                 src:   { default: null },
@@ -283,14 +284,16 @@
             };
         },
         addNodeView() {
-            return ({ node, updateAttributes }) => {
-                const wrapper = document.createElement('span');
+            return ({ node, getPos, editor }) => {
+                let currentNode = node;
+
+                const wrapper = document.createElement('div');
                 wrapper.className = 'image-wrapper';
 
                 const img = document.createElement('img');
-                img.src = node.attrs.src || '';
-                img.alt = node.attrs.alt || '';
-                if (node.attrs.width) img.style.width = node.attrs.width + 'px';
+                img.src = currentNode.attrs.src || '';
+                img.alt = currentNode.attrs.alt || '';
+                if (currentNode.attrs.width) img.style.width = currentNode.attrs.width + 'px';
 
                 const handle = document.createElement('span');
                 handle.className = 'img-resize-handle';
@@ -302,12 +305,19 @@
                     e.stopPropagation();
                     startX = e.clientX;
                     startW = img.offsetWidth;
+
                     const onMove = (ev) => {
                         const w = Math.max(30, startW + (ev.clientX - startX));
                         img.style.width = w + 'px';
                     };
                     const onUp = (ev) => {
-                        updateAttributes({ width: Math.max(30, startW + (ev.clientX - startX)) });
+                        const newW = Math.max(30, startW + (ev.clientX - startX));
+                        if (typeof getPos === 'function') {
+                            const tr = editor.view.state.tr.setNodeMarkup(
+                                getPos(), null, { ...currentNode.attrs, width: newW }
+                            );
+                            editor.view.dispatch(tr);
+                        }
                         document.removeEventListener('mousemove', onMove);
                         document.removeEventListener('mouseup', onUp);
                     };
@@ -322,13 +332,38 @@
                     dom: wrapper,
                     update(updated) {
                         if (updated.type.name !== 'image') return false;
+                        currentNode = updated;
                         img.src = updated.attrs.src || '';
                         img.alt = updated.attrs.alt || '';
-                        if (updated.attrs.width) img.style.width = updated.attrs.width + 'px';
+                        img.style.width = updated.attrs.width ? updated.attrs.width + 'px' : '';
                         return true;
                     },
                 };
             };
+        },
+    });
+
+    // Inline image node — sits inside text like an emoji/icon
+    const InlineImageNode = Node.create({
+        name: 'inlineImage',
+        group: 'inline',
+        inline: true,
+        atom: true,
+        addAttributes() {
+            return {
+                src:   { default: null },
+                alt:   { default: '' },
+                width: { default: 24 },
+            };
+        },
+        parseHTML() {
+            return [{ tag: 'img[data-inline-image]' }];
+        },
+        renderHTML({ node, HTMLAttributes }) {
+            return ['img', mergeAttributes(HTMLAttributes, {
+                'data-inline-image': '',
+                style: `width:${node.attrs.width || 24}px;vertical-align:middle;`,
+            })];
         },
     });
 
@@ -393,6 +428,7 @@
             Color,
             Placeholder.configure({ placeholder: 'Mulai menulis konten halaman di sini...' }),
             IframeNode,
+            InlineImageNode,
         ],
         content: initialContent,
         onUpdate({ editor }) {
@@ -444,6 +480,14 @@
     window.insertImage = function () {
         const url = prompt('Enter image URL (or paste base64):');
         if (url) editor.chain().focus().setImage({ src: url }).run();
+    };
+
+    window.insertInlineImage = function () {
+        const url = prompt('URL gambar yang ingin disisipkan dalam teks:');
+        if (!url) return;
+        const sizeStr = prompt('Lebar gambar dalam pixel (contoh: 24, 48, 100):', '48');
+        const width = Math.max(10, parseInt(sizeStr, 10) || 48);
+        editor.chain().focus().insertContent({ type: 'inlineImage', attrs: { src: url, width } }).run();
     };
 
     window.insertYoutube = function () {

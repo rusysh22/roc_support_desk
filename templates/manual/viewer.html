@@ -278,12 +278,18 @@
             case 'tableHeader': return `<th>${renderNodes(node.content)}</th>`;
             case 'tableCell': return `<td>${renderNodes(node.content)}</td>`;
             case 'youtube': {
-                const src = node.attrs?.src || '';
+                const src = toYoutubeEmbedUrl(node.attrs?.src || '');
                 return `<div class="iframe-wrapper"><iframe src="${escAttr(src)}" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>`;
             }
             case 'iframe': {
                 const src = node.attrs?.src || '';
                 return `<div class="iframe-wrapper"><iframe src="${escAttr(src)}" frameborder="0" allowfullscreen></iframe></div>`;
+            }
+            case 'inlineImage': {
+                const src = node.attrs?.src || '';
+                const alt = node.attrs?.alt || '';
+                const w = node.attrs?.width || 24;
+                return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" data-inline-image="" style="width:${w}px;vertical-align:middle;border-radius:3px;margin:0 2px;" onclick="openLightbox(this.src)">`;
             }
             case 'video': {
                 const src = node.attrs?.src || '';
@@ -328,6 +334,14 @@
     }
     function escAttr(str) {
         return String(str).replace(/"/g,'&quot;');
+    }
+
+    // Convert any YouTube share/watch URL to embeddable /embed/VIDEO_ID URL
+    function toYoutubeEmbedUrl(url) {
+        if (!url) return '';
+        if (url.includes('/embed/')) return url;
+        const match = url.match(/(?:youtu\.be\/|[?&]v=)([\w-]{11})/);
+        return match ? `https://www.youtube.com/embed/${match[1]}` : url;
     }
 
     function openLightbox(src) {
