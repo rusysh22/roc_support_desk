@@ -4,15 +4,10 @@ from django.db import migrations, models
 def add_timezone_safe(apps, schema_editor):
     """Add timezone column only if it does not already exist."""
     with schema_editor.connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'core_user' AND column_name = 'timezone'
-        """)
-        if not cursor.fetchone():
-            cursor.execute(
-                "ALTER TABLE core_user "
-                "ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Jakarta'"
-            )
+        cursor.execute(
+            "ALTER TABLE core_user "
+            "ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Jakarta'"
+        )
 
 
 def noop(apps, schema_editor):
