@@ -30,7 +30,7 @@
       </svg>
       <input type="text" name="q" value="{{ search_query }}"
              placeholder="Search by subject or ticket number (e.g. RQ-E8973E6D)…"
-             class="jk-input pl-9 w-full text-sm">
+             class="jk-input w-full text-sm" style="padding-left: 2.25rem">
     </div>
     {# Status + action buttons in a separate row #}
     <div class="flex gap-2">
@@ -168,4 +168,63 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+
+<script>
+(function () {
+  // Seed unread counts from the currently rendered page so the first poll
+  // only fires a notification for messages that arrive AFTER page load.
+  const prevCounts = {
+    {% for item in tickets %}
+    "{{ item.case.id }}": {{ item.unread_count }},
+    {% endfor %}
+  };
+
+  const POLL_URL = "{% url 'chat:my_tickets_status' %}";
+  const POLL_INTERVAL = 5000;
+
+  // Ask for notification permission once (does nothing if already granted/denied).
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  function notify(subject) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Ada pesan baru dari Support Desk', { body: subject });
+    }
+  }
+
+  function poll() {
+    fetch(POLL_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        let hasNew = false;
+        let newSubject = '';
+        for (const t of data.tickets) {
+          const prev = prevCounts[t.id] !== undefined ? prevCounts[t.id] : 0;
+          if (t.unread > prev) {
+            hasNew = true;
+            newSubject = t.subject;
+            prevCounts[t.id] = t.unread;
+          }
+        }
+        if (hasNew) {
+          notify(newSubject);
+          // Only reload if the user is not actively typing in the search/filter form.
+          const active = document.activeElement;
+          const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'SELECT');
+          if (!isTyping) {
+            location.reload();
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  setInterval(poll, POLL_INTERVAL);
+})();
+</script>
 {% endblock %}

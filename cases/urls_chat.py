@@ -28,6 +28,7 @@ urlpatterns = [
 
     # My Tickets (login required)
     path("my-tickets/", views_chat.my_tickets, name="my_tickets"),
+    path("my-tickets/status/", views_chat.my_tickets_status, name="my_tickets_status"),
 
     # OG link preview (public JSON API, SSRF-protected)
     path("link-preview/", views_chat.link_preview, name="link_preview"),

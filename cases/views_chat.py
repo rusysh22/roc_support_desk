@@ -993,6 +993,45 @@ def my_tickets(request):
     })
 
 
+@login_required
+@require_GET
+def my_tickets_status(request):
+    """JSON endpoint: returns unread counts per open ticket for the portal user. Used for polling."""
+    user = request.user
+    if user.role_access in STAFF_ROLES:
+        return JsonResponse({"tickets": []})
+
+    cases = (
+        CaseRecord.objects
+        .filter(requester_email__iexact=user.email)
+        .exclude(status=CaseRecord.Status.CLOSED)
+        .prefetch_related("messages")
+        .only("id", "subject", "status")
+    )
+
+    result = []
+    for c in cases:
+        session_key = f"chat_lr_{c.id}"
+        last_read_str = request.session.get(session_key)
+        unread_count = 0
+        if last_read_str:
+            try:
+                last_read_dt = datetime.datetime.fromisoformat(last_read_str)
+                if last_read_dt.tzinfo is None:
+                    last_read_dt = last_read_dt.replace(tzinfo=datetime.timezone.utc)
+                unread_count = c.messages.filter(
+                    direction="OUT", is_system=False, sent_at__gt=last_read_dt
+                ).count()
+            except (ValueError, TypeError):
+                pass
+        else:
+            unread_count = c.messages.filter(direction="OUT", is_system=False).count()
+
+        result.append({"id": str(c.id), "subject": c.subject, "unread": unread_count})
+
+    return JsonResponse({"tickets": result})
+
+
 # ---------------------------------------------------------------------------
 # OG link preview
 # ---------------------------------------------------------------------------
