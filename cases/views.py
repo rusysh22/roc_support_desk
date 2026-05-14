@@ -941,6 +941,10 @@ def create_case(request, slug=None):
             email = form.cleaned_data["requester_email"]
             company_unit = form.cleaned_data["company_unit"]
 
+            # Link ticket to logged-in portal user if they toggled "Track via Live Chat"
+            if request.user.is_authenticated and request.POST.get("track_via_chat") == "true":
+                email = request.user.email
+
             # Auto-link or auto-create Employee safely
             employee, created = Employee.objects.get_or_create(
                 email=email,
