@@ -878,7 +878,11 @@
                 this.guestToken       = s.token || '';
                 this.ticketResolved   = !!(s.resolved);
                 this.step = 'chat';
-                this.$nextTick(() => this.connectWidgetWS());
+                this.$nextTick(async () => {
+                  const valid = await this._validateSession();
+                  if (!valid) { this.clearSession(); return; }
+                  this.connectWidgetWS();
+                });
               }
             } catch(e) { try { localStorage.removeItem(WIDGET_SESSION_KEY); } catch(e2) {} }
           }

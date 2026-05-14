@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static kb_tags %}
 
 {% block title %}{{ article.title }} - Knowledge Base{% endblock %}
 
@@ -360,7 +360,7 @@
                                 {% if article.article_type == 'Announcement' %}Announcement{% else %}Problem Summary{% endif %}
                             </h2>
                         </div>
-                        <div class="text-slate-700 leading-relaxed kb-content">{{ article.problem_summary|safe }}</div>
+                        <div class="text-slate-700 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.problem_summary|render_md }}{% else %}{{ article.problem_summary|safe }}{% endif %}</div>
                     </section>
                     {% endif %}
 
@@ -374,7 +374,7 @@
                             </div>
                             <h2 class="text-lg font-bold text-slate-900">Details</h2>
                         </div>
-                        <div class="text-slate-700 leading-relaxed kb-content">{{ article.root_cause|safe }}</div>
+                        <div class="text-slate-700 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.root_cause|render_md }}{% else %}{{ article.root_cause|safe }}{% endif %}</div>
                         {% else %}
                         <div class="bg-rose-50 rounded-xl border border-rose-100 p-6">
                             <div class="flex items-center gap-2.5 mb-4">
@@ -383,7 +383,7 @@
                                 </div>
                                 <h2 class="text-lg font-bold text-rose-900">Root Cause</h2>
                             </div>
-                            <div class="text-rose-800 leading-relaxed kb-content">{{ article.root_cause|safe }}</div>
+                            <div class="text-rose-800 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.root_cause|render_md }}{% else %}{{ article.root_cause|safe }}{% endif %}</div>
                         </div>
                         {% endif %}
                     </section>
@@ -399,7 +399,7 @@
                             </div>
                             <h2 class="text-lg font-bold text-slate-900">Additional Information</h2>
                         </div>
-                        <div class="text-slate-700 leading-relaxed kb-content">{{ article.solution|safe }}</div>
+                        <div class="text-slate-700 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.solution|render_md }}{% else %}{{ article.solution|safe }}{% endif %}</div>
                         {% else %}
                         <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-6">
                             <div class="flex items-center gap-2.5 mb-4">
@@ -408,7 +408,7 @@
                                 </div>
                                 <h2 class="text-lg font-bold text-emerald-900">Resolution Steps</h2>
                             </div>
-                            <div class="text-emerald-900 leading-relaxed kb-content">{{ article.solution|safe }}</div>
+                            <div class="text-emerald-900 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.solution|render_md }}{% else %}{{ article.solution|safe }}{% endif %}</div>
                         </div>
                         {% endif %}
                     </section>

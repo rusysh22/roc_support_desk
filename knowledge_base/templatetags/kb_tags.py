@@ -1,11 +1,25 @@
 """Template tags/filters for the Knowledge Base app."""
 import re
 
+import markdown as _md
+
 from django import template
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+
+@register.filter(name="render_md")
+def render_md(text):
+    """Render a Markdown string to safe HTML for display in a kb-content block."""
+    if not text:
+        return mark_safe("")
+    rendered = _md.markdown(
+        text,
+        extensions=["extra", "nl2br", "sane_lists", "toc"],
+    )
+    return mark_safe(rendered)
 
 
 @register.filter(name="highlight")

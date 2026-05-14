@@ -45,3 +45,6 @@ django-ipware>=7.0
 
 # SSO — Microsoft & Google OAuth2
 django-allauth[socialaccount]>=65.0,<67.0
+
+# Markdown rendering (KB articles)
+Markdown>=3.6

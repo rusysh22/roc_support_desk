@@ -275,14 +275,49 @@
                     </div>
                 </div>
 
+                <!-- Editor Mode Toggle -->
+                <div class="flex items-center justify-between gap-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 text-base mt-0.5">📝</div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">Use Markdown Editor</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Write content in Markdown syntax — rendered as formatted HTML when published.</p>
+                        </div>
+                    </div>
+                    <button type="button"
+                            @click="toggleMarkdown()"
+                            class="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
+                            :class="useMarkdown ? 'bg-indigo-600' : 'bg-slate-300'"
+                            role="switch" :aria-checked="useMarkdown.toString()">
+                        <span class="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
+                              :class="useMarkdown ? 'left-6' : 'left-1'"></span>
+                    </button>
+                </div>
+                {{ form.use_markdown }}
+
+                <!-- Markdown syntax hint -->
+                <div x-show="useMarkdown" x-transition class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 space-y-1" style="display:none">
+                    <p class="font-semibold mb-1">Markdown quick reference:</p>
+                    <p><code class="bg-indigo-100 px-1 rounded">**bold**</code> &nbsp; <code class="bg-indigo-100 px-1 rounded">_italic_</code> &nbsp; <code class="bg-indigo-100 px-1 rounded"># Heading 1</code> &nbsp; <code class="bg-indigo-100 px-1 rounded">## Heading 2</code></p>
+                    <p><code class="bg-indigo-100 px-1 rounded">- item</code> (bullet) &nbsp; <code class="bg-indigo-100 px-1 rounded">1. item</code> (numbered) &nbsp; <code class="bg-indigo-100 px-1 rounded">[text](url)</code> (link)</p>
+                    <p><code class="bg-indigo-100 px-1 rounded">```code block```</code> &nbsp; <code class="bg-indigo-100 px-1 rounded">&gt; blockquote</code> &nbsp; <code class="bg-indigo-100 px-1 rounded">| col | col |</code> (table)</p>
+                </div>
+
                 <!-- Problem Summary -->
                 <div>
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
-                        <span x-text="articleType === 'Announcement' ? 'Announcement Content' : 'Problem Summary'"></span> 
+                        <span x-text="articleType === 'Announcement' ? 'Announcement Content' : 'Problem Summary'"></span>
                         <span class="text-red-700">*</span>
                     </h3>
                     {{ form.problem_summary }}
-                    <div id="editor-problem-summary" class="quill-editor"></div>
+                    <div id="editor-problem-summary" class="quill-editor" x-show="!useMarkdown"></div>
+                    <textarea id="md-problem-summary"
+                              x-show="useMarkdown"
+                              @input="syncMd('problem_summary', $event.target.value)"
+                              placeholder="**Bold**, _italic_, # Heading, - list item, 1. numbered..."
+                              rows="8"
+                              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                              style="display:none; min-height:200px"></textarea>
                 </div>
 
                 <!-- Root Cause / Details -->
@@ -292,7 +327,14 @@
                         <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
                     </h3>
                     {{ form.root_cause }}
-                    <div id="editor-root-cause" class="quill-editor"></div>
+                    <div id="editor-root-cause" class="quill-editor" x-show="!useMarkdown"></div>
+                    <textarea id="md-root-cause"
+                              x-show="useMarkdown"
+                              @input="syncMd('root_cause', $event.target.value)"
+                              placeholder="Describe the root cause..."
+                              rows="6"
+                              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                              style="display:none; min-height:160px"></textarea>
                 </div>
 
                 <!-- Solution / Additional Information -->
@@ -302,7 +344,14 @@
                         <span x-show="articleType === 'Issue'" class="text-red-700">*</span>
                     </h3>
                     {{ form.solution }}
-                    <div id="editor-solution" class="quill-editor"></div>
+                    <div id="editor-solution" class="quill-editor" x-show="!useMarkdown"></div>
+                    <textarea id="md-solution"
+                              x-show="useMarkdown"
+                              @input="syncMd('solution', $event.target.value)"
+                              placeholder="Step-by-step resolution..."
+                              rows="10"
+                              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                              style="display:none; min-height:240px"></textarea>
                 </div>
 
                 <!-- Attachments -->
@@ -674,6 +723,7 @@ function kbForm() {
     return {
         editors: {},
         articleType: 'Issue',
+        useMarkdown: false,
         tags: [],
         newTag: '',
 
@@ -698,6 +748,32 @@ function kbForm() {
             }
         },
 
+        toggleMarkdown() {
+            this.useMarkdown = !this.useMarkdown;
+            const cb = document.getElementById('id_use_markdown');
+            if (cb) cb.checked = this.useMarkdown;
+
+            if (this.useMarkdown) {
+                // Populate markdown textareas from hidden field values
+                [
+                    ['md-problem-summary', 'id_problem_summary'],
+                    ['md-root-cause',      'id_root_cause'],
+                    ['md-solution',        'id_solution'],
+                ].forEach(([mdId, hiddenId]) => {
+                    const md = document.getElementById(mdId);
+                    const hid = document.getElementById(hiddenId);
+                    if (md && hid) md.value = hid.value;
+                });
+            }
+        },
+
+        syncMd(field, value) {
+            // Sync markdown textarea value to the hidden form field
+            const hiddenId = { problem_summary: 'id_problem_summary', root_cause: 'id_root_cause', solution: 'id_solution' }[field];
+            const hid = document.getElementById(hiddenId);
+            if (hid) hid.value = value;
+        },
+
         init() {
             // Handle Type Toggle
             const typeSelect = document.getElementById('id_article_type');
@@ -706,6 +782,12 @@ function kbForm() {
                 typeSelect.addEventListener('change', (e) => {
                     this.articleType = e.target.value;
                 });
+            }
+
+            // Init markdown mode from the hidden checkbox
+            const useMarkdownCb = document.getElementById('id_use_markdown');
+            if (useMarkdownCb) {
+                this.useMarkdown = useMarkdownCb.checked;
             }
 
             // Init Tags
@@ -845,16 +927,46 @@ function kbForm() {
                 this.editors[field.id] = quill;
             });
 
-            // Sync before submit — read directly from DOM to preserve inline styles
-            document.getElementById('articleForm').addEventListener('submit', () => {
-                fields.forEach(field => {
-                    const quill = this.editors[field.id];
-                    const hiddenInput = document.getElementById(field.hidden);
-                    if (quill && hiddenInput) {
-                        const html = quill.root.innerHTML;
-                        hiddenInput.value = (html === '<p><br></p>') ? '' : html;
-                    }
+            // Pre-fill markdown textareas when editing an article with use_markdown=True
+            if (this.useMarkdown) {
+                [
+                    ['md-problem-summary', 'id_problem_summary'],
+                    ['md-root-cause',      'id_root_cause'],
+                    ['md-solution',        'id_solution'],
+                ].forEach(([mdId, hiddenId]) => {
+                    const md = document.getElementById(mdId);
+                    const hid = document.getElementById(hiddenId);
+                    if (md && hid) md.value = hid.value;
                 });
+            }
+
+            // Sync before submit
+            document.getElementById('articleForm').addEventListener('submit', () => {
+                if (this.useMarkdown) {
+                    // In markdown mode: sync visible textareas → hidden fields
+                    [
+                        ['md-problem-summary', 'id_problem_summary'],
+                        ['md-root-cause',      'id_root_cause'],
+                        ['md-solution',        'id_solution'],
+                    ].forEach(([mdId, hiddenId]) => {
+                        const md = document.getElementById(mdId);
+                        const hid = document.getElementById(hiddenId);
+                        if (md && hid) hid.value = md.value;
+                    });
+                } else {
+                    // In Quill mode: read directly from DOM to preserve inline styles
+                    fields.forEach(field => {
+                        const quill = this.editors[field.id];
+                        const hiddenInput = document.getElementById(field.hidden);
+                        if (quill && hiddenInput) {
+                            const html = quill.root.innerHTML;
+                            hiddenInput.value = (html === '<p><br></p>') ? '' : html;
+                        }
+                    });
+                }
+                // Keep use_markdown checkbox in sync
+                const cb = document.getElementById('id_use_markdown');
+                if (cb) cb.checked = this.useMarkdown;
             });
         }
     };

@@ -123,6 +123,13 @@ class Article(AuditableModel):
         help_text="Step-by-step resolution procedure.",
     )
 
+    # Editor mode
+    use_markdown = models.BooleanField(
+        default=False,
+        verbose_name="Use Markdown",
+        help_text="When enabled, content fields are stored as Markdown and rendered as formatted HTML.",
+    )
+
     # Comments
     allow_comments = models.BooleanField(
         default=True,
