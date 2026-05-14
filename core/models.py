@@ -153,6 +153,13 @@ class User(AbstractUser):
         help_text="Force this user to change their password on next login.",
     )
 
+    timezone = models.CharField(
+        max_length=64,
+        default="Asia/Jakarta",
+        verbose_name="Timezone",
+        help_text="User's local timezone for displaying dates and times.",
+    )
+
     # --- Auth configuration ---
     USERNAME_FIELD = "login_username"
     REQUIRED_FIELDS = ["username", "email"]

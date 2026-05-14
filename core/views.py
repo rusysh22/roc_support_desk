@@ -338,6 +338,18 @@ def profile_view(request):
             messages.success(request, "Profile updated successfully.")
             return redirect('profile')
 
+        elif action == 'timezone':
+            import zoneinfo
+            new_tz = request.POST.get('timezone', '').strip()
+            try:
+                zoneinfo.ZoneInfo(new_tz)
+                user.timezone = new_tz
+                user.save(update_fields=['timezone'])
+                messages.success(request, f"Timezone updated to {new_tz}.")
+            except Exception:
+                messages.error(request, "Invalid timezone selected.")
+            return redirect('profile')
+
         elif action == 'password':
             current = request.POST.get('current_password', '')
             new_pw  = request.POST.get('new_password', '')
@@ -357,7 +369,32 @@ def profile_view(request):
                 messages.success(request, "Password changed successfully.")
             return redirect('profile')
 
-    return render(request, 'core/profile.html', {'profile_user': user})
+    timezone_choices = [
+        # Indonesia
+        ("Asia/Jakarta",      "WIB — Jakarta, Sumatera, Jawa, Kalbar (UTC+7)"),
+        ("Asia/Makassar",     "WITA — Bali, NTB, Sulawesi, Kalteng (UTC+8)"),
+        ("Asia/Jayapura",     "WIT — Papua, Maluku (UTC+9)"),
+        # Southeast Asia
+        ("Asia/Singapore",    "SGT — Singapore (UTC+8)"),
+        ("Asia/Kuala_Lumpur", "MYT — Kuala Lumpur, Malaysia (UTC+8)"),
+        ("Asia/Bangkok",      "ICT — Bangkok, Thailand (UTC+7)"),
+        ("Asia/Manila",       "PHT — Manila, Philippines (UTC+8)"),
+        ("Asia/Ho_Chi_Minh",  "ICT — Ho Chi Minh, Vietnam (UTC+7)"),
+        # East Asia
+        ("Asia/Hong_Kong",    "HKT — Hong Kong (UTC+8)"),
+        ("Asia/Shanghai",     "CST — Shanghai, Beijing, China (UTC+8)"),
+        ("Asia/Taipei",       "CST — Taipei, Taiwan (UTC+8)"),
+        ("Asia/Tokyo",        "JST — Tokyo, Japan (UTC+9)"),
+        ("Asia/Seoul",        "KST — Seoul, South Korea (UTC+9)"),
+        # Other
+        ("UTC",               "UTC — Coordinated Universal Time (UTC+0)"),
+        ("Asia/Dubai",        "GST — Dubai, UAE (UTC+4)"),
+        ("Europe/London",     "GMT/BST — London, UK (UTC+0/+1)"),
+    ]
+    return render(request, 'core/profile.html', {
+        'profile_user': user,
+        'timezone_choices': timezone_choices,
+    })
 
 
 def help_and_about(request):

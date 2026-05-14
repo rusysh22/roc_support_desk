@@ -286,11 +286,11 @@
                     </div>
                     <button type="button"
                             @click="toggleMarkdown()"
-                            class="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
-                            :class="useMarkdown ? 'bg-indigo-600' : 'bg-slate-300'"
+                            class="relative flex-shrink-0 w-12 h-6 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                            :class="useMarkdown ? 'bg-indigo-600 shadow-inner' : 'bg-slate-200'"
                             role="switch" :aria-checked="useMarkdown.toString()">
-                        <span class="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
-                              :class="useMarkdown ? 'left-6' : 'left-1'"></span>
+                        <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ease-in-out"
+                              :class="useMarkdown ? 'translate-x-6' : 'translate-x-0'"></span>
                     </button>
                 </div>
                 {{ form.use_markdown }}

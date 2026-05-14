@@ -467,6 +467,19 @@
 
     {% block extra_scripts %}{% endblock %}
 
+    {# ── Browser timezone cookie — lets TimezoneMiddleware serve anonymous users in their local time ── #}
+    <script>
+    (function () {
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz) {
+                document.cookie = 'browser_timezone=' + encodeURIComponent(tz)
+                    + '; path=/; SameSite=Lax; max-age=86400';
+            }
+        } catch (e) {}
+    })();
+    </script>
+
     {# ── Floating Chat Widget — service portal pages only ── #}
     {# Whitelist: only show on client-facing portal URLs, never on auth/desk/admin/license pages #}
     {% with path=request.path %}

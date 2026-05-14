@@ -3,12 +3,53 @@ Core App — Middleware
 ======================
 Custom middlewares for RoC Desk.
 """
+import zoneinfo
+
 from django.conf import settings
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect
 from django.urls import resolve
+from django.utils import timezone as tz
 
 from .models import SiteConfig
+
+_DEFAULT_TZ = "Asia/Jakarta"
+
+
+class TimezoneMiddleware:
+    """
+    Activates the requesting user's preferred timezone for each request
+    so that all Django template date/time filters render in local time.
+
+    Priority order:
+      1. Authenticated user's saved ``timezone`` field
+      2. ``browser_timezone`` cookie (set by client-side JS for anonymous users)
+      3. DEFAULT_TZ fallback (Asia/Jakarta)
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        tz_name = None
+
+        if request.user.is_authenticated:
+            tz_name = getattr(request.user, "timezone", None)
+
+        if not tz_name:
+            tz_name = request.COOKIES.get("browser_timezone")
+
+        if not tz_name:
+            tz_name = _DEFAULT_TZ
+
+        try:
+            tz.activate(zoneinfo.ZoneInfo(tz_name))
+        except (zoneinfo.ZoneInfoNotFoundError, KeyError, Exception):
+            tz.activate(zoneinfo.ZoneInfo(_DEFAULT_TZ))
+
+        response = self.get_response(request)
+        tz.deactivate()
+        return response
 
 
 class ContentSecurityPolicyMiddleware:

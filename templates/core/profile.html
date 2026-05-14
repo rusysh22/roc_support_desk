@@ -189,6 +189,37 @@
 
     </div>
 
+    {# ─── Timezone Preference ──────────────────────────────────────── #}
+    <div class="jk-card mt-6">
+        <div class="jk-card-header flex items-center gap-2">
+            <span>🌏</span>
+            <span class="font-bold text-slate-800">Timezone Preference</span>
+        </div>
+        <div class="jk-card-body">
+            <p class="text-sm text-slate-500 mb-4">
+                All dates and times across the system will display in your selected timezone.
+            </p>
+            <form method="POST" class="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="timezone">
+                <div class="flex-1 w-full">
+                    <label class="jk-label mb-1.5 block" for="timezone_select">Your Timezone</label>
+                    <select id="timezone_select" name="timezone" class="jk-input w-full">
+                        {% for tz_val, tz_label in timezone_choices %}
+                        <option value="{{ tz_val }}" {% if tz_val == profile_user.timezone %}selected{% endif %}>
+                            {{ tz_label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-slate-400 mt-1.5" id="tz-browser-hint"></p>
+                </div>
+                <button type="submit" class="jk-btn jk-btn-primary whitespace-nowrap">
+                    🌐 Save Timezone
+                </button>
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -215,5 +246,38 @@ function checkPwMatch() {
     if (np === cp) { msg.textContent = '✓ Passwords match'; msg.style.color = '#22c55e'; }
     else           { msg.textContent = '✗ Passwords do not match'; msg.style.color = '#ef4444'; }
 }
+
+// Show browser-detected timezone as a hint on the timezone selector
+(function () {
+    try {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const hint     = document.getElementById('tz-browser-hint');
+        const select   = document.getElementById('timezone_select');
+        if (!hint || !detected) return;
+
+        const savedTz = select ? select.value : '';
+        if (detected !== savedTz) {
+            hint.textContent = '🌐 Your browser is set to: ' + detected;
+            hint.style.color = '#6366f1';
+            // If an option matching the browser TZ exists, show a quick-apply link
+            const match = select ? Array.from(select.options).find(o => o.value === detected) : null;
+            if (match) {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.textContent = ' — apply';
+                link.style.cssText = 'color:#6366f1;font-weight:600;text-decoration:underline;margin-left:2px';
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    select.value = detected;
+                    hint.textContent = '✓ ' + detected + ' selected — click Save Timezone to confirm.';
+                });
+                hint.appendChild(link);
+            }
+        } else {
+            hint.textContent = '✓ Matches your browser timezone.';
+            hint.style.color = '#22c55e';
+        }
+    } catch (e) {}
+})();
 </script>
 {% endblock %}
