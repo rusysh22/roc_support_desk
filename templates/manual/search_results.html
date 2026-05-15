@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search: {{ query }} — {{ site_config.site_name|default:"RoC Desk" }}</title>
+    {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 2px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-6 h-14 flex items-center gap-4">
+            <a href="{% url 'manual:landing' %}" class="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <span class="text-slate-200">|</span>
+            <div class="relative flex-1 max-w-md">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                </svg>
+                <form method="GET" action="{% url 'manual:search' %}">
+                    <input id="pageSearchInput" name="q" type="text" value="{{ query }}" placeholder="Search again…"
+                           autocomplete="off"
+                           class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">
+                </form>
+            </div>
+            <span class="text-xs text-slate-400 flex-shrink-0 hidden sm:block">
+                {% if results %}{{ results|length }} result{{ results|length|pluralize }}{% endif %}
+            </span>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-6 py-8">
+
+        {% if query %}
+        <h1 class="text-lg font-black text-slate-800 mb-1">
+            Search results for "<span class="text-indigo-600">{{ query }}</span>"
+        </h1>
+        <p class="text-xs text-slate-400 mb-6">
+            {% if results %}{{ results|length }} result{{ results|length|pluralize }} found{% else %}No results found{% endif %}
+        </p>
+        {% endif %}
+
+        {% if results %}
+        <div class="space-y-3">
+            {% for r in results %}
+            <a href="{{ r.url }}"
+               class="flex items-start gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
+                <span class="text-2xl flex-shrink-0 mt-0.5">{{ r.icon|default:r.manual_icon|default:"📄" }}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-slate-800 group-hover:text-indigo-700 transition-colors text-sm">
+                            {{ r.title }}
+                        </span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full
+                            {% if r.type == 'manual' %}bg-indigo-100 text-indigo-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">
+                            {{ r.type }}
+                        </span>
+                        {% if r.manual_title %}
+                        <span class="text-xs text-slate-400">in {{ r.manual_title }}</span>
+                        {% endif %}
+                    </div>
+                    {% if r.subtitle %}
+                    <p class="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{{ r.subtitle }}</p>
+                    {% endif %}
+                </div>
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 flex-shrink-0 mt-1 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                </svg>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% elif query %}
+        <div class="text-center py-20">
+            <div class="text-5xl mb-4">🔍</div>
+            <h2 class="text-lg font-bold text-slate-700 mb-2">No results found</h2>
+            <p class="text-sm text-slate-400">Try different keywords or check the spelling.</p>
+            <a href="{% url 'manual:landing' %}" class="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                Browse all manuals
+            </a>
+        </div>
+        {% else %}
+        <div class="text-center py-20 text-slate-400 text-sm">Enter a search query above.</div>
+        {% endif %}
+
+    </div>
+</body>
+</html>

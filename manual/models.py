@@ -5,7 +5,7 @@ from django.utils.text import slugify
 
 
 class ManualLandingConfig(models.Model):
-    """Singleton: controls the hero section text on the User Manual landing page."""
+    """Singleton: controls the hero section on the User Manual landing page."""
     hero_title = models.CharField(
         max_length=200,
         default="Documentation & User Guide",
@@ -13,6 +13,12 @@ class ManualLandingConfig(models.Model):
     hero_subtitle = models.TextField(
         blank=True,
         default="Select an application manual to get started.",
+    )
+    hero_image = models.ImageField(
+        upload_to="manual/hero/",
+        blank=True,
+        null=True,
+        help_text="Optional background image for the landing page hero section.",
     )
     updated_at = models.DateTimeField(auto_now=True)
 

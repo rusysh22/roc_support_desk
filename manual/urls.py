@@ -7,6 +7,7 @@ app_name = "manual"
 urlpatterns = [
     # Public landing
     path("", views.landing, name="landing"),
+    path("search/", views.search, name="search"),
 
     # Editor
     path("manage/", views.manage_list, name="manage_list"),

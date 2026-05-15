@@ -20,7 +20,7 @@ class ManualAdmin(admin.ModelAdmin):
 
 @admin.register(ManualLandingConfig)
 class ManualLandingConfigAdmin(admin.ModelAdmin):
-    fields = ("hero_title", "hero_subtitle")
+    fields = ("hero_title", "hero_subtitle", "hero_image")
 
 
 @admin.register(ManualPage)

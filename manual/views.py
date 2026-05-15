@@ -3,6 +3,7 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -106,6 +107,14 @@ def manage_list(request):
             config = ManualLandingConfig.get_solo()
             config.hero_title = request.POST.get("hero_title", "").strip() or config.hero_title
             config.hero_subtitle = request.POST.get("hero_subtitle", "").strip()
+            if request.POST.get("clear_hero_image") == "1":
+                if config.hero_image:
+                    config.hero_image.delete(save=False)
+                config.hero_image = None
+            elif "hero_image" in request.FILES:
+                if config.hero_image:
+                    config.hero_image.delete(save=False)
+                config.hero_image = request.FILES["hero_image"]
             config.save()
             messages.success(request, "Landing page hero updated.")
         return redirect("manual:manage_list")
@@ -272,6 +281,91 @@ def page_edit(request, manual_slug, page_id=None):
 @login_required
 def page_new(request, manual_slug):
     return page_edit(request, manual_slug, page_id=None)
+
+
+def _extract_text_from_node(node):
+    """Recursively extract plain text from a TipTap JSON node."""
+    if not node or not isinstance(node, dict):
+        return ""
+    text = node.get("text", "")
+    for child in node.get("content", []) or []:
+        text += " " + _extract_text_from_node(child)
+    return text.strip()
+
+
+def _snippet(text, query, window=80):
+    """Return a short snippet of text around the first occurrence of query."""
+    lower = text.lower()
+    idx = lower.find(query.lower())
+    if idx == -1:
+        return text[:window * 2].strip()
+    start = max(0, idx - window // 2)
+    end = min(len(text), idx + len(query) + window // 2)
+    snippet = text[start:end].strip()
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet = snippet + "…"
+    return snippet
+
+
+def search(request):
+    gate = _require_login_if_configured(request)
+    if gate:
+        return gate
+
+    query = request.GET.get("q", "").strip()
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    results = []
+    if query:
+        can_edit = _can_edit(request.user)
+
+        manual_qs = Manual.objects.all() if can_edit else Manual.objects.filter(is_published=True)
+        page_qs = ManualPage.objects.select_related("manual") if can_edit else (
+            ManualPage.objects.select_related("manual").filter(
+                is_published=True,
+                manual__is_published=True,
+            )
+        )
+
+        matched_manuals = manual_qs.filter(
+            Q(title__icontains=query) | Q(description__icontains=query)
+        ).order_by("order", "title")[:5]
+
+        matched_pages = page_qs.filter(
+            Q(title__icontains=query) | Q(content__icontains=query)
+        ).order_by("manual__order", "order", "title")[:20]
+
+        for m in matched_manuals:
+            results.append({
+                "type": "manual",
+                "title": m.title,
+                "subtitle": m.description[:100] if m.description else "",
+                "url": f"/manual/{m.slug}/",
+                "icon": m.icon,
+            })
+
+        for p in matched_pages:
+            body_text = _extract_text_from_node(p.content)
+            snippet = _snippet(body_text, query) if body_text else ""
+            results.append({
+                "type": "page",
+                "title": p.title,
+                "subtitle": snippet,
+                "manual_title": p.manual.title,
+                "manual_icon": p.manual.icon,
+                "url": f"/manual/{p.manual.slug}/page/{p.pk}/",
+            })
+
+    if is_ajax:
+        return JsonResponse({"results": results[:10], "query": query})
+
+    return render(request, "manual/search_results.html", {
+        "query": query,
+        "results": results,
+        "manual_config": ManualLandingConfig.get_solo(),
+    })
 
 
 @login_required
