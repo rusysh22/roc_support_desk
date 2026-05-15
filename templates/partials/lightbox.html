@@ -1,43 +1,65 @@
 <style>
-  .jk-lightbox { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); opacity:0; visibility:hidden; transition:opacity .2s,visibility .2s; }
+  .jk-lightbox { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.88); opacity:0; visibility:hidden; transition:opacity .2s,visibility .2s; }
   .jk-lightbox.active { opacity:1; visibility:visible; }
-  .jk-lightbox__img { width:100%; height:100%; max-width:90vw; max-height:calc(100vh - 160px); object-fit:contain; border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.4); }
-  .jk-lightbox__close { position:absolute; top:1rem; right:1rem; width:2.5rem; height:2.5rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; font-size:1.5rem; cursor:pointer; transition:background .15s; }
+
+  /* Image — constrained to viewport, never forced to fill container */
+  .jk-lightbox__img { display:block; max-width:88vw; max-height:calc(100vh - 180px); width:auto; height:auto; object-fit:contain; border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,.5); cursor:zoom-in; }
+
+  /* Close button */
+  .jk-lightbox__close { position:absolute; top:1rem; right:1rem; width:2.5rem; height:2.5rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; font-size:1.5rem; cursor:pointer; transition:background .15s; z-index:1; }
   .jk-lightbox__close:hover { background:rgba(255,255,255,.3); }
-  .jk-lightbox__nav { position:absolute; top:50%; transform:translateY(-50%); width:2.75rem; height:2.75rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; cursor:pointer; transition:background .15s; }
+
+  /* Prev/next — vertically centered in the whole overlay */
+  .jk-lightbox__nav { position:absolute; top:50%; transform:translateY(-50%); width:2.75rem; height:2.75rem; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.15); border:none; border-radius:50%; color:#fff; cursor:pointer; transition:background .15s; z-index:1; }
   .jk-lightbox__nav:hover { background:rgba(255,255,255,.3); }
   .jk-lightbox__nav--prev { left:1rem; } .jk-lightbox__nav--next { right:1rem; }
-  .jk-lightbox__main { display:flex; align-items:center; justify-content:center; width:100%; height:calc(100% - 100px); padding:3rem 4rem; }
-  .jk-lightbox__zoom-controls { position:absolute; bottom:5rem; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,.5); border-radius:2rem; padding:0.4rem 0.9rem; }
-  .jk-lightbox__zoom-controls button { background:none; border:none; color:#fff; cursor:pointer; display:flex; align-items:center; opacity:.8; transition:opacity .15s; padding:0.2rem; }
+
+  /* Main image area — flex child, fills available space */
+  .jk-lightbox__main { flex:1; display:flex; align-items:center; justify-content:center; width:100%; padding:3.5rem 4.5rem 1rem; overflow:hidden; min-height:0; }
+
+  /* Bottom bar: counter + zoom controls in one row */
+  .jk-lightbox__bottom { display:flex; flex-direction:column; align-items:center; gap:0.5rem; padding:0.75rem 1rem 0; flex-shrink:0; }
+  .jk-lightbox__counter { color:rgba(255,255,255,.6); font-size:0.8rem; }
+  .jk-lightbox__zoom-controls { display:flex; align-items:center; gap:0.5rem; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:2rem; padding:0.35rem 0.85rem; }
+  .jk-lightbox__zoom-controls button { background:none; border:none; color:#fff; cursor:pointer; display:flex; align-items:center; opacity:.75; transition:opacity .15s; padding:0.2rem; }
   .jk-lightbox__zoom-controls button:hover { opacity:1; }
   #jk-lightbox-zoom-level { color:rgba(255,255,255,.85); font-size:0.8rem; min-width:2.5rem; text-align:center; }
-  .jk-lightbox__filename { position:absolute; top:1rem; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.8); font-size:0.8rem; max-width:60vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .jk-lightbox__counter { position:absolute; bottom:5.5rem; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.7); font-size:0.875rem; }
-  .jk-lightbox__strip { position:absolute; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.75rem 1rem; background:rgba(0,0,0,.6); backdrop-filter:blur(8px); overflow-x:auto; }
-  .jk-lightbox__strip-thumb { width:52px; height:52px; object-fit:cover; border-radius:5px; cursor:pointer; border:2px solid transparent; opacity:.5; transition:opacity .15s,border-color .15s; flex-shrink:0; }
+
+  /* Filename */
+  .jk-lightbox__filename { position:absolute; top:1rem; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.75); font-size:0.8rem; max-width:60vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:rgba(0,0,0,.35); padding:0.2rem 0.75rem; border-radius:999px; }
+
+  /* Thumbnail strip */
+  .jk-lightbox__strip { width:100%; display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.6rem 1rem; background:rgba(0,0,0,.5); overflow-x:auto; flex-shrink:0; }
+  .jk-lightbox__strip-thumb { width:48px; height:48px; object-fit:cover; border-radius:5px; cursor:pointer; border:2px solid transparent; opacity:.5; transition:opacity .15s,border-color .15s; flex-shrink:0; }
   .jk-lightbox__strip-thumb:hover { opacity:.8; }
   .jk-lightbox__strip-thumb.active { opacity:1; border-color:#6366f1; }
 </style>
 
 <div class="jk-lightbox" id="jk-lightbox" onclick="closeLightboxOutside(event)">
   <button class="jk-lightbox__close" onclick="closeLightbox()" title="Close (Esc)">&times;</button>
+  <span class="jk-lightbox__filename" id="jk-lightbox-name"></span>
+
   <button class="jk-lightbox__nav jk-lightbox__nav--prev" onclick="navigateLightbox(-1)" title="Prev">
     <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
   </button>
+
   <div class="jk-lightbox__main" id="jk-lightbox-main">
     <img class="jk-lightbox__img" id="jk-lightbox-img" src="" alt="">
   </div>
+
   <button class="jk-lightbox__nav jk-lightbox__nav--next" onclick="navigateLightbox(1)" title="Next">
     <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
   </button>
-  <div class="jk-lightbox__zoom-controls">
-    <button onclick="zoomLightbox(-1)" title="Zoom Out"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg></button>
-    <span id="jk-lightbox-zoom-level">100%</span>
-    <button onclick="zoomLightbox(1)" title="Zoom In"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg></button>
+
+  <div class="jk-lightbox__bottom">
+    <span class="jk-lightbox__counter" id="jk-lightbox-counter"></span>
+    <div class="jk-lightbox__zoom-controls">
+      <button onclick="zoomLightbox(-1)" title="Zoom Out"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg></button>
+      <span id="jk-lightbox-zoom-level">100%</span>
+      <button onclick="zoomLightbox(1)" title="Zoom In"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg></button>
+    </div>
   </div>
-  <span class="jk-lightbox__filename" id="jk-lightbox-name"></span>
-  <span class="jk-lightbox__counter" id="jk-lightbox-counter"></span>
+
   <div class="jk-lightbox__strip" id="jk-lightbox-strip"></div>
 </div>
 
@@ -60,6 +82,7 @@
 
       function applyTransform() {
         img.style.transform = 'scale('+zoomLevel+') translate('+(panX/zoomLevel)+'px,'+(panY/zoomLevel)+'px)';
+        img.style.cursor = zoomLevel > 1 ? 'grab' : 'zoom-in';
         zoomEl.textContent = Math.round(zoomLevel * 100) + '%';
       }
       function resetTransform() { zoomLevel = 1; panX = 0; panY = 0; applyTransform(); }
@@ -116,7 +139,7 @@
         resetTransform();
       };
       window.closeLightboxOutside = function(e) {
-        if (e.target === box || (e.target === mainEl && zoomLevel <= 1)) closeLightbox();
+        if (e.target === box || e.target === mainEl) closeLightbox();
       };
       window.navigateLightbox = function(dir) {
         currentIdx = (currentIdx + dir + gallery.length) % gallery.length;
@@ -133,14 +156,14 @@
         if (zoomLevel <= 1) return;
         e.preventDefault(); isPanning = true;
         panStartX = e.clientX - panX; panStartY = e.clientY - panY;
-        img.style.cursor = 'grabbing';
+        img.style.cursor = 'grabbing'; e.stopPropagation();
       });
       document.addEventListener('mousemove', function(e) {
         if (!isPanning) return;
         panX = e.clientX - panStartX; panY = e.clientY - panStartY; applyTransform();
       });
       document.addEventListener('mouseup', function() {
-        if (isPanning) { isPanning = false; img.style.cursor = zoomLevel > 1 ? 'grab' : ''; }
+        if (isPanning) { isPanning = false; img.style.cursor = zoomLevel > 1 ? 'grab' : 'zoom-in'; }
       });
 
       var lastTouchDist = 0;
