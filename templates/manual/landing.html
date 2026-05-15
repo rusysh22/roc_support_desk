@@ -90,29 +90,7 @@
             opacity: 1; transform: translateX(0);
         }
 
-        /* Search bar */
-        .search-wrap { position: relative; width: 100%; max-width: 520px; margin: 0 auto; }
-        .search-input {
-            width: 100%;
-            background: rgba(255,255,255,.15);
-            border: 1.5px solid rgba(255,255,255,.3);
-            border-radius: 12px;
-            padding: 10px 16px 10px 42px;
-            color: #fff;
-            font-size: 14px;
-            outline: none;
-            transition: background .2s, border-color .2s;
-            backdrop-filter: blur(6px);
-        }
-        .search-input::placeholder { color: rgba(255,255,255,.55); }
-        .search-input:focus {
-            background: rgba(255,255,255,.22);
-            border-color: rgba(255,255,255,.55);
-        }
-        .search-icon {
-            position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
-            width: 16px; height: 16px; color: rgba(255,255,255,.6); pointer-events: none;
-        }
+        /* Search dropdown */
         .search-dropdown {
             position: absolute; top: calc(100% + 6px); left: 0; right: 0;
             background: #fff; border-radius: 14px;
@@ -216,25 +194,14 @@
             </h1>
 
             {% if manual_config.hero_subtitle %}
-            <p class="text-indigo-200 text-base md:text-lg max-w-xl leading-relaxed mb-8">
+            <p class="text-indigo-200 text-base md:text-lg max-w-xl leading-relaxed">
                 {{ manual_config.hero_subtitle }}
             </p>
             {% endif %}
 
-            {# Hero search bar #}
-            <div class="search-wrap" id="heroSearch">
-                <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
-                </svg>
-                <input id="heroSearchInput" type="text" class="search-input" placeholder="Search manuals, pages, or content…" autocomplete="off">
-                <div id="heroSearchDropdown" class="search-dropdown">
-                    <div id="heroSearchResults"></div>
-                </div>
-            </div>
-
             {# Stats strip #}
             {% if manuals %}
-            <div class="mt-6 flex items-center gap-3">
+            <div class="mt-8 flex items-center gap-3">
                 <div class="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5">
                     <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span class="text-white/80 text-xs font-semibold">{{ manuals.count }} manual{{ manuals.count|pluralize }} available</span>
@@ -386,7 +353,6 @@
         });
     }
 
-    setupSearch('heroSearchInput', 'heroSearchResults', 'heroSearchDropdown');
     setupSearch('headerSearchInput', 'headerSearchResults', 'headerSearchDropdown');
 })();
 </script>

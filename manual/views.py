@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.models import SiteConfig
@@ -342,7 +343,7 @@ def search(request):
                 "type": "manual",
                 "title": m.title,
                 "subtitle": m.description[:100] if m.description else "",
-                "url": f"/manual/{m.slug}/",
+                "url": reverse("manual:viewer", kwargs={"manual_slug": m.slug}),
                 "icon": m.icon,
             })
 
@@ -355,7 +356,7 @@ def search(request):
                 "subtitle": snippet,
                 "manual_title": p.manual.title,
                 "manual_icon": p.manual.icon,
-                "url": f"/manual/{p.manual.slug}/page/{p.pk}/",
+                "url": reverse("manual:viewer_page", kwargs={"manual_slug": p.manual.slug, "page_id": p.pk}),
             })
 
     if is_ajax:
