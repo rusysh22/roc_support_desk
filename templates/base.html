@@ -1174,7 +1174,8 @@
           if (isAttachment && data.is_image) {
             contentHtml = `<img src="${this.escAttr(data.file_url)}" alt="${this.escAttr(data.filename)}"
               class="rounded-lg mt-1 cursor-zoom-in" style="max-width:100%;max-height:140px;object-fit:cover;"
-              loading="lazy" onclick="window.open('${this.escAttr(data.file_url)}','_blank')">`;
+              loading="lazy" data-lightbox-src="${this.escAttr(data.file_url)}" data-lightbox-name="${this.escAttr(data.filename)}"
+              onclick="if(window.openLightbox) openLightbox(this); else window.open('${this.escAttr(data.file_url)}','_blank')">`;
           } else if (isAttachment) {
             contentHtml = `<a href="${this.escAttr(data.file_url)}" target="_blank" rel="noopener noreferrer"
               class="flex items-center gap-1.5 mt-1 bg-black/10 hover:bg-black/20 rounded-lg px-2.5 py-1.5 text-[11px] transition-colors">
@@ -1329,7 +1330,8 @@
               const alt = (attrs.match(/alt="([^"]*)"/) || [])[1] || '';
               return `<img src="${src}" alt="${this.escAttr(alt)}" loading="lazy"
                 class="rounded-lg mt-1 cursor-zoom-in" style="max-width:100%;max-height:140px;object-fit:cover;"
-                onclick="window.open('${src}','_blank')">`;
+                data-lightbox-src="${src}" data-lightbox-name="${this.escAttr(alt)}"
+                onclick="if(window.openLightbox) openLightbox(this); else window.open('${src}','_blank')">`;
             });
           }
           return this.escHtml(body).replace(
@@ -1530,5 +1532,6 @@
         })();
     </script>
     {% endif %}
+    {% include "partials/lightbox.html" %}
 </body>
 </html>

@@ -165,14 +165,28 @@ def _leaf_categories():
 def _strip_exif(uploaded_file):
     """Return a BytesIO of the image with EXIF stripped. Falls back to original."""
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         img = Image.open(uploaded_file)
+        
+        # Apply EXIF rotation before stripping so it doesn't display sideways
+        img = ImageOps.exif_transpose(img)
+        
         buf = io.BytesIO()
         fmt = img.format or "JPEG"
-        # Re-save without metadata
-        clean = Image.new(img.mode, img.size)
-        clean.putdata(list(img.getdata()))
-        clean.save(buf, format=fmt)
+        
+        # JPEG doesn't support RGBA or P; convert to RGB to avoid save crashes or black boxes
+        if fmt.upper() in ("JPEG", "JPG") and img.mode != "RGB":
+            # If it has alpha channel, paste it on a white background
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGBA")
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])
+                img = background
+            else:
+                img = img.convert("RGB")
+                
+        # Saving without passing exif= parameter automatically drops EXIF
+        img.save(buf, format=fmt)
         buf.seek(0)
         return buf
     except Exception:
