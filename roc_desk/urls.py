@@ -90,6 +90,9 @@ urlpatterns = [
 
     # User Manual
     path("usermanual/", include("manual.urls", namespace="manual")),
+
+    # App Portal
+    path("apps/", include("app_portal.urls", namespace="app_portal")),
 ]
 
 # Custom Error Handlers

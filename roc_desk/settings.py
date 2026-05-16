@@ -70,6 +70,8 @@ INSTALLED_APPS = [
     "licensing.apps.LicensingConfig",
     # User Manual
     "manual.apps.ManualConfig",
+    # App Portal
+    "app_portal.apps.AppPortalConfig",
     # Field-level encryption
     "encrypted_model_fields",
 

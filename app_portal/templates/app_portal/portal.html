@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}App Portal — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}App Portal{% endblock %}
+{% block nav_app_portal %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ── Hero ────────────────────────────────────────────────────── */
+    .ap-hero {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+        border-radius: 1.25rem;
+        padding: 2.75rem 2.5rem;
+        margin-bottom: 2.5rem;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,.35);
+    }
+    .ap-hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+            radial-gradient(circle at 20% 50%, rgba(99,102,241,.18) 0%, transparent 55%),
+            radial-gradient(circle at 80% 20%, rgba(139,92,246,.15) 0%, transparent 45%),
+            radial-gradient(circle at 60% 85%, rgba(59,130,246,.10) 0%, transparent 40%);
+        pointer-events: none;
+    }
+    /* subtle dot-grid overlay */
+    .ap-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+        background-size: 28px 28px;
+        pointer-events: none;
+    }
+    .ap-hero-content { position: relative; z-index: 1; }
+    .ap-hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: #a5b4fc;
+        background: rgba(99,102,241,.15);
+        border: 1px solid rgba(99,102,241,.3);
+        border-radius: 999px;
+        padding: .25rem .75rem;
+        margin-bottom: 1rem;
+    }
+    .ap-hero h1 {
+        font-size: clamp(1.6rem, 3vw, 2.4rem);
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.15;
+        letter-spacing: -.02em;
+        margin-bottom: .6rem;
+    }
+    .ap-hero p {
+        font-size: .925rem;
+        color: #94a3b8;
+        max-width: 48ch;
+        line-height: 1.65;
+    }
+    .ap-hero-badge {
+        position: absolute;
+        right: 2.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        text-align: center;
+        display: none;
+    }
+    @media (min-width: 768px) { .ap-hero-badge { display: block; } }
+    .ap-hero-badge-count {
+        font-size: 3rem;
+        font-weight: 800;
+        color: rgba(255,255,255,.12);
+        line-height: 1;
+    }
+    .ap-hero-badge-label {
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.2);
+    }
+
+    /* ── Grid ────────────────────────────────────────────────────── */
+    .ap-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    /* ── Card ────────────────────────────────────────────────────── */
+    .ap-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1.125rem;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: transform .22s cubic-bezier(.34,1.56,.64,1),
+                    box-shadow .22s ease,
+                    border-color .22s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+    .ap-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 24px 48px -8px rgba(15,23,42,.18), 0 0 0 1px rgba(99,102,241,.15);
+        border-color: rgba(99,102,241,.3);
+        text-decoration: none;
+        color: inherit;
+    }
+
+    /* card header — colored gradient strip */
+    .ap-card-header {
+        position: relative;
+        padding: 1.75rem 1.5rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .75rem;
+        min-height: 7.5rem;
+    }
+    /* accent variants */
+    .ap-accent-indigo  { background: linear-gradient(145deg, #4338ca, #6366f1); }
+    .ap-accent-slate   { background: linear-gradient(145deg, #334155, #475569); }
+    .ap-accent-emerald { background: linear-gradient(145deg, #065f46, #10b981); }
+    .ap-accent-amber   { background: linear-gradient(145deg, #b45309, #f59e0b); }
+    .ap-accent-rose    { background: linear-gradient(145deg, #9f1239, #f43f5e); }
+    .ap-accent-sky     { background: linear-gradient(145deg, #0369a1, #38bdf8); }
+    .ap-accent-violet  { background: linear-gradient(145deg, #6d28d9, #a78bfa); }
+    .ap-accent-teal    { background: linear-gradient(145deg, #0f766e, #2dd4bf); }
+
+    .ap-card-icon-wrap {
+        width: 4rem;
+        height: 4rem;
+        background: rgba(255,255,255,.18);
+        border: 1.5px solid rgba(255,255,255,.3);
+        border-radius: .875rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.875rem;
+        backdrop-filter: blur(4px);
+        box-shadow: 0 4px 16px rgba(0,0,0,.15);
+        overflow: hidden;
+    }
+    .ap-card-icon-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: .375rem;
+    }
+    .ap-badge {
+        position: absolute;
+        top: .75rem;
+        right: .75rem;
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: #fff;
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .2rem .6rem;
+        backdrop-filter: blur(4px);
+    }
+
+    /* card body */
+    .ap-card-body {
+        padding: 1.25rem 1.5rem 1rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+    .ap-card-name {
+        font-size: 1.0625rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.3;
+        letter-spacing: -.01em;
+    }
+    .ap-card-desc {
+        font-size: .8125rem;
+        color: #64748b;
+        line-height: 1.6;
+        flex: 1;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* card footer */
+    .ap-card-footer {
+        padding: .875rem 1.5rem 1.125rem;
+        border-top: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+    .ap-roles-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem;
+        min-width: 0;
+    }
+    .ap-role-pill {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: #475569;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        padding: .2rem .55rem;
+        white-space: nowrap;
+    }
+    .ap-open-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .75rem;
+        font-weight: 700;
+        color: #4f46e5;
+        padding: .375rem .75rem;
+        border-radius: .5rem;
+        border: 1.5px solid rgba(99,102,241,.25);
+        background: rgba(99,102,241,.05);
+        transition: background .15s, border-color .15s, gap .15s;
+        white-space: nowrap;
+        text-decoration: none;
+    }
+    .ap-card:hover .ap-open-btn {
+        background: rgba(99,102,241,.1);
+        border-color: rgba(99,102,241,.4);
+        gap: .55rem;
+    }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .ap-empty {
+        text-align: center;
+        padding: 5rem 2rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1.125rem;
+    }
+    .ap-empty-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    .ap-empty h3 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: .375rem;
+    }
+    .ap-empty p {
+        font-size: .875rem;
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ───────────────────────────────────────────────────────── -->
+<div class="ap-hero">
+    <div class="ap-hero-content">
+        <div class="ap-hero-eyebrow">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Company App Portal
+        </div>
+        <h1>Akses Semua Aplikasi<br>dalam Satu Tempat</h1>
+        <p>
+            Temukan dan buka aplikasi perusahaan dengan cepat.
+            Setiap aplikasi telah dikurasi dan dikonfigurasi untuk kebutuhan tim.
+        </p>
+    </div>
+    <div class="ap-hero-badge">
+        <div class="ap-hero-badge-count">{{ entries|length }}</div>
+        <div class="ap-hero-badge-label">Applications</div>
+    </div>
+</div>
+
+<!-- ── App Grid ───────────────────────────────────────────────────── -->
+{% if entries %}
+<div class="ap-grid">
+    {% for app in entries %}
+    <a href="{{ app.url }}" target="_blank" rel="noopener noreferrer" class="ap-card">
+
+        <!-- Header with gradient + icon -->
+        <div class="ap-card-header ap-accent-{{ app.accent_color }}">
+            {% if app.badge_text %}
+            <span class="ap-badge">{{ app.badge_text }}</span>
+            {% endif %}
+            <div class="ap-card-icon-wrap">
+                {% if app.icon_image %}
+                    <img src="{{ app.icon_image.url }}" alt="{{ app.name }}">
+                {% else %}
+                    {{ app.icon_emoji }}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="ap-card-body">
+            <div class="ap-card-name">{{ app.name }}</div>
+            <p class="ap-card-desc">{{ app.description }}</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="ap-card-footer">
+            <div class="ap-roles-wrap">
+                {% for role in app.accessible_roles_display %}
+                <span class="ap-role-pill">{{ role }}</span>
+                {% endfor %}
+            </div>
+            <span class="ap-open-btn">
+                Buka
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M7 17L17 7M17 7H7M17 7v10"/>
+                </svg>
+            </span>
+        </div>
+
+    </a>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- Empty State -->
+<div class="ap-empty">
+    <div class="ap-empty-icon">🗂️</div>
+    <h3>Belum Ada Aplikasi</h3>
+    <p>Belum ada aplikasi yang tersedia untuk Anda.<br>Hubungi administrator untuk menambahkan aplikasi.</p>
+</div>
+{% endif %}
+
+{% endblock %}
