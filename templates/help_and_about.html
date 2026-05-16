@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.4.0</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.4.5</div>
                     </div>
                 </div>
 
@@ -281,7 +281,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.4.0
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.4.5
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -319,13 +319,28 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.4.0 -->
+                <!-- v1.4.5 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.4.5</span>
+                        <span class="text-xs text-slate-600">16 May 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>App Portal</strong> — A new dedicated page is now available in the sidebar for all logged-in users. It displays company applications as rich cards with name, description, accent color, logo or emoji icon, and an optional badge label (e.g. "New", "Beta"). Each card links directly to the application URL in a new tab.</li>
+                        <li><strong>App Portal: Role-based visibility</strong> — Each app card can be configured to be visible only to specific roles (Super Admin, Manager, Support Desk, Auditor, Portal User), or to all users. Users only see apps they are permitted to access.</li>
+                        <li><strong>App Portal: SuperAdmin CRUD</strong> — Super Admins can add, edit, and delete app entries directly from the portal page without leaving the UI. Edit and delete actions appear as hover buttons on each card. A modal form provides fields for name, description, URL, icon, badge, accent color, role access, display order, and active status.</li>
+                        <li><strong>App Portal: Luxury design</strong> — The page features a dark hero section with animated ambient glow orbs, shimmer text animation, staggered card entrance animations, per-accent hover glow shadows, and an icon lift effect on hover.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.4.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.4.0</span>
                         <span class="text-xs text-slate-600">14 May 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>User Manual</strong> — A new documentation section is now available, where staff can write and publish step-by-step guides for any application. Guides are organised into chapters and sub-chapters with no depth limit. Each page is written using a rich editor that supports headings, lists, images, tables, and embedded YouTube videos.</li>

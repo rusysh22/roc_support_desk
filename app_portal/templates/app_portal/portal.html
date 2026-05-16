@@ -6,348 +6,936 @@
 
 {% block extra_head %}
 <style>
-    /* ── Hero ────────────────────────────────────────────────────── */
-    .ap-hero {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-        border-radius: 1.25rem;
-        padding: 2.75rem 2.5rem;
-        margin-bottom: 2.5rem;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,.35);
-    }
-    .ap-hero::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image:
-            radial-gradient(circle at 20% 50%, rgba(99,102,241,.18) 0%, transparent 55%),
-            radial-gradient(circle at 80% 20%, rgba(139,92,246,.15) 0%, transparent 45%),
-            radial-gradient(circle at 60% 85%, rgba(59,130,246,.10) 0%, transparent 40%);
-        pointer-events: none;
-    }
-    /* subtle dot-grid overlay */
-    .ap-hero::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
-        background-size: 28px 28px;
-        pointer-events: none;
-    }
-    .ap-hero-content { position: relative; z-index: 1; }
-    .ap-hero-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .65rem;
-        font-weight: 700;
-        letter-spacing: .12em;
-        text-transform: uppercase;
-        color: #a5b4fc;
-        background: rgba(99,102,241,.15);
-        border: 1px solid rgba(99,102,241,.3);
-        border-radius: 999px;
-        padding: .25rem .75rem;
-        margin-bottom: 1rem;
-    }
-    .ap-hero h1 {
-        font-size: clamp(1.6rem, 3vw, 2.4rem);
-        font-weight: 800;
-        color: #fff;
-        line-height: 1.15;
-        letter-spacing: -.02em;
-        margin-bottom: .6rem;
-    }
-    .ap-hero p {
-        font-size: .925rem;
-        color: #94a3b8;
-        max-width: 48ch;
-        line-height: 1.65;
-    }
-    .ap-hero-badge {
-        position: absolute;
-        right: 2.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        text-align: center;
-        display: none;
-    }
-    @media (min-width: 768px) { .ap-hero-badge { display: block; } }
-    .ap-hero-badge-count {
-        font-size: 3rem;
-        font-weight: 800;
-        color: rgba(255,255,255,.12);
-        line-height: 1;
-    }
-    .ap-hero-badge-label {
-        font-size: .65rem;
-        font-weight: 700;
-        letter-spacing: .12em;
-        text-transform: uppercase;
-        color: rgba(255,255,255,.2);
-    }
+/* ═══════════════════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+═══════════════════════════════════════════════════════════════ */
+@keyframes orb-drift {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(40px,-25px) scale(1.08); }
+  66%      { transform: translate(-25px,18px) scale(0.94); }
+}
+@keyframes card-rise {
+  from { opacity:0; transform:translateY(32px) scale(.97); }
+  to   { opacity:1; transform:translateY(0)   scale(1); }
+}
+@keyframes shimmer-text {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes badge-glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.35); }
+  50%     { box-shadow: 0 0 0 5px rgba(255,255,255,0); }
+}
+@keyframes modal-pop {
+  from { opacity:0; transform:scale(.93) translateY(16px); }
+  to   { opacity:1; transform:scale(1)   translateY(0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Grid ────────────────────────────────────────────────────── */
-    .ap-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1.5rem;
-    }
+/* ═══════════════════════════════════════════════════════════════
+   HERO
+═══════════════════════════════════════════════════════════════ */
+.ap-hero {
+  position: relative;
+  overflow: hidden;
+  background: #07091a;
+  border-radius: 1.5rem;
+  padding: 3.5rem 3rem 3rem;
+  margin-bottom: 2.75rem;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.05) inset,
+    0 40px 80px -20px rgba(0,0,0,.6);
+}
+/* animated glow orbs */
+.ap-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+.ap-orb-1 {
+  width:500px; height:500px;
+  background: radial-gradient(circle, rgba(99,102,241,.3) 0%, transparent 70%);
+  top:-150px; left:-100px;
+  animation: orb-drift 14s ease-in-out infinite;
+}
+.ap-orb-2 {
+  width:360px; height:360px;
+  background: radial-gradient(circle, rgba(139,92,246,.22) 0%, transparent 70%);
+  top:-60px; right:8%;
+  animation: orb-drift 18s ease-in-out infinite reverse;
+}
+.ap-orb-3 {
+  width:280px; height:280px;
+  background: radial-gradient(circle, rgba(56,189,248,.16) 0%, transparent 70%);
+  bottom:-90px; right:30%;
+  animation: orb-drift 11s ease-in-out infinite 2s;
+}
+/* subtle dot grid */
+.ap-hero::before {
+  content:"";
+  position:absolute; inset:0;
+  background-image: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size: 30px 30px;
+  pointer-events:none;
+}
+/* top border glow */
+.ap-hero::after {
+  content:"";
+  position:absolute;
+  top:0; left:10%; right:10%;
+  height:1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,.6), rgba(139,92,246,.5), transparent);
+  pointer-events:none;
+}
+.ap-hero-inner { position:relative; z-index:1; }
 
-    /* ── Card ────────────────────────────────────────────────────── */
-    .ap-card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 1.125rem;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        transition: transform .22s cubic-bezier(.34,1.56,.64,1),
-                    box-shadow .22s ease,
-                    border-color .22s ease;
-        text-decoration: none;
-        color: inherit;
-    }
-    .ap-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 24px 48px -8px rgba(15,23,42,.18), 0 0 0 1px rgba(99,102,241,.15);
-        border-color: rgba(99,102,241,.3);
-        text-decoration: none;
-        color: inherit;
-    }
+.ap-eyebrow {
+  display:inline-flex; align-items:center; gap:.45rem;
+  font-size:.625rem; font-weight:700; letter-spacing:.15em; text-transform:uppercase;
+  color:#a5b4fc;
+  background:rgba(99,102,241,.1);
+  border:1px solid rgba(99,102,241,.22);
+  border-radius:999px;
+  padding:.3rem .9rem;
+  margin-bottom:1.25rem;
+}
+.ap-hero h1 {
+  font-size: clamp(1.8rem, 3.5vw, 2.75rem);
+  font-weight:800; line-height:1.1; letter-spacing:-.03em;
+  margin-bottom:.8rem;
+  background: linear-gradient(90deg, #fff 25%, #c7d2fe 50%, #fff 75%);
+  background-size:200% auto;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation: shimmer-text 7s linear infinite;
+}
+.ap-hero p {
+  font-size:.9375rem; color:#6b7eaa; line-height:1.7; max-width:48ch;
+}
+/* floating stat */
+.ap-hero-stat {
+  position:absolute; right:3rem; top:50%; transform:translateY(-50%);
+  text-align:right; user-select:none;
+}
+@media(max-width:640px){ .ap-hero-stat { display:none; } }
+.ap-hero-stat-num {
+  font-size:6rem; font-weight:900; line-height:1; letter-spacing:-.05em;
+  color:rgba(255,255,255,.05);
+}
+.ap-hero-stat-label {
+  font-size:.6rem; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+  color:rgba(255,255,255,.12);
+}
+/* add button */
+.ap-add-btn {
+  margin-top:1.75rem;
+  display:inline-flex; align-items:center; gap:.5rem;
+  font-size:.8125rem; font-weight:700; color:#fff;
+  background:rgba(99,102,241,.2);
+  border:1px solid rgba(99,102,241,.4);
+  border-radius:.75rem;
+  padding:.625rem 1.25rem;
+  cursor:pointer;
+  transition: background .2s, border-color .2s, box-shadow .2s, transform .15s;
+}
+.ap-add-btn:hover {
+  background:rgba(99,102,241,.35);
+  border-color:rgba(99,102,241,.7);
+  box-shadow:0 0 24px rgba(99,102,241,.4);
+  transform:translateY(-1px);
+}
+.ap-add-btn:active { transform:translateY(0); }
 
-    /* card header — colored gradient strip */
-    .ap-card-header {
-        position: relative;
-        padding: 1.75rem 1.5rem 1.25rem;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .75rem;
-        min-height: 7.5rem;
-    }
-    /* accent variants */
-    .ap-accent-indigo  { background: linear-gradient(145deg, #4338ca, #6366f1); }
-    .ap-accent-slate   { background: linear-gradient(145deg, #334155, #475569); }
-    .ap-accent-emerald { background: linear-gradient(145deg, #065f46, #10b981); }
-    .ap-accent-amber   { background: linear-gradient(145deg, #b45309, #f59e0b); }
-    .ap-accent-rose    { background: linear-gradient(145deg, #9f1239, #f43f5e); }
-    .ap-accent-sky     { background: linear-gradient(145deg, #0369a1, #38bdf8); }
-    .ap-accent-violet  { background: linear-gradient(145deg, #6d28d9, #a78bfa); }
-    .ap-accent-teal    { background: linear-gradient(145deg, #0f766e, #2dd4bf); }
+/* ═══════════════════════════════════════════════════════════════
+   SECTION HEADING
+═══════════════════════════════════════════════════════════════ */
+.ap-section-head {
+  display:flex; align-items:center; gap:.75rem;
+  margin-bottom:1.75rem;
+}
+.ap-section-label {
+  font-size:.65rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:#94a3b8;
+  display:flex; align-items:center; gap:.5rem;
+  white-space:nowrap;
+}
+.ap-section-line {
+  flex:1; height:1px;
+  background:linear-gradient(90deg,#e2e8f0,transparent);
+}
+.ap-section-count {
+  font-size:.65rem; font-weight:700; color:#6366f1;
+  background:#eef2ff; border:1px solid #c7d2fe;
+  border-radius:999px; padding:.15rem .6rem;
+  white-space:nowrap;
+}
 
-    .ap-card-icon-wrap {
-        width: 4rem;
-        height: 4rem;
-        background: rgba(255,255,255,.18);
-        border: 1.5px solid rgba(255,255,255,.3);
-        border-radius: .875rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.875rem;
-        backdrop-filter: blur(4px);
-        box-shadow: 0 4px 16px rgba(0,0,0,.15);
-        overflow: hidden;
-    }
-    .ap-card-icon-wrap img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        padding: .375rem;
-    }
-    .ap-badge {
-        position: absolute;
-        top: .75rem;
-        right: .75rem;
-        font-size: .6rem;
-        font-weight: 700;
-        letter-spacing: .08em;
-        text-transform: uppercase;
-        color: #fff;
-        background: rgba(255,255,255,.25);
-        border: 1px solid rgba(255,255,255,.35);
-        border-radius: 999px;
-        padding: .2rem .6rem;
-        backdrop-filter: blur(4px);
-    }
+/* ═══════════════════════════════════════════════════════════════
+   GRID
+═══════════════════════════════════════════════════════════════ */
+.ap-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(300px,1fr));
+  gap:1.5rem;
+}
 
-    /* card body */
-    .ap-card-body {
-        padding: 1.25rem 1.5rem 1rem;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-    }
-    .ap-card-name {
-        font-size: 1.0625rem;
-        font-weight: 700;
-        color: #0f172a;
-        line-height: 1.3;
-        letter-spacing: -.01em;
-    }
-    .ap-card-desc {
-        font-size: .8125rem;
-        color: #64748b;
-        line-height: 1.6;
-        flex: 1;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
+/* ═══════════════════════════════════════════════════════════════
+   CARD
+═══════════════════════════════════════════════════════════════ */
+.ap-card {
+  background:#fff;
+  border:1px solid rgba(0,0,0,.07);
+  border-radius:1.25rem;
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  position:relative;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.04),
+    0 4px 12px rgba(0,0,0,.05),
+    0 16px 40px rgba(0,0,0,.05);
+  transition:
+    transform .3s cubic-bezier(.34,1.56,.64,1),
+    box-shadow .3s ease,
+    border-color .3s ease;
+  opacity:0;
+  animation: card-rise .55s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.ap-card:hover {
+  transform:translateY(-9px) scale(1.015);
+  border-color:rgba(99,102,241,.18);
+}
+/* per-accent hover glows */
+.ap-card[data-accent="indigo"]:hover  { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(99,102,241,.2); }
+.ap-card[data-accent="slate"]:hover   { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(71,85,105,.2); }
+.ap-card[data-accent="emerald"]:hover { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(16,185,129,.2); border-color:rgba(16,185,129,.18); }
+.ap-card[data-accent="amber"]:hover   { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(245,158,11,.2); border-color:rgba(245,158,11,.18); }
+.ap-card[data-accent="rose"]:hover    { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(244,63,94,.2);  border-color:rgba(244,63,94,.18); }
+.ap-card[data-accent="sky"]:hover     { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(56,189,248,.2); border-color:rgba(56,189,248,.18); }
+.ap-card[data-accent="violet"]:hover  { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(167,139,250,.2);border-color:rgba(167,139,250,.18); }
+.ap-card[data-accent="teal"]:hover    { box-shadow:0 8px 16px rgba(0,0,0,.06),0 28px 56px rgba(45,212,191,.2); border-color:rgba(45,212,191,.18); }
 
-    /* card footer */
-    .ap-card-footer {
-        padding: .875rem 1.5rem 1.125rem;
-        border-top: 1px solid #f1f5f9;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-    }
-    .ap-roles-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .3rem;
-        min-width: 0;
-    }
-    .ap-role-pill {
-        font-size: .6rem;
-        font-weight: 700;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: #475569;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        border-radius: 999px;
-        padding: .2rem .55rem;
-        white-space: nowrap;
-    }
-    .ap-open-btn {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        font-size: .75rem;
-        font-weight: 700;
-        color: #4f46e5;
-        padding: .375rem .75rem;
-        border-radius: .5rem;
-        border: 1.5px solid rgba(99,102,241,.25);
-        background: rgba(99,102,241,.05);
-        transition: background .15s, border-color .15s, gap .15s;
-        white-space: nowrap;
-        text-decoration: none;
-    }
-    .ap-card:hover .ap-open-btn {
-        background: rgba(99,102,241,.1);
-        border-color: rgba(99,102,241,.4);
-        gap: .55rem;
-    }
+.ap-card.is-inactive { opacity:0; animation: card-rise .55s cubic-bezier(.34,1.56,.64,1) forwards; filter:grayscale(.4) brightness(.9); }
 
-    /* ── Empty state ─────────────────────────────────────────────── */
-    .ap-empty {
-        text-align: center;
-        padding: 5rem 2rem;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 1.125rem;
-    }
-    .ap-empty-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-    }
-    .ap-empty h3 {
-        font-size: 1.125rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: .375rem;
-    }
-    .ap-empty p {
-        font-size: .875rem;
-        color: #64748b;
-    }
+/* ── card header ── */
+.ap-card-header {
+  position:relative;
+  padding:2rem 1.75rem 1.75rem;
+  display:flex; align-items:center; justify-content:center;
+  min-height:9rem;
+  text-decoration:none;
+}
+/* shine overlay */
+.ap-card-header::after {
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(135deg, rgba(255,255,255,.14) 0%, transparent 55%);
+  pointer-events:none;
+}
+/* dot pattern on header */
+.ap-card-header::before {
+  content:"";
+  position:absolute; inset:0;
+  background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size:20px 20px;
+  pointer-events:none;
+}
+/* accent gradients */
+.ap-hdr-indigo  { background:linear-gradient(150deg,#312e81,#4338ca,#6366f1); }
+.ap-hdr-slate   { background:linear-gradient(150deg,#0f172a,#1e293b,#334155); }
+.ap-hdr-emerald { background:linear-gradient(150deg,#022c22,#064e3b,#065f46); }
+.ap-hdr-amber   { background:linear-gradient(150deg,#78350f,#92400e,#b45309); }
+.ap-hdr-rose    { background:linear-gradient(150deg,#4c0519,#881337,#9f1239); }
+.ap-hdr-sky     { background:linear-gradient(150deg,#0c4a6e,#075985,#0369a1); }
+.ap-hdr-violet  { background:linear-gradient(150deg,#2e1065,#4c1d95,#6d28d9); }
+.ap-hdr-teal    { background:linear-gradient(150deg,#042f2e,#134e4a,#0f766e); }
+
+.ap-card-icon {
+  position:relative; z-index:1;
+  width:5rem; height:5rem;
+  background:rgba(255,255,255,.14);
+  border:1.5px solid rgba(255,255,255,.28);
+  border-radius:1.125rem;
+  display:flex; align-items:center; justify-content:center;
+  font-size:2.125rem;
+  backdrop-filter:blur(10px);
+  box-shadow:
+    0 6px 24px rgba(0,0,0,.25),
+    inset 0 1px 0 rgba(255,255,255,.2);
+  overflow:hidden;
+  flex-shrink:0;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.ap-card:hover .ap-card-icon { transform:scale(1.08) translateY(-2px); }
+.ap-card-icon img { width:100%; height:100%; object-fit:contain; padding:.5rem; }
+
+/* badge on header */
+.ap-badge {
+  position:absolute; top:.875rem; right:.875rem; z-index:2;
+  font-size:.58rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:#fff;
+  background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.32);
+  border-radius:999px; padding:.22rem .7rem;
+  backdrop-filter:blur(8px);
+  animation: badge-glow 2.8s ease-in-out infinite;
+}
+/* inactive label */
+.ap-inactive-tag {
+  position:absolute; top:.875rem; left:.875rem; z-index:2;
+  font-size:.55rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:rgba(255,255,255,.55);
+  background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; padding:.2rem .6rem;
+  backdrop-filter:blur(8px);
+}
+
+/* ── superadmin action buttons ── */
+.ap-card-actions {
+  position:absolute; bottom:.875rem; left:.875rem; z-index:10;
+  display:flex; gap:.35rem;
+  opacity:0; transform:translateY(6px);
+  transition: opacity .22s ease, transform .22s ease;
+  pointer-events:none;
+}
+.ap-card:hover .ap-card-actions {
+  opacity:1; transform:translateY(0);
+  pointer-events:auto;
+}
+.ap-act-btn {
+  width:2rem; height:2rem;
+  border-radius:.5rem;
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.28);
+  cursor:pointer;
+  transition: transform .15s, background .15s;
+}
+.ap-act-btn:hover { transform:scale(1.12); }
+.ap-act-edit  { background:rgba(255,255,255,.2); color:#fff; }
+.ap-act-edit:hover  { background:rgba(255,255,255,.38); }
+.ap-act-delete { background:rgba(239,68,68,.25); color:#fca5a5; border-color:rgba(239,68,68,.38); }
+.ap-act-delete:hover { background:rgba(239,68,68,.5); }
+
+/* ── card body ── */
+.ap-card-body {
+  padding:1.375rem 1.75rem 1rem;
+  flex:1; display:flex; flex-direction:column; gap:.5rem;
+  text-decoration:none; color:inherit;
+}
+.ap-card-name {
+  font-size:1.0625rem; font-weight:700; color:#0f172a;
+  line-height:1.3; letter-spacing:-.015em;
+  transition: color .2s;
+}
+.ap-card:hover .ap-card-name { color:#4338ca; }
+.ap-card-desc {
+  font-size:.8125rem; color:#64748b; line-height:1.65; flex:1;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+
+/* ── card footer ── */
+.ap-card-footer {
+  padding:1rem 1.75rem 1.25rem;
+  border-top:1px solid #f1f5f9;
+  display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+}
+.ap-roles { display:flex; flex-wrap:wrap; gap:.3rem; min-width:0; }
+.ap-role-pill {
+  font-size:.58rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  color:#475569; background:#f8fafc; border:1px solid #e2e8f0;
+  border-radius:999px; padding:.2rem .6rem; white-space:nowrap;
+}
+.ap-open-btn {
+  flex-shrink:0;
+  display:inline-flex; align-items:center; gap:.375rem;
+  font-size:.75rem; font-weight:700; color:#4f46e5;
+  padding:.4rem .9rem;
+  border-radius:.625rem;
+  border:1.5px solid rgba(99,102,241,.2);
+  background:rgba(99,102,241,.04);
+  transition: all .22s;
+  text-decoration:none;
+}
+.ap-card:hover .ap-open-btn {
+  background:rgba(99,102,241,.1);
+  border-color:rgba(99,102,241,.45);
+  gap:.6rem;
+  box-shadow:0 0 14px rgba(99,102,241,.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EMPTY STATE
+═══════════════════════════════════════════════════════════════ */
+.ap-empty {
+  text-align:center; padding:6rem 2rem;
+  background:#fff; border:1px dashed #cbd5e1; border-radius:1.25rem;
+}
+.ap-empty-icon { font-size:4rem; margin-bottom:1.25rem; opacity:.5; }
+.ap-empty h3 { font-size:1.125rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
+.ap-empty p  { font-size:.875rem; color:#64748b; line-height:1.6; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════════════════ */
+.ap-backdrop {
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  padding:1.5rem;
+  background:rgba(7,9,26,.65);
+  backdrop-filter:blur(8px);
+}
+.ap-modal {
+  position:relative; background:#fff;
+  border-radius:1.25rem; width:100%; max-width:560px;
+  max-height:90vh; overflow-y:auto;
+  box-shadow:0 40px 80px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.07);
+  animation: modal-pop .28s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.ap-modal-sm { max-width:420px; }
+.ap-modal-hd {
+  position:sticky; top:0; background:#fff; z-index:1;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.375rem 1.75rem;
+  border-bottom:1px solid #f1f5f9;
+}
+.ap-modal-title { font-size:1rem; font-weight:700; color:#0f172a; }
+.ap-modal-bd    { padding:1.5rem 1.75rem; display:flex; flex-direction:column; gap:1.125rem; }
+.ap-modal-ft {
+  position:sticky; bottom:0; background:#fff;
+  padding:1.125rem 1.75rem;
+  border-top:1px solid #f1f5f9;
+  display:flex; align-items:center; justify-content:flex-end; gap:.75rem;
+}
+/* color swatch picker */
+.ap-swatches { display:flex; gap:.5rem; flex-wrap:wrap; }
+.ap-swatch {
+  width:2.125rem; height:2.125rem; border-radius:.5rem; cursor:pointer;
+  border:2.5px solid transparent;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+  flex-shrink:0;
+}
+.ap-swatch:hover { transform:scale(1.18); }
+.ap-swatch.on { border-color:#0f172a; box-shadow:0 0 0 2px #fff,0 0 0 4px #0f172a; }
+.ap-sw-indigo  { background:linear-gradient(135deg,#4338ca,#6366f1); }
+.ap-sw-slate   { background:linear-gradient(135deg,#334155,#475569); }
+.ap-sw-emerald { background:linear-gradient(135deg,#065f46,#10b981); }
+.ap-sw-amber   { background:linear-gradient(135deg,#b45309,#f59e0b); }
+.ap-sw-rose    { background:linear-gradient(135deg,#9f1239,#f43f5e); }
+.ap-sw-sky     { background:linear-gradient(135deg,#0369a1,#38bdf8); }
+.ap-sw-violet  { background:linear-gradient(135deg,#6d28d9,#a78bfa); }
+.ap-sw-teal    { background:linear-gradient(135deg,#0f766e,#2dd4bf); }
+/* spinner util */
+.ap-spin { animation: spin .7s linear infinite; display:inline-block; }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- ── Hero ───────────────────────────────────────────────────────── -->
+<!-- ═══ HERO ════════════════════════════════════════════════════════ -->
 <div class="ap-hero">
-    <div class="ap-hero-content">
-        <div class="ap-hero-eyebrow">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            Company App Portal
-        </div>
-        <h1>Akses Semua Aplikasi<br>dalam Satu Tempat</h1>
-        <p>
-            Temukan dan buka aplikasi perusahaan dengan cepat.
-            Setiap aplikasi telah dikurasi dan dikonfigurasi untuk kebutuhan tim.
-        </p>
+  <div class="ap-orb ap-orb-1"></div>
+  <div class="ap-orb ap-orb-2"></div>
+  <div class="ap-orb ap-orb-3"></div>
+
+  <div class="ap-hero-inner">
+    <div class="ap-eyebrow">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      Company Application Portal
     </div>
-    <div class="ap-hero-badge">
-        <div class="ap-hero-badge-count">{{ entries|length }}</div>
-        <div class="ap-hero-badge-label">Applications</div>
-    </div>
+    <h1>Access All Applications<br>in One Place</h1>
+    <p>Discover and launch your company's tools instantly.<br>Every app has been curated and configured for your team.</p>
+
+    {% if user.role_access == 'SuperAdmin' %}
+    <button class="ap-add-btn" onclick="openCreate()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      Add New Application
+    </button>
+    {% endif %}
+  </div>
+
+  <div class="ap-hero-stat">
+    <div class="ap-hero-stat-num">{{ entries|length }}</div>
+    <div class="ap-hero-stat-label">Application{{ entries|length|pluralize }}</div>
+  </div>
 </div>
 
-<!-- ── App Grid ───────────────────────────────────────────────────── -->
+<!-- ═══ SECTION HEADER ══════════════════════════════════════════════ -->
+{% if entries %}
+<div class="ap-section-head">
+  <div class="ap-section-label">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+      <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+    </svg>
+    Available Applications
+  </div>
+  <div class="ap-section-line"></div>
+  <span class="ap-section-count">{{ entries|length }}</span>
+</div>
+{% endif %}
+
+<!-- ═══ APP GRID ═════════════════════════════════════════════════════ -->
 {% if entries %}
 <div class="ap-grid">
-    {% for app in entries %}
-    <a href="{{ app.url }}" target="_blank" rel="noopener noreferrer" class="ap-card">
+  {% for app in entries %}
+  <div class="ap-card {% if not app.is_active %}is-inactive{% endif %}"
+       data-accent="{{ app.accent_color }}"
+       style="animation-delay:{{ forloop.counter0 }}00ms;">
 
-        <!-- Header with gradient + icon -->
-        <div class="ap-card-header ap-accent-{{ app.accent_color }}">
-            {% if app.badge_text %}
-            <span class="ap-badge">{{ app.badge_text }}</span>
-            {% endif %}
-            <div class="ap-card-icon-wrap">
-                {% if app.icon_image %}
-                    <img src="{{ app.icon_image.url }}" alt="{{ app.name }}">
-                {% else %}
-                    {{ app.icon_emoji }}
-                {% endif %}
-            </div>
-        </div>
+    <!-- header (clickable → open app) -->
+    <a href="{{ app.url }}" target="_blank" rel="noopener noreferrer"
+       class="ap-card-header ap-hdr-{{ app.accent_color }}" style="text-decoration:none;">
 
-        <!-- Body -->
-        <div class="ap-card-body">
-            <div class="ap-card-name">{{ app.name }}</div>
-            <p class="ap-card-desc">{{ app.description }}</p>
-        </div>
+      {% if app.badge_text %}<span class="ap-badge">{{ app.badge_text }}</span>{% endif %}
+      {% if not app.is_active %}<span class="ap-inactive-tag">Inactive</span>{% endif %}
 
-        <!-- Footer -->
-        <div class="ap-card-footer">
-            <div class="ap-roles-wrap">
-                {% for role in app.accessible_roles_display %}
-                <span class="ap-role-pill">{{ role }}</span>
-                {% endfor %}
-            </div>
-            <span class="ap-open-btn">
-                Buka
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M7 17L17 7M17 7H7M17 7v10"/>
-                </svg>
-            </span>
-        </div>
+      <div class="ap-card-icon">
+        {% if app.icon_image %}
+          <img src="{{ app.icon_image.url }}" alt="{{ app.name }}">
+        {% else %}
+          {{ app.icon_emoji }}
+        {% endif %}
+      </div>
 
+      {% if user.role_access == 'SuperAdmin' %}
+      <div class="ap-card-actions">
+        <button class="ap-act-btn ap-act-edit" title="Edit"
+          onclick="event.preventDefault();event.stopPropagation();
+            openEdit(
+              {{ app.pk }},
+              '{{ app.name|escapejs }}',
+              '{{ app.description|escapejs }}',
+              '{{ app.url|escapejs }}',
+              '{{ app.icon_emoji|escapejs }}',
+              {% if app.icon_image %}'{{ app.icon_image.url }}'{% else %}''{% endif %},
+              '{{ app.badge_text|escapejs }}',
+              '{{ app.accent_color }}',
+              '{{ app.accessible_roles|escapejs }}',
+              {{ app.order }},
+              {{ app.is_active|yesno:'true,false' }}
+            )">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="ap-act-btn ap-act-delete" title="Delete"
+          onclick="event.preventDefault();event.stopPropagation();openDelete({{ app.pk }},'{{ app.name|escapejs }}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+          </svg>
+        </button>
+      </div>
+      {% endif %}
     </a>
-    {% endfor %}
+
+    <!-- body -->
+    <a href="{{ app.url }}" target="_blank" rel="noopener noreferrer" class="ap-card-body">
+      <div class="ap-card-name">{{ app.name }}</div>
+      <p class="ap-card-desc">{{ app.description }}</p>
+    </a>
+
+    <!-- footer -->
+    <div class="ap-card-footer">
+      <div class="ap-roles">
+        {% for role in app.accessible_roles_display %}
+          <span class="ap-role-pill">{{ role }}</span>
+        {% endfor %}
+      </div>
+      <a href="{{ app.url }}" target="_blank" rel="noopener noreferrer" class="ap-open-btn">
+        Open
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M7 17L17 7M17 7H7M17 7v10"/>
+        </svg>
+      </a>
+    </div>
+
+  </div>
+  {% endfor %}
 </div>
 
 {% else %}
-<!-- Empty State -->
 <div class="ap-empty">
-    <div class="ap-empty-icon">🗂️</div>
-    <h3>Belum Ada Aplikasi</h3>
-    <p>Belum ada aplikasi yang tersedia untuk Anda.<br>Hubungi administrator untuk menambahkan aplikasi.</p>
+  <div class="ap-empty-icon">🚀</div>
+  <h3>No Applications Available</h3>
+  <p>No applications have been configured for your account yet.<br>Contact your administrator to set up applications.</p>
 </div>
 {% endif %}
+
+
+{% if user.role_access == 'SuperAdmin' %}
+
+<!-- ═══ CREATE / EDIT MODAL (shared) ════════════════════════════════ -->
+<div id="appModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeAppModal()">
+  <div class="ap-modal" onclick="event.stopPropagation()">
+    <div class="ap-modal-hd">
+      <span class="ap-modal-title" id="modalTitle">Add New Application</span>
+      <button onclick="closeAppModal()"
+              class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <form id="appForm" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="ap-modal-bd">
+
+        <!-- Name -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+            Application Name <span class="text-red-500">*</span>
+          </label>
+          <input type="text" name="name" id="f_name" required maxlength="200"
+                 class="jk-input text-sm w-full" placeholder="e.g. SAP Fiori, Salesforce, Power BI">
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+            Description <span class="text-red-500">*</span>
+          </label>
+          <textarea name="description" id="f_description" rows="3" required
+                    class="jk-input text-sm w-full" style="resize:vertical;"
+                    placeholder="What this app does and who uses it…"></textarea>
+        </div>
+
+        <!-- URL -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+            App URL <span class="text-red-500">*</span>
+          </label>
+          <input type="url" name="url" id="f_url" required
+                 class="jk-input text-sm w-full" placeholder="https://app.example.com">
+        </div>
+
+        <!-- Emoji + Badge -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon Emoji</label>
+            <input type="text" name="icon_emoji" id="f_icon_emoji" maxlength="10"
+                   class="jk-input text-sm w-full text-center" style="font-size:1.375rem; padding:.375rem;"
+                   value="🌐">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Badge Label</label>
+            <input type="text" name="badge_text" id="f_badge_text" maxlength="50"
+                   class="jk-input text-sm w-full" placeholder="New, Beta, Internal…">
+          </div>
+        </div>
+
+        <!-- Image upload -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+            Logo Image <span class="text-slate-400 font-normal">(overrides emoji)</span>
+          </label>
+          <input type="file" name="icon_image" id="f_icon_image" accept="image/*"
+                 class="jk-input text-sm w-full py-1.5">
+          <div id="f_current_image" class="hidden mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <img id="f_img_thumb" src="" alt="" class="w-8 h-8 rounded-lg object-contain border border-slate-200">
+            <span>Current logo — upload a new file to replace it.</span>
+          </div>
+        </div>
+
+        <!-- Accent color -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Card Accent Color</label>
+          <div class="ap-swatches" id="swatchGrid"></div>
+          <input type="hidden" name="accent_color" id="f_accent_color" value="indigo">
+        </div>
+
+        <!-- Accessible roles -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Accessible By</label>
+          <div id="rolesGrid"
+               class="grid grid-cols-2 gap-y-2 gap-x-6 p-3 bg-slate-50 border border-slate-200 rounded-xl"></div>
+          <input type="hidden" name="accessible_roles" id="f_accessible_roles" value="all">
+          <p class="text-xs text-slate-400 mt-1.5">Leave all unchecked to show to every logged-in user.</p>
+        </div>
+
+        <!-- Order + Active -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Display Order</label>
+            <input type="number" name="order" id="f_order" min="0" value="0"
+                   class="jk-input text-sm w-full">
+          </div>
+          <div class="flex items-end pb-1">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" name="is_active" id="f_is_active" checked
+                     class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+              <span class="text-xs font-semibold text-slate-600">Active (visible on portal)</span>
+            </label>
+          </div>
+        </div>
+
+      </div><!-- /.ap-modal-bd -->
+
+      <div class="ap-modal-ft">
+        <button type="button" onclick="closeAppModal()"
+                class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+        <button type="submit" id="appSubmitBtn" class="jk-btn jk-btn-primary jk-btn-sm">
+          <span id="appSubmitLabel">Add Application</span>
+          <span id="appSubmitSpinner" class="hidden flex items-center gap-1.5">
+            <svg class="ap-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+            </svg>
+            Saving…
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ DELETE MODAL ════════════════════════════════════════════════ -->
+<div id="deleteModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="ap-modal ap-modal-sm" onclick="event.stopPropagation()">
+    <div class="ap-modal-hd">
+      <span class="ap-modal-title">Delete Application</span>
+      <button onclick="closeDeleteModal()"
+              class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="ap-modal-bd">
+      <div class="flex gap-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl items-start">
+        <div class="w-9 h-9 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2.5">
+            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-rose-800 mb-1">This action cannot be undone.</p>
+          <p class="text-sm text-rose-700">
+            You are about to permanently delete
+            <strong id="deleteAppName" class="font-semibold"></strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="ap-modal-ft">
+      <button type="button" onclick="closeDeleteModal()"
+              class="jk-btn jk-btn-sm" style="background:#f1f5f9;color:#475569;">Cancel</button>
+      <button type="button" id="deleteConfirmBtn"
+              class="jk-btn jk-btn-sm" style="background:#e11d48;color:#fff;">
+        <span id="deleteLabel">Delete Permanently</span>
+        <span id="deleteSpinner" class="hidden flex items-center gap-1.5">
+          <svg class="ap-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+          </svg>
+          Deleting…
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── constants ── */
+const CREATE_URL = "{% url 'app_portal:entry_create' %}";
+const BASE_URL   = "{% url 'app_portal:portal' %}";   /* resolves to /apps/ */
+const COLORS     = ['indigo','slate','emerald','amber','rose','sky','violet','teal'];
+const ROLES      = [
+  {v:'SuperAdmin', l:'Super Admin'},
+  {v:'Manager',    l:'Manager'},
+  {v:'SupportDesk',l:'Support Desk'},
+  {v:'Auditor',    l:'Auditor'},
+  {v:'PortalUser', l:'Portal User'},
+];
+
+/* ── build swatch grid once ── */
+(function buildSwatches() {
+  const grid = document.getElementById('swatchGrid');
+  grid.innerHTML = COLORS.map(c =>
+    `<button type="button" class="ap-swatch ap-sw-${c} ${c==='indigo'?'on':''}"
+             title="${c}" onclick="pickColor('${c}')"></button>`
+  ).join('');
+})();
+
+/* ── build roles checkboxes once ── */
+(function buildRoles() {
+  const grid = document.getElementById('rolesGrid');
+  grid.innerHTML = ROLES.map(r =>
+    `<label class="flex items-center gap-2 cursor-pointer select-none">
+       <input type="checkbox" class="role-cb w-4 h-4 text-indigo-600 rounded border-slate-300" value="${r.v}">
+       <span class="text-xs font-medium text-slate-700">${r.l}</span>
+     </label>`
+  ).join('');
+  grid.querySelectorAll('.role-cb').forEach(cb =>
+    cb.addEventListener('change', syncRoles)
+  );
+})();
+
+function pickColor(color) {
+  document.getElementById('f_accent_color').value = color;
+  document.querySelectorAll('.ap-swatch').forEach(s =>
+    s.classList.toggle('on', s.title === color)
+  );
+}
+
+function syncRoles() {
+  const checked = [...document.querySelectorAll('.role-cb:checked')].map(c => c.value);
+  document.getElementById('f_accessible_roles').value = checked.length ? checked.join(',') : 'all';
+}
+
+function setRoles(rolesStr) {
+  const isAll = !rolesStr || rolesStr.trim() === 'all';
+  document.querySelectorAll('.role-cb').forEach(cb => {
+    cb.checked = !isAll && rolesStr.split(',').map(r=>r.trim()).includes(cb.value);
+  });
+  syncRoles();
+}
+
+/* ── open create ── */
+function openCreate() {
+  document.getElementById('modalTitle').textContent     = 'Add New Application';
+  document.getElementById('appSubmitLabel').textContent = 'Add Application';
+  document.getElementById('appForm').action = CREATE_URL;
+
+  document.getElementById('f_name').value        = '';
+  document.getElementById('f_description').value = '';
+  document.getElementById('f_url').value         = '';
+  document.getElementById('f_icon_emoji').value  = '🌐';
+  document.getElementById('f_badge_text').value  = '';
+  document.getElementById('f_order').value       = '0';
+  document.getElementById('f_is_active').checked = true;
+  document.getElementById('f_icon_image').value  = '';
+  document.getElementById('f_current_image').classList.add('hidden');
+  pickColor('indigo');
+  setRoles('all');
+
+  document.getElementById('appModal').style.display = 'flex';
+}
+
+/* ── open edit ── */
+function openEdit(pk, name, desc, url, emoji, imgUrl, badge, color, roles, order, isActive) {
+  document.getElementById('modalTitle').textContent     = 'Edit Application';
+  document.getElementById('appSubmitLabel').textContent = 'Save Changes';
+  document.getElementById('appForm').action = BASE_URL + pk + '/update/';
+
+  document.getElementById('f_name').value        = name;
+  document.getElementById('f_description').value = desc;
+  document.getElementById('f_url').value         = url;
+  document.getElementById('f_icon_emoji').value  = emoji;
+  document.getElementById('f_badge_text').value  = badge;
+  document.getElementById('f_order').value       = order;
+  document.getElementById('f_is_active').checked = isActive;
+  document.getElementById('f_icon_image').value  = '';
+
+  const imgWrap = document.getElementById('f_current_image');
+  if (imgUrl) {
+    imgWrap.classList.remove('hidden');
+    document.getElementById('f_img_thumb').src = imgUrl;
+  } else {
+    imgWrap.classList.add('hidden');
+  }
+
+  pickColor(color);
+  setRoles(roles);
+
+  document.getElementById('appModal').style.display = 'flex';
+}
+
+function closeAppModal() {
+  document.getElementById('appModal').style.display = 'none';
+}
+
+/* ── form submit (AJAX) ── */
+document.getElementById('appForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const btn     = document.getElementById('appSubmitBtn');
+  const label   = document.getElementById('appSubmitLabel');
+  const spinner = document.getElementById('appSubmitSpinner');
+  label.classList.add('hidden');
+  spinner.classList.remove('hidden');
+  btn.disabled = true;
+
+  fetch(this.action, {
+    method: 'POST',
+    body: new FormData(this),
+    headers: {'X-Requested-With': 'XMLHttpRequest'},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) { location.reload(); }
+    else {
+      alert(data.error || 'An error occurred. Please try again.');
+      label.classList.remove('hidden');
+      spinner.classList.add('hidden');
+      btn.disabled = false;
+    }
+  })
+  .catch(() => {
+    alert('Network error. Please try again.');
+    label.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    btn.disabled = false;
+  });
+});
+
+/* ── delete modal ── */
+let _deletePk = null;
+
+function openDelete(pk, name) {
+  _deletePk = pk;
+  document.getElementById('deleteAppName').textContent = name;
+  document.getElementById('deleteModal').style.display = 'flex';
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').style.display = 'none';
+}
+
+document.getElementById('deleteConfirmBtn').addEventListener('click', function() {
+  if (!_deletePk) return;
+  const label   = document.getElementById('deleteLabel');
+  const spinner = document.getElementById('deleteSpinner');
+  label.classList.add('hidden');
+  spinner.classList.remove('hidden');
+  this.disabled = true;
+
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  fetch(BASE_URL + _deletePk + '/delete/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest'},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) { location.reload(); }
+    else {
+      alert(data.error || 'Failed to delete. Please try again.');
+      label.classList.remove('hidden');
+      spinner.classList.add('hidden');
+      this.disabled = false;
+    }
+  })
+  .catch(() => {
+    alert('Network error. Please try again.');
+    label.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    this.disabled = false;
+  });
+});
+
+/* ── Escape closes any open modal ── */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeAppModal();
+  closeDeleteModal();
+});
+</script>
+
+{% endif %}{# end SuperAdmin #}
 
 {% endblock %}
