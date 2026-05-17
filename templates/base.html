@@ -518,7 +518,7 @@
     {# ── Floating Chat Widget — service portal pages only ── #}
     {# Whitelist: only show on client-facing portal URLs, never on auth/desk/admin/license pages #}
     {% with path=request.path %}
-    {% if path == "/" or path|slice:":10" == "/category/" or path|slice:":8" == "/submit/" or path|slice:":11" == "/submitted/" or path|slice:":12" == "/send-email/" or path|slice:":3" == "/f/" or path|slice:":4" == "/kb/" %}
+    {% if path == "/" or path|slice:":10" == "/category/" or path|slice:":8" == "/submit/" or path|slice:":11" == "/submitted/" or path|slice:":12" == "/send-email/" or path|slice:":3" == "/f/" or path|slice:":4" == "/kb/" or path|slice:":12" == "/usermanual/" %}
     <script>
     const WIDGET_START_URL      = "{% url 'chat:start' %}";
     const WIDGET_CATEGORIES_URL = "{% url 'chat:categories' %}";
@@ -565,17 +565,18 @@
         {# Panel header #}
         <div class="bg-indigo-600 px-4 py-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2.5 min-w-0">
-            <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm flex-shrink-0">🛠️</div>
+            <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-sm flex-shrink-0"
+                 x-text="widgetMode === 'ai' ? '🤖' : '🛠️'"></div>
             <div class="min-w-0">
               <p class="text-white font-bold text-sm leading-tight truncate"
-                 x-text="step === 'chat' ? activeCaseNumber : 'Support Chat'"></p>
+                 x-text="widgetMode === 'ai' ? 'AI Assistant' : (step === 'chat' ? activeCaseNumber : 'Support Chat')"></p>
               <p class="text-indigo-200 text-[10px]"
-                 x-text="step === 'chat' ? (wsConnected ? '● Connected' : '○ Connecting…') : 'We are ready to help'"></p>
+                 x-text="widgetMode === 'ai' ? 'Powered by Gemini' : (step === 'chat' ? (wsConnected ? '● Connected' : '○ Connecting…') : 'We are ready to help')"></p>
             </div>
           </div>
           <div class="flex items-center gap-0.5 flex-shrink-0">
             {# Ticket history — visible during chat step #}
-            <a x-show="step === 'chat'" x-cloak
+            <a x-show="widgetMode === 'chat' && step === 'chat'" x-cloak
                href="{% url 'chat:my_tickets' %}"
                class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
                title="Ticket History">
@@ -584,7 +585,7 @@
               </svg>
             </a>
             {# New ticket — visible during chat step #}
-            <button x-show="step === 'chat'" x-cloak
+            <button x-show="widgetMode === 'chat' && step === 'chat'" x-cloak
                     @click="clearSession()"
                     class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
                     title="New Ticket">
@@ -601,8 +602,26 @@
           </div>
         </div>
 
+        {# ── Mode tab selector (only shown when AI is enabled) ── #}
+        {% if ai_config.ai_enabled %}
+        <div class="flex border-b border-slate-100 bg-white">
+          <button @click="widgetMode = 'chat'"
+                  :class="widgetMode === 'chat' ? 'border-indigo-600 text-indigo-700 font-bold' : 'border-transparent text-slate-400 hover:text-slate-600'"
+                  class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs border-b-2 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 12 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            Support Chat
+          </button>
+          <button @click="widgetMode = 'ai'"
+                  :class="widgetMode === 'ai' ? 'border-indigo-600 text-indigo-700 font-bold' : 'border-transparent text-slate-400 hover:text-slate-600'"
+                  class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs border-b-2 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            Tanya AI
+          </button>
+        </div>
+        {% endif %}
+
         {# ── STEP 1: Welcome / category picker ── #}
-        <div x-show="step === 'welcome'" class="flex-1 overflow-y-auto px-4 py-4">
+        <div x-show="widgetMode === 'chat' && step === 'welcome'" class="flex-1 overflow-y-auto px-4 py-4">
           <p class="text-sm font-semibold text-slate-700 mb-3">How can we help you?</p>
 
           <div x-show="loadingCats" class="text-xs text-slate-400 text-center py-4">Loading categories…</div>
@@ -637,7 +656,7 @@
         </div>
 
         {# ── STEP 2: Guest info form ── #}
-        <div x-show="step === 'guest_form'" class="flex-1 overflow-y-auto px-4 py-4">
+        <div x-show="widgetMode === 'chat' && step === 'guest_form'" class="flex-1 overflow-y-auto px-4 py-4">
           <button @click="step = 'welcome'; selectedCategory = null" class="text-xs text-slate-400 hover:text-indigo-600 mb-3 flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             Back
@@ -747,7 +766,7 @@
         </div>
 
         {# ── STEP 3: Active chat ── #}
-        <div x-show="step === 'chat'" class="flex flex-col flex-1 min-h-0" style="min-height:300px;">
+        <div x-show="widgetMode === 'chat' && step === 'chat'" class="flex flex-col flex-1 min-h-0" style="min-height:300px;">
           {# Ticket info strip #}
           <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
             <span class="text-xs text-slate-500 truncate" x-text="activeCaseNumber"></span>
@@ -847,7 +866,12 @@
     function chatWidget() {
       return {
         open: false,
+        widgetMode: 'chat',        // 'chat' | 'ai'
         step: 'welcome',          // welcome | guest_form | chat
+        // ── AI state ──
+        aiMessages: [],
+        aiQuestion: '',
+        aiLoading: false,
         categories: [],
         loadingCats: false,
         expandedParent: null,
@@ -950,6 +974,67 @@
           });
         },
 
+        async askAI() {
+          const q = this.aiQuestion.trim();
+          if (!q || this.aiLoading) return;
+
+          // Add user bubble
+          this.aiMessages.push({ role: 'user', text: q });
+          this.aiQuestion = '';
+          this.aiLoading = true;
+
+          // Add loading indicator
+          const loadingIdx = this.aiMessages.length;
+          this.aiMessages.push({ role: 'ai-loading' });
+          this.$nextTick(() => this._scrollAI());
+
+          try {
+            const res = await fetch('/api/ai/ask/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': WIDGET_CSRF,
+              },
+              body: JSON.stringify({ question: q }),
+            });
+            const data = await res.json();
+
+            // Remove loading indicator
+            this.aiMessages.splice(loadingIdx, 1);
+
+            if (data.success) {
+              this.aiMessages.push({
+                role: 'ai',
+                text: data.answer,
+                sources: data.sources || [],
+              });
+            } else {
+              this.aiMessages.push({
+                role: 'ai',
+                text: data.error || 'Terjadi kesalahan.',
+                sources: [],
+                error: true,
+              });
+            }
+          } catch(e) {
+            this.aiMessages.splice(loadingIdx, 1);
+            this.aiMessages.push({
+              role: 'ai',
+              text: 'Gagal terhubung ke AI. Periksa koneksi internet Anda.',
+              sources: [],
+              error: true,
+            });
+          } finally {
+            this.aiLoading = false;
+            this.$nextTick(() => this._scrollAI());
+          }
+        },
+
+        _scrollAI() {
+          const el = this.$refs.aiScroll;
+          if (el) el.scrollTop = el.scrollHeight;
+        },
+
         toggleWidget() {
           this.open = !this.open;
           if (this.open) {
@@ -962,6 +1047,7 @@
             if (this.step === 'chat') this.$nextTick(() => this.scrollWidgetBottom());
           }
         },
+
 
         async loadCategories() {
           this.loadingCats = true;

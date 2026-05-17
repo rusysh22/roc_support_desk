@@ -8,7 +8,7 @@ from django.shortcuts import redirect
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage, UserNotificationPreference
+from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage, UserNotificationPreference, AIConfig
 
 
 # =====================================================================
@@ -438,3 +438,69 @@ class UserNotificationPreferenceAdmin(ModelAdmin):
         ("Event Toggles", {"fields": ("on_new_message", "on_mention", "on_status_change", "on_follower_added")}),
         ("Quiet Hours", {"fields": ("quiet_start", "quiet_end")}),
     )
+
+
+# =====================================================================
+# AI Assistant Configuration Admin
+# =====================================================================
+
+@admin.register(AIConfig)
+class AIConfigAdmin(ModelAdmin):
+    """Singleton admin for the Gemini AI assistant configuration."""
+
+    fieldsets = (
+        (
+            "🔌 General",
+            {
+                "fields": ("ai_enabled", "ai_provider"),
+                "description": "Master switch for the AI assistant widget.",
+            },
+        ),
+        (
+            "🔑 API Credentials",
+            {
+                "fields": ("ai_api_key", "ai_model_name"),
+                "description": "API key is stored encrypted. Obtain from Google AI Studio (aistudio.google.com).",
+            },
+        ),
+        (
+            "⚙️ Generation Settings",
+            {
+                "fields": ("ai_temperature", "ai_max_output_tokens"),
+                "description": "Parameters controlling the AI response quality and length.",
+            },
+        ),
+        (
+            "📚 Knowledge Sources",
+            {
+                "fields": ("ai_sources", "ai_max_context_docs"),
+                "description": "Configure which content the AI uses to answer questions.",
+            },
+        ),
+        (
+            "💬 Prompts & Widget Copy",
+            {
+                "fields": ("ai_system_prompt", "ai_welcome_message", "ai_placeholder_text"),
+                "description": "Customize the AI's behavior and the widget's text. Use {site_name} in system prompt.",
+            },
+        ),
+        (
+            "🛡️ Rate Limiting",
+            {
+                "fields": ("ai_rate_limit_per_hour",),
+                "description": "Prevent abuse. Set to 0 to disable rate limiting entirely.",
+            },
+        ),
+    )
+
+    def has_add_permission(self, request):
+        """Allow creating only if no instance exists yet."""
+        return not AIConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        """Redirect list view directly to the singleton edit form."""
+        obj = AIConfig.get_solo()
+        return redirect(f"../{ obj.pk }/change/")

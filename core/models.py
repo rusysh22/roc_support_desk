@@ -447,6 +447,167 @@ class SiteConfig(AuditableModel):
 
 
 # =====================================================================
+# AI Assistant Configuration
+# =====================================================================
+
+class AIConfig(AuditableModel):
+    """
+    Singleton configuration for the AI Assistant widget.
+
+    Controls the Gemini-powered Q&A assistant that appears in the
+    floating chat widget on Knowledge Base and User Manual pages.
+
+    All parameters are configurable from the Admin panel — no hardcoding.
+    The API key is stored encrypted at rest via EncryptedCharField.
+    """
+
+    AI_PROVIDER_CHOICES = [
+        ("gemini", "Google Gemini"),
+    ]
+
+    GEMINI_MODEL_CHOICES = [
+        ("gemini-2.0-flash", "Gemini 2.0 Flash (Recommended — Fast & Cheap)"),
+        ("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite (Cheapest)"),
+        ("gemini-1.5-pro", "Gemini 1.5 Pro (Most Powerful)"),
+        ("gemini-1.5-flash", "Gemini 1.5 Flash"),
+    ]
+
+    AI_SOURCES_CHOICES = [
+        ("both", "Knowledge Base + User Manual"),
+        ("kb_only", "Knowledge Base Only"),
+        ("manual_only", "User Manual Only"),
+    ]
+
+    # ── Master switch ──────────────────────────────────────────────────
+    ai_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable AI Assistant",
+        help_text="Show the 'Tanya AI' tab in the floating chat widget.",
+    )
+
+    # ── Provider & credentials ─────────────────────────────────────────
+    ai_provider = models.CharField(
+        max_length=30,
+        choices=AI_PROVIDER_CHOICES,
+        default="gemini",
+        verbose_name="AI Provider",
+    )
+    ai_api_key = EncryptedCharField(
+        max_length=500,
+        blank=True,
+        default="",
+        verbose_name="API Key",
+        help_text="Your Google AI Studio API key (stored encrypted).",
+    )
+    ai_model_name = models.CharField(
+        max_length=100,
+        choices=GEMINI_MODEL_CHOICES,
+        default="gemini-2.0-flash",
+        verbose_name="Gemini Model",
+        help_text="The Gemini model to use for generating answers.",
+    )
+
+    # ── Generation parameters ──────────────────────────────────────────
+    ai_temperature = models.FloatField(
+        default=0.3,
+        verbose_name="Temperature",
+        help_text=(
+            "Controls creativity (0.0 = deterministic, 1.0 = creative). "
+            "Recommended: 0.3 for factual Q&A."
+        ),
+    )
+    ai_max_output_tokens = models.PositiveIntegerField(
+        default=1024,
+        verbose_name="Max Output Tokens",
+        help_text="Maximum length of the AI's response in tokens (~750 words).",
+    )
+
+    # ── Knowledge retrieval ────────────────────────────────────────────
+    ai_sources = models.CharField(
+        max_length=20,
+        choices=AI_SOURCES_CHOICES,
+        default="both",
+        verbose_name="Knowledge Sources",
+        help_text="Which knowledge sources the AI will use to answer questions.",
+    )
+    ai_max_context_docs = models.PositiveIntegerField(
+        default=5,
+        verbose_name="Max Context Documents",
+        help_text=(
+            "Maximum number of relevant articles/pages to include in each AI query. "
+            "Higher = more context but slower response."
+        ),
+    )
+
+    # ── Prompts & UI copy ─────────────────────────────────────────────
+    ai_system_prompt = models.TextField(
+        verbose_name="System Prompt",
+        default=(
+            "Anda adalah AI Assistant untuk {site_name}.\n"
+            "Tugas Anda: menjawab pertanyaan pengguna HANYA berdasarkan dokumen konteks yang diberikan.\n\n"
+            "Aturan PENTING:\n"
+            "1. Jawab dalam bahasa yang sama dengan pertanyaan pengguna. Utamakan Bahasa Indonesia.\n"
+            "2. Jika jawabannya TIDAK ada dalam konteks, katakan dengan jujur: "
+            "'Maaf, saya tidak menemukan informasi tersebut dalam dokumentasi kami. "
+            "Silakan hubungi Support Desk untuk bantuan lebih lanjut.'\n"
+            "3. JANGAN mengarang atau membuat informasi yang tidak ada dalam konteks.\n"
+            "4. Berikan jawaban yang ringkas, jelas, dan mudah dipahami.\n"
+            "5. Jika relevan, sebutkan dari dokumen mana informasi tersebut berasal.\n"
+        ),
+        help_text=(
+            "Instructions sent to the AI before each question. "
+            "Use {site_name} as a placeholder for the site name."
+        ),
+    )
+    ai_welcome_message = models.TextField(
+        default=(
+            "Halo! Saya AI Assistant yang siap membantu Anda. "
+            "Tanyakan apa saja seputar Knowledge Base dan User Manual kami."
+        ),
+        verbose_name="Welcome Message",
+        help_text="Message shown at the top of the AI chat panel.",
+    )
+    ai_placeholder_text = models.CharField(
+        max_length=200,
+        default="Tanyakan sesuatu...",
+        verbose_name="Input Placeholder",
+        help_text="Placeholder text inside the AI question input box.",
+    )
+
+    # ── Rate limiting ──────────────────────────────────────────────────
+    ai_rate_limit_per_hour = models.PositiveIntegerField(
+        default=30,
+        verbose_name="Rate Limit (per hour)",
+        help_text=(
+            "Maximum questions a single IP/session can ask per hour. "
+            "Set to 0 to disable rate limiting."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "AI Assistant Configuration"
+        verbose_name_plural = "AI Assistant Configuration"
+
+    def save(self, *args, **kwargs):
+        """Enforce singleton — only one AIConfig record may exist."""
+        if AIConfig.objects.exclude(pk=self.pk).exists():
+            AIConfig.objects.exclude(pk=self.pk).delete()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        """Return the singleton instance, creating it if necessary."""
+        obj = cls.objects.first()
+        if not obj:
+            obj = cls.objects.create()
+        return obj
+
+    def __str__(self):
+        status = "✅ Enabled" if self.ai_enabled else "❌ Disabled"
+        return f"AI Assistant Config ({status})"
+
+
+# =====================================================================
 # SSO Configuration
 # =====================================================================
 

@@ -93,6 +93,9 @@ urlpatterns = [
 
     # App Portal
     path("apps/", include("app_portal.urls", namespace="app_portal")),
+
+    # AI Assistant API
+    path("api/ai/ask/", lambda r: __import__("core.views_ai", fromlist=["ai_ask_view"]).ai_ask_view(r), name="ai_ask"),
 ]
 
 # Custom Error Handlers
