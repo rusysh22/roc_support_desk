@@ -3,7 +3,7 @@
 
 {% block title %}Chat | {{ case.case_number }} · {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Live Chat{% endblock %}
-{% block nav_dashboard %}active{% endblock %}
+{% block nav_my_tickets %}active{% endblock %}
 
 {% block extra_head %}
 {# Quill WYSIWYG editor — rich text without manual markdown parsing #}
@@ -1177,12 +1177,11 @@ function chatRoom() {
     },
 
     renderActionBtns(msgId, isOut, senderDisplay) {
-      const side = isOut ? 'left-0 top-5 -translate-x-full pr-1' : 'right-0 top-5 translate-x-full pl-1';
       const deleteBtn = isOut
         ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
                    data-delete-id="${msgId}" title="Retract message">🗑</button>`
         : '';
-      return `<div class="absolute ${side} opacity-0 hover-actions transition-opacity flex gap-1">
+      return `<div class="hover-actions self-center opacity-0 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none">
         <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
                 data-reply-id="${msgId}"
                 data-reply-body="${this.escAttr(senderDisplay)}"
@@ -1223,17 +1222,17 @@ function chatRoom() {
         const actionBtns = this.renderActionBtns(data.message_id, isOut, data.sender_name);
 
         if (isOut) {
-          el.className = 'group/bubble relative flex gap-3 mb-4 flex-row-reverse';
+          el.className = 'group/bubble flex gap-3 mb-4 flex-row-reverse items-start';
           el.innerHTML = `
             <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
+            ${actionBtns}
             <div class="max-w-[70%]">
               <p class="text-[11px] text-slate-400 mb-1 text-right">${this.escHtml(data.sender_name)} · ${time}</p>
               <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">${quoteHtml}${bodyHtml}</div>
               <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Sent</p>
-            </div>
-            ${actionBtns}`;
+            </div>`;
         } else {
-          el.className = 'group/bubble relative flex gap-3 mb-4';
+          el.className = 'group/bubble flex gap-3 mb-4 items-start';
           el.innerHTML = `
             <div class="flex-shrink-0 w-7 h-7 rounded-full ${avatarClass} flex items-center justify-center text-xs font-bold">${init}</div>
             <div class="max-w-[70%]">
@@ -1243,8 +1242,14 @@ function chatRoom() {
             ${actionBtns}`;
         }
 
-        el.addEventListener('mouseenter', () => el.querySelector('.hover-actions')?.classList.add('opacity-100'));
-        el.addEventListener('mouseleave', () => el.querySelector('.hover-actions')?.classList.remove('opacity-100'));
+        el.addEventListener('mouseenter', () => {
+          const a = el.querySelector('.hover-actions');
+          if (a) { a.classList.add('opacity-100'); a.classList.remove('pointer-events-none'); }
+        });
+        el.addEventListener('mouseleave', () => {
+          const a = el.querySelector('.hover-actions');
+          if (a) { a.classList.remove('opacity-100'); a.classList.add('pointer-events-none'); }
+        });
       }
 
       document.getElementById('chat-live').appendChild(el);

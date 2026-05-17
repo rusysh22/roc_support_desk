@@ -29,7 +29,19 @@
     {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
     {% else %}{{ msg.sender_employee.full_name|default:"U"|slice:":1"|upper }}{% endif %}
   </div>
-  <div class="relative max-w-[70%]">
+  {% if not msg.is_deleted %}
+  <div class="self-center opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none group-hover/bubble:pointer-events-auto">
+    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+            data-reply-id="{{ msg.id }}"
+            data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
+            data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'You' }}{% endif %}"
+            title="Reply">↩</button>
+    <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
+            data-delete-id="{{ msg.id }}"
+            title="Retract message">🗑</button>
+  </div>
+  {% endif %}
+  <div class="max-w-[70%]">
     <p class="text-[11px] text-slate-400 mb-1 text-right">
       {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"Support" }}
       {% else %}{{ msg.sender_employee.full_name|default:"You" }}{% endif %} · {{ msg.sent_at|date:"d M H:i" }}
@@ -67,19 +79,6 @@
         {% endfor %}
       {% endif %}
     </div>
-    {# Action buttons — positioned to the LEFT of the self bubble via right-full #}
-    {% if not msg.is_deleted %}
-    <div class="absolute right-full top-5 pr-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
-      <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
-              data-reply-id="{{ msg.id }}"
-              data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
-              data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'You' }}{% endif %}"
-              title="Reply">↩</button>
-      <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
-              data-delete-id="{{ msg.id }}"
-              title="Retract message">🗑</button>
-    </div>
-    {% endif %}
   </div>
 
   {% else %}
@@ -88,7 +87,7 @@
     {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
     {% else %}{{ msg.sender_employee.full_name|default:"U"|slice:":1"|upper }}{% endif %}
   </div>
-  <div class="relative max-w-[70%]">
+  <div class="max-w-[70%]">
     <p class="text-[11px] text-slate-400 mb-1">
       {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"Support" }}
       {% else %}{{ msg.sender_employee.full_name|default:"User" }}{% endif %} · {{ msg.sent_at|date:"d M H:i" }}
@@ -126,17 +125,16 @@
         {% endfor %}
       {% endif %}
     </div>
-    {# Action buttons — positioned to the RIGHT of the other bubble via left-full #}
-    {% if not msg.is_deleted %}
-    <div class="absolute left-full top-5 pl-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1">
-      <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
-              data-reply-id="{{ msg.id }}"
-              data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
-              data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'User' }}{% endif %}"
-              title="Reply">↩</button>
-    </div>
-    {% endif %}
   </div>
+  {% if not msg.is_deleted %}
+  <div class="self-center opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none group-hover/bubble:pointer-events-auto">
+    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+            data-reply-id="{{ msg.id }}"
+            data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
+            data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'User' }}{% endif %}"
+            title="Reply">↩</button>
+  </div>
+  {% endif %}
   {% endif %}
 
 </div>
