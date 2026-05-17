@@ -543,16 +543,16 @@ class AIConfig(AuditableModel):
     ai_system_prompt = models.TextField(
         verbose_name="System Prompt",
         default=(
-            "Anda adalah AI Assistant untuk {site_name}.\n"
-            "Tugas Anda: menjawab pertanyaan pengguna HANYA berdasarkan dokumen konteks yang diberikan.\n\n"
-            "Aturan PENTING:\n"
-            "1. Jawab dalam bahasa yang sama dengan pertanyaan pengguna. Utamakan Bahasa Indonesia.\n"
-            "2. Jika jawabannya TIDAK ada dalam konteks, katakan dengan jujur: "
-            "'Maaf, saya tidak menemukan informasi tersebut dalam dokumentasi kami. "
-            "Silakan hubungi Support Desk untuk bantuan lebih lanjut.'\n"
-            "3. JANGAN mengarang atau membuat informasi yang tidak ada dalam konteks.\n"
-            "4. Berikan jawaban yang ringkas, jelas, dan mudah dipahami.\n"
-            "5. Jika relevan, sebutkan dari dokumen mana informasi tersebut berasal.\n"
+            "You are the AI Assistant for {site_name}.\n"
+            "Your task: answer user questions ONLY based on the provided context documents.\n\n"
+            "IMPORTANT Rules:\n"
+            "1. Answer in the same language as the user's question.\n"
+            "2. If the answer is NOT in the context, honestly say: "
+            "'I'm sorry, but I couldn't find that information in our documentation. "
+            "Please contact the Support Desk for further assistance.'\n"
+            "3. DO NOT invent or hallucinate information not present in the context.\n"
+            "4. Provide concise, clear, and easy-to-understand answers.\n"
+            "5. If relevant, cite the document from which the information was derived.\n"
         ),
         help_text=(
             "Instructions sent to the AI before each question. "
@@ -561,15 +561,15 @@ class AIConfig(AuditableModel):
     )
     ai_welcome_message = models.TextField(
         default=(
-            "Halo! Saya AI Assistant yang siap membantu Anda. "
-            "Tanyakan apa saja seputar Knowledge Base dan User Manual kami."
+            "Hello! I am an AI Assistant ready to help you. "
+            "Ask me anything about our Knowledge Base and User Manual."
         ),
         verbose_name="Welcome Message",
         help_text="Message shown at the top of the AI chat panel.",
     )
     ai_placeholder_text = models.CharField(
         max_length=200,
-        default="Tanyakan sesuatu...",
+        default="Ask something...",
         verbose_name="Input Placeholder",
         help_text="Placeholder text inside the AI question input box.",
     )

@@ -114,10 +114,10 @@ def search_knowledge(query: str, sources: str, max_docs: int) -> list[dict]:
                     "title": article.title,
                     "snippet": snippet,
                     "content": "\n".join(filter(None, [
-                        f"Judul: {article.title}",
-                        f"Ringkasan Masalah: {re.sub(r'<[^>]+>', ' ', article.problem_summary or '')}",
-                        f"Penyebab: {re.sub(r'<[^>]+>', ' ', article.root_cause or '')}",
-                        f"Solusi: {re.sub(r'<[^>]+>', ' ', article.solution or '')}",
+                        f"Title: {article.title}",
+                        f"Problem Summary: {re.sub(r'<[^>]+>', ' ', article.problem_summary or '')}",
+                        f"Root Cause: {re.sub(r'<[^>]+>', ' ', article.root_cause or '')}",
+                        f"Solution: {re.sub(r'<[^>]+>', ' ', article.solution or '')}",
                     ])),
                     "source_type": "kb",
                     "source_label": "Knowledge Base",
@@ -169,8 +169,8 @@ def search_knowledge(query: str, sources: str, max_docs: int) -> list[dict]:
                     "snippet": snippet,
                     "content": "\n".join(filter(None, [
                         f"Manual: {page.manual.title}",
-                        f"Halaman: {page.title}",
-                        f"Isi: {page_text_raw[:1000]}",
+                        f"Page: {page.title}",
+                        f"Content: {page_text_raw[:1000]}",
                     ])),
                     "source_type": "manual",
                     "source_label": "User Manual",
@@ -260,8 +260,8 @@ def ask_ai(question: str, identifier: str) -> dict:
         return {
             "success": False,
             "error": (
-                "Anda telah mencapai batas pertanyaan per jam. "
-                "Silakan coba lagi dalam beberapa saat."
+                "You have reached the hourly question limit. "
+                "Please try again later."
             ),
         }
 
@@ -282,19 +282,19 @@ def ask_ai(question: str, identifier: str) -> dict:
 
     if context_docs:
         context_text = "\n\n---\n\n".join(
-            f"[Dokumen {i+1}: {doc['title']}]\n{doc['content']}"
+            f"[Document {i+1}: {doc['title']}]\n{doc['content']}"
             for i, doc in enumerate(context_docs)
         )
         full_prompt = (
             f"{system_prompt}\n\n"
-            f"=== KONTEKS DOKUMEN ===\n{context_text}\n\n"
-            f"=== PERTANYAAN USER ===\n{question}"
+            f"=== DOCUMENT CONTEXT ===\n{context_text}\n\n"
+            f"=== USER QUESTION ===\n{question}"
         )
     else:
         full_prompt = (
             f"{system_prompt}\n\n"
-            f"Catatan: Tidak ditemukan dokumen yang relevan dengan pertanyaan ini.\n\n"
-            f"=== PERTANYAAN USER ===\n{question}"
+            f"Note: No relevant documents were found for this question.\n\n"
+            f"=== USER QUESTION ===\n{question}"
         )
 
     # ── Call Gemini API ────────────────────────────────────────────────
@@ -320,8 +320,8 @@ def ask_ai(question: str, identifier: str) -> dict:
         return {
             "success": False,
             "error": (
-                "Terjadi kesalahan saat menghubungi AI. "
-                "Silakan coba lagi atau hubungi Support Desk."
+                "An error occurred while contacting the AI. "
+                "Please try again or contact the Support Desk."
             ),
         }
 

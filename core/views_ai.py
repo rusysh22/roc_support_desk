@@ -59,11 +59,11 @@ def ai_ask_view(request):
 
     question = (body.get("question") or "").strip()
     if not question:
-        return JsonResponse({"success": False, "error": "Pertanyaan tidak boleh kosong."}, status=400)
+        return JsonResponse({"success": False, "error": "Question cannot be empty."}, status=400)
 
     if len(question) > 1000:
         return JsonResponse(
-            {"success": False, "error": "Pertanyaan terlalu panjang (max 1000 karakter)."},
+            {"success": False, "error": "Question is too long (max 1000 characters)."},
             status=400,
         )
 
