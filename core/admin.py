@@ -503,4 +503,4 @@ class AIConfigAdmin(ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         """Redirect list view directly to the singleton edit form."""
         obj = AIConfig.get_solo()
-        return redirect(f"../{ obj.pk }/change/")
+        return redirect('admin:core_aiconfig_change', obj.pk)
