@@ -185,6 +185,74 @@ def search_knowledge(query: str, sources: str, max_docs: int) -> list[dict]:
     return results[:max_docs]
 
 
+def _search_static_docs(query_text: str, max_docs: int = 3) -> list[dict]:
+    """
+    Search static markdown files in the docs/ directory.
+    Useful for answering general questions about the system (e.g. from SRS or Panduan).
+    """
+    import os
+    from django.conf import settings
+    
+    docs_dir = os.path.join(settings.BASE_DIR, "docs")
+    if not os.path.exists(docs_dir):
+        return []
+        
+    query_words = set(query_text.lower().replace("?", "").replace(".", "").split())
+    if not query_words:
+        return []
+        
+    results = []
+    
+    try:
+        # WHITELIST: Only allow non-sensitive documentation to be read by the AI
+        safe_files = {
+            "PANDUAN_PENGGUNA.md",
+            "User_Guide_RoC_Support_Desk.md",
+            "FSD_RoC_Support_Desk.md",
+            "SRS_RoC_Support_Desk.md"
+        }
+        
+        for filename in os.listdir(docs_dir):
+            if filename not in safe_files:
+                continue
+                
+            filepath = os.path.join(docs_dir, filename)
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+                
+            # Split by double newline to get logical paragraphs/sections
+            paragraphs = content.split("\n\n")
+            
+            for i, para in enumerate(paragraphs):
+                if len(para.strip()) < 20:
+                    continue
+                    
+                para_lower = para.lower()
+                
+                # Basic keyword scoring
+                score = 0
+                for word in query_words:
+                    if len(word) > 3 and word in para_lower:
+                        score += 1
+                        
+                # Also boost if it mentions "apa" and "sistem" or similar in the same paragraph
+                if score > 0:
+                    results.append({
+                        "title": f"System Docs: {filename}",
+                        "snippet": para[:300].strip(),
+                        "content": f"File: {filename}\nContent:\n{para.strip()}",
+                        "source_type": "static_docs",
+                        "source_label": "Documentation",
+                        "url": "/docs/",
+                        "_score": score,
+                    })
+    except Exception as e:
+        logger.error(f"Error reading static docs: {e}")
+        
+    results.sort(key=lambda x: x["_score"], reverse=True)
+    return results[:max_docs]
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Rate limiting
 # ─────────────────────────────────────────────────────────────────────
@@ -271,6 +339,14 @@ def ask_ai(question: str, identifier: str) -> dict:
         sources=config.ai_sources,
         max_docs=config.ai_max_context_docs,
     )
+    
+    # Always include static docs (help/docs) for general system questions
+    static_docs = _search_static_docs(question, max_docs=2)
+    if static_docs:
+        context_docs.extend(static_docs)
+        # Re-sort to mix them in based on relevance score, then slice
+        context_docs.sort(key=lambda x: x["_score"], reverse=True)
+        context_docs = context_docs[: config.ai_max_context_docs]
 
     # ── Build prompt ───────────────────────────────────────────────────
     try:
