@@ -64,66 +64,166 @@
 /* Form variants (Purple spotlight) */
 .spotlight-card.spotlight-purple::before {
     background: radial-gradient(
-        500px circle at var(--mouse-x, 0) var(--mouse-y, 0), 
+        500px circle at var(--mouse-x, 0) var(--mouse-y, 0),
         rgba(168, 85, 247, 0.4), /* Purple glow */
         transparent 40%
     );
 }
 .spotlight-card.spotlight-purple::after {
     background: radial-gradient(
-        600px circle at var(--mouse-x, 0) var(--mouse-y, 0), 
+        600px circle at var(--mouse-x, 0) var(--mouse-y, 0),
         rgba(168, 85, 247, 0.05), /* Soft Purple background glow */
         transparent 40%
     );
 }
+
+/* ── Hero animations ─────────────────────────────────────── */
+@keyframes hero-aurora-drift-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+    33%      { transform: translate(8%, -6%) scale(1.08); opacity: 0.7; }
+    66%      { transform: translate(-6%, 8%) scale(0.96); opacity: 0.45; }
+}
+@keyframes hero-aurora-drift-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+    50%      { transform: translate(-8%, 6%) scale(1.12); opacity: 0.6; }
+}
+@keyframes hero-shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+@keyframes hero-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+}
+@keyframes hero-status-ping {
+    0%   { transform: scale(1);   opacity: 0.85; }
+    100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes hero-ring-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+.hero-aurora-1 { animation: hero-aurora-drift-1 22s ease-in-out infinite; will-change: transform, opacity; }
+.hero-aurora-2 { animation: hero-aurora-drift-2 26s ease-in-out infinite; will-change: transform, opacity; }
+.hero-headline-gradient {
+    background: linear-gradient(90deg, #ffffff 0%, #e0e7ff 25%, #a5b4fc 50%, #e0e7ff 75%, #ffffff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: hero-shimmer 8s linear infinite;
+}
+.hero-float { animation: hero-float 5s ease-in-out infinite; }
+.hero-status-ping { animation: hero-status-ping 2s cubic-bezier(0,0,0.2,1) infinite; }
+.hero-ring-spin-slow { animation: hero-ring-spin 28s linear infinite; }
+.hero-ring-spin-reverse { animation: hero-ring-spin 22s linear infinite reverse; }
+.hero-grid-pattern {
+    background-image:
+        linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.07) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,0,0,0.9) 30%, transparent 80%);
+            mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,0,0,0.9) 30%, transparent 80%);
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero-aurora-1, .hero-aurora-2, .hero-headline-gradient,
+    .hero-float, .hero-status-ping, .hero-ring-spin-slow, .hero-ring-spin-reverse {
+        animation: none !important;
+    }
+}
 </style>
-<!-- Hero Banner -->
-<div class="relative w-full rounded-2xl sm:rounded-[1.75rem] overflow-hidden text-white mb-8 sm:mb-10 shadow-xl sm:shadow-2xl mt-4 sm:mt-6 border border-white/5" style="background: #0A0D14;">
-    <!-- Dot grid background -->
-    <div class="absolute inset-0 opacity-[0.12]" style="background-image: radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px); background-size: 22px 22px;"></div>
-    <!-- Soft color blobs -->
-    <div class="absolute -top-1/3 -right-1/4 w-[70%] h-[140%] bg-indigo-900/25 rounded-full filter blur-[110px] pointer-events-none"></div>
-    <div class="absolute -bottom-1/3 -left-1/4 w-[70%] h-[140%] bg-blue-900/10 rounded-full filter blur-[110px] pointer-events-none"></div>
+<!-- Hero Banner — Aurora Style -->
+<div class="relative w-full overflow-hidden rounded-2xl sm:rounded-3xl mt-4 sm:mt-6 mb-8 sm:mb-10 border border-white/[0.08] shadow-2xl"
+     style="background: radial-gradient(ellipse 100% 80% at 50% 0%, #1e1b4b 0%, #0c0e1a 45%, #050608 100%);">
 
-    <div class="relative px-5 py-8 sm:px-8 sm:py-12 md:px-12 md:py-14 lg:px-14 lg:py-16 flex flex-col md:flex-row md:items-center md:justify-between gap-6 sm:gap-8">
-        <!-- Text Content -->
-        <div class="max-w-2xl z-10 w-full">
-            <div class="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[9px] sm:text-[10px] font-bold tracking-[0.15em] uppercase mb-4 sm:mb-6 backdrop-blur-sm">
-                <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728M16.243 7.757a6 6 0 010 8.486M14.121 9.879a3 3 0 010 4.242M3 12h.01"/></svg>
-                Service & Support Portal
+    <!-- Aurora gradient orbs -->
+    <div class="hero-aurora-1 absolute -top-40 -left-20 w-[55rem] h-[55rem] rounded-full pointer-events-none"
+         style="background: radial-gradient(circle, rgba(99,102,241,0.4) 0%, rgba(99,102,241,0) 60%); filter: blur(60px);"></div>
+    <div class="hero-aurora-2 absolute -bottom-40 -right-20 w-[50rem] h-[50rem] rounded-full pointer-events-none"
+         style="background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(168,85,247,0) 60%); filter: blur(60px);"></div>
+
+    <!-- Subtle indigo grid -->
+    <div class="absolute inset-0 hero-grid-pattern pointer-events-none"></div>
+
+    <!-- Top edge highlight -->
+    <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent pointer-events-none"></div>
+
+    <!-- Content -->
+    <div class="relative px-6 py-12 sm:px-10 sm:py-16 md:px-14 md:py-20 lg:px-16">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-10 lg:gap-8">
+
+            <!-- Text Content -->
+            <div class="max-w-2xl flex-1">
+                <!-- Status pill -->
+                <div class="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-sm mb-6 sm:mb-7">
+                    <span class="relative inline-flex w-2 h-2">
+                        <span class="absolute inset-0 inline-flex w-2 h-2 rounded-full bg-emerald-400 hero-status-ping"></span>
+                        <span class="relative inline-flex w-2 h-2 rounded-full bg-emerald-400"></span>
+                    </span>
+                    <span class="text-[10px] sm:text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">Online · Ready to assist</span>
+                </div>
+
+                <!-- Headline -->
+                <h1 class="text-3xl sm:text-5xl md:text-6xl lg:text-[4.25rem] font-bold tracking-tight leading-[1.05] mb-4 sm:mb-5">
+                    <span class="block text-white">How can we</span>
+                    <span class="block hero-headline-gradient">help you today?</span>
+                </h1>
+
+                <!-- Subtext -->
+                <p class="text-slate-400 text-sm sm:text-base md:text-lg max-w-md leading-relaxed">
+                    One place for everything support — fast, simple, always available.
+                </p>
+
+                <!-- CTAs -->
+                <div class="mt-7 sm:mt-9 flex flex-wrap items-center gap-3">
+                    <a href="#services-section"
+                       class="group relative inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white text-slate-900 text-sm font-semibold transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)]">
+                        <span>Submit a Ticket</span>
+                        <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </a>
+                    <a href="{% url 'chat:my_tickets' %}"
+                       class="group inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/15 hover:border-white/25 text-white text-sm font-medium backdrop-blur-sm transition-all duration-300">
+                        <svg class="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        <span>My Tickets</span>
+                    </a>
+                </div>
             </div>
 
-            <h1 class="text-[1.75rem] leading-tight sm:text-4xl md:text-5xl lg:text-[3.25rem] lg:leading-[1.1] font-extrabold text-white tracking-tight mb-3 sm:mb-4">
-                Need help?<br class="hidden sm:block" />
-                <span class="bg-gradient-to-r from-indigo-300 via-indigo-200 to-white bg-clip-text text-transparent">We're here to support you.</span>
-            </h1>
+            <!-- Decorative visual — concentric rings + glassmorphic icon (desktop only) -->
+            <div class="hidden lg:flex flex-shrink-0 items-center justify-center relative w-64 h-64">
+                <!-- Outer ring with rotating dots -->
+                <div class="absolute inset-0 hero-ring-spin-slow">
+                    <div class="absolute inset-0 rounded-full border border-indigo-400/15"></div>
+                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.9)]"></div>
+                    <div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1 w-1.5 h-1.5 rounded-full bg-indigo-300/70"></div>
+                </div>
+                <!-- Middle ring (counter-rotating) -->
+                <div class="absolute inset-6 hero-ring-spin-reverse">
+                    <div class="absolute inset-0 rounded-full border border-indigo-400/20"></div>
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.9)]"></div>
+                </div>
+                <!-- Inner static ring -->
+                <div class="absolute inset-12 rounded-full border border-purple-400/25"></div>
 
-            <p class="text-slate-400 text-sm sm:text-base md:text-lg max-w-xl leading-relaxed font-medium">
-                Submit a ticket, browse the knowledge base, or track the status of your requests — all in one place.
-            </p>
-
-            <!-- Quick CTAs -->
-            <div class="mt-5 sm:mt-7 flex flex-wrap items-center gap-2 sm:gap-3">
-                <a href="#services-section"
-                   class="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white text-slate-900 text-xs sm:text-sm font-semibold hover:bg-indigo-100 transition-colors">
-                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                    Submit a Ticket
-                </a>
-                <a href="{% url 'chat:my_tickets' %}"
-                   class="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white/5 border border-white/15 text-white text-xs sm:text-sm font-semibold hover:bg-white/10 transition-colors">
-                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                    My Tickets
-                </a>
+                <!-- Center glass icon -->
+                <div class="relative hero-float">
+                    <div class="w-28 h-28 rounded-2xl bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-indigo-500/10 backdrop-blur-xl border border-white/15 flex items-center justify-center shadow-[0_20px_60px_-15px_rgba(99,102,241,0.6)]">
+                        <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <!-- Decorative icon — only md+ -->
-        <div class="hidden md:flex flex-shrink-0 items-center justify-center w-32 lg:w-40 h-32 lg:h-40 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-indigo-500/0 border border-indigo-500/15 backdrop-blur-sm">
-            <svg class="w-14 h-14 lg:w-16 lg:h-16 text-indigo-300/80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728M16.243 7.757a6 6 0 010 8.486M14.121 9.879a3 3 0 010 4.242M3 12h3m12 0h3M5.636 5.636l2.122 2.122m8.484 8.484l2.122 2.122M5.636 18.364l2.122-2.122m8.484-8.484l2.122-2.122"/>
-            </svg>
         </div>
     </div>
+
+    <!-- Bottom edge highlight -->
+    <div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/30 to-transparent pointer-events-none"></div>
 </div>
 
 <!-- Search Bar -->
