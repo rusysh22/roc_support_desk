@@ -220,6 +220,157 @@
         </div>
     </div>
 
+    {# ─── Notification Preferences ──────────────────────────────────── #}
+    <div class="jk-card mt-6" x-data="{
+        emailOn: {{ notif_pref.email_enabled|yesno:'true,false' }},
+        waOn: {{ notif_pref.whatsapp_enabled|yesno:'true,false' }},
+        teamsOn: {{ notif_pref.teams_enabled|yesno:'true,false' }},
+    }">
+        <div class="jk-card-header flex items-center gap-2">
+            <span>🔔</span>
+            <span class="font-bold text-slate-800">Notification Preferences</span>
+            <span class="ml-auto text-xs text-slate-400 font-medium">Choose how you want to be notified</span>
+        </div>
+        <div class="jk-card-body">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="notifications">
+
+                {# ── Channels ── #}
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">📬 Notification Channels</p>
+                <div class="space-y-3 mb-6">
+
+                    {# Email #}
+                    <div class="flex items-center justify-between p-3 rounded-xl border transition-colors"
+                         :class="emailOn ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200 bg-white'">
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center text-lg">📧</span>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800">Email</p>
+                                <p class="text-xs text-slate-400">{{ profile_user.email }}</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="email_enabled" class="sr-only peer"
+                                   x-model="emailOn" {% if notif_pref.email_enabled %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+
+                    {# WhatsApp #}
+                    <div class="rounded-xl border transition-colors"
+                         :class="waOn ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'">
+                        <div class="flex items-center justify-between p-3">
+                            <div class="flex items-center gap-3">
+                                <span class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-lg">💬</span>
+                                <div>
+                                    <p class="text-sm font-bold text-slate-800">WhatsApp</p>
+                                    <p class="text-xs text-slate-400">Via Evolution API</p>
+                                </div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="whatsapp_enabled" class="sr-only peer"
+                                       x-model="waOn" {% if notif_pref.whatsapp_enabled %}checked{% endif %}>
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+                        <div x-show="waOn" x-collapse class="px-3 pb-3">
+                            <input type="tel" name="whatsapp_number" value="{{ notif_pref.whatsapp_number }}"
+                                   class="jk-input w-full text-sm" placeholder="+6281234567890 (E.164 format)">
+                            <p class="text-[11px] text-slate-400 mt-1">Leave blank to use your profile phone number.</p>
+                        </div>
+                    </div>
+
+                    {# Teams #}
+                    <div class="rounded-xl border transition-colors"
+                         :class="teamsOn ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200 bg-white'">
+                        <div class="flex items-center justify-between p-3">
+                            <div class="flex items-center gap-3">
+                                <span class="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center text-lg">🟣</span>
+                                <div>
+                                    <p class="text-sm font-bold text-slate-800">Microsoft Teams</p>
+                                    <p class="text-xs text-slate-400">Incoming Webhook</p>
+                                </div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="teams_enabled" class="sr-only peer"
+                                       x-model="teamsOn" {% if notif_pref.teams_enabled %}checked{% endif %}>
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                            </label>
+                        </div>
+                        <div x-show="teamsOn" x-collapse class="px-3 pb-3">
+                            <input type="url" name="teams_webhook_url" value="{{ notif_pref.teams_webhook_url }}"
+                                   class="jk-input w-full text-sm" placeholder="https://outlook.office.com/webhook/...">
+                            <p class="text-[11px] text-slate-400 mt-1">
+                                Get this URL from your Teams channel → Connectors → Incoming Webhook.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── Event Types ── #}
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">📌 Notify Me When...</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                        <input type="checkbox" name="on_new_message" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                               {% if notif_pref.on_new_message %}checked{% endif %}>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">💬 New Chat Message</p>
+                            <p class="text-[11px] text-slate-400">Reply on my tickets</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                        <input type="checkbox" name="on_mention" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                               {% if notif_pref.on_mention %}checked{% endif %}>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">📣 @Mention</p>
+                            <p class="text-[11px] text-slate-400">Someone tags me in chat</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                        <input type="checkbox" name="on_status_change" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                               {% if notif_pref.on_status_change %}checked{% endif %}>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">🔄 Status Change</p>
+                            <p class="text-[11px] text-slate-400">Ticket status updated</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                        <input type="checkbox" name="on_follower_added" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                               {% if notif_pref.on_follower_added %}checked{% endif %}>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">👥 Added as Follower</p>
+                            <p class="text-[11px] text-slate-400">Someone adds me to a ticket</p>
+                        </div>
+                    </label>
+                </div>
+
+                {# ── Quiet Hours ── #}
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">🌙 Quiet Hours <span class="font-normal text-slate-400">(optional)</span></p>
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="flex-1">
+                        <label class="text-xs text-slate-500 font-medium mb-1 block">From</label>
+                        <input type="time" name="quiet_start"
+                               value="{% if notif_pref.quiet_start %}{{ notif_pref.quiet_start|time:'H:i' }}{% endif %}"
+                               class="jk-input w-full text-sm">
+                    </div>
+                    <span class="text-slate-400 font-bold mt-5">→</span>
+                    <div class="flex-1">
+                        <label class="text-xs text-slate-500 font-medium mb-1 block">To</label>
+                        <input type="time" name="quiet_end"
+                               value="{% if notif_pref.quiet_end %}{{ notif_pref.quiet_end|time:'H:i' }}{% endif %}"
+                               class="jk-input w-full text-sm">
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mb-5 -mt-3">Notifications will be paused during quiet hours (based on your timezone: {{ profile_user.timezone }}).</p>
+
+                <button type="submit" class="jk-btn jk-btn-primary w-full">
+                    🔔 Save Notification Settings
+                </button>
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <script>

@@ -73,6 +73,34 @@ def _get_guest_token(request, case_uuid):
     return request.COOKIES.get(f"chat_token_{case_uuid}", "")
 
 
+def _dispatch_status_notification(case, actor_user, new_status_label):
+    """Notify all ticket participants about a status change."""
+    from core.notifications import notify_user
+    from core.models import User
+
+    context = {
+        "ticket_id": str(case.id),
+        "ticket_subject": case.subject or "",
+        "sender_name": actor_user.username or actor_user.get_full_name() or "System",
+        "new_status": new_status_label,
+        "ticket_url": f"/portal/chat/{case.id}/",
+    }
+
+    participants = []
+    if case.requester_email:
+        req_user = User.objects.filter(email__iexact=case.requester_email).first()
+        if req_user:
+            participants.append(req_user)
+    for follower in case.followers.all():
+        if follower not in participants:
+            participants.append(follower)
+
+    for participant in participants:
+        if participant.id == actor_user.id:
+            continue
+        notify_user(participant, "status_change", context)
+
+
 def _can_access_case(request, case):
     """Return True if the request is allowed to access this case's chat."""
     user = request.user
@@ -958,6 +986,12 @@ def chat_resolve(request, case_uuid):
     _broadcast_status(case_uuid, CaseRecord.Status.RESOLVED, "Resolved")
     _broadcast_message(case_uuid, closing_msg, case.requester_name or "User")
 
+    # Notify participants about status change
+    try:
+        _dispatch_status_notification(case, user, "Resolved")
+    except Exception:
+        pass
+
     return JsonResponse({"status": CaseRecord.Status.RESOLVED})
 
 
@@ -1005,6 +1039,12 @@ def chat_reopen(request, case_uuid):
     )
 
     _broadcast_status(case_uuid, CaseRecord.Status.OPEN, "Open")
+
+    # Notify participants about status change
+    try:
+        _dispatch_status_notification(case, user, "Reopened")
+    except Exception:
+        pass
 
     return JsonResponse({"status": CaseRecord.Status.OPEN})
 

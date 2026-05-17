@@ -326,7 +326,11 @@ import django
 @login_required
 def profile_view(request):
     """Current user's profile — view and edit own info + change password."""
+    from .models import UserNotificationPreference
     user = request.user
+
+    # Get or create notification preferences
+    notif_pref, _ = UserNotificationPreference.objects.get_or_create(user=user)
 
     if request.method == 'POST':
         action = request.POST.get('action', 'profile')
@@ -348,6 +352,47 @@ def profile_view(request):
                 messages.success(request, f"Timezone updated to {new_tz}.")
             except Exception:
                 messages.error(request, "Invalid timezone selected.")
+            return redirect('profile')
+
+        elif action == 'notifications':
+            # Channel toggles
+            notif_pref.email_enabled = request.POST.get('email_enabled') == 'on'
+            notif_pref.whatsapp_enabled = request.POST.get('whatsapp_enabled') == 'on'
+            notif_pref.teams_enabled = request.POST.get('teams_enabled') == 'on'
+
+            # Contact overrides
+            notif_pref.whatsapp_number = request.POST.get('whatsapp_number', '').strip()
+            notif_pref.teams_webhook_url = request.POST.get('teams_webhook_url', '').strip()
+
+            # Event toggles
+            notif_pref.on_new_message = request.POST.get('on_new_message') == 'on'
+            notif_pref.on_mention = request.POST.get('on_mention') == 'on'
+            notif_pref.on_status_change = request.POST.get('on_status_change') == 'on'
+            notif_pref.on_follower_added = request.POST.get('on_follower_added') == 'on'
+
+            # Quiet hours
+            quiet_start = request.POST.get('quiet_start', '').strip()
+            quiet_end = request.POST.get('quiet_end', '').strip()
+            from datetime import time as dt_time
+            try:
+                if quiet_start:
+                    h, m = map(int, quiet_start.split(':'))
+                    notif_pref.quiet_start = dt_time(h, m)
+                else:
+                    notif_pref.quiet_start = None
+            except (ValueError, TypeError):
+                notif_pref.quiet_start = None
+            try:
+                if quiet_end:
+                    h, m = map(int, quiet_end.split(':'))
+                    notif_pref.quiet_end = dt_time(h, m)
+                else:
+                    notif_pref.quiet_end = None
+            except (ValueError, TypeError):
+                notif_pref.quiet_end = None
+
+            notif_pref.save()
+            messages.success(request, "Notification preferences saved.")
             return redirect('profile')
 
         elif action == 'password':
@@ -394,6 +439,7 @@ def profile_view(request):
     return render(request, 'core/profile.html', {
         'profile_user': user,
         'timezone_choices': timezone_choices,
+        'notif_pref': notif_pref,
     })
 
 

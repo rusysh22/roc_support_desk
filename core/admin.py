@@ -8,7 +8,7 @@ from django.shortcuts import redirect
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage
+from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage, UserNotificationPreference
 
 
 # =====================================================================
@@ -417,3 +417,24 @@ class AuditLogAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# =====================================================================
+# User Notification Preference Admin
+# =====================================================================
+
+@admin.register(UserNotificationPreference)
+class UserNotificationPreferenceAdmin(ModelAdmin):
+    """Admin view for user notification preferences."""
+
+    list_display = ("user", "email_enabled", "whatsapp_enabled", "teams_enabled")
+    list_filter = ("email_enabled", "whatsapp_enabled", "teams_enabled")
+    search_fields = ("user__username", "user__email")
+    readonly_fields = ()
+    fieldsets = (
+        ("User", {"fields": ("user",)}),
+        ("Channels", {"fields": ("email_enabled", "whatsapp_enabled", "teams_enabled")}),
+        ("Contact Overrides", {"fields": ("whatsapp_number", "teams_webhook_url")}),
+        ("Event Toggles", {"fields": ("on_new_message", "on_mention", "on_status_change", "on_follower_added")}),
+        ("Quiet Hours", {"fields": ("quiet_start", "quiet_end")}),
+    )

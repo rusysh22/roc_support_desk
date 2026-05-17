@@ -303,7 +303,74 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not is_staff:
             CaseRecord.objects.filter(id=self.case_uuid).update(has_unread_messages=True)
 
+        # Dispatch user notifications (async-safe via Celery)
+        try:
+            self._dispatch_chat_notifications(case, msg, user, body)
+        except Exception:
+            pass  # Notification failure must never block chat
+
         return msg
+
+    def _dispatch_chat_notifications(self, case, msg, sender_user, body):
+        """Dispatch notifications to all participants except the sender."""
+        from core.notifications import notify_user
+        from django.contrib.auth.models import AnonymousUser
+        import re
+
+        sender_email = ""
+        if sender_user and not isinstance(sender_user, AnonymousUser) and sender_user.is_authenticated:
+            sender_email = (sender_user.email or "").lower()
+
+        sender_name = ""
+        if msg.sender_staff:
+            sender_name = msg.sender_staff.get_full_name() or msg.sender_staff.username
+        elif msg.sender_employee:
+            sender_name = msg.sender_employee.full_name or "User"
+        else:
+            sender_name = case.requester_name or "User"
+
+        # Build context
+        context = {
+            "ticket_id": str(case.id),
+            "ticket_subject": case.subject or "",
+            "sender_name": sender_name,
+            "message_preview": re.sub(r"<[^>]+>", "", body or "")[:200],
+            "ticket_url": f"/portal/chat/{case.id}/",
+        }
+
+        # Collect all participants (requester user + followers)
+        from core.models import User
+        participants = []
+
+        # Requester (if they have a User account)
+        if case.requester_email:
+            req_user = User.objects.filter(email__iexact=case.requester_email).first()
+            if req_user:
+                participants.append(req_user)
+
+        # Followers
+        for follower in case.followers.all():
+            if follower not in participants:
+                participants.append(follower)
+
+        # Check for @mentions in the body
+        mentioned_names = set()
+        if body:
+            mention_pattern = re.compile(r'data-mention-id="([^"]+)"', re.IGNORECASE)
+            for match in mention_pattern.finditer(body):
+                mentioned_names.add(match.group(1))
+
+        for participant in participants:
+            # Skip the sender
+            if sender_email and (participant.email or "").lower() == sender_email:
+                continue
+
+            # Check if this user was @mentioned
+            p_name = participant.username or participant.get_full_name() or ""
+            if p_name and p_name in mentioned_names:
+                notify_user(participant, "mention", {**context, "event_type": "mention"})
+            else:
+                notify_user(participant, "new_message", context)
 
     @database_sync_to_async
     def _get_sender_name(self, message):

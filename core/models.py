@@ -1133,3 +1133,129 @@ class AuditLog(models.Model):
             target_id=target_id,
             details=details or {},
         )
+
+
+# =====================================================================
+# User Notification Preferences
+# =====================================================================
+
+class UserNotificationPreference(models.Model):
+    """
+    Per-user notification preferences.
+
+    Each user has one row controlling which channels (email, WhatsApp, Teams)
+    they want notifications on, and which event types trigger them.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_pref",
+        verbose_name="User",
+    )
+
+    # ── Channel toggles ──
+    email_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Email Notifications",
+        help_text="Receive notifications via email.",
+    )
+    whatsapp_enabled = models.BooleanField(
+        default=False,
+        verbose_name="WhatsApp Notifications",
+        help_text="Receive notifications via WhatsApp.",
+    )
+    teams_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Teams Notifications",
+        help_text="Receive notifications via Microsoft Teams webhook.",
+    )
+
+    # ── Contact overrides ──
+    whatsapp_number = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="WhatsApp Number",
+        help_text="E.164 format, e.g. +6281234567890. If blank, uses phone_number from profile.",
+    )
+    teams_webhook_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        default="",
+        verbose_name="Teams Webhook URL",
+        help_text="Personal Incoming Webhook URL from your Teams channel.",
+    )
+
+    # ── Event toggles ──
+    on_new_message = models.BooleanField(
+        default=True,
+        verbose_name="New chat message",
+        help_text="Someone replies in a ticket you own or follow.",
+    )
+    on_mention = models.BooleanField(
+        default=True,
+        verbose_name="@Mention",
+        help_text="Someone @mentions you in a chat.",
+    )
+    on_status_change = models.BooleanField(
+        default=True,
+        verbose_name="Status change",
+        help_text="A ticket you own or follow changes status.",
+    )
+    on_follower_added = models.BooleanField(
+        default=True,
+        verbose_name="Added as follower",
+        help_text="You are added as a follower to a ticket.",
+    )
+
+    # ── Quiet hours ──
+    quiet_start = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name="Quiet hours start",
+        help_text="Notifications are paused from this time. e.g. 22:00",
+    )
+    quiet_end = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name="Quiet hours end",
+        help_text="Notifications resume at this time. e.g. 07:00",
+    )
+
+    class Meta:
+        verbose_name = "User Notification Preference"
+        verbose_name_plural = "User Notification Preferences"
+
+    def __str__(self):
+        channels = []
+        if self.email_enabled:
+            channels.append("Email")
+        if self.whatsapp_enabled:
+            channels.append("WA")
+        if self.teams_enabled:
+            channels.append("Teams")
+        return f"{self.user} — {', '.join(channels) or 'None'}"
+
+    def get_whatsapp_destination(self):
+        """Return the WhatsApp number to use (preference override or profile phone)."""
+        if self.whatsapp_number:
+            return self.whatsapp_number
+        return getattr(self.user, "phone_number", "") or ""
+
+    def is_in_quiet_hours(self):
+        """Check if current time falls within the user's quiet hours window."""
+        if not self.quiet_start or not self.quiet_end:
+            return False
+        from django.utils.timezone import localtime
+        import pytz
+        try:
+            user_tz = pytz.timezone(self.user.timezone or "Asia/Jakarta")
+        except Exception:
+            user_tz = pytz.timezone("Asia/Jakarta")
+        now = localtime(timezone=user_tz).time()
+        if self.quiet_start <= self.quiet_end:
+            # e.g. 09:00 – 17:00 (same day)
+            return self.quiet_start <= now <= self.quiet_end
+        else:
+            # e.g. 22:00 – 07:00 (overnight)
+            return now >= self.quiet_start or now <= self.quiet_end
