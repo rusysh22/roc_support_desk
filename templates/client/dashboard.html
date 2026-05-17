@@ -77,153 +77,27 @@
     );
 }
 
-/* ── Hero animations ─────────────────────────────────────── */
-@keyframes hero-aurora-drift-1 {
-    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-    33%      { transform: translate(8%, -6%) scale(1.08); opacity: 0.7; }
-    66%      { transform: translate(-6%, 8%) scale(0.96); opacity: 0.45; }
-}
-@keyframes hero-aurora-drift-2 {
-    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
-    50%      { transform: translate(-8%, 6%) scale(1.12); opacity: 0.6; }
-}
-@keyframes hero-shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position: 200% center; }
-}
-@keyframes hero-float {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-8px); }
-}
-@keyframes hero-status-ping {
-    0%   { transform: scale(1);   opacity: 0.85; }
-    100% { transform: scale(2.4); opacity: 0; }
-}
-@keyframes hero-ring-spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-}
-.hero-aurora-1 { animation: hero-aurora-drift-1 22s ease-in-out infinite; will-change: transform, opacity; }
-.hero-aurora-2 { animation: hero-aurora-drift-2 26s ease-in-out infinite; will-change: transform, opacity; }
-.hero-headline-gradient {
-    background: linear-gradient(90deg, #ffffff 0%, #e0e7ff 25%, #a5b4fc 50%, #e0e7ff 75%, #ffffff 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: hero-shimmer 8s linear infinite;
-}
-.hero-float { animation: hero-float 5s ease-in-out infinite; }
-.hero-status-ping { animation: hero-status-ping 2s cubic-bezier(0,0,0.2,1) infinite; }
-.hero-ring-spin-slow { animation: hero-ring-spin 28s linear infinite; }
-.hero-ring-spin-reverse { animation: hero-ring-spin 22s linear infinite reverse; }
-.hero-grid-pattern {
-    background-image:
-        linear-gradient(rgba(99,102,241,0.07) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99,102,241,0.07) 1px, transparent 1px);
-    background-size: 44px 44px;
-    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,0,0,0.9) 30%, transparent 80%);
-            mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,0,0,0.9) 30%, transparent 80%);
-}
-@media (prefers-reduced-motion: reduce) {
-    .hero-aurora-1, .hero-aurora-2, .hero-headline-gradient,
-    .hero-float, .hero-status-ping, .hero-ring-spin-slow, .hero-ring-spin-reverse {
-        animation: none !important;
-    }
-}
 </style>
-<!-- Hero Banner — Aurora Style -->
-<div class="relative w-full overflow-hidden rounded-2xl sm:rounded-3xl mt-4 sm:mt-6 mb-8 sm:mb-10 border border-white/[0.08] shadow-2xl"
-     style="background: radial-gradient(ellipse 100% 80% at 50% 0%, #1e1b4b 0%, #0c0e1a 45%, #050608 100%);">
-
-    <!-- Aurora gradient orbs -->
-    <div class="hero-aurora-1 absolute -top-40 -left-20 w-[55rem] h-[55rem] rounded-full pointer-events-none"
-         style="background: radial-gradient(circle, rgba(99,102,241,0.4) 0%, rgba(99,102,241,0) 60%); filter: blur(60px);"></div>
-    <div class="hero-aurora-2 absolute -bottom-40 -right-20 w-[50rem] h-[50rem] rounded-full pointer-events-none"
-         style="background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(168,85,247,0) 60%); filter: blur(60px);"></div>
-
-    <!-- Subtle indigo grid -->
-    <div class="absolute inset-0 hero-grid-pattern pointer-events-none"></div>
-
-    <!-- Top edge highlight -->
-    <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent pointer-events-none"></div>
-
-    <!-- Content -->
-    <div class="relative px-6 py-12 sm:px-10 sm:py-16 md:px-14 md:py-20 lg:px-16">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-10 lg:gap-8">
-
-            <!-- Text Content -->
-            <div class="max-w-2xl flex-1">
-                <!-- Status pill -->
-                <div class="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-sm mb-6 sm:mb-7">
-                    <span class="relative inline-flex w-2 h-2">
-                        <span class="absolute inset-0 inline-flex w-2 h-2 rounded-full bg-emerald-400 hero-status-ping"></span>
-                        <span class="relative inline-flex w-2 h-2 rounded-full bg-emerald-400"></span>
-                    </span>
-                    <span class="text-[10px] sm:text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">Online · Ready to assist</span>
-                </div>
-
-                <!-- Headline -->
-                <h1 class="text-3xl sm:text-5xl md:text-6xl lg:text-[4.25rem] font-bold tracking-tight leading-[1.05] mb-4 sm:mb-5">
-                    <span class="block text-white">How can we</span>
-                    <span class="block hero-headline-gradient">help you today?</span>
-                </h1>
-
-                <!-- Subtext -->
-                <p class="text-slate-400 text-sm sm:text-base md:text-lg max-w-md leading-relaxed">
-                    One place for everything support — fast, simple, always available.
-                </p>
-
-                <!-- CTAs -->
-                <div class="mt-7 sm:mt-9 flex flex-wrap items-center gap-3">
-                    <a href="#services-section"
-                       class="group relative inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white text-slate-900 text-sm font-semibold transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_8px_30px_rgba(255,255,255,0.25)]">
-                        <span>Submit a Ticket</span>
-                        <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                        </svg>
-                    </a>
-                    <a href="{% url 'chat:my_tickets' %}"
-                       class="group inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/15 hover:border-white/25 text-white text-sm font-medium backdrop-blur-sm transition-all duration-300">
-                        <svg class="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                        </svg>
-                        <span>My Tickets</span>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Decorative visual — concentric rings + glassmorphic icon (desktop only) -->
-            <div class="hidden lg:flex flex-shrink-0 items-center justify-center relative w-64 h-64">
-                <!-- Outer ring with rotating dots -->
-                <div class="absolute inset-0 hero-ring-spin-slow">
-                    <div class="absolute inset-0 rounded-full border border-indigo-400/15"></div>
-                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.9)]"></div>
-                    <div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1 w-1.5 h-1.5 rounded-full bg-indigo-300/70"></div>
-                </div>
-                <!-- Middle ring (counter-rotating) -->
-                <div class="absolute inset-6 hero-ring-spin-reverse">
-                    <div class="absolute inset-0 rounded-full border border-indigo-400/20"></div>
-                    <div class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.9)]"></div>
-                </div>
-                <!-- Inner static ring -->
-                <div class="absolute inset-12 rounded-full border border-purple-400/25"></div>
-
-                <!-- Center glass icon -->
-                <div class="relative hero-float">
-                    <div class="w-28 h-28 rounded-2xl bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-indigo-500/10 backdrop-blur-xl border border-white/15 flex items-center justify-center shadow-[0_20px_60px_-15px_rgba(99,102,241,0.6)]">
-                        <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-
-        </div>
+<!-- Typography Header -->
+<div class="text-center mt-12 mb-8">
+    <!-- Status pill -->
+    <div class="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 mb-6">
+        <span class="relative inline-flex w-2 h-2">
+            <span class="absolute inset-0 inline-flex w-2 h-2 rounded-full bg-emerald-400 animate-ping opacity-75"></span>
+            <span class="relative inline-flex w-2 h-2 rounded-full bg-emerald-500"></span>
+        </span>
+        <span class="text-[11px] font-bold tracking-wider uppercase text-slate-600">Online · Ready to assist</span>
     </div>
 
-    <!-- Bottom edge highlight -->
-    <div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/30 to-transparent pointer-events-none"></div>
+    <!-- Headline -->
+    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-800 mb-3">
+        How can we help you today?
+    </h1>
+    
+    <!-- Typewriter text -->
+    <div class="h-6 sm:h-8 text-base sm:text-lg font-semibold text-indigo-600">
+        <span id="typewriter-text"></span><span class="animate-pulse">|</span>
+    </div>
 </div>
 
 <!-- Search Bar -->
@@ -510,6 +384,48 @@
           card.style.setProperty('--mouse-y', `${y}px`);
       });
   });
+
+  // Typewriter effect
+  const texts = [
+      "Create Ticket Issue?", 
+      "Create Ticket Request?", 
+      "Create Ticket Case?", 
+      "Create Ticket Error?"
+  ];
+  let currentTextIndex = 0;
+  let charIndex = 0;
+  let isDeleting = false;
+  const typewriterElement = document.getElementById('typewriter-text');
+  
+  function typeWriter() {
+      if (!typewriterElement) return;
+      
+      const currentText = texts[currentTextIndex];
+      
+      if (isDeleting) {
+          typewriterElement.textContent = currentText.substring(0, charIndex - 1);
+          charIndex--;
+      } else {
+          typewriterElement.textContent = currentText.substring(0, charIndex + 1);
+          charIndex++;
+      }
+      
+      let typeSpeed = isDeleting ? 40 : 80;
+      
+      if (!isDeleting && charIndex === currentText.length) {
+          typeSpeed = 2000; // Pause at end before deleting
+          isDeleting = true;
+      } else if (isDeleting && charIndex === 0) {
+          isDeleting = false;
+          currentTextIndex = (currentTextIndex + 1) % texts.length;
+          typeSpeed = 500; // Pause before typing next word
+      }
+      
+      setTimeout(typeWriter, typeSpeed);
+  }
+  
+  setTimeout(typeWriter, 1000);
+
 })();
 </script>
 

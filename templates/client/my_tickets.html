@@ -54,9 +54,9 @@
                placeholder="Search tickets, subjects, or chat messages…"
                class="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400">
       </div>
-      <button type="submit" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-5 py-3.5 rounded-xl shadow-sm transition-colors whitespace-nowrap">
+      <button type="submit" class="flex-shrink-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-3.5 sm:px-5 py-3.5 rounded-xl shadow-sm transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
-        Search
+        <span class="hidden sm:inline">Search</span>
       </button>
       {% if role_filter %}<input type="hidden" name="role" value="{{ role_filter }}">{% endif %}
       {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
@@ -65,37 +65,37 @@
     {# Role tabs + Status + Sort row #}
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
       {# Role tabs #}
-      <div class="flex bg-slate-100 rounded-xl p-1 flex-shrink-0">
+      <div class="flex w-full sm:w-auto bg-slate-100 rounded-xl p-1 flex-shrink-0">
         <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}sort={{ sort_by }}"
-           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if not role_filter %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if not role_filter %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
           All <span class="ml-1 opacity-60">{{ count_all }}</span>
         </a>
         <a href="?role=mine{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
-           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'mine' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'mine' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
           Mine <span class="ml-1 opacity-60">{{ count_mine }}</span>
         </a>
         <a href="?role=following{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
-           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'following' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'following' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
           Following <span class="ml-1 opacity-60">{{ count_following }}</span>
         </a>
       </div>
 
       {# Status + Sort dropdowns #}
       <div class="flex gap-2 flex-1">
-        <select name="status" onchange="this.form.submit()" class="flex-1 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+        <select name="status" onchange="this.form.submit()" class="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
           {% for val, label in status_choices %}
           <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
-        <select name="sort" onchange="this.form.submit()" class="bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+        <select name="sort" onchange="this.form.submit()" class="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
           <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest first</option>
           <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest first</option>
           <option value="updated" {% if sort_by == 'updated' %}selected{% endif %}>Last updated</option>
         </select>
         {% if status_filter or search_query or role_filter or show_closed %}
-        <a href="{% url 'chat:my_tickets' %}" class="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-colors whitespace-nowrap">
+        <a href="{% url 'chat:my_tickets' %}" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-colors" title="Clear filters">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          Clear
+          <span class="hidden sm:inline">Clear</span>
         </a>
         {% endif %}
       </div>
@@ -157,9 +157,9 @@
         </div>
 
         {# Main content row #}
-        <div class="flex items-start gap-4">
-          {# Category icon #}
-          <div x-show="!compact" class="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 flex items-center justify-center text-xl">
+        <div class="flex items-start gap-2 sm:gap-4">
+          {# Category icon — hidden on mobile to reclaim horizontal space #}
+          <div x-show="!compact" class="hidden sm:flex flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 items-center justify-center text-xl">
             {{ item.case.category.icon|default:"🎫" }}
           </div>
 
@@ -229,27 +229,27 @@
             </p>
           </div>
 
-          {# Action button #}
+          {# Action button — icon-only on mobile, full text on sm+ #}
           <div class="flex-shrink-0 flex flex-col gap-2 items-end">
             {% if item.can_chat %}
             <a href="/portal/chat/{{ item.case.id }}/"
-               class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all
+               class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl transition-all
                {% if item.unread_count > 0 %}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30{% else %}bg-indigo-50 text-indigo-700 hover:bg-indigo-100{% endif %}">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-              Open Chat
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+              <span class="hidden sm:inline">Open Chat</span>
               {% if item.unread_count > 0 %}
               <span class="min-w-[1.25rem] h-5 px-1.5 text-[10px] font-black leading-5 text-indigo-700 bg-white rounded-full">{{ item.unread_count }}</span>
               {% endif %}
             </a>
             {% elif item.can_reopen %}
-            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              Reopen
+            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span class="hidden sm:inline">Reopen</span>
             </a>
             {% else %}
-            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              View
+            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <span class="hidden sm:inline">View</span>
             </a>
             {% endif %}
           </div>
@@ -261,7 +261,7 @@
 
   {# ── Pagination ── #}
   {% if page_obj.has_other_pages %}
-  <div class="flex items-center justify-between mt-6 px-1">
+  <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 px-1">
     <p class="text-xs text-slate-500">
       Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
     </p>
