@@ -127,7 +127,7 @@ services:
     environment:
       - SERVER_TYPE=http
       - SERVER_PORT=8080
-      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://43.134.163.72:8080}
+      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8080}
 
       - DOCKER_ENV=true
       - LOG_LEVEL=DEBUG,ERROR,WARN,INFO,LOG,VERBOSE,DARK,WEBHOOKS
