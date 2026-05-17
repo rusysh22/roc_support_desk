@@ -31,6 +31,9 @@
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 
+    <!-- Marked (Markdown to HTML) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <!-- JokoUI Design System -->
     <link rel="stylesheet" href="{% static 'css/jokoui.css' %}?v=4">
 
@@ -840,6 +843,91 @@
             </button>
           </div>
         </div>
+
+        {# ── AI Assistant Panel ── #}
+        {% if ai_config.ai_enabled %}
+        <div x-show="widgetMode === 'ai'" x-cloak class="flex flex-col flex-1 min-h-0 bg-white">
+          <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3" x-ref="aiScroll" id="ai-messages">
+            {# Welcome Bubble #}
+            <div class="flex gap-2">
+              <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 text-sm">🤖</div>
+              <div class="bg-indigo-50 text-slate-800 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] shadow-sm">
+                <p class="text-[13px] leading-relaxed">{{ ai_config.ai_welcome_message }}</p>
+              </div>
+            </div>
+
+            {# AI Messages #}
+            <template x-for="(msg, idx) in aiMessages" :key="idx">
+              <div class="flex gap-2" :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                <template x-if="msg.role !== 'user'">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm"
+                       :class="msg.error ? 'bg-rose-100 text-rose-500' : 'bg-indigo-100'">
+                    <span x-text="msg.role === 'ai-loading' ? '⏳' : '🤖'"></span>
+                  </div>
+                </template>
+                
+                <div class="rounded-2xl px-3 py-2 max-w-[85%] shadow-sm overflow-hidden"
+                     :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : (msg.error ? 'bg-rose-50 text-rose-700 rounded-tl-sm' : 'bg-indigo-50 text-slate-800 rounded-tl-sm')">
+                  
+                  <template x-if="msg.role === 'ai-loading'">
+                    <div class="flex items-center gap-1 h-5">
+                      <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
+                      <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></div>
+                      <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                    </div>
+                  </template>
+                  
+                  <template x-if="msg.role !== 'ai-loading'">
+                    <div>
+                      <div class="text-[13px] leading-relaxed prose prose-sm max-w-none"
+                           :class="msg.role === 'user' ? 'prose-invert text-white' : 'prose-indigo text-slate-800'"
+                           x-html="msg.text ? marked.parse(msg.text) : ''"></div>
+                      
+                      {# Source References #}
+                      <template x-if="msg.sources && msg.sources.length > 0">
+                        <div class="mt-2 pt-2 border-t border-indigo-200/50">
+                          <p class="text-[10px] font-semibold text-slate-500 mb-1">Sources:</p>
+                          <div class="flex flex-col gap-1">
+                            <template x-for="(src, i) in msg.sources" :key="i">
+                              <a :href="src.url" target="_blank" class="text-[11px] text-indigo-600 hover:underline flex items-center gap-1">
+                                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                <span class="truncate" x-text="src.title"></span>
+                              </a>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          {# AI Input Area #}
+          <div class="px-3 py-2 border-t border-slate-100 flex items-end gap-2 bg-slate-50/50">
+            <textarea x-model="aiQuestion"
+                      @keydown.enter.exact.prevent="askAI()"
+                      @keydown.enter.shift.exact="aiQuestion += '\n'"
+                      rows="1"
+                      :placeholder="'{{ ai_config.ai_placeholder_text|escapejs }}' || 'Ask something...'"
+                      class="jk-input flex-1 resize-none py-1.5 leading-snug bg-white"
+                      style="min-height:34px;max-height:80px;overflow-y:auto;font-size:14px;"
+                      :disabled="aiLoading"></textarea>
+            <button @click="askAI()"
+                    :disabled="aiLoading || !aiQuestion.trim()"
+                    class="flex-shrink-0 w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
+              <svg x-show="!aiLoading" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+              <svg x-show="aiLoading" class="w-3.5 h-3.5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        {% endif %}
 
       </div>
 
