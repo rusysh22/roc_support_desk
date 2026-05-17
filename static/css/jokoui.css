@@ -393,6 +393,20 @@
     color: #94a3b8;
 }
 
+/* Padding overrides for jk-input combined with Tailwind utilities.
+   Two-class specificity (0-2-0) beats the single-class base rule (0-1-0),
+   so these win even though jokoui.css loads after tailwind.css. */
+.jk-input.pl-7  { padding-left: 1.75rem; }
+.jk-input.pl-8  { padding-left: 2rem; }
+.jk-input.pl-9  { padding-left: 2.25rem; }
+.jk-input.pl-10 { padding-left: 2.5rem; }
+.jk-input.pl-12 { padding-left: 3rem; }
+.jk-input.pr-8  { padding-right: 2rem; }
+.jk-input.pr-10 { padding-right: 2.5rem; }
+.jk-input.py-2  { padding-top: 0.5rem;  padding-bottom: 0.5rem; }
+.jk-input.py-3  { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.jk-input.text-xs { font-size: 0.75rem; }
+
 .jk-textarea {
     resize: vertical;
     min-height: 90px;
