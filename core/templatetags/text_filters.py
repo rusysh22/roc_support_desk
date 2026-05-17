@@ -46,12 +46,13 @@ def render_chat_body(value):
         allowed_attrs = {
             '*': ['class', 'style'],
             'a': ['href', 'target', 'rel', 'title'],
-            'img': ['src', 'alt', 'width', 'height']
+            'img': ['src', 'alt', 'width', 'height'],
+            'span': ['class', 'style', 'data-mention-id', 'contenteditable'],
         }
         clean_html = bleach.clean(
-            stripped, 
-            tags=allowed_tags, 
-            attributes=allowed_attrs, 
+            stripped,
+            tags=allowed_tags,
+            attributes=allowed_attrs,
             strip=True
         )
         return mark_safe(clean_html)

@@ -147,6 +147,12 @@ def _broadcast_message(case_uuid, message, sender_name):
         except Exception:
             pass
 
+    sender_email = ""
+    if message.sender_staff:
+        sender_email = (message.sender_staff.email or "").lower()
+    elif message.sender_employee:
+        sender_email = (message.sender_employee.email or "").lower()
+
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
         f"chat_{case_uuid}",
@@ -156,6 +162,7 @@ def _broadcast_message(case_uuid, message, sender_name):
             "body": message.body,
             "direction": message.direction,
             "sender_name": sender_name,
+            "sender_email": sender_email,
             "sent_at": message.sent_at.isoformat(),
             "is_system": message.is_system,
             "quoted_message_id": str(message.quoted_message_id) if message.quoted_message_id else None,
@@ -862,6 +869,12 @@ def chat_upload(request, case_uuid):
             "is_image": is_image,
         })
 
+        att_sender_email = ""
+        if msg.sender_staff:
+            att_sender_email = (msg.sender_staff.email or "").lower()
+        elif msg.sender_employee:
+            att_sender_email = (msg.sender_employee.email or "").lower()
+
         async_to_sync(channel_layer.group_send)(
             f"chat_{case_uuid}",
             {
@@ -874,6 +887,7 @@ def chat_upload(request, case_uuid):
                 "sent_at": msg.sent_at.isoformat(),
                 "direction": msg.direction,
                 "sender_name": sender_name,
+                "sender_email": att_sender_email,
             },
         )
 

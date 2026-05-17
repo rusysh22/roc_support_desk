@@ -88,6 +88,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "body": message.body,
                     "direction": message.direction,
                     "sender_name": await self._get_sender_name(message),
+                    "sender_email": await self._get_sender_email(message),
                     "sent_at": message.sent_at.isoformat(),
                     "is_system": message.is_system,
                     "quoted_message_id": str(message.quoted_message_id) if message.quoted_message_id else None,
@@ -158,6 +159,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "body": event["body"],
             "direction": event["direction"],
             "sender_name": event["sender_name"],
+            "sender_email": event.get("sender_email", ""),
             "sent_at": event["sent_at"],
             "is_system": event["is_system"],
             "quoted_message_id": event.get("quoted_message_id"),
@@ -184,6 +186,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "sent_at": event["sent_at"],
             "direction": event["direction"],
             "sender_name": event["sender_name"],
+            "sender_email": event.get("sender_email", ""),
         }))
 
     async def chat_status_update(self, event):
@@ -390,6 +393,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return message.case.requester_name or "User"
         except Exception:
             return "User"
+
+    @database_sync_to_async
+    def _get_sender_email(self, message):
+        if message.sender_staff:
+            return (getattr(message.sender_staff, "email", "") or "").lower()
+        if message.sender_employee:
+            return (getattr(message.sender_employee, "email", "") or "").lower()
+        return ""
 
     @database_sync_to_async
     def _get_current_user_name(self):

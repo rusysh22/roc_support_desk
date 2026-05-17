@@ -76,6 +76,28 @@
   }
   #mention-dropdown button:hover { background: #eef2ff; }
 
+  /* Mention chip (atomic — Quill Embed blot) */
+  .mention-chip {
+    display: inline-block;
+    padding: 0 6px;
+    margin: 0 1px;
+    background: #eef2ff;
+    color: #4338ca;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.92em;
+    line-height: 1.4;
+    white-space: nowrap;
+    cursor: default;
+    user-select: all;
+  }
+  /* Inverted variant inside an outbound (indigo) bubble */
+  .bubble-content.bg-indigo-600 .mention-chip,
+  .bubble-content.text-white .mention-chip {
+    background: rgba(255,255,255,0.22);
+    color: #fff;
+  }
+
   /* Follower avatar stack */
   .follower-avatar {
     width: 22px; height: 22px; border-radius: 50%;
@@ -579,6 +601,28 @@ function chatRoom() {
 
     _initQuill() {
       if (this.quill) return;
+
+      if (!Quill.imports['formats/mention-chip']) {
+        const Embed = Quill.import('blots/embed');
+        class MentionChip extends Embed {
+          static create(value) {
+            const node = super.create();
+            const name = (value && typeof value === 'object') ? (value.name || '') : (value || '');
+            node.setAttribute('data-mention-id', name);
+            node.setAttribute('contenteditable', 'false');
+            node.textContent = '@' + name;
+            return node;
+          }
+          static value(node) {
+            return { name: node.getAttribute('data-mention-id') || node.textContent.replace(/^@/, '') };
+          }
+        }
+        MentionChip.blotName = 'mention-chip';
+        MentionChip.tagName = 'SPAN';
+        MentionChip.className = 'mention-chip';
+        Quill.register(MentionChip);
+      }
+
       this.quill = new Quill('#quill-editor', {
         theme: 'snow',
         placeholder: 'Type a message… (Ctrl+Enter to send)',
@@ -704,48 +748,26 @@ function chatRoom() {
 
     _insertMention(name, atIdx, queryLen) {
       if (atIdx === undefined || isNaN(atIdx) || atIdx < 0) {
-          this._hideMention();
-          return;
+        this._hideMention();
+        return;
       }
-
-      // Calculate how many characters to delete: '@' + query
-      const deleteLen = queryLen + 1;
-      const docLen = this.quill.getLength(); // includes trailing \n
-
-      // Bounds check: make sure atIdx + deleteLen doesn't exceed document
-      if (atIdx + deleteLen > docLen - 1) {
-          this._hideMention();
-          return;
-      }
-
+      const deleteLen = queryLen + 1; // '@' + query
       this._isInsertingMention = true;
       this._hideMention();
 
-      // Use requestAnimationFrame to let Quill fully settle
       requestAnimationFrame(() => {
         try {
-          // Re-check document length after settling
           const currentLen = this.quill.getLength();
-          if (atIdx >= currentLen) {
-            return;
-          }
-
-          const mentionText = '@' + name + ' ';
-
-          // Step 1: Delete the @query text
+          if (atIdx >= currentLen) return;
           const safeDeleteLen = Math.min(deleteLen, currentLen - 1 - atIdx);
           if (safeDeleteLen > 0) {
             this.quill.deleteText(atIdx, safeDeleteLen, 'silent');
           }
-
-          // Step 2: Insert the mention text
-          this.quill.insertText(atIdx, mentionText, 'silent');
-
-          // Step 3: Move cursor to after the mention
-          const newPos = Math.min(atIdx + mentionText.length, this.quill.getLength() - 1);
+          this.quill.insertEmbed(atIdx, 'mention-chip', { name }, 'silent');
+          this.quill.insertText(atIdx + 1, ' ', 'silent');
+          const newPos = Math.min(atIdx + 2, this.quill.getLength() - 1);
           this.quill.setSelection(newPos, 0, 'silent');
         } catch(e) {
-          // Silently recover - don't crash the editor
           console.warn("Mention insert recovered:", e.message);
         } finally {
           this._isInsertingMention = false;
@@ -1170,9 +1192,18 @@ function chatRoom() {
       </div>`;
     },
 
+    _isOwnMessage(data) {
+      if (data.direction !== CHAT_USER_DIRECTION) return false;
+      if (CHAT_USER_DIRECTION === 'IN' && CHAT_CURRENT_USER_EMAIL) {
+        const sEmail = (data.sender_email || '').toLowerCase();
+        if (sEmail && sEmail !== CHAT_CURRENT_USER_EMAIL.toLowerCase()) return false;
+      }
+      return true;
+    },
+
     appendMessage(data) {
       const wasAtBottom = this.isAtBottom();
-      const isOut = data.direction === CHAT_USER_DIRECTION;
+      const isOut = this._isOwnMessage(data);
       const isSys = data.is_system;
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
@@ -1226,7 +1257,7 @@ function chatRoom() {
 
       if (wasAtBottom) {
         this.scrollBottom();
-      } else if (!isSys && data.direction !== CHAT_USER_DIRECTION) {
+      } else if (!isSys && !isOut) {
         this.unreadCount++;
         this.showScrollBtn = true;
       }
@@ -1252,7 +1283,7 @@ function chatRoom() {
       const wasAtBottom = this.isAtBottom();
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
-      const isOut = data.direction === CHAT_USER_DIRECTION;
+      const isOut = this._isOwnMessage(data);
       el.className = `flex gap-3 mb-4 ${isOut ? 'flex-row-reverse' : ''}`;
       const init = (data.sender_name || 'U').charAt(0).toUpperCase();
       const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
@@ -1283,7 +1314,7 @@ function chatRoom() {
       document.getElementById('chat-live').appendChild(el);
       if (wasAtBottom) {
         this.scrollBottom();
-      } else if (data.direction !== CHAT_USER_DIRECTION) {
+      } else if (!isOut) {
         this.unreadCount++;
         this.showScrollBtn = true;
       }
