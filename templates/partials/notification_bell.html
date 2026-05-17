@@ -117,7 +117,7 @@
         {
             "id": "msg_{{ msg.id }}",
             "title": "New Message - {{ msg.case.case_number }}",
-            "body": "{{ msg.body|truncatechars:100|escapejs }}",
+            "body": "{{ msg.body|striptags|truncatechars:100|escapejs }}",
             "url": "{% url 'desk:mark_notification_read' notif_type='msg' notif_id=msg.id %}"
         }{% if not forloop.last or recent_cases or recent_mentions %},{% endif %}
         {% endfor %}
