@@ -5,84 +5,221 @@
 {% block nav_my_tickets %}active{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-4xl mx-auto" x-data="{ compact: false, searchInput: '{{ search_query|escapejs }}' }">
 
-  {# ── Header ── #}
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">My Tickets</h2>
-      <p class="text-sm text-slate-500 mt-0.5">Track and continue your support requests.</p>
+  {# ── Hero Header ── #}
+  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 p-6 sm:p-8 mb-6 shadow-xl shadow-indigo-500/15">
+    <div class="absolute inset-0 opacity-10">
+      <svg class="w-full h-full" viewBox="0 0 400 200" fill="none"><circle cx="350" cy="30" r="120" fill="white" opacity="0.15"/><circle cx="50" cy="180" r="80" fill="white" opacity="0.1"/></svg>
     </div>
-    <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary text-sm">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-      New Ticket
-    </a>
+    <div class="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <span class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center text-xl">🎫</span>
+          My Tickets
+        </h1>
+        <p class="text-indigo-200 text-sm mt-1.5">Track, search and manage all your support conversations.</p>
+      </div>
+      <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-2 bg-white text-indigo-700 font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        New Ticket
+      </a>
+    </div>
+
+    {# Stats row #}
+    <div class="relative grid grid-cols-3 gap-3 mt-5">
+      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
+        <p class="text-2xl font-black text-white">{{ count_all }}</p>
+        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">Total</p>
+      </div>
+      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
+        <p class="text-2xl font-black text-white">{{ count_mine }}</p>
+        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">My Tickets</p>
+      </div>
+      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
+        <p class="text-2xl font-black text-white">{{ count_following }}</p>
+        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">Following</p>
+      </div>
+    </div>
   </div>
 
-  {# ── Filters ── #}
-  <form method="get" class="flex flex-col gap-2 mb-5">
-    {# Search bar — always full width #}
-    <div class="relative w-full">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  {# ── Search & Filters ── #}
+  <form method="get" id="filter-form" class="mb-5 space-y-3">
+    {# Search bar #}
+    <div class="relative group">
+      <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
       </svg>
-      <input type="text" name="q" value="{{ search_query }}"
-             placeholder="Search by subject or ticket number (e.g. RQ-E8973E6D)…"
-             class="jk-input w-full text-sm" style="padding-left: 2.25rem">
+      <input type="text" name="q" value="{{ search_query }}" x-model="searchInput"
+             placeholder="Search tickets, subjects, or chat messages…"
+             class="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400">
+      {% if role_filter %}<input type="hidden" name="role" value="{{ role_filter }}">{% endif %}
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
     </div>
-    {# Status + action buttons in a separate row #}
-    <div class="flex gap-2">
-      <select name="status" class="jk-input text-sm flex-1">
-        {% for val, label in status_choices %}
-        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="jk-btn jk-btn-primary text-sm px-4 whitespace-nowrap flex-shrink-0">Filter</button>
-      {% if status_filter or search_query %}
-      <a href="{% url 'chat:my_tickets' %}" class="jk-btn text-sm px-4 whitespace-nowrap flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 border-none">Clear</a>
-      {% endif %}
+
+    {# Role tabs + Status + Sort row #}
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+      {# Role tabs #}
+      <div class="flex bg-slate-100 rounded-xl p-1 flex-shrink-0">
+        <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}sort={{ sort_by }}"
+           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if not role_filter %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          All <span class="ml-1 opacity-60">{{ count_all }}</span>
+        </a>
+        <a href="?role=mine{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
+           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'mine' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          Mine <span class="ml-1 opacity-60">{{ count_mine }}</span>
+        </a>
+        <a href="?role=following{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
+           class="px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'following' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          Following <span class="ml-1 opacity-60">{{ count_following }}</span>
+        </a>
+      </div>
+
+      {# Status + Sort dropdowns #}
+      <div class="flex gap-2 flex-1">
+        <select name="status" onchange="this.form.submit()" class="flex-1 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+          {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select name="sort" onchange="this.form.submit()" class="bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+          <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest first</option>
+          <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest first</option>
+          <option value="updated" {% if sort_by == 'updated' %}selected{% endif %}>Last updated</option>
+        </select>
+        {% if status_filter or search_query or role_filter or show_closed %}
+        <a href="{% url 'chat:my_tickets' %}" class="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-colors whitespace-nowrap">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          Clear
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Toolbar: compact toggle + show closed #}
+    <div class="flex items-center justify-between">
+      <label class="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" name="closed" value="1" {% if show_closed %}checked{% endif %} onchange="this.form.submit()"
+               class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30">
+        <span class="text-xs text-slate-500">Show closed tickets</span>
+      </label>
+      <button type="button" @click="compact = !compact" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100">
+        <svg x-show="!compact" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <svg x-show="compact" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        <span x-text="compact ? 'Detailed view' : 'Compact view'"></span>
+      </button>
     </div>
   </form>
 
+  {# ── Ticket List ── #}
   {% if tickets %}
-  <div class="space-y-3">
+  <div :class="compact ? 'space-y-1.5' : 'space-y-3'">
     {% for item in tickets %}
-    <div class="jk-card hover:shadow-md transition-shadow {% if item.unread_count > 0 %}border-indigo-200{% endif %}">
-      <div class="jk-card-body py-4 px-5">
-        <div class="flex items-start gap-4">
+    <div class="group relative bg-white rounded-2xl border transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5
+         {% if item.unread_count > 0 %}border-indigo-300 shadow-md shadow-indigo-500/10{% else %}border-slate-200 shadow-sm{% endif %}">
 
+      {# Unread indicator bar #}
+      {% if item.unread_count > 0 %}
+      <div class="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-r-full"></div>
+      {% endif %}
+
+      <div :class="compact ? 'p-3' : 'p-5'" class="{% if item.unread_count > 0 %}pl-6{% endif %}">
+        {# Top row: meta info #}
+        <div :class="compact ? 'mb-1' : 'mb-3'" class="flex items-center justify-between">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-mono text-[11px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">{{ item.case.case_number }}</span>
+            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full
+              {% if item.status_color == 'yellow' %}bg-amber-100 text-amber-700
+              {% elif item.status_color == 'blue' %}bg-blue-100 text-blue-700
+              {% elif item.status_color == 'orange' %}bg-orange-100 text-orange-700
+              {% elif item.status_color == 'green' %}bg-emerald-100 text-emerald-700
+              {% else %}bg-slate-100 text-slate-500{% endif %}">
+              {{ item.status_label }}
+            </span>
+            {% if item.is_follower %}
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 uppercase tracking-wider flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              Following
+            </span>
+            {% endif %}
+          </div>
+          {% if item.unread_count > 0 %}
+          <span class="flex items-center gap-1.5 text-[11px] font-bold text-red-500 animate-pulse">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            {{ item.unread_count }} new
+          </span>
+          {% endif %}
+        </div>
+
+        {# Main content row #}
+        <div class="flex items-start gap-4">
           {# Category icon #}
-          <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-xl mt-0.5">
+          <div x-show="!compact" class="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 flex items-center justify-center text-xl">
             {{ item.case.category.icon|default:"🎫" }}
           </div>
 
-          {# Main info #}
+          {# Info block #}
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap mb-1">
-              <span class="font-mono text-xs text-slate-400">{{ item.case.case_number }}</span>
-              {# Status badge #}
-              <span class="text-xs font-bold px-2 py-0.5 rounded-full
-                {% if item.status_color == 'yellow' %}bg-yellow-100 text-yellow-700
-                {% elif item.status_color == 'blue' %}bg-blue-100 text-blue-700
-                {% elif item.status_color == 'orange' %}bg-orange-100 text-orange-700
-                {% elif item.status_color == 'green' %}bg-emerald-100 text-emerald-700
-                {% else %}bg-slate-100 text-slate-500{% endif %}">
-                {{ item.status_label }}
+            <h3 class="text-sm font-bold text-slate-800 truncate mb-1 group-hover:text-indigo-700 transition-colors">{{ item.case.subject }}</h3>
+
+            {# Requester + Category #}
+            <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
+              <span class="flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                {{ item.case.requester_name|default:item.case.requester_email }}
               </span>
-              <span class="text-xs text-slate-400">{{ item.case.category.name }}</span>
+              <span class="w-px h-3 bg-slate-200"></span>
+              <span class="flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                {{ item.case.category.name }}
+              </span>
+              <span class="w-px h-3 bg-slate-200"></span>
+              <span class="flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                {{ item.total_messages }} msgs
+              </span>
             </div>
 
-            <p class="text-sm font-semibold text-slate-800 truncate mb-1">{{ item.case.subject }}</p>
-            {% if item.case.problem_description %}
-            <p class="text-xs text-slate-500 line-clamp-2 mb-1">{{ item.case.problem_description|truncatechars:140 }}</p>
+            {# Last message preview #}
+            {% if item.last_msg_preview %}
+            <div x-show="!compact" class="flex items-start gap-2 bg-slate-50 rounded-lg px-3 py-2 mb-2 border border-slate-100">
+              <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+              <div class="min-w-0 flex-1">
+                <span class="text-[11px] font-semibold text-slate-600">{{ item.last_msg_sender }}:</span>
+                <span class="text-[11px] text-slate-500 line-clamp-1">{{ item.last_msg_preview }}</span>
+              </div>
+              {% if item.last_msg_time %}
+              <span class="text-[10px] text-slate-400 flex-shrink-0 whitespace-nowrap">{{ item.last_msg_time|timesince }} ago</span>
+              {% endif %}
+            </div>
             {% endif %}
 
-            <p class="text-xs text-slate-400">
-              Submitted {{ item.case.created_at|date:"d M Y, H:i" }}
+            {# Matched message search results #}
+            {% if item.matched_messages %}
+            <div x-show="!compact" class="mt-2 space-y-1.5">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Chat matches
+              </p>
+              {% for msg in item.matched_messages %}
+              <div class="flex items-start gap-2 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2">
+                <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{{ msg.sender|make_list|first|upper }}</span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-[11px] font-semibold text-indigo-700">{{ msg.sender }}</span>
+                  <p class="text-[11px] text-slate-600 line-clamp-2">{{ msg.body }}</p>
+                </div>
+                <span class="text-[10px] text-slate-400 flex-shrink-0">{{ msg.sent_at|date:"d M, H:i" }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {# Timestamps #}
+            <p x-show="!compact" class="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              {{ item.case.created_at|date:"d M Y, H:i" }}
               {% if item.case.updated_at != item.case.created_at %}
-              · Updated {{ item.case.updated_at|date:"d M Y, H:i" }}
+              · updated {{ item.case.updated_at|timesince }} ago
               {% endif %}
             </p>
           </div>
@@ -91,33 +228,26 @@
           <div class="flex-shrink-0 flex flex-col gap-2 items-end">
             {% if item.can_chat %}
             <a href="/portal/chat/{{ item.case.id }}/"
-               class="jk-btn jk-btn-primary text-xs px-3 py-1.5 whitespace-nowrap flex items-center gap-2">
-              <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-              </svg>
+               class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all
+               {% if item.unread_count > 0 %}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30{% else %}bg-indigo-50 text-indigo-700 hover:bg-indigo-100{% endif %}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
               Open Chat
               {% if item.unread_count > 0 %}
-              <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-indigo-600">
-                {{ item.unread_count }}
-              </span>
+              <span class="min-w-[1.25rem] h-5 px-1.5 text-[10px] font-black leading-5 text-indigo-700 bg-white rounded-full">{{ item.unread_count }}</span>
               {% endif %}
             </a>
-            {% if item.unread_count > 0 %}
-            <p class="text-[11px] text-red-500 font-medium">{{ item.unread_count }} new message{{ item.unread_count|pluralize }}</p>
-            {% endif %}
             {% elif item.can_reopen %}
-            <a href="/portal/chat/{{ item.case.id }}/"
-               class="jk-btn text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white border-none whitespace-nowrap">
+            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               Reopen
             </a>
             {% else %}
-            <a href="/portal/chat/{{ item.case.id }}/"
-               class="jk-btn text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border-none whitespace-nowrap">
-              View History
+            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              View
             </a>
             {% endif %}
           </div>
-
         </div>
       </div>
     </div>
@@ -128,42 +258,42 @@
   {% if page_obj.has_other_pages %}
   <div class="flex items-center justify-between mt-6 px-1">
     <p class="text-xs text-slate-500">
-      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} tickets
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
     </p>
     <div class="flex items-center gap-1">
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}"
-         class="jk-btn text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border-none">← Prev</a>
+      <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}"
+         class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">← Prev</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if page_obj.number == num %}
-        <span class="jk-btn text-xs px-3 py-1.5 bg-indigo-600 text-white border-none cursor-default">{{ num }}</span>
+        <span class="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg">{{ num }}</span>
         {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
-        <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}"
-           class="jk-btn text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border-none">{{ num }}</a>
+        <a href="?page={{ num }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}"
+           class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">{{ num }}</a>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}"
-         class="jk-btn text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border-none">Next →</a>
+      <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}"
+         class="px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">Next →</a>
       {% endif %}
     </div>
   </div>
   {% endif %}
 
   {% else %}
-  {# Empty state #}
-  <div class="jk-card">
-    <div class="jk-card-body py-16 text-center">
-      <div class="text-4xl mb-4">🎫</div>
-      {% if status_filter or search_query %}
+  {# ── Empty State ── #}
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+    <div class="py-20 text-center">
+      <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-4xl mb-5 shadow-inner">🎫</div>
+      {% if status_filter or search_query or role_filter %}
       <h3 class="text-lg font-bold text-slate-700 mb-2">No tickets match your filters</h3>
-      <p class="text-sm text-slate-500 mb-6">Try clearing the filters to see all tickets.</p>
-      <a href="{% url 'chat:my_tickets' %}" class="jk-btn jk-btn-primary mx-auto w-fit">Clear filters</a>
+      <p class="text-sm text-slate-500 mb-6 max-w-xs mx-auto">Try adjusting your search terms or clearing the filters.</p>
+      <a href="{% url 'chat:my_tickets' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">Clear all filters</a>
       {% else %}
       <h3 class="text-lg font-bold text-slate-700 mb-2">No tickets yet</h3>
-      <p class="text-sm text-slate-500 mb-6">You haven't submitted any support requests.</p>
-      <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mx-auto w-fit">Submit your first ticket</a>
+      <p class="text-sm text-slate-500 mb-6 max-w-xs mx-auto">You haven't submitted any support requests or been added as a follower.</p>
+      <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">Submit your first ticket</a>
       {% endif %}
     </div>
   </div>
@@ -173,11 +303,8 @@
 {% endblock %}
 
 {% block extra_scripts %}
-
 <script>
 (function () {
-  // Seed unread counts from the currently rendered page so the first poll
-  // only fires a notification for messages that arrive AFTER page load.
   const prevCounts = {
     {% for item in tickets %}
     "{{ item.case.id }}": {{ item.unread_count }},
@@ -187,7 +314,6 @@
   const POLL_URL = "{% url 'chat:my_tickets_status' %}";
   const POLL_INTERVAL = 5000;
 
-  // Ask for notification permission once (does nothing if already granted/denied).
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
@@ -220,7 +346,6 @@
         }
         if (hasChanged) {
           if (hasNew) notify(newSubject);
-          // Reload unless user is actively typing in the filter form.
           const active = document.activeElement;
           const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'SELECT');
           if (!isTyping) location.reload();

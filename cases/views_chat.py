@@ -83,7 +83,9 @@ def _can_access_case(request, case):
                     return False
             return True
         if user.role_access == User.RoleAccess.PORTALUSER:
-            return (user.email or "").lower() == (case.requester_email or "").lower()
+            is_requester = (user.email or "").lower() == (case.requester_email or "").lower()
+            is_follower = case.followers.filter(id=user.id).exists()
+            return is_requester or is_follower
     token = _get_guest_token(request, str(case.id))
     return bool(token and case.guest_token and token == case.guest_token)
 
@@ -955,31 +957,73 @@ def my_tickets(request):
         from django.shortcuts import redirect
         return redirect("desk:case_list")
 
-    from django.db.models import Q
+    from django.db.models import Q, Count
     qs = (
         CaseRecord.objects
         .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
         .select_related("category")
         .prefetch_related("messages", "followers")
         .distinct()
-        .order_by("-created_at")
     )
 
     # Filters
     status_filter = request.GET.get("status", "").strip()
     search_query = request.GET.get("q", "").strip()
+    role_filter = request.GET.get("role", "").strip()  # "mine" | "following" | ""
+    sort_by = request.GET.get("sort", "newest").strip()
+    show_closed = request.GET.get("closed", "").strip()
+
+    # Default: hide Closed tickets unless user explicitly asks
+    if status_filter != CaseRecord.Status.CLOSED and not show_closed:
+        qs = qs.exclude(status=CaseRecord.Status.CLOSED)
+
+    if role_filter == "mine":
+        qs = qs.filter(requester_email__iexact=user.email)
+    elif role_filter == "following":
+        qs = qs.filter(followers=user).exclude(requester_email__iexact=user.email)
 
     if status_filter:
         qs = qs.filter(status=status_filter)
+
+    # Search: subject, ticket number, AND chat message body
+    message_hits = {}  # case_id -> list of matched message snippets
     if search_query:
-        # Support full case number format (e.g. "RQ-E8973E6D"):
-        # strip any PREFIX- prefix and search the UUID hex portion directly.
         dash_idx = search_query.find('-')
         uuid_part = search_query[dash_idx + 1:].lower() if dash_idx != -1 else None
         q = Q(subject__icontains=search_query) | Q(id__icontains=search_query)
         if uuid_part:
             q |= Q(id__istartswith=uuid_part)
-        qs = qs.filter(q)
+        # Also match messages body
+        q |= Q(messages__body__icontains=search_query)
+        qs = qs.filter(q).distinct()
+
+        # Collect matched message snippets (up to 3 per ticket)
+        from cases.models import Message as Msg
+        all_case_ids = list(qs.values_list("id", flat=True))
+        if all_case_ids:
+            matched = (
+                Msg.objects
+                .filter(case_id__in=all_case_ids, body__icontains=search_query, is_deleted=False)
+                .select_related("sender_staff", "sender_employee")
+                .order_by("-sent_at")[:60]  # cap for performance
+            )
+            for m in matched:
+                cid = str(m.case_id)
+                if cid not in message_hits:
+                    message_hits[cid] = []
+                if len(message_hits[cid]) < 3:
+                    sender = ""
+                    if m.sender_staff:
+                        sender = m.sender_staff.get_full_name() or str(m.sender_staff)
+                    elif m.sender_employee:
+                        sender = m.sender_employee.full_name or "User"
+                    import re
+                    plain = re.sub(r'<[^>]+>', '', m.body or '')
+                    message_hits[cid].append({
+                        "sender": sender,
+                        "body": plain[:160],
+                        "sent_at": m.sent_at,
+                    })
 
     STATUS_LABEL = {
         CaseRecord.Status.OPEN: ("Waiting", "yellow"),
@@ -988,6 +1032,13 @@ def my_tickets(request):
         CaseRecord.Status.RESOLVED: ("Resolved", "green"),
         CaseRecord.Status.CLOSED: ("Closed", "slate"),
     }
+    # Sorting
+    SORT_MAP = {
+        "newest": "-created_at",
+        "oldest": "created_at",
+        "updated": "-updated_at",
+    }
+    qs = qs.order_by(SORT_MAP.get(sort_by, "-created_at"))
 
     paginator = Paginator(qs, 20)
     page_number = request.GET.get("page", 1)
@@ -1002,8 +1053,7 @@ def my_tickets(request):
             c.status == CaseRecord.Status.RESOLVED
             and (now - c.updated_at).days < REOPEN_WINDOW_DAYS
         )
-        # Unread staff replies: OUT messages sent after last portal visit.
-        # Session is preferred; fall back to DB when session is cleared (re-login).
+        # Unread staff replies
         session_key = f"chat_lr_{c.id}"
         last_read_str = request.session.get(session_key)
         if not last_read_str and c.client_last_read_at:
@@ -1022,6 +1072,25 @@ def my_tickets(request):
         else:
             unread_count = c.messages.filter(direction="OUT", is_system=False).count()
 
+        # Is follower?
+        is_follower = (user.email or "").lower() != (c.requester_email or "").lower()
+
+        # Last message preview
+        last_msg = c.messages.filter(is_deleted=False, is_system=False).order_by("-sent_at").first()
+        import re
+        last_msg_preview = ""
+        last_msg_sender = ""
+        last_msg_time = None
+        if last_msg:
+            last_msg_preview = re.sub(r'<[^>]+>', '', last_msg.body or '')[:100]
+            if last_msg.sender_staff:
+                last_msg_sender = last_msg.sender_staff.get_full_name() or str(last_msg.sender_staff)
+            elif last_msg.sender_employee:
+                last_msg_sender = last_msg.sender_employee.full_name or "User"
+            last_msg_time = last_msg.sent_at
+
+        total_messages = c.messages.filter(is_deleted=False).count()
+
         enriched.append({
             "case": c,
             "status_label": label,
@@ -1029,13 +1098,33 @@ def my_tickets(request):
             "can_chat": can_chat,
             "can_reopen": can_reopen,
             "unread_count": unread_count,
+            "is_follower": is_follower,
+            "total_messages": total_messages,
+            "last_msg_preview": last_msg_preview,
+            "last_msg_sender": last_msg_sender,
+            "last_msg_time": last_msg_time,
+            "matched_messages": message_hits.get(str(c.id), []),
         })
+
+    # Counts for tab badges
+    all_base = CaseRecord.objects.filter(
+        Q(requester_email__iexact=user.email) | Q(followers=user)
+    ).distinct()
+    count_all = all_base.count()
+    count_mine = all_base.filter(requester_email__iexact=user.email).count()
+    count_following = count_all - count_mine
 
     return render(request, "client/my_tickets.html", {
         "tickets": enriched,
         "page_obj": page_obj,
         "status_filter": status_filter,
         "search_query": search_query,
+        "role_filter": role_filter,
+        "count_all": count_all,
+        "count_mine": count_mine,
+        "count_following": count_following,
+        "sort_by": sort_by,
+        "show_closed": show_closed,
         "status_choices": [
             ("", "All statuses"),
             (CaseRecord.Status.OPEN, "Waiting"),
@@ -1055,11 +1144,13 @@ def my_tickets_status(request):
     if user.role_access in STAFF_ROLES:
         return JsonResponse({"tickets": []})
 
+    from django.db.models import Q
     cases = (
         CaseRecord.objects
-        .filter(requester_email__iexact=user.email)
+        .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
         .exclude(status=CaseRecord.Status.CLOSED)
         .prefetch_related("messages")
+        .distinct()
         .only("id", "subject", "status")
     )
 
