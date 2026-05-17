@@ -148,14 +148,18 @@ class CaseCreateForm(forms.Form):
     }
 
     def validate_attachments(self, files):
-        """Validate each uploaded file: size ≤ 10 MB and MIME type is allowed."""
+        """Validate each uploaded file: size and MIME type is allowed."""
+        from core.models import SiteConfig
+        site_config = SiteConfig.get_solo()
+        max_bytes = site_config.max_upload_size_mb * 1024 * 1024
+        
         errors = []
         for f in files:
-            if f.size > self.MAX_FILE_SIZE:
+            if f.size > max_bytes:
                 size_mb = round(f.size / (1024 * 1024), 1)
                 errors.append(
                     f'File "{f.name}" is {size_mb} MB. '
-                    f"Maximum allowed size is 10 MB per file. "
+                    f"Maximum allowed size is {site_config.max_upload_size_mb} MB per file. "
                     f"For larger files, please upload to your Cloud Drive "
                     f"and paste the link in the Reference Link field."
                 )
@@ -342,10 +346,14 @@ class StaffReplyForm(forms.Form):
             return f
 
         # Validate file size
-        if f.size > CaseCreateForm.MAX_FILE_SIZE:
+        from core.models import SiteConfig
+        site_config = SiteConfig.get_solo()
+        max_bytes = site_config.max_upload_size_mb * 1024 * 1024
+
+        if f.size > max_bytes:
             size_mb = round(f.size / (1024 * 1024), 1)
             raise forms.ValidationError(
-                f'File "{f.name}" is {size_mb} MB. Maximum allowed size is 10 MB.'
+                f'File "{f.name}" is {size_mb} MB. Maximum allowed size is {site_config.max_upload_size_mb} MB.'
             )
 
         # Validate actual file content via magic bytes

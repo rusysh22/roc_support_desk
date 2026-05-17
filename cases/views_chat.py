@@ -220,8 +220,12 @@ def _rename_upload(uploaded_file, mime_type=None):
 
 def _validate_upload(f):
     """Return error string or None."""
-    if f.size > MAX_FILE_SIZE:
-        return f"File '{f.name}' exceeds the 10 MB limit."
+    from core.models import SiteConfig
+    site_config = SiteConfig.get_solo()
+    max_bytes = site_config.max_upload_size_mb * 1024 * 1024
+
+    if f.size > max_bytes:
+        return f"File '{f.name}' exceeds the {site_config.max_upload_size_mb} MB limit."
     # Use python-magic for MIME detection
     try:
         import magic as libmagic
