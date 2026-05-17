@@ -78,6 +78,9 @@ def _can_access_case(request, case):
     user = request.user
     if user.is_authenticated:
         if user.role_access in STAFF_ROLES:
+            if getattr(case.category, 'is_confidential', False):
+                if user.role_access != User.RoleAccess.SUPERADMIN and not getattr(user, 'can_handle_confidential', False):
+                    return False
             return True
         if user.role_access == User.RoleAccess.PORTALUSER:
             return (user.email or "").lower() == (case.requester_email or "").lower()
@@ -199,9 +202,18 @@ def _strip_exif(uploaded_file):
         return uploaded_file
 
 
-def _rename_upload(uploaded_file):
-    """Return (cleaned_file, safe_filename) with UUID-based name."""
+def _rename_upload(uploaded_file, mime_type=None):
+    """Return (cleaned_file, safe_filename) with UUID-based name and safe extension."""
+    import mimetypes
     ext = os.path.splitext(uploaded_file.name)[1].lower()
+    dangerous_exts = {".php", ".php3", ".php4", ".php5", ".phtml", ".html", ".htm", ".exe", ".sh", ".bash", ".pl", ".py"}
+    
+    if ext in dangerous_exts or not ext:
+        if mime_type:
+            ext = mimetypes.guess_extension(mime_type) or ".bin"
+        else:
+            ext = ".bin"
+            
     safe_name = f"{uuid.uuid4().hex}{ext}"
     return uploaded_file, safe_name
 
@@ -210,13 +222,14 @@ def _validate_upload(f):
     """Return error string or None."""
     if f.size > MAX_FILE_SIZE:
         return f"File '{f.name}' exceeds the 10 MB limit."
-    # Use python-magic for MIME detection (already in requirements)
+    # Use python-magic for MIME detection
     try:
         import magic as libmagic
         mime = libmagic.from_buffer(f.read(2048), mime=True)
         f.seek(0)
     except Exception:
-        mime = f.content_type or ""
+        return f"File type for '{f.name}' could not be verified securely."
+        
     if mime not in ALLOWED_MIME_TYPES:
         return f"File type '{mime}' is not allowed."
     return None
@@ -229,9 +242,9 @@ def _save_attachment(message, uploaded_file, original_name):
         mime = libmagic.from_buffer(uploaded_file.read(2048), mime=True)
         uploaded_file.seek(0)
     except Exception:
-        mime = getattr(uploaded_file, "content_type", "application/octet-stream")
+        mime = "application/octet-stream"
 
-    _, safe_name = _rename_upload(uploaded_file)
+    _, safe_name = _rename_upload(uploaded_file, mime)
 
     if mime in IMAGE_MIME_TYPES:
         content = _strip_exif(uploaded_file)

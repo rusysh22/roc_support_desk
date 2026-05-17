@@ -16,7 +16,10 @@ from core.models import AuditableModel
 
 def kb_image_upload_path(instance, filename):
     """Upload path for images embedded in KB articles."""
-    return f"kb_images/{filename}"
+    import uuid
+    import os
+    ext = os.path.splitext(filename)[1].lower()
+    return f"kb_images/{uuid.uuid4().hex}{ext}"
 
 
 def kb_attachment_upload_path(instance, filename):

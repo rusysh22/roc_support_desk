@@ -189,15 +189,40 @@ def _save_attachments(request, article):
     site_config = SiteConfig.get_solo()
     max_bytes = site_config.max_upload_size_mb * 1024 * 1024
     errors = []
+    
+    import uuid
+    import os
+    import mimetypes
+
     for f in request.FILES.getlist("attachments"):
         if f.size > max_bytes:
             errors.append(f'"{f.name}" exceeds the {site_config.max_upload_size_mb} MB size limit.')
             continue
+            
+        try:
+            import magic
+            header = f.read(2048)
+            f.seek(0)
+            detected_mime = magic.from_buffer(header, mime=True)
+        except Exception:
+            errors.append(f'"{f.name}": could not verify file securely.')
+            continue
+            
+        original_name = f.name
+        ext = os.path.splitext(original_name)[1].lower()
+        dangerous_exts = {".php", ".php3", ".php4", ".php5", ".phtml", ".html", ".htm", ".exe", ".sh", ".bash", ".pl", ".py"}
+        
+        if ext in dangerous_exts or not ext:
+            ext = mimetypes.guess_extension(detected_mime) or ".bin"
+            
+        safe_name = f"{uuid.uuid4().hex}{ext}"
+        f.name = safe_name
+
         ArticleAttachment.objects.create(
             article=article,
             file=f,
-            original_filename=f.name,
-            mime_type=f.content_type or "",
+            original_filename=original_name,
+            mime_type=detected_mime,
             file_size=f.size,
             created_by=request.user,
             updated_by=request.user,
@@ -504,10 +529,19 @@ def kb_image_upload(request):
 
     image_file = request.FILES["image"]
 
-    # Validate file type
+    # Validate file type securely using magic bytes
     allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-    if image_file.content_type not in allowed_types:
-        return JsonResponse({"error": "Only JPEG, PNG, GIF, and WebP images are allowed."}, status=400)
+    
+    try:
+        import magic
+        header = image_file.read(2048)
+        image_file.seek(0)
+        detected_mime = magic.from_buffer(header, mime=True)
+    except Exception:
+        return JsonResponse({"error": "Could not verify image securely."}, status=400)
+        
+    if detected_mime not in allowed_types:
+        return JsonResponse({"error": f"Invalid file type ({detected_mime}). Only JPEG, PNG, GIF, and WebP images are allowed."}, status=400)
 
     # Validate file size (max 5MB)
     if image_file.size > 5 * 1024 * 1024:

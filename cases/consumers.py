@@ -236,6 +236,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 User.RoleAccess.SUPPORTDESK,
                 User.RoleAccess.AUDITOR,
             ):
+                if getattr(case.category, 'is_confidential', False):
+                    if user.role_access != User.RoleAccess.SUPERADMIN and not getattr(user, 'can_handle_confidential', False):
+                        return False
                 return True
             if user.role_access == User.RoleAccess.PORTALUSER:
                 email = getattr(user, "email", "") or ""

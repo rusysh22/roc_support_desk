@@ -335,3 +335,31 @@ class StaffReplyForm(forms.Form):
         label="Attachment",
         widget=forms.ClearableFileInput(attrs={"class": "jk-file-input"}),
     )
+
+    def clean_attachment(self):
+        f = self.cleaned_data.get("attachment")
+        if not f:
+            return f
+
+        # Validate file size
+        if f.size > CaseCreateForm.MAX_FILE_SIZE:
+            size_mb = round(f.size / (1024 * 1024), 1)
+            raise forms.ValidationError(
+                f'File "{f.name}" is {size_mb} MB. Maximum allowed size is 10 MB.'
+            )
+
+        # Validate actual file content via magic bytes
+        try:
+            header = f.read(2048)
+            f.seek(0)
+            detected_mime = magic.from_buffer(header, mime=True)
+        except Exception:
+            raise forms.ValidationError(f'File "{f.name}": could not determine file type.')
+
+        if detected_mime not in CaseCreateForm.ALLOWED_MIME_TYPES:
+            raise forms.ValidationError(
+                f'File "{f.name}" has a disallowed type ({detected_mime}). '
+                f"Accepted types: PDF, images, Word, Excel, PowerPoint, plain text, CSV, ZIP."
+            )
+        
+        return f

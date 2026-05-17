@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static kb_tags %}
+{% load static kb_tags text_filters %}
 
 {% block title %}{{ article.title }} - Knowledge Base{% endblock %}
 
@@ -360,7 +360,7 @@
                                 {% if article.article_type == 'Announcement' %}Announcement{% else %}Problem Summary{% endif %}
                             </h2>
                         </div>
-                        <div class="text-slate-700 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.problem_summary|render_md }}{% else %}{{ article.problem_summary|safe }}{% endif %}</div>
+                        <div class="text-slate-700 leading-relaxed kb-content">{% if article.use_markdown %}{{ article.problem_summary|render_md }}{% else %}{{ article.problem_summary|sanitize_html }}{% endif %}</div>
                     </section>
                     {% endif %}
 

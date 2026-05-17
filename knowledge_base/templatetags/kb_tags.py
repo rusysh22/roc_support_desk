@@ -19,7 +19,26 @@ def render_md(text):
         text,
         extensions=["extra", "nl2br", "sane_lists", "toc"],
     )
-    return mark_safe(rendered)
+    
+    import bleach
+    allowed_tags = [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 
+        'ul', 'ol', 'li', 'span', 'div', 'h1', 'h2', 'h3',
+        'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'img',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td'
+    ]
+    allowed_attrs = {
+        '*': ['class', 'style', 'id'],
+        'a': ['href', 'target', 'rel', 'title'],
+        'img': ['src', 'alt', 'width', 'height', 'title']
+    }
+    clean_html = bleach.clean(
+        rendered, 
+        tags=allowed_tags, 
+        attributes=allowed_attrs, 
+        strip=True
+    )
+    return mark_safe(clean_html)
 
 
 @register.filter(name="highlight")

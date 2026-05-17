@@ -48,3 +48,4 @@ django-allauth[socialaccount]>=65.0,<67.0
 
 # Markdown rendering (KB articles)
 Markdown>=3.6
+bleach>=6.1.0

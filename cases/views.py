@@ -2130,11 +2130,26 @@ def case_send_reply(request, case_id):
             # Handle optional attachment
             uploaded_file = form.cleaned_data.get("attachment")
             if uploaded_file:
+                import uuid
+                import os
+                import mimetypes
+                
+                original_name = uploaded_file.name
+                ext = os.path.splitext(original_name)[1].lower()
+                dangerous_exts = {".php", ".php3", ".php4", ".php5", ".phtml", ".html", ".htm", ".exe", ".sh", ".bash", ".pl", ".py"}
+                
+                mime = getattr(uploaded_file, "content_type", "")
+                if ext in dangerous_exts or not ext:
+                    ext = mimetypes.guess_extension(mime) or ".bin"
+                    
+                safe_name = f"{uuid.uuid4().hex}{ext}"
+                uploaded_file.name = safe_name
+
                 Attachment.objects.create(
                     message=msg,
                     file=uploaded_file,
-                    original_filename=uploaded_file.name,
-                    mime_type=getattr(uploaded_file, "content_type", ""),
+                    original_filename=original_name,
+                    mime_type=mime,
                     file_size=uploaded_file.size,
                 )
 

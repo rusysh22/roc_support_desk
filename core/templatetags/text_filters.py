@@ -26,18 +26,36 @@ def urlize_target_blank(value, autoescape=True):
     return mark_safe(html)
 
 
+import bleach
+
 @register.filter(is_safe=True)
 def render_chat_body(value):
     """
     Render a chat message body for display in a bubble.
-    Quill-generated HTML (starts with '<') is passed through as-is.
+    Quill-generated HTML is sanitized using bleach before being marked safe.
     Plain text gets urlized so raw URLs become clickable links.
     """
     if not value:
         return ''
     stripped = value.strip()
     if stripped.startswith('<'):
-        return mark_safe(stripped)
+        allowed_tags = [
+            'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 
+            'ul', 'ol', 'li', 'span', 'div', 'h1', 'h2', 'h3',
+            'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'img'
+        ]
+        allowed_attrs = {
+            '*': ['class', 'style'],
+            'a': ['href', 'target', 'rel', 'title'],
+            'img': ['src', 'alt', 'width', 'height']
+        }
+        clean_html = bleach.clean(
+            stripped, 
+            tags=allowed_tags, 
+            attributes=allowed_attrs, 
+            strip=True
+        )
+        return mark_safe(clean_html)
     html = urlize(stripped, autoescape=True)
     html = html.replace(
         '<a href=',
@@ -50,6 +68,32 @@ def render_chat_body(value):
 def strip_html_tags(value):
     """Strip HTML tags and collapse whitespace — used for quote previews."""
     if not value:
+        return ""
+    import bleach
+    plain = bleach.clean(value, tags=[], attributes={}, strip=True)
+    return " ".join(plain.split())
+
+@register.filter(is_safe=True)
+def sanitize_html(value):
+    """Sanitize raw HTML using bleach, preserving safe tags and attributes."""
+    if not value:
         return ''
-    clean = re.sub(r'<[^>]+>', ' ', value)
-    return re.sub(r'\s+', ' ', clean).strip()
+    import bleach
+    allowed_tags = [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 
+        'ul', 'ol', 'li', 'span', 'div', 'h1', 'h2', 'h3',
+        'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'img',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td'
+    ]
+    allowed_attrs = {
+        '*': ['class', 'style', 'id'],
+        'a': ['href', 'target', 'rel', 'title'],
+        'img': ['src', 'alt', 'width', 'height', 'title']
+    }
+    clean_html = bleach.clean(
+        value, 
+        tags=allowed_tags, 
+        attributes=allowed_attrs, 
+        strip=True
+    )
+    return mark_safe(clean_html)
