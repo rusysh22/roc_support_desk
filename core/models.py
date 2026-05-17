@@ -466,10 +466,11 @@ class AIConfig(AuditableModel):
     ]
 
     GEMINI_MODEL_CHOICES = [
-        ("gemini-2.0-flash", "Gemini 2.0 Flash (Recommended — Fast & Cheap)"),
-        ("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite (Cheapest)"),
-        ("gemini-1.5-pro", "Gemini 1.5 Pro (Most Powerful)"),
-        ("gemini-1.5-flash", "Gemini 1.5 Flash"),
+        ("gemini-3-flash", "Gemini 3 Flash (Newest)"),
+        ("gemini-2.5-flash", "Gemini 2.5 Flash (Recommended)"),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Cheapest)"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash (Deprecated)"),
+        ("gemini-1.5-flash", "Gemini 1.5 Flash (Deprecated)"),
     ]
 
     AI_SOURCES_CHOICES = [
