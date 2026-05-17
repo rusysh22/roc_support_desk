@@ -242,7 +242,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 return True
             if user.role_access == User.RoleAccess.PORTALUSER:
                 email = getattr(user, "email", "") or ""
-                return email.lower() == (case.requester_email or "").lower()
+                is_requester = email.lower() == (case.requester_email or "").lower()
+                is_follower = case.followers.filter(id=user.id).exists()
+                return is_requester or is_follower
 
         query_string = self.scope.get("query_string", b"").decode()
         params = dict(
@@ -277,8 +279,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         sender_employee = None
         if not is_staff:
+            # Find the Employee record for the actual sending user, not just the requester
+            sender_email = None
+            if user and not isinstance(user, AnonymousUser) and user.is_authenticated:
+                sender_email = getattr(user, "email", "") or ""
+            if not sender_email:
+                sender_email = case.requester_email
             sender_employee = Employee.objects.filter(
-                email__iexact=case.requester_email
+                email__iexact=sender_email
             ).first()
 
         msg = Message.objects.create(
@@ -304,6 +312,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return name or getattr(message.sender_staff, "username", None) or str(message.sender_staff)
         if message.sender_employee:
             return message.sender_employee.full_name or "Unknown"
+        # Fallback: try scope user (covers followers without Employee record)
+        from django.contrib.auth.models import AnonymousUser
+        user = self.scope.get("user")
+        if user and not isinstance(user, AnonymousUser) and user.is_authenticated:
+            name = user.get_full_name()
+            if name:
+                return name
         try:
             return message.case.requester_name or "User"
         except Exception:

@@ -113,10 +113,11 @@
   const CHAT_REQUESTER_NAME    = "{{ case.requester_name|default:''|escapejs }}";
   const CHAT_SHARE_URL         = "{{ request.build_absolute_uri|escapejs }}";
   const CHAT_FOLLOWERS_INITIAL = {{ followers_json|safe }};
+  const CHAT_PARTICIPANTS      = {{ participants_json|safe }};
 </script>
 
 {# ── Mention dropdown (outside Alpine component for fixed positioning) ── #}
-<div id="mention-dropdown" class="hidden"></div>
+<div id="mention-dropdown" class="hidden fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1" style="min-width:200px;"></div>
 
 <div class="max-w-2xl mx-auto"
      x-data="chatRoom()"
@@ -222,7 +223,7 @@
            @scroll="onScroll()">
 
         <div id="chat-history">
-          {% include "client/partials/chat_messages.html" with messages=chat_messages user_direction=user_direction first_unread_id=first_unread_id %}
+          {% include "client/partials/chat_messages.html" with messages=chat_messages user_direction=user_direction first_unread_id=first_unread_id current_user_email=current_user_email %}
         </div>
         <div id="chat-live"></div>
 
@@ -516,6 +517,7 @@
 <script>
 const CHAT_DELETE_URL = "/portal/chat/{{ case.id }}/delete-message/";
 const CHAT_USER_DIRECTION = "{{ user_direction }}";
+const CHAT_CURRENT_USER_EMAIL = "{{ current_user_email|escapejs }}";
 
 function chatRoom() {
   return {
@@ -661,7 +663,8 @@ function chatRoom() {
       // Stop if query contains space (user typed past the mention)
       if (/\s/.test(query)) { this._hideMention(); return; }
 
-      const filtered = this.followers.filter(f =>
+      const mentionList = (typeof CHAT_PARTICIPANTS !== 'undefined') ? CHAT_PARTICIPANTS : [];
+      const filtered = mentionList.filter(f =>
         f.name.toLowerCase().includes(query.toLowerCase())
       );
       if (!filtered.length) { this._hideMention(); return; }
@@ -669,12 +672,15 @@ function chatRoom() {
       const dropdown = document.getElementById('mention-dropdown');
       dropdown.innerHTML = filtered.map(f => `
         <button class="mention-item w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors"
-                data-user-id="${f.id}" data-user-name="${this._escAttrSimple(f.name)}"
+                data-user-name="${this._escAttrSimple(f.name)}"
                 data-at-index="${atIdx}" data-query-len="${query.length}">
-          <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+          <span class="w-7 h-7 rounded-full ${f.role === 'requester' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-600'} flex items-center justify-center text-xs font-bold flex-shrink-0">
             ${f.name.charAt(0).toUpperCase()}
           </span>
-          <span class="font-medium text-slate-700">${this._escHtmlSimple(f.name)}</span>
+          <div class="flex-1 min-w-0">
+            <span class="font-medium text-slate-700">${this._escHtmlSimple(f.name)}</span>
+            <span class="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${f.role === 'requester' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-500'} font-semibold">${f.role === 'requester' ? 'Requester' : 'Follower'}</span>
+          </div>
         </button>
       `).join('');
 

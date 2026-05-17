@@ -552,6 +552,42 @@ def chat_room(request, case_uuid):
         for f in followers
     ])
 
+    # Build @mention participant list: requester + all followers, excluding current user
+    participants = []
+    # Add the requester
+    if case.requester_email:
+        requester_emp = Employee.objects.filter(email__iexact=case.requester_email).first()
+        requester_display = (
+            requester_emp.full_name if requester_emp
+            else case.requester_name or case.requester_email
+        )
+        participants.append({
+            "name": requester_display,
+            "email": case.requester_email,
+            "role": "requester",
+        })
+    # Add followers
+    for f in followers:
+        participants.append({
+            "name": f["username"],
+            "email": f["email"],
+            "role": "follower",
+        })
+    # Exclude current user from mention list
+    current_email = (user.email or "").lower() if user.is_authenticated else ""
+    participants = [
+        p for p in participants
+        if (p["email"] or "").lower() != current_email
+    ]
+    participants_json = json.dumps(participants)
+
+    is_follower = (
+        user.is_authenticated
+        and not is_staff
+        and not is_requester
+        and case.followers.filter(id=user.id).exists()
+    )
+
     return render(request, "client/chat_room.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -560,8 +596,11 @@ def chat_room(request, case_uuid):
         "guest_token": _get_guest_token(request, case_uuid),
         "user_direction": user_direction,
         "is_staff": is_staff and not is_requester,
+        "is_follower": is_follower,
         "first_unread_id": first_unread_id,
         "followers_json": followers_json,
+        "participants_json": participants_json,
+        "current_user_email": (user.email or "").lower() if user.is_authenticated else "",
     })
 
 
@@ -598,10 +637,17 @@ def chat_send(request, case_uuid):
     sender_employee = None
     sender_name = "User"
     if not is_staff:
+        # Use the actual user's email, not always the requester's
+        sender_email = (user.email or "") if user.is_authenticated else case.requester_email
         sender_employee = Employee.objects.filter(
-            email__iexact=case.requester_email
+            email__iexact=sender_email
         ).first()
-        sender_name = case.requester_name or "User"
+        if sender_employee:
+            sender_name = sender_employee.full_name or "User"
+        elif user.is_authenticated:
+            sender_name = user.get_full_name() or user.username or "User"
+        else:
+            sender_name = case.requester_name or "User"
 
     msg = Message.objects.create(
         case=case,
@@ -681,6 +727,11 @@ def chat_delete_message(request, case_uuid):
     else:
         if msg.direction != Message.Direction.INBOUND:
             return JsonResponse({"error": "Cannot retract this message."}, status=403)
+        # Verify the actual sender matches the current user
+        sender_email = (msg.sender_employee.email if msg.sender_employee else case.requester_email) or ""
+        current_email = (user.email or "") if user.is_authenticated else ""
+        if sender_email.lower() != current_email.lower():
+            return JsonResponse({"error": "Cannot retract this message."}, status=403)
 
     # Time window: 1 hour
     if (_tz.now() - msg.sent_at).total_seconds() > 3600:
@@ -733,11 +784,19 @@ def chat_upload(request, case_uuid):
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
 
     sender_employee = None
-    sender_name = case.requester_name or "User"
+    sender_name = "User"
     if not is_staff:
+        # Use the actual user's email, not always the requester's
+        sender_email = (user.email or "") if user.is_authenticated else case.requester_email
         sender_employee = Employee.objects.filter(
-            email__iexact=case.requester_email
+            email__iexact=sender_email
         ).first()
+        if sender_employee:
+            sender_name = sender_employee.full_name or "User"
+        elif user.is_authenticated:
+            sender_name = user.get_full_name() or user.username or "User"
+        else:
+            sender_name = case.requester_name or "User"
     else:
         sender_name = user.get_full_name() or str(user)
 
@@ -844,6 +903,12 @@ def chat_resolve(request, case_uuid):
     case = get_object_or_404(CaseRecord, id=case_uuid)
     if not _can_access_case(request, case):
         return HttpResponseForbidden()
+    # Only the requester or staff can resolve — not followers
+    user = request.user
+    is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
+    is_requester = user.is_authenticated and (user.email or "").lower() == (case.requester_email or "").lower()
+    if not is_staff and not is_requester:
+        return JsonResponse({"error": "Only the ticket owner can resolve this ticket."}, status=403)
     if case.status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED):
         return JsonResponse({"error": "Ticket is already resolved or closed."}, status=400)
 
@@ -906,6 +971,12 @@ def chat_reopen(request, case_uuid):
     case = get_object_or_404(CaseRecord, id=case_uuid)
     if not _can_access_case(request, case):
         return HttpResponseForbidden()
+    # Only the requester or staff can reopen — not followers
+    user = request.user
+    is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
+    is_requester = user.is_authenticated and (user.email or "").lower() == (case.requester_email or "").lower()
+    if not is_staff and not is_requester:
+        return JsonResponse({"error": "Only the ticket owner can reopen this ticket."}, status=403)
     if case.status != CaseRecord.Status.RESOLVED:
         return JsonResponse({"error": "Only resolved tickets can be reopened."}, status=400)
 

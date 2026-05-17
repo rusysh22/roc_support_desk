@@ -7,12 +7,15 @@
   <div class="flex-1 h-px bg-indigo-200"></div>
 </div>
 {% endif %}
-{# is_self: True if this msg was sent by the current viewer (matches user_direction) #}
+{# Multi-party is_self: compare sender email for INBOUND msgs #}
+{% is_msg_self msg user_direction current_user_email as self_flag %}
+
 <div class="group/bubble relative flex gap-3 mb-4
      {% if msg.is_system %}justify-center
-     {% elif msg.direction == user_direction %}flex-row-reverse{% endif %}"
+     {% elif self_flag == 'true' %}flex-row-reverse{% endif %}"
      data-msg-id="{{ msg.id }}"
-     data-direction="{{ msg.direction }}">
+     data-direction="{{ msg.direction }}"
+     data-sender-email="{{ msg.sender_employee.email|default:''|lower }}">
 
   {% if msg.is_system %}
   {# ── System message ── #}
@@ -20,7 +23,7 @@
     {{ msg.body }}
   </div>
 
-  {% elif msg.direction == user_direction %}
+  {% elif self_flag == "true" %}
   {# ── SELF message: right-aligned, indigo bubble ── #}
   <div class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
     {% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:"S"|slice:":1"|upper }}
