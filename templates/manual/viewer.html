@@ -126,6 +126,81 @@
             scrollbar-width: none;
         }
         .breadcrumb-scroll::-webkit-scrollbar { display: none; }
+
+        /* ── FAQ Accordion ── */
+        .faq-container {
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,.05);
+            overflow: hidden;
+        }
+        .faq-intro {
+            padding: 1.25rem 1.5rem 0;
+        }
+        .faq-intro p { margin: .5rem 0; line-height: 1.75; color: #334155; font-size: .9rem; }
+        @media (min-width: 640px) { .faq-intro p { font-size: .9375rem; } }
+        .faq-list { padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }
+        @media (min-width: 640px) { .faq-list { padding: 1rem; gap: .625rem; } }
+        .faq-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .faq-item.open {
+            border-color: #c7d2fe;
+            box-shadow: 0 2px 12px rgba(79,70,229,.08);
+        }
+        .faq-question {
+            width: 100%; display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; padding: .875rem 1.125rem;
+            text-align: left; background: #fff; border: none; cursor: pointer;
+            transition: background .15s;
+        }
+        @media (min-width: 640px) { .faq-question { padding: 1rem 1.25rem; } }
+        .faq-question:hover { background: #f8fafc; }
+        .faq-item.open .faq-question { background: #eef2ff; }
+        .faq-question-text {
+            font-size: .875rem; font-weight: 700; color: #1e293b; line-height: 1.4;
+        }
+        @media (min-width: 640px) { .faq-question-text { font-size: .9375rem; } }
+        .faq-item.open .faq-question-text { color: #4338ca; }
+        .faq-chevron {
+            flex-shrink: 0; width: 18px; height: 18px; color: #94a3b8;
+            transition: transform .25s ease, color .15s;
+        }
+        .faq-item.open .faq-chevron { transform: rotate(180deg); color: #6366f1; }
+        .faq-answer-wrap {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height .3s ease;
+        }
+        .faq-answer-wrap.open {
+            max-height: 9999px;
+        }
+        .faq-answer {
+            border-top: 1px solid #e0e7ff;
+            background: #fafbff;
+        }
+        .faq-answer .tiptap-content {
+            padding: 1rem 1.125rem;
+        }
+        @media (min-width: 640px) { .faq-answer .tiptap-content { padding: 1.125rem 1.25rem; } }
+        .faq-answer .tiptap-content p:first-child { margin-top: 0; }
+        .faq-answer .tiptap-content *:last-child { margin-bottom: 0; }
+        /* Empty state */
+        .faq-empty-answer {
+            padding: .75rem 1.125rem;
+            font-size: .8rem; color: #94a3b8; font-style: italic;
+        }
+        /* No-heading fallback notice */
+        .faq-no-structure {
+            padding: .75rem 1rem;
+            background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+            font-size: .8rem; color: #92400e; margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body x-data="{ mobileNavOpen: false }" class="bg-slate-50">
@@ -301,9 +376,11 @@
             </div>
 
             {# TipTap content #}
-            <div class="tiptap-content bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm"
-                 id="tiptap-render">
-            </div>
+            {% if page.is_faq %}
+            <div id="tiptap-render" class="faq-container"></div>
+            {% else %}
+            <div id="tiptap-render" class="tiptap-content bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm"></div>
+            {% endif %}
 
             {# Child pages list #}
             {% if page.children.exists %}
@@ -360,6 +437,7 @@
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script>
     const PAGE_CONTENT = JSON.parse(document.getElementById('page-content-data').textContent || 'null');
+    const IS_FAQ = {% if page and page.is_faq %}true{% else %}false{% endif %};
 
     // Mobile search toggle
     (function () {
@@ -488,10 +566,103 @@
         document.getElementById('img-lightbox').classList.add('active');
     }
 
+    // ── FAQ accordion renderer ──
+    // Convention: every H1/H2/H3 node = a question; content below it = answer.
+    // Content before the first heading renders as a plain intro block.
+    function renderFaqTipTap(doc) {
+        if (!doc || !doc.content) {
+            return '<div class="faq-list"><p class="text-slate-400 italic text-sm p-4">No content yet.</p></div>';
+        }
+
+        const nodes = doc.content;
+        const HEADING = 'heading';
+
+        let introNodes = [];
+        let groups = [];   // [{questionNode, answerNodes[]}]
+        let current = null;
+
+        for (const node of nodes) {
+            if (node.type === HEADING) {
+                if (current) groups.push(current);
+                current = { questionNode: node, answerNodes: [] };
+            } else if (current) {
+                current.answerNodes.push(node);
+            } else {
+                introNodes.push(node);
+            }
+        }
+        if (current) groups.push(current);
+
+        // No headings → show fallback notice + plain content
+        if (!groups.length) {
+            return `<div class="tiptap-content p-4 sm:p-6 md:p-8">
+                <div class="faq-no-structure">
+                    ⚠️ FAQ page has no headings. Add H2/H3 headings as questions and write answers below each one.
+                </div>
+                ${renderNodes(nodes)}
+            </div>`;
+        }
+
+        let html = '';
+
+        // Intro section (content before first heading)
+        if (introNodes.length) {
+            html += `<div class="faq-intro tiptap-content">${renderNodes(introNodes)}</div>`;
+        }
+
+        // Accordion items
+        html += `<div class="faq-list" id="faq-accordion">`;
+        groups.forEach((g, i) => {
+            const questionHtml = renderNodes(g.questionNode.content || []);
+            const answerHtml = renderNodes(g.answerNodes);
+            const isFirst = i === 0;
+            html += `
+            <div class="faq-item${isFirst ? ' open' : ''}" data-faq-item>
+                <button type="button" class="faq-question" data-faq-toggle>
+                    <span class="faq-question-text">${questionHtml}</span>
+                    <svg class="faq-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="faq-answer-wrap${isFirst ? ' open' : ''}" data-faq-body>
+                    <div class="faq-answer">
+                        ${answerHtml
+                            ? `<div class="tiptap-content">${answerHtml}</div>`
+                            : `<div class="faq-empty-answer">No answer provided yet.</div>`
+                        }
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+
+        return html;
+    }
+
+    // Wire up FAQ accordion click handlers (pure JS, no Alpine dependency)
+    function initFaqAccordion(container) {
+        container.querySelectorAll('[data-faq-toggle]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = btn.closest('[data-faq-item]');
+                const body = item.querySelector('[data-faq-body]');
+                const isOpen = item.classList.contains('open');
+
+                // Toggle clicked item
+                item.classList.toggle('open', !isOpen);
+                body.classList.toggle('open', !isOpen);
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const el = document.getElementById('tiptap-render');
         if (el && PAGE_CONTENT) {
-            el.innerHTML = renderTipTap(PAGE_CONTENT);
+            if (IS_FAQ) {
+                el.innerHTML = renderFaqTipTap(PAGE_CONTENT);
+                initFaqAccordion(el);
+            } else {
+                el.innerHTML = renderTipTap(PAGE_CONTENT);
+            }
         }
     });
 
