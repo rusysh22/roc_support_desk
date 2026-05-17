@@ -615,7 +615,7 @@ function chatRoom() {
     resolveModal: false,
     resolveComment: '',
     // Followers
-    followers: CHAT_FOLLOWERS_INITIAL,
+    followers: Array.isArray(CHAT_FOLLOWERS_INITIAL) ? CHAT_FOLLOWERS_INITIAL : [],
     showFollowersModal: false,
     followerQuery: '',
     followerResults: [],
@@ -625,6 +625,7 @@ function chatRoom() {
     // Mention
     _mentionActive: false,
     _mentionAtIndex: -1,
+    _isInsertingMention: false,
 
     init() {
       this.$nextTick(() => {
@@ -717,6 +718,7 @@ function chatRoom() {
     },
 
     _checkMention() {
+      if (this._isInsertingMention) return;
       const sel = this.quill.getSelection();
       if (!sel) { this._hideMention(); return; }
       const text = this.quill.getText(0, sel.index);
@@ -771,13 +773,19 @@ function chatRoom() {
       if (atIdx === -1) { this._hideMention(); return; }
       const queryLen = text.slice(atIdx + 1).length;
       const mentionText = '@' + name + ' ';
+      const targetIdx = atIdx + mentionText.length;
+      this._isInsertingMention = true;
       this.quill.deleteText(atIdx, queryLen + 1, 'user');
       this.quill.insertText(atIdx, mentionText, {
         bold: false, italic: false, underline: false, strike: false, code: false,
       }, 'user');
-      this.quill.setSelection(atIdx + mentionText.length, 0, 'user');
+      this._isInsertingMention = false;
       this._hideMention();
-      this.quill.focus();
+      // Defer setSelection so Quill finishes all internal text-change dispatching first
+      requestAnimationFrame(() => {
+        this.quill.setSelection(targetIdx, 0, 'user');
+        this.quill.focus();
+      });
     },
 
     _escAttrSimple(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
@@ -807,7 +815,9 @@ function chatRoom() {
         });
         if (res.ok) {
           const data = await res.json();
-          this.followers.push({ id: data.id, name: data.name, email: data.email });
+          if (!this.followers.some(f => f.id === data.id)) {
+            this.followers.push({ id: data.id, name: data.name, email: data.email });
+          }
           this.followerResults = this.followerResults.filter(u => u.id !== user.id);
           this.followerQuery = '';
           window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: `${data.name} ditambahkan sebagai follower.` } }));

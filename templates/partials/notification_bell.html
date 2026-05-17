@@ -40,7 +40,7 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-slate-800 line-clamp-1">New reply in {{ msg.case.case_number }}</p>
-                            <p class="text-xs text-slate-600 line-clamp-1 mt-0.5">{{ msg.body }}</p>
+                            <p class="text-xs text-slate-600 line-clamp-1 mt-0.5">{{ msg.body|striptags }}</p>
                             <!-- text-xs text-slate-600 on white = 5.9:1 AA ✓ (was 10px slate-400 = 2.4:1) -->
                             <p class="text-xs text-slate-600 mt-1">{{ msg.sent_at|timesince }} ago</p>
                         </div>
@@ -64,7 +64,7 @@
                             <p class="text-sm font-medium text-slate-800 line-clamp-1">
                                 {{ mention.author.username }} tagged you in {{ mention.case.case_number }}
                             </p>
-                            <p class="text-xs text-slate-600 line-clamp-2 mt-0.5">{{ mention.body }}</p>
+                            <p class="text-xs text-slate-600 line-clamp-2 mt-0.5">{{ mention.body|striptags }}</p>
                             <!-- text-xs text-slate-600 on white = 5.9:1 AA ✓ (was 10px slate-400 = 2.4:1) -->
                             <p class="text-xs text-slate-600 mt-1">{{ mention.created_at|timesince }} ago</p>
                         </div>
@@ -135,7 +135,7 @@
         {
             "id": "mention_{{ mention.id }}",
             "title": "You were mentioned",
-            "body": "{{ mention.author.username }} tagged you in {{ mention.case.case_number }}",
+            "body": "{{ mention.author.username|escapejs }} tagged you in {{ mention.case.case_number }}",
             "url": "{% url 'desk:mark_notification_read' notif_type='mention' notif_id=mention.id %}"
         }{% if not forloop.last %},{% endif %}
         {% endfor %}

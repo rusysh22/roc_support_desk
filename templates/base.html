@@ -1400,8 +1400,9 @@
                 // Check if already notified
                 if (notifiedIds.some(item => item.id === notif.id)) return;
 
+                const plainBody = (notif.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
                 const notification = new Notification(notif.title, {
-                    body: notif.body,
+                    body: plainBody,
                     icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% else %}data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛠️</text></svg>{% endif %}"
                 });
 

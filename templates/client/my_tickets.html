@@ -194,7 +194,8 @@
 
   function notify(subject) {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('New message from Support Desk', { body: subject });
+      const plain = (subject || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      new Notification('New message from Support Desk', { body: plain });
     }
   }
 
