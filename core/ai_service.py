@@ -278,7 +278,7 @@ def ask_ai(question: str, identifier: str) -> dict:
     except Exception:
         site_name = "Support Desk"
 
-    system_prompt = config.ai_system_prompt.format(site_name=site_name)
+    system_prompt = config.ai_system_prompt.replace("{site_name}", site_name)
 
     if context_docs:
         context_text = "\n\n---\n\n".join(
@@ -320,7 +320,7 @@ def ask_ai(question: str, identifier: str) -> dict:
         return {
             "success": False,
             "error": (
-                "An error occurred while contacting the AI. "
+                f"An error occurred while contacting the AI: {str(exc)}. "
                 "Please try again or contact the Support Desk."
             ),
         }
