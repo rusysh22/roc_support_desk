@@ -1469,13 +1469,13 @@ def chat_add_follower(request, case_uuid):
         )
         try:
             send_mail(
-                subject=f"[{case.case_number}] Kamu ditambahkan sebagai follower",
+                subject=f"[{case.case_number}] You were added as a follower",
                 message=(
-                    f"Halo {user.username},\n\n"
-                    f"Kamu telah ditambahkan sebagai follower pada tiket:\n"
+                    f"Hi {user.username},\n\n"
+                    f"You have been added as a follower on ticket:\n"
                     f"#{case.case_number} — {case.subject}\n\n"
-                    f"Klik tautan berikut untuk bergabung dalam diskusi:\n{chat_url}\n\n"
-                    f"Salam,\nTim Support"
+                    f"Click the link below to join the discussion:\n{chat_url}\n\n"
+                    f"Regards,\nSupport Team"
                 ),
                 from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@example.com"),
                 recipient_list=[user.email],

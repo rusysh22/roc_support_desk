@@ -203,7 +203,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             session_window = timezone.now() - timedelta(minutes=60)
 
             # Fallback A: Did we recently send an outbound message to this user's phone?
-            # Escalations include the phone number in the body, e.g., "*** ESKALASI TIKET VIA WHATSAPP KE: 628... ***"
+            # Escalations include the phone number in the body, e.g., "*** TICKET ESCALATED VIA WHATSAPP TO: 628... ***"
             clean_phone = sender_phone.lstrip('+') if sender_phone else ""
             if clean_phone:
                 last_outbound = Message.objects.filter(

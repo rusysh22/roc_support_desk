@@ -501,7 +501,7 @@ def docs_support_desk(request):
         User.RoleAccess.AUDITOR,
     }
     if getattr(request.user, "role_access", None) not in STAFF_ROLES:
-        return HttpResponseForbidden("Akses ditolak. Halaman ini hanya untuk staf.")
+        return HttpResponseForbidden("Access denied. This page is for staff only.")
     config = SiteConfig.get_solo()
     return render(request, "docs/support_docs.html", {"config": config})
 
@@ -510,7 +510,7 @@ def docs_support_desk(request):
 def docs_superadmin(request):
     """Documentation for SuperAdmin only."""
     if getattr(request.user, "role_access", None) != User.RoleAccess.SUPERADMIN:
-        return HttpResponseForbidden("Akses ditolak. Halaman ini hanya untuk SuperAdmin.")
+        return HttpResponseForbidden("Access denied. This page is for SuperAdmin only.")
     config = SiteConfig.get_solo()
     return render(request, "docs/admin_docs.html", {"config": config})
 

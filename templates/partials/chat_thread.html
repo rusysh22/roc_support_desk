@@ -87,7 +87,7 @@
                 {% endif %}
             </div>
 
-            <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %} {% if '*** ESKALASI TIKET VIA' in msg.body %}jk-msg__bubble--escalate{% endif %}" x-data="{
+            <div class="jk-msg__bubble {% if msg.direction == 'OUT' %}jk-msg__bubble--out{% else %}jk-msg__bubble--in{% endif %} {% if '*** TICKET ESCALATED VIA' in msg.body or '*** ESKALASI TIKET VIA' in msg.body %}jk-msg__bubble--escalate{% endif %}" x-data="{
                 showActions: false, editing: false, editText: '',
                 toggleActions() { this.showActions = !this.showActions; window._chatInteracting = this.showActions || this.editing; },
                 closeActions() { this.showActions = false; if (!this.editing) window._chatInteracting = false; },

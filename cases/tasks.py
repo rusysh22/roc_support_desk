@@ -65,11 +65,11 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     preview_plain = strip_tags(msg.body or "")[:200]
     case_url = f"{getattr(settings, 'SITE_URL', '')}/portal/chat/{case.id}/"
 
-    subject = f"[{site_name}] Ada balasan baru untuk tiket Anda: {case.subject}"
+    subject = f"[{site_name}] New reply on your ticket: {case.subject}"
     html_content = f"""
     <!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;">
-    <p>Halo <strong>{escape(case.requester_name or 'User')}</strong>,</p>
-    <p><strong>{escape(sender_name)}</strong> membalas tiket Anda
+    <p>Hi <strong>{escape(case.requester_name or 'User')}</strong>,</p>
+    <p><strong>{escape(sender_name)}</strong> replied to your ticket
        <strong>{escape(case.case_number)}</strong>:</p>
     <blockquote style="border-left:3px solid #4f46e5;margin:12px 0;
                         padding:8px 12px;color:#6b7280;background:#f5f3ff;">
@@ -78,10 +78,10 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     <p><a href="{case_url}"
           style="background:#4f46e5;color:#fff;padding:10px 20px;
                  border-radius:6px;text-decoration:none;display:inline-block;">
-      Lihat Tiket
+      View Ticket
     </a></p>
     <p style="font-size:12px;color:#9ca3af;margin-top:24px;">
-      Email ini dikirim otomatis oleh {site_name}.
+      This email was sent automatically by {site_name}.
     </p>
     </body></html>
     """

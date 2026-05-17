@@ -352,7 +352,7 @@
     /* ── Address Autocomplete ── */
     let debounceTimer  = null;
     let activeIndex    = -1;
-    let searchAbort    = null;   /* AbortController untuk cancel request lama */
+    let searchAbort    = null;   /* AbortController to cancel stale requests */
 
     addrInput.setAttribute('role', 'combobox');
     addrInput.setAttribute('aria-autocomplete', 'list');
@@ -398,7 +398,7 @@
     }
 
     async function fetchSuggestions(q) {
-        /* Cancel in-flight request jika ada */
+        /* Cancel any in-flight request */
         if (searchAbort) searchAbort.abort();
         searchAbort = new AbortController();
 
@@ -468,7 +468,7 @@
             addrInput.setAttribute('aria-expanded', 'true');
         } catch (err) {
             if (err.name !== 'AbortError') {
-                /* Fetch gagal — biarkan saja, user masih bisa ketik manual */
+                /* Fetch failed — leave silently, user can still type manually */
             }
         } finally {
             spinner.classList.remove('active');

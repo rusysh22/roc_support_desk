@@ -232,12 +232,12 @@ def _build_whatsapp_text(event_type: str, context: dict) -> str:
         parts.append(f"📋 *{ticket_subject}*")
 
     descs = {
-        "new_message": f"💬 {sender_name} mengirim pesan baru.",
-        "mention": f"📣 {sender_name} menyebut Anda di chat.",
-        "status_change": f"🔄 Status tiket berubah: *{context.get('new_status', '')}*",
-        "follower_added": f"👥 {sender_name} menambahkan Anda sebagai follower.",
+        "new_message": f"💬 {sender_name} sent a new message.",
+        "mention": f"📣 {sender_name} mentioned you in the chat.",
+        "status_change": f"🔄 Ticket status changed: *{context.get('new_status', '')}*",
+        "follower_added": f"👥 {sender_name} added you as a follower.",
     }
-    parts.append(descs.get(event_type, "Anda punya notifikasi baru."))
+    parts.append(descs.get(event_type, "You have a new notification."))
 
     if message_preview:
         parts.append(f"\n> _{message_preview[:150]}_")

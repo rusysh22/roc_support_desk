@@ -1875,7 +1875,7 @@ def case_forward_escalation(request, case_id):
 
         if forward_to and channel in ["EMAIL", "WHATSAPP"]:
             from cases.models import Message
-            # Use body prefix "*** ESKALASI TIKET VIA" to identify it as escalation later
+            # Use body prefix "*** TICKET ESCALATED VIA" to identify it as escalation later
             msg_channel = Message.Channel.EMAIL if channel == 'EMAIL' else Message.Channel.WHATSAPP
 
             # Append Initials for Escalate

@@ -12,8 +12,8 @@ class AppPortalEntryForm(forms.ModelForm):
         required=False,
         label="Accessible By (Roles)",
         help_text=(
-            "Centang role yang boleh melihat app ini. "
-            "Jika tidak ada yang dicentang, semua pengguna bisa melihat."
+            "Check the roles allowed to see this app. "
+            "If none are checked, all users can see it."
         ),
     )
 

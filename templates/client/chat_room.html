@@ -453,7 +453,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-slate-800">Followers</h3>
-            <p class="text-[11px] text-slate-400">Tambahkan user untuk mengikuti tiket ini</p>
+            <p class="text-[11px] text-slate-400">Add users to follow this ticket</p>
           </div>
         </div>
         <button @click="showFollowersModal = false" class="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100">
@@ -472,7 +472,7 @@
                  x-model="followerQuery"
                  @input.debounce.300ms="searchFollowerUsers()"
                  @focus="searchFollowerUsers()"
-                 placeholder="Cari user berdasarkan nama atau email..."
+                 placeholder="Search users by name or email..."
                  class="jk-input w-full pl-9 text-sm"
                  style="padding-left:2.25rem;">
         </div>
@@ -502,7 +502,7 @@
           Followers saat ini (<span x-text="followers.length"></span>)
         </p>
         <div x-show="followers.length === 0" class="text-xs text-slate-400 text-center py-4">
-          Belum ada followers. Tambahkan user di atas.
+          No followers yet. Add a user above.
         </div>
         <template x-for="f in followers" :key="f.id">
           <div class="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
@@ -522,7 +522,7 @@
         </template>
       </div>
       <div class="px-5 py-3 bg-slate-50 border-t border-slate-100">
-        <p class="text-[11px] text-slate-400 text-center">Followers akan menerima notifikasi email saat ditambahkan</p>
+        <p class="text-[11px] text-slate-400 text-center">Followers will receive an email notification when added</p>
       </div>
     </div>
   </div>
@@ -807,7 +807,7 @@ function chatRoom() {
           }
           this.followerResults = this.followerResults.filter(u => u.id !== user.id);
           this.followerQuery = '';
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: `${data.name} ditambahkan sebagai follower.` } }));
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: `${data.name} added as a follower.` } }));
         }
       } catch(e) {}
     },
@@ -828,7 +828,7 @@ function chatRoom() {
     // ── Share ──────────────────────────────────────────────────────
     shareTicket() {
       const title = `Ticket: {{ case.case_number|escapejs }}`;
-      const text = `🎫 Ticket: {{ case.case_number|escapejs }}\n👤 Requester: {{ case.requester_name|default:''|escapejs }}\n---------------------------\n📌 Subject: {{ case.subject|escapejs }}\n\nHalo, saya ingin mengajakmu bergabung dalam diskusi tiket ini.`;
+      const text = `🎫 Ticket: {{ case.case_number|escapejs }}\n👤 Requester: {{ case.requester_name|default:''|escapejs }}\n---------------------------\n📌 Subject: {{ case.subject|escapejs }}\n\nHi, I'd like to invite you to join this ticket discussion.`;
       const fullShareText = `${text}\n---------------------------\n🔗 Link: ${CHAT_SHARE_URL}`;
 
       if (navigator.share) {
@@ -1005,13 +1005,13 @@ function chatRoom() {
       const el = document.querySelector(`[data-msg-id="${msgId}"]`);
       if (!el) return;
       const bubble = el.querySelector('.bubble-content');
-      if (bubble) bubble.innerHTML = '<em class="text-slate-400 text-xs">Pesan ditarik 🚫</em>';
+      if (bubble) bubble.innerHTML = '<em class="text-slate-400 text-xs">Message retracted 🚫</em>';
       el.querySelectorAll('.reply-action, .delete-action').forEach(b => b.remove());
     },
 
     applyReadReceipt(latestMessageId) {
       document.querySelectorAll(`[data-direction="${CHAT_USER_DIRECTION}"] .read-status`).forEach(el => {
-        el.textContent = '✓✓ Dibaca';
+        el.textContent = '✓✓ Read';
         el.classList.add('text-indigo-400');
       });
     },
@@ -1180,7 +1180,7 @@ function chatRoom() {
       const side = isOut ? 'left-0 top-5 -translate-x-full pr-1' : 'right-0 top-5 translate-x-full pl-1';
       const deleteBtn = isOut
         ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
-                   data-delete-id="${msgId}" title="Tarik pesan">🗑</button>`
+                   data-delete-id="${msgId}" title="Retract message">🗑</button>`
         : '';
       return `<div class="absolute ${side} opacity-0 hover-actions transition-opacity flex gap-1">
         <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
@@ -1229,7 +1229,7 @@ function chatRoom() {
             <div class="max-w-[70%]">
               <p class="text-[11px] text-slate-400 mb-1 text-right">${this.escHtml(data.sender_name)} · ${time}</p>
               <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">${quoteHtml}${bodyHtml}</div>
-              <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Terkirim</p>
+              <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Sent</p>
             </div>
             ${actionBtns}`;
         } else {

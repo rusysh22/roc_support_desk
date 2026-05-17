@@ -121,7 +121,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         elif event_type == "messages_read":
             latest_message_id = (data.get("latest_message_id") or "").strip()
             if latest_message_id:
-                # Broadcast read receipt immediately for real-time "Dibaca" indicator.
+                # Broadcast read receipt immediately for real-time "Read" indicator.
                 await self.channel_layer.group_send(
                     self.group_name,
                     {
@@ -203,7 +203,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def chat_read_receipt(self, event):
-        # Forward to all connected clients — portal user sees "Dibaca" indicator.
+        # Forward to all connected clients — portal user sees "Read" indicator.
         await self.send(text_data=json.dumps({
             "type": "read_receipt",
             "latest_message_id": event["latest_message_id"],

@@ -570,29 +570,29 @@
               <p class="text-white font-bold text-sm leading-tight truncate"
                  x-text="step === 'chat' ? activeCaseNumber : 'Support Chat'"></p>
               <p class="text-indigo-200 text-[10px]"
-                 x-text="step === 'chat' ? (wsConnected ? '● Terhubung' : '○ Menyambung…') : 'Kami siap membantu'"></p>
+                 x-text="step === 'chat' ? (wsConnected ? '● Connected' : '○ Connecting…') : 'We are ready to help'"></p>
             </div>
           </div>
           <div class="flex items-center gap-0.5 flex-shrink-0">
-            {# Riwayat tiket — tampil saat di step chat #}
+            {# Ticket history — visible during chat step #}
             <a x-show="step === 'chat'" x-cloak
                href="{% url 'chat:my_tickets' %}"
                class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
-               title="Riwayat Tiket">
+               title="Ticket History">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
               </svg>
             </a>
-            {# Buat tiket baru — tampil saat di step chat #}
+            {# New ticket — visible during chat step #}
             <button x-show="step === 'chat'" x-cloak
                     @click="clearSession()"
                     class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
-                    title="Buat Tiket Baru">
+                    title="New Ticket">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>
             </button>
-            {# Tutup panel #}
+            {# Close panel #}
             <button @click="open = false" class="text-white/60 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -792,7 +792,7 @@
           {# Input — hidden when resolved #}
           <div x-show="!ticketResolved" class="px-3 py-2 border-t border-slate-100 flex items-end gap-2">
             {# File attach #}
-            <label class="flex-shrink-0 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors" title="Lampirkan file">
+            <label class="flex-shrink-0 w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors" title="Attach file">
               <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
               </svg>
@@ -805,7 +805,7 @@
                       @keydown.enter.exact.prevent="widgetSend()"
                       @keydown.enter.shift.exact="widgetMsg += '\n'"
                       rows="1"
-                      placeholder="Ketik pesan…"
+                      placeholder="Type a message…"
                       class="jk-input flex-1 resize-none py-1.5 leading-snug"
                       style="min-height:34px;max-height:80px;overflow-y:auto;font-size:16px;"></textarea>
             <button @click="widgetSend()"
@@ -916,7 +916,7 @@
           if (saved) {
             try {
               const s = JSON.parse(saved);
-              // Hapus sesi yang sudah lebih dari 7 hari
+              // Remove sessions older than 7 days
               const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
               if (s.created_at && (Date.now() - s.created_at) > SESSION_TTL) {
                 try { localStorage.removeItem(WIDGET_SESSION_KEY); } catch(e) {}
@@ -1002,10 +1002,10 @@
 
         async startChat() {
           this.formError = '';
-          if (!this.guestName.trim())    return (this.formError = 'Nama wajib diisi.');
-          if (!this.guestEmail.trim())   return (this.formError = 'Email wajib diisi.');
-          if (!this.selectedUnitId)      return (this.formError = 'Unit wajib dipilih.');
-          if (!this.firstMessage.trim()) return (this.formError = 'Deskripsi masalah wajib diisi.');
+          if (!this.guestName.trim())    return (this.formError = 'Name is required.');
+          if (!this.guestEmail.trim())   return (this.formError = 'Email is required.');
+          if (!this.selectedUnitId)      return (this.formError = 'Unit is required.');
+          if (!this.firstMessage.trim()) return (this.formError = 'Issue description is required.');
 
           this.starting = true;
           try {
@@ -1131,11 +1131,11 @@
 
           try {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-              // Kirim via WS — server akan broadcast kembali ke kita via onmessage,
+              // Send via WS — server will broadcast back to us via onmessage,
               // jadi JANGAN panggil appendWidgetMsg di sini (mencegah duplikasi).
               this.ws.send(JSON.stringify({ type: 'chat_message', body: text }));
             } else {
-              // Fallback HTTP — tidak ada echo dari server, append manual.
+              // HTTP fallback — no server echo, append manually.
               await fetch(`/portal/chat/${this.activeCaseUUID}/send/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': WIDGET_CSRF },
@@ -1143,7 +1143,7 @@
               });
               this.appendWidgetMsg({
                 body: text, direction: 'IN', is_system: false,
-                sender_name: this.guestName || 'Anda',
+                sender_name: this.guestName || 'You',
                 sent_at: new Date().toISOString(),
               });
             }
@@ -1231,7 +1231,7 @@
               <div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-[10px] font-bold flex-shrink-0 mt-0.5">${(data.sender_name||'U').charAt(0).toUpperCase()}</div>
               <div class="max-w-[80%]">
                 <div class="bubble-content bg-indigo-600 rounded-2xl rounded-tr-sm px-3 py-2 text-xs text-white break-words">${contentHtml}</div>
-                <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Terkirim</p>
+                <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Sent</p>
               </div>`;
           }
           container.appendChild(el);
@@ -1241,7 +1241,7 @@
 
         markWidgetMessagesRead() {
           document.querySelectorAll('#widget-messages .read-status').forEach(el => {
-            el.textContent = '✓✓ Dibaca';
+            el.textContent = '✓✓ Read';
             el.classList.remove('text-slate-400');
             el.classList.add('text-indigo-400');
           });
@@ -1275,7 +1275,7 @@
         _persistSession(patch) {
           try {
             const cur = JSON.parse(localStorage.getItem(WIDGET_SESSION_KEY) || '{}');
-            // Simpan waktu pertama kali sesi dibuat untuk keperluan TTL
+            // Record session creation timestamp for TTL purposes
             if (!cur.created_at) patch.created_at = Date.now();
             localStorage.setItem(WIDGET_SESSION_KEY, JSON.stringify({ ...cur, ...patch }));
           } catch(e) {}
