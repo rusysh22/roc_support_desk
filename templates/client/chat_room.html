@@ -24,20 +24,15 @@
 
   /* Quill editor sizing inside chat input */
   #quill-editor { min-height: 40px; max-height: 120px; overflow-y: auto; font-size: 0.875rem; }
-  /* iOS requires font-size >= 16px on inputs to prevent auto-zoom on focus. */
   #quill-editor .ql-editor { padding: 8px 12px; font-size: 16px; }
   .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border-color: #e2e8f0; padding: 4px 8px; }
   .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border-color: #e2e8f0; }
-  /* Toolbar wrapping on narrow screens — prevent horizontal scroll */
   @media (max-width: 480px) {
     .ql-toolbar.ql-snow { display: flex; flex-wrap: wrap; gap: 2px; }
     .ql-toolbar.ql-snow .ql-formats { margin-right: 4px !important; }
   }
-  /* Prevent Quill placeholder from being included in text selection/copy */
   .ql-editor.ql-blank::before { user-select: none; -webkit-user-select: none; pointer-events: none; }
-  /* Quill code block colour overrides to match existing design */
   .ql-editor pre.ql-syntax { background: #0f172a; color: #4ade80; border-radius: 0.5rem; font-size: 0.75rem; }
-  /* Render Quill HTML content inside chat bubbles */
   .bubble-content p { margin: 0 0 0.2rem; }
   .bubble-content p:last-child { margin-bottom: 0; }
   .bubble-content pre.ql-syntax { background: rgba(0,0,0,0.3); border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.72rem; font-family: monospace; white-space: pre-wrap; overflow-x: auto; margin: 0.25rem 0; }
@@ -48,18 +43,68 @@
   .bubble-content em { font-style: italic; }
   .bubble-content s { text-decoration: line-through; }
   .bubble-content a { text-decoration: underline; opacity: 0.85; }
-  /* Clickable image thumbnails in bubbles */
   .chat-img-thumb { max-width: 100%; max-height: 200px; object-fit: cover; border-radius: 0.5rem; cursor: zoom-in; transition: opacity 0.15s; display: block; margin-top: 0.25rem; }
   .chat-img-thumb:hover { opacity: 0.88; }
-  /* Quoted message block — clickable */
   .quote-block { cursor: pointer; transition: opacity 0.15s; }
   .quote-block:hover { opacity: 0.8; }
-  /* On touch devices, always show action buttons (no hover state available) */
   @media (hover: none) { .hover-actions { opacity: 1 !important; } }
-  /* Flash highlight when jumping to a quoted message */
   @keyframes msgHighlight { 0%,100%{background:transparent} 25%,75%{background:rgba(99,102,241,0.18)} }
   .msg-highlight { animation: msgHighlight 1.2s ease; border-radius: 0.75rem; }
 
+  /* Back navigation bar */
+  .chat-nav-bar {
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem 0 0.5rem;
+  }
+  .chat-nav-back {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    text-decoration: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    transition: all .2s;
+  }
+  .chat-nav-back:hover {
+    color: #4f46e5;
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    box-shadow: 0 2px 8px rgba(99,102,241,.12);
+    transform: translateY(-1px);
+  }
+  .chat-nav-back svg { transition: transform .2s; }
+  .chat-nav-back:hover svg { transform: translateX(-3px); }
+
+  /* Mention dropdown */
+  #mention-dropdown {
+    position: fixed;
+    z-index: 9999;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    overflow: hidden;
+    min-width: 200px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  #mention-dropdown button:hover { background: #eef2ff; }
+
+  /* Follower avatar stack */
+  .follower-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #c7d2fe; color: #4338ca;
+    font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1.5px solid #fff;
+    margin-left: -5px;
+    flex-shrink: 0;
+  }
+  .follower-avatar:first-child { margin-left: 0; }
 </style>
 {% endblock %}
 
@@ -68,20 +113,28 @@
 
 {# ── Injected variables for JS ── #}
 <script>
-  const CHAT_CASE_UUID   = "{{ case.id }}";
-  const CHAT_GUEST_TOKEN = "{{ guest_token|escapejs }}";
-  const CHAT_IS_AUTH     = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
-  const CHAT_IS_STAFF    = {% if is_staff %}true{% else %}false{% endif %};
-  const CHAT_WS_URL      = "{{ request.scheme|safe }}".replace("http","ws") + "://" + window.location.host + "/ws/chat/{{ case.id }}/{% if guest_token %}?token={{ guest_token|urlencode }}{% endif %}";
-  const CHAT_SEND_URL    = "{% url 'chat:send' case.id %}";
-  const CHAT_UPLOAD_URL  = "{% url 'chat:upload' case.id %}";
-  const CHAT_RESOLVE_URL = "{% url 'chat:resolve' case.id %}";
-  const CHAT_REOPEN_URL  = "{% url 'chat:reopen' case.id %}";
+  const CHAT_CASE_UUID         = "{{ case.id }}";
+  const CHAT_GUEST_TOKEN       = "{{ guest_token|escapejs }}";
+  const CHAT_IS_AUTH           = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
+  const CHAT_IS_STAFF          = {% if is_staff %}true{% else %}false{% endif %};
+  const CHAT_WS_URL            = "{{ request.scheme|safe }}".replace("http","ws") + "://" + window.location.host + "/ws/chat/{{ case.id }}/{% if guest_token %}?token={{ guest_token|urlencode }}{% endif %}";
+  const CHAT_SEND_URL          = "{% url 'chat:send' case.id %}";
+  const CHAT_UPLOAD_URL        = "{% url 'chat:upload' case.id %}";
+  const CHAT_RESOLVE_URL       = "{% url 'chat:resolve' case.id %}";
+  const CHAT_REOPEN_URL        = "{% url 'chat:reopen' case.id %}";
   const CHAT_POLL_URL          = "{% url 'chat:poll' case.id %}";
+  const CHAT_ADD_FOLLOWER_URL  = "{% url 'chat:add_follower' case.id %}";
+  const CHAT_REMOVE_FOLLOWER_URL = "{% url 'chat:remove_follower' case.id %}";
+  const CHAT_SEARCH_USERS_URL  = "{% url 'chat:search_users' case.id %}";
   const CSRF_TOKEN             = "{{ csrf_token }}";
   const CHAT_FIRST_UNREAD_ID   = "{{ first_unread_id|default:'' }}";
   const CHAT_REQUESTER_NAME    = "{{ case.requester_name|default:''|escapejs }}";
+  const CHAT_SHARE_URL         = "{{ request.build_absolute_uri|escapejs }}";
+  const CHAT_FOLLOWERS_INITIAL = {{ followers_json|safe }};
 </script>
+
+{# ── Mention dropdown (outside Alpine component for fixed positioning) ── #}
+<div id="mention-dropdown" class="hidden"></div>
 
 <div class="max-w-2xl mx-auto"
      x-data="chatRoom()"
@@ -90,44 +143,69 @@
 
   {# ── Header card ── #}
   <div class="jk-card mb-3">
-    <div class="jk-card-body py-3 px-4 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
-        {{ case.category.icon|default:"🎫" }}
+    <div class="jk-card-body py-3 px-4">
+      {# Top row: icon + title + actions #}
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
+          {{ case.category.icon|default:"🎫" }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-slate-500 font-medium">{{ case.category.name }}</p>
+          <p class="text-sm font-bold text-slate-800 truncate">{{ case.subject }}</p>
+          {% if case.problem_description %}
+          <p class="text-xs text-slate-400 truncate mt-0.5">{{ case.problem_description|truncatechars:100 }}</p>
+          {% endif %}
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          {# Followers button #}
+          <button @click="showFollowersModal = true"
+                  class="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-all text-slate-500 hover:text-indigo-600"
+                  title="Followers">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span class="text-xs font-semibold" x-text="followers.length || '0'"></span>
+          </button>
+          {# Share button #}
+          <button @click="showShareModal = true"
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-all text-slate-500 hover:text-indigo-600"
+                  title="Share">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+            </svg>
+            <span class="text-xs font-semibold hidden sm:inline">Share</span>
+          </button>
+          {# Status badge #}
+          <span id="chat-status-badge"
+                class="text-xs font-bold px-2.5 py-1 rounded-full
+                {% if case.status == 'Open' %}bg-yellow-100 text-yellow-700
+                {% elif case.status == 'Investigating' %}bg-blue-100 text-blue-700
+                {% elif case.status == 'PendingInfo' %}bg-orange-100 text-orange-700
+                {% elif case.status == 'Resolved' %}bg-emerald-100 text-emerald-700
+                {% else %}bg-slate-100 text-slate-500{% endif %}">
+            {% if case.status == 'Open' %}Waiting
+            {% elif case.status == 'Investigating' %}In Progress
+            {% elif case.status == 'PendingInfo' %}Need Info
+            {% elif case.status == 'Resolved' %}Resolved
+            {% else %}Closed{% endif %}
+          </span>
+          <span class="text-xs text-slate-400 font-mono hidden sm:inline">{{ case.case_number }}</span>
+        </div>
       </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-xs text-slate-500 font-medium">{{ case.category.name }}</p>
-        <p class="text-sm font-bold text-slate-800 truncate">{{ case.subject }}</p>
-        {% if case.problem_description %}
-        <p class="text-xs text-slate-400 truncate mt-0.5">{{ case.problem_description|truncatechars:100 }}</p>
-        {% endif %}
-      </div>
-      <div class="flex items-center gap-2">
-        {# Staff online/offline indicator — only shown to non-staff portal users #}
-        {% if not is_staff %}
-        <span id="staff-presence-badge"
-              class="flex items-center gap-1 text-xs font-medium
-              {% if staff_online %}text-emerald-600{% else %}text-slate-400{% endif %}">
-          <span id="staff-presence-dot"
-                class="inline-block w-2 h-2 rounded-full
-                {% if staff_online %}bg-emerald-500{% else %}bg-slate-300{% endif %}"></span>
-          <span id="staff-presence-label">{% if staff_online %}Online{% else %}Offline{% endif %}</span>
-        </span>
-        {% endif %}
-        {# Status badge — updates dynamically #}
-        <span id="chat-status-badge"
-              class="text-xs font-bold px-2.5 py-1 rounded-full
-              {% if case.status == 'Open' %}bg-yellow-100 text-yellow-700
-              {% elif case.status == 'Investigating' %}bg-blue-100 text-blue-700
-              {% elif case.status == 'PendingInfo' %}bg-orange-100 text-orange-700
-              {% elif case.status == 'Resolved' %}bg-emerald-100 text-emerald-700
-              {% else %}bg-slate-100 text-slate-500{% endif %}">
-          {% if case.status == 'Open' %}Waiting
-          {% elif case.status == 'Investigating' %}In Progress
-          {% elif case.status == 'PendingInfo' %}Need Info
-          {% elif case.status == 'Resolved' %}Resolved
-          {% else %}Closed{% endif %}
-        </span>
-        <span class="text-xs text-slate-400 font-mono">{{ case.case_number }}</span>
+      {# Followers preview row (only visible when there are followers) #}
+      <div x-show="followers.length > 0" x-cloak
+           class="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
+        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Followers</span>
+        <div class="flex items-center">
+          <template x-for="(f, i) in followers.slice(0,5)" :key="f.id">
+            <div class="follower-avatar" :title="f.name" x-text="f.name.charAt(0).toUpperCase()"></div>
+          </template>
+        </div>
+        <span x-show="followers.length > 5" class="text-[10px] text-slate-400 font-medium" x-text="`+${followers.length - 5} more`"></span>
+        <button @click="showFollowersModal = true"
+                class="text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold ml-1 hover:underline">
+          Manage
+        </button>
       </div>
     </div>
   </div>
@@ -135,22 +213,17 @@
   {# ── Message thread ── #}
   <div class="jk-card mb-3">
     <div class="jk-card-body p-0 relative">
-      {# Scroll area #}
       <div id="chat-scroll"
            class="overflow-y-auto px-4 py-4"
            style="height: clamp(200px, calc(100svh - 320px), 420px);"
            x-ref="scroll"
            @scroll="onScroll()">
 
-        {# Server-rendered history #}
         <div id="chat-history">
           {% include "client/partials/chat_messages.html" with messages=chat_messages user_direction=user_direction first_unread_id=first_unread_id %}
         </div>
-
-        {# Live messages appended by JS #}
         <div id="chat-live"></div>
 
-        {# Typing indicator #}
         <div x-show="typingVisible" x-cloak class="flex gap-2 mb-4 items-end">
           <div class="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center text-slate-700 text-xs font-bold flex-shrink-0"
                x-text="(typingSenderName || '?').charAt(0).toUpperCase()"></div>
@@ -165,7 +238,6 @@
         </div>
       </div>
 
-      {# Go to Bottom button #}
       <button x-show="showScrollBtn" x-cloak
               @click="goToBottom()"
               class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full shadow-lg px-2.5 py-1.5 transition-all z-10">
@@ -204,7 +276,6 @@
   <div class="jk-card" x-show="ticketOpen" x-cloak>
     <div class="jk-card-body p-3">
 
-      {# Reply preview strip #}
       <div x-show="replyTo" x-cloak
            class="flex items-center gap-2 bg-indigo-50 border-l-2 border-indigo-400 rounded-r-lg px-3 py-2 mb-2">
         <div class="flex-1 min-w-0">
@@ -214,11 +285,9 @@
         <button @click="clearReply()" class="text-slate-400 hover:text-slate-600 flex-shrink-0 text-sm font-bold">✕</button>
       </div>
 
-      {# File preview strip — image files show thumbnail, others show filename chip #}
       <div x-show="pendingFiles.length > 0" x-cloak class="flex flex-wrap gap-2 mb-3 px-1">
         <template x-for="(f, idx) in pendingFiles" :key="idx">
           <div class="relative group/fp">
-            {# Image thumbnail #}
             <template x-if="f.type.startsWith('image/')">
               <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
                 <img :src="filePreviews[idx] || ''" alt="" class="w-full h-full object-cover">
@@ -226,7 +295,6 @@
                         class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white flex items-center justify-center text-[10px] opacity-0 group-hover/fp:opacity-100 transition-opacity">✕</button>
               </div>
             </template>
-            {# Non-image file chip #}
             <template x-if="!f.type.startsWith('image/')">
               <div class="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1.5 text-xs text-slate-700 max-w-[160px]">
                 <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,13 +312,11 @@
         </template>
       </div>
 
-      {# Quill WYSIWYG editor + send row #}
       <div class="border border-slate-200 rounded-xl overflow-hidden mb-2">
         <div id="quill-editor"></div>
       </div>
 
       <div class="flex items-center justify-between gap-2">
-        {# File attach button #}
         <label class="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
                title="Attach file (jpg, png, pdf, docx, xlsx, txt — max 10 MB, 3 files)">
           <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,7 +336,6 @@
           Mark as Resolved
         </button>
 
-        {# Send button #}
         <button @click="send()"
                 :disabled="sending || pendingFiles.length === 0 && !hasContent"
                 class="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
@@ -286,7 +351,6 @@
     </div>
   </div>
 
-  {# ── Closed notice ── #}
   <div x-show="!ticketOpen" x-cloak class="jk-card">
     <div class="jk-card-body py-4 px-4 text-center">
       <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">closed</strong>. You can no longer send messages.</p>
@@ -306,12 +370,22 @@
   </div>
   {% endif %}
 
-  {# Back link #}
-  <div class="mt-4 text-center">
+  {# ── Back navigation bar ── #}
+  <div class="chat-nav-bar">
     {% if user.is_authenticated %}
-    <a href="{% url 'chat:my_tickets' %}" class="text-xs text-slate-400 hover:text-indigo-600 transition-colors">← My Tickets</a>
+    <a href="{% url 'chat:my_tickets' %}" class="chat-nav-back">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+      </svg>
+      My Tickets
+    </a>
     {% else %}
-    <a href="{% url 'cases:dashboard' %}" class="text-xs text-slate-400 hover:text-indigo-600 transition-colors">← Back to Portal</a>
+    <a href="{% url 'cases:dashboard' %}" class="chat-nav-back">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Back to Portal
+    </a>
     {% endif %}
   </div>
 
@@ -320,9 +394,7 @@
        x-cloak
        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
        @keydown.escape.window="resolveModal = false">
-    {# Backdrop #}
     <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="resolveModal = false"></div>
-    {# Dialog #}
     <div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 p-6 z-10"
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0 translate-y-4"
@@ -346,15 +418,181 @@
                 x-init="$nextTick(() => { if (resolveModal) $el.focus(); })"
                 @keydown.escape.prevent="resolveModal = false"></textarea>
       <div class="flex gap-2 justify-end">
-        <button @click="resolveModal = false"
-                class="jk-btn text-sm px-4 py-2">
-          Cancel
-        </button>
+        <button @click="resolveModal = false" class="jk-btn text-sm px-4 py-2">Cancel</button>
         <button @click="submitResolve()"
                 class="jk-btn text-sm px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none font-semibold">
           Confirm Resolved
         </button>
       </div>
+    </div>
+  </div>
+
+  {# ── Followers modal ── #}
+  <div x-show="showFollowersModal"
+       x-cloak
+       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+       @keydown.escape.window="showFollowersModal = false">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showFollowersModal = false"></div>
+    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 z-10 overflow-hidden"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0">
+      {# Modal header #}
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">Followers</h3>
+            <p class="text-[11px] text-slate-400">Tambahkan user untuk mengikuti tiket ini</p>
+          </div>
+        </div>
+        <button @click="showFollowersModal = false" class="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      {# Search input #}
+      <div class="px-5 py-3 border-b border-slate-100">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="text"
+                 x-model="followerQuery"
+                 @input.debounce.300ms="searchFollowerUsers()"
+                 @focus="searchFollowerUsers()"
+                 placeholder="Cari user berdasarkan nama atau email..."
+                 class="jk-input w-full pl-9 text-sm"
+                 style="padding-left:2.25rem;">
+        </div>
+        {# Search results #}
+        <div x-show="followerResults.length > 0" class="mt-2 space-y-1 max-h-36 overflow-y-auto">
+          <template x-for="u in followerResults" :key="u.id">
+            <button @click="addFollower(u)"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors text-left">
+              <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold flex-shrink-0"
+                   x-text="u.name.charAt(0).toUpperCase()"></div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-slate-700 truncate" x-text="u.name"></p>
+                <p class="text-xs text-slate-400 truncate" x-text="u.email"></p>
+              </div>
+              <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+          </template>
+        </div>
+        <p x-show="followerQuery.length >= 1 && followerResults.length === 0"
+           class="text-xs text-slate-400 text-center py-2 mt-1">Tidak ada user ditemukan</p>
+      </div>
+      {# Current followers list #}
+      <div class="px-5 py-3 max-h-52 overflow-y-auto">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+          Followers saat ini (<span x-text="followers.length"></span>)
+        </p>
+        <div x-show="followers.length === 0" class="text-xs text-slate-400 text-center py-4">
+          Belum ada followers. Tambahkan user di atas.
+        </div>
+        <template x-for="f in followers" :key="f.id">
+          <div class="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+            <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold flex-shrink-0"
+                 x-text="f.name.charAt(0).toUpperCase()"></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-slate-700 truncate" x-text="f.name"></p>
+              <p class="text-xs text-slate-400 truncate" x-text="f.email"></p>
+            </div>
+            <button @click="removeFollower(f.id)"
+                    class="w-6 h-6 flex items-center justify-center rounded-full text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </template>
+      </div>
+      <div class="px-5 py-3 bg-slate-50 border-t border-slate-100">
+        <p class="text-[11px] text-slate-400 text-center">Followers akan menerima notifikasi email saat ditambahkan</p>
+      </div>
+    </div>
+  </div>
+
+  {# ── Share modal ── #}
+  <div x-show="showShareModal"
+       x-cloak
+       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+       @keydown.escape.window="showShareModal = false">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showShareModal = false"></div>
+    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm mx-0 sm:mx-4 p-5 z-10"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+            </svg>
+          </div>
+          <h3 class="text-sm font-bold text-slate-800">Bagikan Tiket</h3>
+        </div>
+        <button @click="showShareModal = false" class="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      {# URL preview #}
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 mb-4">
+        <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+        </svg>
+        <span class="text-xs text-slate-500 truncate flex-1 font-mono" x-text="CHAT_SHARE_URL"></span>
+      </div>
+      {# Share options #}
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        {# Copy link #}
+        <button @click="copyShareLink()"
+                class="flex items-center gap-2.5 px-3 py-3 rounded-xl border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 transition-all text-left group">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors">
+            <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-slate-600 group-hover:text-indigo-700" x-text="linkCopied ? '✓ Tersalin!' : 'Copy Link'"></span>
+        </button>
+        {# WhatsApp #}
+        <button @click="shareWhatsApp()"
+                class="flex items-center gap-2.5 px-3 py-3 rounded-xl border border-slate-200 hover:border-green-200 hover:bg-green-50 transition-all text-left group">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-green-100 flex items-center justify-center flex-shrink-0 transition-colors text-lg leading-none">
+            📱
+          </div>
+          <span class="text-xs font-semibold text-slate-600 group-hover:text-green-700">WhatsApp</span>
+        </button>
+        {# Microsoft Teams #}
+        <button @click="shareTeams()"
+                class="flex items-center gap-2.5 px-3 py-3 rounded-xl border border-slate-200 hover:border-purple-200 hover:bg-purple-50 transition-all text-left group">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-purple-100 flex items-center justify-center flex-shrink-0 transition-colors text-lg leading-none">
+            💼
+          </div>
+          <span class="text-xs font-semibold text-slate-600 group-hover:text-purple-700">Teams</span>
+        </button>
+        {# Email #}
+        <button @click="shareEmail()"
+                class="flex items-center gap-2.5 px-3 py-3 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50 transition-all text-left group">
+          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition-colors text-lg leading-none">
+            ✉️
+          </div>
+          <span class="text-xs font-semibold text-slate-600 group-hover:text-blue-700">Email</span>
+        </button>
+      </div>
+      <p class="text-[11px] text-slate-400 text-center">
+        Bagikan link ini untuk mengajak user bergabung ke obrolan
+      </p>
     </div>
   </div>
 
@@ -374,30 +612,40 @@ const CHAT_USER_DIRECTION = "{{ user_direction }}";
 function chatRoom() {
   return {
     // ── State ──────────────────────────────────────────────────────
-    messages: [],          // Alpine-tracked array (used for reactive unread count)
-    hasContent: false,     // tracks whether Quill editor has text
+    messages: [],
+    hasContent: false,
     pendingFiles: [],
-    filePreviews: [],      // object URLs for image thumbnails, parallel to pendingFiles
+    filePreviews: [],
     sending: false,
     wsConnected: false,
     typingVisible: false,
     typingTimer: null,
-    _typingCooldown: false,  // true while within 2-second debounce window
+    _typingCooldown: false,
     pollTimer: null,
     ws: null,
     quill: null,
     _readObserver: null,
-    _reconnectDelay: 1000,  // exponential backoff, starts at 1 s, caps at 30 s
+    _reconnectDelay: 1000,
     ticketOpen: {% if can_send %}true{% else %}false{% endif %},
-    replyTo: null,   // { id, body, sender }
+    replyTo: null,
     unreadCount: 0,
     showScrollBtn: false,
     typingSenderName: '',
     resolveModal: false,
     resolveComment: '',
+    // Followers
+    followers: CHAT_FOLLOWERS_INITIAL,
+    showFollowersModal: false,
+    followerQuery: '',
+    followerResults: [],
+    // Share
+    showShareModal: false,
+    linkCopied: false,
+    // Mention
+    _mentionActive: false,
+    _mentionAtIndex: -1,
 
     init() {
-      // ── Scroll to unread divider or bottom ────────────────────────
       this.$nextTick(() => {
         const scrollEl = this.$refs.scroll;
         const divider = document.getElementById('unread-divider');
@@ -415,6 +663,7 @@ function chatRoom() {
       this.connectWS();
       this.setupReadReceipts();
       this.setupActionDelegation();
+      this._initMentionClickHandler();
     },
 
     _initQuill() {
@@ -433,16 +682,17 @@ function chatRoom() {
         },
       });
 
-      // Track whether there is real content for the send-button disabled state.
       this.quill.on('text-change', () => {
         const text = this.quill.getText().trim();
         this.hasContent = text.length > 0;
         this._onTypingDebounced();
+        this._checkMention();
       });
 
-      // Ctrl+Enter / Cmd+Enter to send. Native keydown bypasses Quill's keyboard
-      // module priority so it fires reliably before Quill's own Enter handler.
       this.quill.root.addEventListener('keydown', (e) => {
+        if (this._mentionActive) {
+          if (e.key === 'Escape') { this._hideMention(); return; }
+        }
         if ((e.key === 'Enter' || e.keyCode === 13) && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
           e.stopPropagation();
@@ -450,8 +700,6 @@ function chatRoom() {
         }
       }, true);
 
-      // Intercept paste of images inside the Quill editor —
-      // convert to File and upload via REST; never inject base64 into WS.
       this.quill.root.addEventListener('paste', (e) => {
         const items = Array.from(e.clipboardData?.items || []);
         const images = items.filter(i => i.type.startsWith('image/'));
@@ -466,6 +714,168 @@ function chatRoom() {
           }
         });
       });
+    },
+
+    // ── @Mention ─────────────────────────────────────────────────
+    _initMentionClickHandler() {
+      const dropdown = document.getElementById('mention-dropdown');
+      dropdown.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mention-item');
+        if (!btn) return;
+        const name = btn.dataset.userName;
+        const atIdx = parseInt(btn.dataset.atIndex, 10);
+        const qLen  = parseInt(btn.dataset.queryLen, 10);
+        this._insertMention(name, atIdx, qLen);
+      });
+      // Close on outside click
+      document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && e.target !== this.quill?.root) {
+          this._hideMention();
+        }
+      });
+    },
+
+    _checkMention() {
+      const sel = this.quill.getSelection();
+      if (!sel) { this._hideMention(); return; }
+      const text = this.quill.getText(0, sel.index);
+      const atIdx = text.lastIndexOf('@');
+      if (atIdx === -1) { this._hideMention(); return; }
+      // Only trigger if @ is at start of word (preceded by space, newline, or start)
+      if (atIdx > 0 && !/[\s\n]/.test(text[atIdx - 1])) { this._hideMention(); return; }
+      const query = text.slice(atIdx + 1);
+      // Stop if query contains space (user typed past the mention)
+      if (/\s/.test(query)) { this._hideMention(); return; }
+
+      const filtered = this.followers.filter(f =>
+        f.name.toLowerCase().includes(query.toLowerCase())
+      );
+      if (!filtered.length) { this._hideMention(); return; }
+
+      const dropdown = document.getElementById('mention-dropdown');
+      dropdown.innerHTML = filtered.map(f => `
+        <button class="mention-item w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-indigo-50 transition-colors"
+                data-user-id="${f.id}" data-user-name="${this._escAttrSimple(f.name)}"
+                data-at-index="${atIdx}" data-query-len="${query.length}">
+          <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+            ${f.name.charAt(0).toUpperCase()}
+          </span>
+          <span class="font-medium text-slate-700">${this._escHtmlSimple(f.name)}</span>
+        </button>
+      `).join('');
+
+      // Position above the editor
+      const editorEl = document.getElementById('quill-editor');
+      const rect = editorEl.getBoundingClientRect();
+      dropdown.style.left = rect.left + 'px';
+      dropdown.style.width = Math.min(rect.width, 240) + 'px';
+      dropdown.style.top = 'auto';
+      dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+      dropdown.classList.remove('hidden');
+      this._mentionActive = true;
+      this._mentionAtIndex = atIdx;
+    },
+
+    _hideMention() {
+      document.getElementById('mention-dropdown').classList.add('hidden');
+      this._mentionActive = false;
+      this._mentionAtIndex = -1;
+    },
+
+    _insertMention(name, atIndex, queryLen) {
+      this.quill.deleteText(atIndex, queryLen + 1);
+      this.quill.insertText(atIndex, `@${name} `);
+      this.quill.setSelection(atIndex + name.length + 2);
+      this._hideMention();
+      this.quill.focus();
+    },
+
+    _escAttrSimple(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
+    _escHtmlSimple(str) {
+      return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    },
+
+    // ── Followers ─────────────────────────────────────────────────
+    async searchFollowerUsers() {
+      const q = this.followerQuery.trim();
+      if (!q) { this.followerResults = []; return; }
+      try {
+        const res = await fetch(`${CHAT_SEARCH_USERS_URL}?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          this.followerResults = data.users || [];
+        }
+      } catch(e) {}
+    },
+
+    async addFollower(user) {
+      try {
+        const res = await fetch(CHAT_ADD_FOLLOWER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+          body: JSON.stringify({ user_id: user.id }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.followers.push({ id: data.id, name: data.name, email: data.email });
+          this.followerResults = this.followerResults.filter(u => u.id !== user.id);
+          this.followerQuery = '';
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: `${data.name} ditambahkan sebagai follower.` } }));
+        }
+      } catch(e) {}
+    },
+
+    async removeFollower(userId) {
+      try {
+        const res = await fetch(CHAT_REMOVE_FOLLOWER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+          body: JSON.stringify({ user_id: userId }),
+        });
+        if (res.ok) {
+          this.followers = this.followers.filter(f => f.id !== userId);
+        }
+      } catch(e) {}
+    },
+
+    // ── Share ──────────────────────────────────────────────────────
+    async copyShareLink() {
+      try {
+        await navigator.clipboard.writeText(CHAT_SHARE_URL);
+        this.linkCopied = true;
+        setTimeout(() => { this.linkCopied = false; }, 2000);
+      } catch(e) {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = CHAT_SHARE_URL;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        this.linkCopied = true;
+        setTimeout(() => { this.linkCopied = false; }, 2000);
+      }
+    },
+
+    shareWhatsApp() {
+      const text = `Hai, saya ingin mengajakmu bergabung dalam diskusi tiket dukungan:\n*{{ case.case_number }}* — {{ case.subject|escapejs }}\n\n${CHAT_SHARE_URL}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    },
+
+    shareTeams() {
+      const encodedUrl = encodeURIComponent(CHAT_SHARE_URL);
+      const encodedTitle = encodeURIComponent('{{ case.case_number }} — {{ case.subject|escapejs }}');
+      window.open(`https://teams.microsoft.com/share?href=${encodedUrl}&referrer=Tickets&msgText=${encodedTitle}`, '_blank');
+    },
+
+    shareEmail() {
+      const subject = encodeURIComponent('[{{ case.case_number }}] {{ case.subject|escapejs }}');
+      const body = encodeURIComponent(
+        `Halo,\n\nSaya ingin mengajakmu bergabung dalam diskusi tiket:\n{{ case.case_number }} — {{ case.subject|escapejs }}\n\n` +
+        `Klik tautan berikut untuk bergabung:\n${CHAT_SHARE_URL}`
+      );
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
     },
 
     disconnect() {
@@ -485,7 +895,6 @@ function chatRoom() {
       this.ws = null;
     },
 
-    // ── Event delegation for reply/delete on history bubbles ─────
     setupActionDelegation() {
       const handler = (e) => {
         const replyBtn = e.target.closest('.reply-action');
@@ -505,7 +914,6 @@ function chatRoom() {
       document.getElementById('chat-live')?.addEventListener('click', handler);
     },
 
-    // ── WebSocket ──────────────────────────────────────────────────
     connectWS() {
       this._closeWS();
       try {
@@ -517,7 +925,7 @@ function chatRoom() {
 
       this.ws.onopen = () => {
         this.wsConnected = true;
-        this._reconnectDelay = 1000;  // reset backoff on successful connect
+        this._reconnectDelay = 1000;
         clearInterval(this.pollTimer);
         this.pollTimer = null;
       };
@@ -527,7 +935,6 @@ function chatRoom() {
         try { data = JSON.parse(e.data); } catch { return; }
 
         if (data.type === 'ping') {
-          // Respond to server heartbeat to confirm we are alive.
           this.ws.send(JSON.stringify({ type: 'pong' }));
         } else if (data.type === 'chat_message') {
           this.appendMessage(data);
@@ -541,8 +948,6 @@ function chatRoom() {
           this.applyDelete(data.message_id);
         } else if (data.type === 'read_receipt') {
           this.applyReadReceipt(data.latest_message_id);
-        } else if (data.type === 'staff_presence') {
-          this.updateStaffPresence(data.online);
         }
       };
 
@@ -550,7 +955,6 @@ function chatRoom() {
         this.wsConnected = false;
         this.ws = null;
         this.startPolling();
-        // Exponential backoff: 1s → 2s → 4s … capped at 30s
         const delay = this._reconnectDelay;
         this._reconnectDelay = Math.min(this._reconnectDelay * 2, 30000);
         setTimeout(() => { if (!this.wsConnected) this.connectWS(); }, delay);
@@ -562,7 +966,6 @@ function chatRoom() {
       };
     },
 
-    // ── HTMX polling fallback ──────────────────────────────────────
     startPolling() {
       if (this.pollTimer) return;
       this.pollTimer = setInterval(() => this.pollMessages(), 4000);
@@ -581,7 +984,6 @@ function chatRoom() {
       } catch(e) {}
     },
 
-    // ── Reply / Quote ─────────────────────────────────────────────
     setReply(id, body, sender) {
       this.replyTo = { id, body: body || '', sender: sender || '' };
       this.$nextTick(() => this.quill?.focus());
@@ -591,7 +993,6 @@ function chatRoom() {
       this.replyTo = null;
     },
 
-    // ── Delete / retract ──────────────────────────────────────────
     async deleteMessage(msgId) {
       if (!confirm('Retract this message? This cannot be undone.')) return;
       const res = await fetch(CHAT_DELETE_URL, {
@@ -612,40 +1013,21 @@ function chatRoom() {
       if (!el) return;
       const bubble = el.querySelector('.bubble-content');
       if (bubble) bubble.innerHTML = '<em class="text-slate-400 text-xs">Pesan ditarik 🚫</em>';
-      // hide action buttons
       el.querySelectorAll('.reply-action, .delete-action').forEach(b => b.remove());
     },
 
     applyReadReceipt(latestMessageId) {
-      // Mark own messages (matching CHAT_USER_DIRECTION) as read.
       document.querySelectorAll(`[data-direction="${CHAT_USER_DIRECTION}"] .read-status`).forEach(el => {
         el.textContent = '✓✓ Dibaca';
         el.classList.add('text-indigo-400');
       });
     },
 
-    updateStaffPresence(online) {
-      const dot   = document.getElementById('staff-presence-dot');
-      const label = document.getElementById('staff-presence-label');
-      if (!dot || !label) return;
-      if (online) {
-        dot.className   = 'inline-block w-2 h-2 rounded-full bg-emerald-500';
-        label.textContent = 'Online';
-        label.parentElement.className = 'flex items-center gap-1 text-xs font-medium text-emerald-600';
-      } else {
-        dot.className   = 'inline-block w-2 h-2 rounded-full bg-slate-300';
-        label.textContent = 'Offline';
-        label.parentElement.className = 'flex items-center gap-1 text-xs font-medium text-slate-400';
-      }
-    },
-
-    // ── Sending ───────────────────────────────────────────────────
     async send() {
       if (this.pendingFiles.length > 0) {
         await this.sendFiles();
       }
 
-      // Get HTML content from Quill; the empty-editor sentinel is '<p><br></p>'.
       const html = this.quill.root.innerHTML.trim();
       const isEmpty = html === '<p><br></p>' || html === '' || !this.hasContent;
       if (isEmpty) return;
@@ -701,7 +1083,6 @@ function chatRoom() {
       }
     },
 
-    // ── File picking ──────────────────────────────────────────────
     onFilePick(e) {
       const files = Array.from(e.target.files || []);
       const total = this.pendingFiles.length + files.length;
@@ -728,14 +1109,11 @@ function chatRoom() {
       this.pendingFiles.splice(idx, 1);
     },
 
-    // ── Typing indicator ──────────────────────────────────────────
-    // Called by Quill's text-change event via _onTypingDebounced.
     _onTypingDebounced() {
       if (this._typingCooldown) return;
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'typing' }));
       }
-      // Lock emissions for 2 seconds (client-side guard; server also rate-limits).
       this._typingCooldown = true;
       setTimeout(() => { this._typingCooldown = false; }, 2000);
     },
@@ -744,48 +1122,38 @@ function chatRoom() {
       this.typingVisible = true;
       this.typingSenderName = senderName || '';
       clearTimeout(this.typingTimer);
-      // Auto-clear indicator after 3 seconds of silence from the other side.
       this.typingTimer = setTimeout(() => { this.typingVisible = false; }, 3000);
       if (this.isAtBottom()) this.scrollBottom();
     },
 
-    // ── Read receipts (IntersectionObserver) ─────────────────────
     setupReadReceipts() {
-      // Only staff marks inbound messages as read.
       if (!CHAT_IS_STAFF) return;
 
       this._readObserver = new IntersectionObserver((entries) => {
         const visible = entries.filter(e => e.isIntersecting);
         if (!visible.length) return;
-        // Emit a single event for the latest visible message — backend does
-        // a batch sent_at__lte update so we never flood with per-message events.
         const latestId = visible[visible.length - 1].target.dataset.msgId;
         if (latestId && this.ws?.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ type: 'messages_read', latest_message_id: latestId }));
         }
       }, { root: this.$refs.scroll, threshold: 0.5 });
 
-      // Observe all already-rendered other-party messages (direction ≠ mine).
       const otherDir = CHAT_USER_DIRECTION === 'OUT' ? 'IN' : 'OUT';
       document.querySelectorAll(`[data-msg-id][data-direction="${otherDir}"]`).forEach(el => {
         this._readObserver.observe(el);
       });
     },
 
-    // ── DOM helpers ───────────────────────────────────────────────
     renderBody(body) {
       if (body && body.startsWith('<')) {
-        // 1. Wrap <img> for lightbox (strip existing class/onclick to avoid duplicates).
         let html = body.replace(/<img([^>]*?)>/gi, (match, attrs) => {
           const srcMatch = attrs.match(/src="([^"]+)"/);
           const src = srcMatch ? srcMatch[1] : '';
           const altMatch = attrs.match(/alt="([^"]*)"/);
           const alt = altMatch ? altMatch[1] : '';
-          // Remove existing class/onclick/data-lightbox attrs before adding ours.
           const clean = attrs.replace(/\s*(?:class|onclick|data-lightbox-\w+)="[^"]*"/g, '');
           return `<img${clean} class="chat-img-thumb" loading="lazy" data-lightbox-src="${src}" data-lightbox-name="${alt}" data-lightbox-group="chat-gallery" onclick="openLightbox(this)">`;
         });
-        // 2. Auto-link bare URLs in text nodes (not inside existing <a> tags).
         html = html.replace(/(<a[\s\S]*?<\/a>)|(https?:\/\/[^\s<>"']+)/g, (m, anchor, url) => {
           if (anchor) return anchor;
           return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline opacity-80 hover:opacity-100 break-all">${url}</a>`;
@@ -817,8 +1185,7 @@ function chatRoom() {
 
     renderActionBtns(msgId, isOut, senderDisplay) {
       const side = isOut ? 'left-0 top-5 -translate-x-full pr-1' : 'right-0 top-5 translate-x-full pl-1';
-      const isMyMsg = isOut;
-      const deleteBtn = isMyMsg
+      const deleteBtn = isOut
         ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
                    data-delete-id="${msgId}" title="Tarik pesan">🗑</button>`
         : '';
@@ -834,8 +1201,6 @@ function chatRoom() {
 
     appendMessage(data) {
       const wasAtBottom = this.isAtBottom();
-      // isOut = "this message is from me (current user)" → rendered on the right.
-      // Portal users send IN-direction messages; staff send OUT-direction messages.
       const isOut = data.direction === CHAT_USER_DIRECTION;
       const isSys = data.is_system;
       const el = document.createElement('div');
@@ -882,12 +1247,10 @@ function chatRoom() {
 
       document.getElementById('chat-live').appendChild(el);
 
-      // Observe newly appended other-party messages for read receipts.
       if (!isOut && !isSys && this._readObserver) {
         this._readObserver.observe(el);
       }
 
-      // DOM windowing — prune oldest nodes once we exceed 100 visible messages.
       this._pruneMessages();
 
       if (wasAtBottom) {
@@ -899,7 +1262,6 @@ function chatRoom() {
       if (!isSys && data.body && !data.body.startsWith('<')) this._injectLinkPreview(data.body, el);
     },
 
-    // ── DOM windowing — keep at most 100 message nodes in the DOM ──
     _pruneMessages() {
       const MAX = 100;
       const history = document.getElementById('chat-history');
@@ -972,7 +1334,6 @@ function chatRoom() {
       if (status === 'Closed') this.ticketOpen = false;
     },
 
-    // ── Scroll helpers ────────────────────────────────────────────
     isAtBottom() {
       const el = this.$refs.scroll;
       if (!el) return true;
@@ -1027,7 +1388,6 @@ function chatRoom() {
         .catch(() => {});
     },
 
-    // ── Ticket actions ────────────────────────────────────────────
     resolveTicket() {
       this.resolveComment = '';
       this.resolveModal = true;
@@ -1059,7 +1419,6 @@ function chatRoom() {
       }
     },
 
-    // ── Utilities ─────────────────────────────────────────────────
     escHtml(str) {
       const d = document.createElement('div');
       d.appendChild(document.createTextNode(str || ''));
@@ -1076,7 +1435,6 @@ function chatRoom() {
              d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     },
 
-    // Jump to a quoted message and briefly highlight it.
     jumpToMessage(msgId) {
       const target = document.querySelector(`[data-msg-id="${msgId}"]`);
       if (!target) return;
@@ -1085,7 +1443,7 @@ function chatRoom() {
       const targetRect = target.getBoundingClientRect();
       scrollEl.scrollTop += targetRect.top - containerRect.top - (scrollEl.clientHeight / 2) + (target.clientHeight / 2);
       target.classList.remove('msg-highlight');
-      void target.offsetWidth; // reflow to restart animation
+      void target.offsetWidth;
       target.classList.add('msg-highlight');
       setTimeout(() => target.classList.remove('msg-highlight'), 1400);
     },
@@ -1095,9 +1453,6 @@ function chatRoom() {
 
 <script>
 (function () {
-
-
-  // Global helper for server-rendered quote blocks (onclick="chatJumpToMessage(...)").
   window.chatJumpToMessage = function(msgId) {
     var scrollEl = document.getElementById('chat-scroll');
     var target = document.querySelector('[data-msg-id="' + msgId + '"]');

@@ -10,7 +10,9 @@ Access control:
 """
 import datetime
 import io
+import json
 import os
+import re
 import secrets
 import uuid
 
@@ -20,7 +22,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from ipware import get_client_ip as _get_client_ip
@@ -496,6 +501,9 @@ def chat_room(request, case_uuid):
     if not is_staff or is_requester:
         session_key = f"chat_lr_{case_uuid}"
         last_read_str = request.session.get(session_key)
+        # Fall back to DB value when session was cleared (e.g. after re-login)
+        if not last_read_str and case.client_last_read_at:
+            last_read_str = case.client_last_read_at.isoformat()
         if last_read_str:
             try:
                 last_read_dt = datetime.datetime.fromisoformat(last_read_str)
@@ -511,9 +519,19 @@ def chat_room(request, case_uuid):
                 first_unread_id = str(first_unread) if first_unread else None
             except (ValueError, TypeError):
                 pass
-        request.session[session_key] = timezone.now().isoformat()
+        now_iso = timezone.now().isoformat()
+        request.session[session_key] = now_iso
+        # Persist to DB so the read state survives session expiry / re-login
+        case.client_last_read_at = timezone.now()
+        case.save(update_fields=["client_last_read_at"])
 
-    staff_online = cache.get(f"staff_online_{case_uuid}", False)
+    followers = list(
+        case.followers.values("id", "username", "email")
+    )
+    followers_json = json.dumps([
+        {"id": str(f["id"]), "name": f["username"], "email": f["email"]}
+        for f in followers
+    ])
 
     return render(request, "client/chat_room.html", {
         "case": case,
@@ -524,7 +542,7 @@ def chat_room(request, case_uuid):
         "user_direction": user_direction,
         "is_staff": is_staff and not is_requester,
         "first_unread_id": first_unread_id,
-        "staff_online": staff_online,
+        "followers_json": followers_json,
     })
 
 
@@ -965,9 +983,12 @@ def my_tickets(request):
             c.status == CaseRecord.Status.RESOLVED
             and (now - c.updated_at).days < REOPEN_WINDOW_DAYS
         )
-        # Unread staff replies: OUT messages sent after last portal visit
+        # Unread staff replies: OUT messages sent after last portal visit.
+        # Session is preferred; fall back to DB when session is cleared (re-login).
         session_key = f"chat_lr_{c.id}"
         last_read_str = request.session.get(session_key)
+        if not last_read_str and c.client_last_read_at:
+            last_read_str = c.client_last_read_at.isoformat()
         unread_count = 0
         if last_read_str:
             try:
@@ -1027,6 +1048,8 @@ def my_tickets_status(request):
     for c in cases:
         session_key = f"chat_lr_{c.id}"
         last_read_str = request.session.get(session_key)
+        if not last_read_str and c.client_last_read_at:
+            last_read_str = c.client_last_read_at.isoformat()
         unread_count = 0
         if last_read_str:
             try:
@@ -1167,3 +1190,77 @@ def link_preview(request):
 
     cache.set(cache_key, result, _OG_CACHE_TTL)
     return JsonResponse(result)
+
+
+# ---------------------------------------------------------------------------
+# Followers
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_GET
+def chat_search_users(request, case_uuid):
+    """Return users matching a query, excluding current followers."""
+    case = get_object_or_404(CaseRecord, id=case_uuid)
+    if not _can_access_case(request, case):
+        return HttpResponseForbidden()
+
+    q = request.GET.get("q", "").strip()
+    existing_ids = list(case.followers.values_list("id", flat=True))
+    qs = User.objects.filter(is_active=True).exclude(id__in=existing_ids)
+    if q:
+        from django.db.models import Q as _Q
+        qs = qs.filter(_Q(username__icontains=q) | _Q(email__icontains=q))
+    qs = qs[:10]
+    return JsonResponse({
+        "users": [{"id": str(u.id), "name": u.username, "email": u.email} for u in qs]
+    })
+
+
+@login_required
+@require_POST
+def chat_add_follower(request, case_uuid):
+    """Add a user as a follower and notify them by email."""
+    case = get_object_or_404(CaseRecord, id=case_uuid)
+    if not _can_access_case(request, case):
+        return HttpResponseForbidden()
+
+    data = json.loads(request.body)
+    user = get_object_or_404(User, id=data.get("user_id"))
+    case.followers.add(user)
+
+    if user.email:
+        chat_url = request.build_absolute_uri(
+            reverse("chat:room", kwargs={"case_uuid": case.id})
+        )
+        try:
+            send_mail(
+                subject=f"[{case.case_number}] Kamu ditambahkan sebagai follower",
+                message=(
+                    f"Halo {user.username},\n\n"
+                    f"Kamu telah ditambahkan sebagai follower pada tiket:\n"
+                    f"#{case.case_number} — {case.subject}\n\n"
+                    f"Klik tautan berikut untuk bergabung dalam diskusi:\n{chat_url}\n\n"
+                    f"Salam,\nTim Support"
+                ),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@example.com"),
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+
+    return JsonResponse({"ok": True, "id": str(user.id), "name": user.username, "email": user.email})
+
+
+@login_required
+@require_POST
+def chat_remove_follower(request, case_uuid):
+    """Remove a follower from the case."""
+    case = get_object_or_404(CaseRecord, id=case_uuid)
+    if not _can_access_case(request, case):
+        return HttpResponseForbidden()
+
+    data = json.loads(request.body)
+    user = get_object_or_404(User, id=data.get("user_id"))
+    case.followers.remove(user)
+    return JsonResponse({"ok": True})

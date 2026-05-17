@@ -30,6 +30,11 @@ urlpatterns = [
     path("my-tickets/", views_chat.my_tickets, name="my_tickets"),
     path("my-tickets/status/", views_chat.my_tickets_status, name="my_tickets_status"),
 
+    # Followers
+    path("<uuid:case_uuid>/followers/search/", views_chat.chat_search_users, name="search_users"),
+    path("<uuid:case_uuid>/followers/add/", views_chat.chat_add_follower, name="add_follower"),
+    path("<uuid:case_uuid>/followers/remove/", views_chat.chat_remove_follower, name="remove_follower"),
+
     # OG link preview (public JSON API, SSRF-protected)
     path("link-preview/", views_chat.link_preview, name="link_preview"),
 ]

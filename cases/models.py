@@ -322,6 +322,12 @@ class CaseRecord(AuditableModel):
         verbose_name="Last Viewed At",
         help_text="Timestamp when staff last opened this ticket's detail page.",
     )
+    client_last_read_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Client Last Read At",
+        help_text="Timestamp when the portal user (requester) last opened this ticket's chat.",
+    )
 
     # --- Problem & Solving ---
     problem_description = models.TextField(verbose_name="Problem Description")
