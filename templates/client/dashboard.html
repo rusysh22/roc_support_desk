@@ -6,87 +6,99 @@
 
 {% block content %}
 <!-- Hero Section -->
-<div class="mb-6">
-    <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">
+<div class="mb-10 text-center max-w-2xl mx-auto mt-6">
+    <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
         How can we help you today?
     </h2>
-    <p class="text-slate-600 text-sm">
-        Select a service below to submit your request, or fill out one of our forms. Our team will respond promptly.
+    <p class="text-slate-500 text-base">
+        Search for a service below or select an option to submit your request. Our support team will respond promptly.
     </p>
 </div>
 
 <!-- Search Bar -->
-<div class="relative mb-8">
-    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
-    </svg>
-    <input type="text" id="portal-search"
-           placeholder="Search services by name or description…"
-           class="jk-input w-full text-sm"
-           style="padding-left:2.5rem; padding-right:2.5rem;"
-           autocomplete="off">
-    <button id="portal-search-clear"
-            class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-100"
-            title="Clear search" type="button">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-    </button>
+<div class="relative max-w-3xl mx-auto mb-16 group">
+    <div class="absolute inset-0 bg-indigo-500/5 rounded-full blur-xl group-focus-within:bg-indigo-500/10 transition-all duration-300"></div>
+    <div class="relative flex items-center bg-white border border-slate-200 rounded-full shadow-sm group-focus-within:shadow-md group-focus-within:border-indigo-300 transition-all overflow-hidden">
+        <div class="pl-6 pr-2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+        </div>
+        <input type="text" id="portal-search"
+               placeholder="Search services or topics..."
+               class="w-full py-4 px-2 text-base text-slate-700 bg-transparent border-none focus:ring-0 outline-none placeholder:text-slate-400"
+               autocomplete="off">
+        <button id="portal-search-clear"
+                class="hidden mr-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors focus:outline-none"
+                title="Clear search" type="button">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        <div class="pr-2 pb-2 pt-2 hidden sm:block">
+            <kbd class="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-md">
+                <span class="text-xs leading-none">/</span>
+            </kbd>
+        </div>
+    </div>
 </div>
 
 <!-- ===== SERVICES SECTION ===== -->
 {% if categories or user.role_access == "SuperAdmin" %}
-<div id="services-section" class="mb-10">
-    <div class="flex items-center gap-2.5 mb-5">
-        <div class="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
-            <svg class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+<div id="services-section" class="mb-12 max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6 pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+            <h3 class="text-xl font-bold text-slate-800 tracking-tight">Services</h3>
+            <span class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-full">{{ categories|length }}</span>
         </div>
-        <h3 class="text-lg font-extrabold text-slate-800 tracking-tight">Services</h3>
-        <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200">{{ categories|length }}</span>
         {% if user.role_access == "SuperAdmin" %}
         <button onclick="document.getElementById('createCategoryModal').style.display='flex'"
-                class="ml-auto w-8 h-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center shadow-sm hover:shadow-md transition-all" title="Add Category">
+                class="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center gap-1" title="Add Category">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add Category
         </button>
         {% endif %}
     </div>
-    <div id="services-grid" class="jk-category-grid">
+    <div id="services-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {% for category in categories %}
-        <div class="jk-card jk-category-card group relative"
+        <div class="group relative bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 jk-category-card flex flex-col"
              data-name="{{ category.name }}"
-             data-desc="{{ category.description|default:'' }}">
+             data-desc="{{ category.description|default:'' }}"
+             data-subs="{% for child in category.children.all %}{{ child.name }} {{ child.description }} {% endfor %}">
+            
             {% if user.role_access == "SuperAdmin" %}
             <!-- Admin Actions -->
-            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <div class="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button onclick="event.stopPropagation(); openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}', {{ category.is_attachment_mandatory|yesno:'true,false' }}, '{{ category.template_subject|escapejs }}', '{{ category.template_text|escapejs }}')"
-                        class="w-7 h-7 bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Edit">
+                        class="w-7 h-7 bg-white hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Edit">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </button>
                 <button onclick="event.stopPropagation(); openDeleteModal('{{ category.id }}', '{{ category.name|escapejs }}')"
-                        class="w-7 h-7 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Delete">
+                        class="w-7 h-7 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-full flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Delete">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </button>
             </div>
             {% endif %}
+
             <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
-                class="jk-card-body jk-card-clickable">
-                <div class="jk-category-icon">{{ category.icon|default:"📝" }}</div>
-                <h3 class="jk-category-name">{{ category.name }}</h3>
-                <p class="jk-category-desc">{{ category.description|default:"Submit a request for this category." }}</p>
-                <div class="jk-category-action flex items-center justify-between">
-                    <div class="flex items-center gap-1.5 text-indigo-500 text-xs font-bold group-hover:gap-2.5 transition-all">
+               class="flex-1 flex flex-col focus:outline-none">
+                
+                <h3 class="text-[17px] font-bold text-slate-800 mb-2 group-hover:text-indigo-700 transition-colors">{{ category.name }}</h3>
+                <p class="text-sm text-slate-500 line-clamp-2 mb-4 flex-1">{{ category.description|default:"Submit a request for this service." }}</p>
+                
+                <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 group-hover:gap-2.5 transition-all">
                         {% if category.children.all %}
-                        <span>View Services</span>
-                        <span class="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-md">{{ category.children.count }}</span>
+                        <span>View {{ category.children.count }} Services</span>
                         {% else %}
                         <span>Submit Request</span>
                         {% endif %}
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
                     </div>
                     {% if category.is_confidential %}
-                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wide">Private</span>
+                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200 uppercase tracking-wide">Private</span>
                     {% endif %}
                 </div>
             </a>
@@ -98,46 +110,34 @@
 
 <!-- ===== FORMS SECTION ===== -->
 {% if portal_forms %}
-<div id="forms-section" class="mb-10">
-    <div class="flex items-center gap-2.5 mb-5">
-        <div class="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center">
-            <svg class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-        </div>
-        <h3 class="text-lg font-extrabold text-slate-800 tracking-tight">Forms</h3>
-        <span class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200">{{ portal_forms|length }}</span>
+<div id="forms-section" class="mb-12 max-w-5xl mx-auto">
+    <div class="flex items-center gap-3 mb-6 pb-2 border-b border-slate-100">
+        <h3 class="text-xl font-bold text-slate-800 tracking-tight">Forms</h3>
+        <span class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-full">{{ portal_forms|length }}</span>
     </div>
-    <div id="forms-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="forms-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {% for form in portal_forms %}
         <a href="{% url 'cases:public_form' slug=form.slug %}"
-            class="portal-form-card group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-purple-300 hover:-translate-y-1 transition-all duration-200"
+            class="portal-form-card group bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 flex flex-col"
             data-name="{{ form.title }}"
             data-desc="{{ form.description|default:''|striptags }}">
 
-            <!-- Form Card Header -->
-            <div class="flex items-start gap-3 mb-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-purple-500/20">
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                </div>
-                <div class="min-w-0 flex-1">
-                    <h4 class="text-sm font-bold text-slate-800 group-hover:text-purple-700 transition-colors truncate">{{ form.title }}</h4>
-                    {% if form.description %}
-                        <p class="text-xs text-slate-600 mt-0.5 line-clamp-2">
-                            {{ form.description|striptags }}
-                        </p>
-                    {% endif %}
-                </div>
-            </div>
+            <h4 class="text-[17px] font-bold text-slate-800 group-hover:text-indigo-700 transition-colors mb-2">{{ form.title }}</h4>
+            {% if form.description %}
+                <p class="text-sm text-slate-500 line-clamp-2 mb-4 flex-1">
+                    {{ form.description|striptags }}
+                </p>
+            {% else %}
+                <div class="flex-1 mb-4"></div>
+            {% endif %}
 
-            <!-- Meta -->
-            <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                        {{ form.fields.count }} question{{ form.fields.count|pluralize }}
-                    </span>
-                </div>
-                <div class="flex items-center text-purple-500 text-xs font-semibold gap-1 group-hover:gap-2 transition-all">
+            <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded">
+                    {{ form.fields.count }} field{{ form.fields.count|pluralize }}
+                </span>
+                <div class="flex items-center text-sm font-semibold text-indigo-600 gap-1 group-hover:gap-2 transition-all">
                     <span>Fill Out</span>
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </div>
@@ -194,7 +194,8 @@
     document.querySelectorAll('.jk-category-card').forEach(card => {
       const match = !q
         || (card.dataset.name  || '').toLowerCase().includes(q)
-        || (card.dataset.desc  || '').toLowerCase().includes(q);
+        || (card.dataset.desc  || '').toLowerCase().includes(q)
+        || (card.dataset.subs  || '').toLowerCase().includes(q);
       card.style.display = match ? '' : 'none';
       if (match) svcVisible++;
     });
