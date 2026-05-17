@@ -120,8 +120,17 @@
                         let filesArray = [];
                         if (this.qrImageURL && navigator.canShare) {
                             try {
-                                const res = await fetch(this.qrImageURL);
-                                const blob = await res.blob();
+                                // Manual conversion from Data URI to Blob to avoid CSP connect-src errors with fetch()
+                                const dataURI = this.qrImageURL;
+                                const byteString = atob(dataURI.split(',')[1]);
+                                const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+                                const ab = new ArrayBuffer(byteString.length);
+                                const ia = new Uint8Array(ab);
+                                for (let i = 0; i < byteString.length; i++) {
+                                    ia[i] = byteString.charCodeAt(i);
+                                }
+                                const blob = new Blob([ab], {type: mimeString});
+                                
                                 const file = new File([blob], 'QR_Form.png', { type: 'image/png' });
                                 if (navigator.canShare({ files: [file] })) filesArray = [file];
                             } catch (e) {

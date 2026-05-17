@@ -955,11 +955,13 @@ def my_tickets(request):
         from django.shortcuts import redirect
         return redirect("desk:case_list")
 
+    from django.db.models import Q
     qs = (
         CaseRecord.objects
-        .filter(requester_email__iexact=user.email)
+        .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
         .select_related("category")
-        .prefetch_related("messages")
+        .prefetch_related("messages", "followers")
+        .distinct()
         .order_by("-created_at")
     )
 

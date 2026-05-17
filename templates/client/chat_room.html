@@ -697,7 +697,7 @@ function chatRoom() {
     },
 
     _insertMention(name, atIdx, queryLen) {
-      if (atIdx === undefined || isNaN(atIdx)) {
+      if (atIdx === undefined || isNaN(atIdx) || atIdx < 0) {
           this._hideMention();
           return;
       }
@@ -711,20 +711,16 @@ function chatRoom() {
       // Wait for any remaining Quill events to settle before mutation
       setTimeout(() => {
         try {
+          this.quill.focus();
           this.quill.deleteText(atIdx, queryLen + 1, 'user');
           this.quill.insertText(atIdx, mentionText, 'user');
-          
-          // Clear formats to prevent span fragmentation issues
-          this.quill.removeFormat(atIdx, mentionText.length, 'user');
-          
           this.quill.setSelection(targetIdx, 0, 'user');
-          this.quill.focus();
         } catch(e) {
           console.error("Mention insertion error:", e);
         } finally {
           this._isInsertingMention = false;
         }
-      }, 10);
+      }, 50);
     },
 
     _escAttrSimple(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
