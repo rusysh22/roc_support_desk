@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Manual — {{ site_config.site_name|default:"RoC Desk" }}</title>
+    <title>User Manual | {{ site_config.site_name|default:"RoC Desk" }}</title>
     {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -52,11 +52,14 @@
             background: #fff;
             border: 1px solid #e2e8f0;
             border-radius: 20px;
-            padding: 28px 24px 22px;
+            padding: 22px 18px 18px;
             text-decoration: none;
             display: flex;
             flex-direction: column;
             transition: box-shadow .2s, transform .18s, border-color .2s;
+        }
+        @media (min-width: 640px) {
+            .manual-card { padding: 28px 24px 22px; }
         }
         .manual-card:hover {
             box-shadow: 0 12px 40px rgba(79,70,229,.13);
@@ -64,13 +67,16 @@
             border-color: #c7d2fe;
         }
         .card-icon-wrap {
-            width: 52px; height: 52px;
+            width: 48px; height: 48px;
             background: linear-gradient(135deg, #eef2ff, #e0e7ff);
             border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 26px;
-            margin-bottom: 16px;
+            font-size: 24px;
+            margin-bottom: 14px;
             flex-shrink: 0;
+        }
+        @media (min-width: 640px) {
+            .card-icon-wrap { width: 52px; height: 52px; font-size: 26px; margin-bottom: 16px; }
         }
         .draft-badge {
             font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -79,7 +85,7 @@
         }
         .open-guide-link {
             margin-top: auto;
-            padding-top: 16px;
+            padding-top: 14px;
             display: flex; align-items: center; gap: 4px;
             font-size: 12px; font-weight: 700; color: #4f46e5;
             opacity: 0;
@@ -89,8 +95,12 @@
         .manual-card:hover .open-guide-link {
             opacity: 1; transform: translateX(0);
         }
+        /* Always show on touch devices */
+        @media (hover: none) {
+            .open-guide-link { opacity: 1; transform: translateX(0); }
+        }
 
-        /* Search dropdown */
+        /* Search dropdown — desktop */
         .search-dropdown {
             position: absolute; top: calc(100% + 6px); left: 0; right: 0;
             background: #fff; border-radius: 14px;
@@ -100,6 +110,20 @@
             border: 1px solid #e2e8f0;
         }
         .search-dropdown.open { display: block; }
+
+        /* Search dropdown — mobile (fixed full-width below header) */
+        @media (max-width: 639px) {
+            #mobileSearchBar .search-dropdown {
+                position: fixed;
+                top: auto;
+                left: 0; right: 0;
+                border-radius: 0 0 16px 16px;
+                box-shadow: 0 16px 40px rgba(0,0,0,.18);
+                max-height: 65vh;
+                overflow-y: auto;
+            }
+        }
+
         .sd-item {
             display: flex; align-items: flex-start; gap: 10px;
             padding: 10px 14px; text-decoration: none; color: inherit;
@@ -116,6 +140,17 @@
         .sd-footer:hover { color: #4f46e5; background: #f0f4ff; }
         .sd-empty { padding: 18px 14px; text-align: center; font-size: 13px; color: #94a3b8; }
         mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
+
+        /* Mobile search bar slide transition */
+        #mobileSearchBar {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height .25s ease, padding .25s ease;
+        }
+        #mobileSearchBar.open {
+            max-height: 80px;
+            overflow: visible;
+        }
     </style>
 </head>
 <body>
@@ -123,9 +158,10 @@
 
     {# ─── Top bar ─── #}
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
-        <div class="max-w-6xl mx-auto px-6 h-14 flex items-center gap-4">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+
             {# Left: back + logo #}
-            <div class="flex items-center gap-3 flex-shrink-0">
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <a href="/" class="text-slate-400 hover:text-slate-700 transition-colors" title="Back to app">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -133,15 +169,15 @@
                 </a>
                 <span class="text-slate-300">|</span>
                 {% if site_config.logo %}
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-6 object-contain">
+                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-6 object-contain max-w-[100px] sm:max-w-none">
                 {% else %}
-                <span class="text-sm font-black text-slate-800">📖 {{ site_config.site_name|default:"RoC Desk" }}</span>
+                <span class="text-sm font-black text-slate-800 truncate max-w-[120px] sm:max-w-none">📖 {{ site_config.site_name|default:"RoC Desk" }}</span>
                 {% endif %}
             </div>
 
-            {# Center: search bar #}
-            <div class="flex-1 flex justify-center px-4">
-                <div class="search-wrap-header relative w-full max-w-md" id="headerSearch">
+            {# Center: search bar — desktop only #}
+            <div class="flex-1 hidden sm:flex justify-center px-4">
+                <div class="relative w-full max-w-md" id="headerSearch">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                     </svg>
@@ -154,31 +190,58 @@
                 </div>
             </div>
 
-            {# Right: manage button #}
-            <div class="flex-shrink-0">
+            {# Right: mobile search icon + manage button #}
+            <div class="flex items-center gap-2 ml-auto sm:ml-0 flex-shrink-0">
+                {# Mobile search toggle #}
+                <button id="mobileSearchToggle"
+                        class="sm:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        aria-label="Search">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                    </svg>
+                </button>
+
                 {% if request.user.is_authenticated %}
                 {% with role=request.user.role_access %}
                 {% if role in "SuperAdmin,Manager,SupportDesk" %}
                 <a href="{% url 'manual:manage_list' %}"
-                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors whitespace-nowrap">
-                    ⚙️ Manage Manuals
+                   class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors whitespace-nowrap">
+                    <span>⚙️</span>
+                    <span class="hidden xs:inline sm:inline">Manage Manuals</span>
                 </a>
                 {% endif %}
                 {% endwith %}
                 {% endif %}
             </div>
         </div>
+
+        {# Mobile search bar (below top row) #}
+        <div id="mobileSearchBar" class="sm:hidden border-t border-slate-100">
+            <div class="px-4 py-2.5" id="mobileSearchInner">
+                <div class="relative" id="mobileSearchWrap">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                    </svg>
+                    <input id="mobileSearchInput" type="text" placeholder="Search manuals, pages…"
+                           autocomplete="off"
+                           class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 bg-slate-50">
+                    <div id="mobileSearchDropdown" class="search-dropdown">
+                        <div id="mobileSearchResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </header>
 
     {# ─── Hero ─── #}
-    <div class="hero{% if manual_config.hero_image %} has-bg-image{% endif %} py-16 px-6">
+    <div class="hero{% if manual_config.hero_image %} has-bg-image{% endif %} py-10 sm:py-16 px-4 sm:px-6">
         {% if manual_config.hero_image %}
         <img class="hero-bg-img" src="{{ manual_config.hero_image.url }}" alt="">
         {% endif %}
         <div class="hero-grid"></div>
         <div class="hero-content relative max-w-6xl mx-auto">
             {# Site identity badge #}
-            <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-6">
+            <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 sm:px-4 py-1.5 mb-5 sm:mb-6">
                 {% if site_config.logo %}
                 <img src="{{ site_config.logo.url }}" alt="" class="h-4 object-contain brightness-0 invert opacity-80">
                 {% else %}
@@ -189,20 +252,20 @@
                 <span class="text-white/60 text-xs">User Manual</span>
             </div>
 
-            <h1 class="text-3xl md:text-5xl font-black text-white leading-tight mb-4 max-w-2xl">
+            <h1 class="text-2xl sm:text-3xl md:text-5xl font-black text-white leading-tight mb-3 sm:mb-4 max-w-2xl">
                 {{ manual_config.hero_title }}
             </h1>
 
             {% if manual_config.hero_subtitle %}
-            <p class="text-indigo-200 text-base md:text-lg max-w-xl leading-relaxed">
+            <p class="text-indigo-200 text-sm sm:text-base md:text-lg max-w-xl leading-relaxed">
                 {{ manual_config.hero_subtitle }}
             </p>
             {% endif %}
 
             {# Stats strip #}
             {% if manuals %}
-            <div class="mt-8 flex items-center gap-3">
-                <div class="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5">
+            <div class="mt-6 sm:mt-8 flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 sm:px-4 py-1.5">
                     <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span class="text-white/80 text-xs font-semibold">{{ manuals.count }} manual{{ manuals.count|pluralize }} available</span>
                 </div>
@@ -212,14 +275,14 @@
     </div>
 
     {# ─── Manual grid ─── #}
-    <main class="max-w-6xl mx-auto px-6 py-12 flex-1 w-full">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex-1 w-full">
         {% if manuals %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {% for manual in manuals %}
             <a href="{% url 'manual:viewer' manual_slug=manual.slug %}" class="manual-card group">
                 <div class="card-icon-wrap">{{ manual.icon }}</div>
                 <div class="flex items-start justify-between gap-2 mb-2">
-                    <h2 class="text-base font-bold text-slate-800 group-hover:text-indigo-700 transition-colors leading-snug">
+                    <h2 class="text-sm sm:text-base font-bold text-slate-800 group-hover:text-indigo-700 transition-colors leading-snug">
                         {{ manual.title }}
                     </h2>
                     {% if not manual.is_published %}
@@ -227,7 +290,7 @@
                     {% endif %}
                 </div>
                 {% if manual.description %}
-                <p class="text-sm text-slate-500 leading-relaxed line-clamp-2 flex-1">{{ manual.description }}</p>
+                <p class="text-xs sm:text-sm text-slate-500 leading-relaxed line-clamp-2 flex-1">{{ manual.description }}</p>
                 {% endif %}
                 <div class="open-guide-link">
                     Open Guide
@@ -239,9 +302,9 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-24">
-            <div class="text-6xl mb-5">📭</div>
-            <h2 class="text-xl font-bold text-slate-700 mb-2">No manuals available yet</h2>
+        <div class="text-center py-16 sm:py-24">
+            <div class="text-5xl sm:text-6xl mb-4 sm:mb-5">📭</div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-700 mb-2">No manuals available yet</h2>
             <p class="text-slate-400 text-sm">
                 {% if request.user.is_authenticated and request.user.role_access in "SuperAdmin,Manager,SupportDesk" %}
                 Create your first manual from the <a href="{% url 'manual:manage_list' %}" class="text-indigo-600 underline font-semibold">Manage Manuals</a> page.
@@ -253,7 +316,7 @@
         {% endif %}
     </main>
 
-    <footer class="text-center py-5 text-xs text-slate-400 border-t border-slate-200 bg-white">
+    <footer class="text-center py-4 sm:py-5 text-xs text-slate-400 border-t border-slate-200 bg-white">
         {{ site_config.site_name|default:"RoC Desk" }} &mdash; User Manual
     </footer>
 
@@ -263,6 +326,22 @@
 (function () {
     const SEARCH_URL = "{% url 'manual:search' %}";
     let debounceTimer = null;
+
+    // Mobile search toggle
+    const toggleBtn = document.getElementById('mobileSearchToggle');
+    const mobileBar = document.getElementById('mobileSearchBar');
+    const mobileInput = document.getElementById('mobileSearchInput');
+    if (toggleBtn && mobileBar) {
+        toggleBtn.addEventListener('click', () => {
+            const isOpen = mobileBar.classList.toggle('open');
+            if (isOpen) {
+                setTimeout(() => mobileInput && mobileInput.focus(), 50);
+            } else {
+                const drop = document.getElementById('mobileSearchDropdown');
+                if (drop) drop.classList.remove('open');
+            }
+        });
+    }
 
     function highlight(text, query) {
         if (!query || !text) return text || '';
@@ -299,7 +378,7 @@
         window.location.href = SEARCH_URL + '?q=' + q;
     }
 
-    function setupSearch(inputId, resultsId, dropdownId) {
+    function setupSearch(inputId, resultsId, dropdownId, wrapperId) {
         const input = document.getElementById(inputId);
         const results = document.getElementById(resultsId);
         const dropdown = document.getElementById(dropdownId);
@@ -347,13 +426,15 @@
         });
 
         document.addEventListener('click', (e) => {
-            if (!input.closest('[id]').contains(e.target)) {
+            const wrapper = wrapperId ? document.getElementById(wrapperId) : input.parentElement;
+            if (wrapper && !wrapper.contains(e.target)) {
                 dropdown.classList.remove('open');
             }
         });
     }
 
-    setupSearch('headerSearchInput', 'headerSearchResults', 'headerSearchDropdown');
+    setupSearch('headerSearchInput', 'headerSearchResults', 'headerSearchDropdown', 'headerSearch');
+    setupSearch('mobileSearchInput', 'mobileSearchResults', 'mobileSearchDropdown', 'mobileSearchWrap');
 })();
 </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if page %}{{ page.title }} — {% endif %}{{ manual.title }} — User Manual</title>
+    <title>{% if page %}{{ page.title }} | {% endif %}{{ manual.title }} | User Manual</title>
     {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -17,8 +17,11 @@
         .nav-item-row { display: flex; align-items: center; border-radius: 8px; }
         .nav-item-row:hover { background: #eef2ff; }
         .nav-item.active > .nav-item-row { background: #eef2ff; color: #4338ca; font-weight: 700; }
-        .nav-item a { flex: 1; display: flex; align-items: center; gap: 7px; padding: 7px 8px;
+        .nav-item a { flex: 1; display: flex; align-items: center; gap: 7px; padding: 8px 8px;
                       text-decoration: none; color: inherit; min-width: 0; overflow: hidden; }
+        @media (max-width: 1023px) {
+            .nav-item a { padding: 10px 8px; }
+        }
         .nav-toggle { flex-shrink: 0; width: 26px; height: 26px; display: flex; align-items: center;
                       justify-content: center; border: none; background: transparent; cursor: pointer;
                       color: #94a3b8; border-radius: 6px; margin-right: 3px; }
@@ -31,36 +34,61 @@
                      background: #94a3b8; flex-shrink: 0; }
 
         /* TipTap content rendering */
-        .tiptap-content h1 { font-size: 1.875rem; font-weight: 900; color: #0f172a; margin: 1.5rem 0 .75rem; line-height: 1.2; }
-        .tiptap-content h2 { font-size: 1.375rem; font-weight: 800; color: #1e293b; margin: 1.4rem 0 .6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: .4rem; }
-        .tiptap-content h3 { font-size: 1.1rem; font-weight: 700; color: #334155; margin: 1.2rem 0 .5rem; }
-        .tiptap-content h4 { font-size: 1rem; font-weight: 700; color: #475569; margin: 1rem 0 .4rem; }
-        .tiptap-content p { margin: .6rem 0; line-height: 1.75; color: #334155; font-size: .9375rem; }
-        .tiptap-content ul { list-style: disc; padding-left: 1.5rem; margin: .75rem 0; }
-        .tiptap-content ol { list-style: decimal; padding-left: 1.5rem; margin: .75rem 0; }
-        .tiptap-content li { margin: .3rem 0; line-height: 1.7; color: #334155; font-size: .9375rem; }
+        .tiptap-content h1 { font-size: 1.5rem; font-weight: 900; color: #0f172a; margin: 1.4rem 0 .7rem; line-height: 1.2; }
+        .tiptap-content h2 { font-size: 1.2rem; font-weight: 800; color: #1e293b; margin: 1.3rem 0 .55rem; border-bottom: 2px solid #e2e8f0; padding-bottom: .4rem; }
+        .tiptap-content h3 { font-size: 1.05rem; font-weight: 700; color: #334155; margin: 1.1rem 0 .45rem; }
+        .tiptap-content h4 { font-size: .95rem; font-weight: 700; color: #475569; margin: .9rem 0 .35rem; }
+        @media (min-width: 768px) {
+            .tiptap-content h1 { font-size: 1.875rem; margin: 1.5rem 0 .75rem; }
+            .tiptap-content h2 { font-size: 1.375rem; margin: 1.4rem 0 .6rem; }
+            .tiptap-content h3 { font-size: 1.1rem; margin: 1.2rem 0 .5rem; }
+            .tiptap-content h4 { font-size: 1rem; margin: 1rem 0 .4rem; }
+        }
+        .tiptap-content p { margin: .6rem 0; line-height: 1.75; color: #334155; font-size: .9rem; }
+        @media (min-width: 640px) { .tiptap-content p { font-size: .9375rem; } }
+        .tiptap-content ul { list-style: disc; padding-left: 1.25rem; margin: .75rem 0; }
+        .tiptap-content ol { list-style: decimal; padding-left: 1.25rem; margin: .75rem 0; }
+        @media (min-width: 640px) {
+            .tiptap-content ul { padding-left: 1.5rem; }
+            .tiptap-content ol { padding-left: 1.5rem; }
+        }
+        .tiptap-content li { margin: .3rem 0; line-height: 1.7; color: #334155; font-size: .9rem; }
+        @media (min-width: 640px) { .tiptap-content li { font-size: .9375rem; } }
         .tiptap-content li > p { margin: 0; display: inline; }
         .tiptap-content li > p + p { display: block; margin-top: .4rem; }
-        .tiptap-content blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: .75rem 1rem;
-                                     border-radius: 0 8px 8px 0; margin: 1rem 0; color: #3730a3; font-style: italic; }
+        .tiptap-content blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: .65rem .85rem;
+                                     border-radius: 0 8px 8px 0; margin: 1rem 0; color: #3730a3; font-style: italic; font-size: .9rem; }
+        @media (min-width: 640px) { .tiptap-content blockquote { padding: .75rem 1rem; font-size: inherit; } }
         .tiptap-content code { background: #f1f5f9; color: #7c3aed; padding: .15em .4em;
-                               border-radius: 4px; font-size: .85em; font-family: monospace; }
-        .tiptap-content pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 10px;
-                              overflow-x: auto; margin: 1rem 0; font-size: .85rem; font-family: monospace; }
+                               border-radius: 4px; font-size: .82em; font-family: monospace; }
+        .tiptap-content pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 10px;
+                              overflow-x: auto; -webkit-overflow-scrolling: touch;
+                              margin: 1rem 0; font-size: .8rem; font-family: monospace; }
+        @media (min-width: 640px) { .tiptap-content pre { padding: 1.25rem; font-size: .85rem; } }
         .tiptap-content pre code { background: none; color: inherit; padding: 0; }
-        .tiptap-content a { color: #4f46e5; text-decoration: underline; }
+        .tiptap-content a { color: #4f46e5; text-decoration: underline; word-break: break-word; }
         .tiptap-content strong { font-weight: 700; color: #1e293b; }
         .tiptap-content em { font-style: italic; }
-        .tiptap-content img { max-width: 100%; border-radius: 8px; vertical-align: middle;
+        .tiptap-content img { max-width: 100%; height: auto; border-radius: 8px; vertical-align: middle;
                               box-shadow: 0 2px 12px rgba(0,0,0,.1); cursor: zoom-in; }
-        /* Images inside a paragraph are inline; standalone images keep their margin */
         .tiptap-content p img { margin: 0 3px; }
         .tiptap-content > img { display: block; margin: .75rem 0; }
         .tiptap-content hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
-        .tiptap-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
-        .tiptap-content th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .6rem .9rem;
-                             border: 1px solid #e2e8f0; }
-        .tiptap-content td { padding: .55rem .9rem; border: 1px solid #e2e8f0; vertical-align: top; }
+        /* Table wrapper for horizontal scroll on mobile */
+        .tiptap-content .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .tiptap-content table { width: 100%; border-collapse: collapse; font-size: .85rem; min-width: 480px; }
+        @media (min-width: 640px) { .tiptap-content table { font-size: .9rem; min-width: auto; } }
+        .tiptap-content th { background: #f1f5f9; font-weight: 700; text-align: left; padding: .55rem .75rem;
+                             border: 1px solid #e2e8f0; white-space: nowrap; }
+        @media (min-width: 640px) { .tiptap-content th { padding: .6rem .9rem; } }
+        .tiptap-content td { padding: .5rem .75rem; border: 1px solid #e2e8f0; vertical-align: top; }
+        @media (min-width: 640px) { .tiptap-content td { padding: .55rem .9rem; } }
         .tiptap-content tr:nth-child(even) td { background: #fafafa; }
         .tiptap-content .iframe-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;
                                           border-radius: 10px; margin: 1rem 0; }
@@ -68,31 +96,57 @@
 
         /* Lightbox */
         #img-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 9999;
-                        align-items: center; justify-content: center; cursor: zoom-out; }
+                        align-items: center; justify-content: center; cursor: zoom-out;
+                        padding: 16px; }
         #img-lightbox.active { display: flex; }
-        #img-lightbox img { max-width: 92vw; max-height: 90vh; border-radius: 10px;
-                            box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+        #img-lightbox img { max-width: 100%; max-height: 90vh; border-radius: 10px;
+                            box-shadow: 0 20px 60px rgba(0,0,0,.5); object-fit: contain; }
+
+        /* Mobile search dropdown */
+        .search-dropdown {
+            display: none;
+            position: absolute;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 12px 40px rgba(0,0,0,.15);
+            overflow: hidden;
+            z-index: 50;
+        }
+        .search-dropdown.open { display: block; }
+        .sd-item { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px;
+                   text-decoration: none; color: inherit; cursor: pointer; transition: background .1s; }
+        .sd-item:hover { background: #f0f4ff; }
+
+        /* Breadcrumb scrollable on narrow screens */
+        .breadcrumb-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+            scrollbar-width: none;
+        }
+        .breadcrumb-scroll::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body x-data="{ mobileNavOpen: false }" class="bg-slate-50">
 
     {# ─── Top bar ─── #}
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 h-14 flex items-center">
-        <div class="max-w-[1200px] mx-auto px-4 flex items-center gap-3 w-full">
+        <div class="max-w-[1200px] mx-auto px-3 sm:px-4 flex items-center gap-2 sm:gap-3 w-full">
             <a href="{% url 'manual:landing' %}" class="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0" title="All Manuals">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
             </a>
-            <span class="text-slate-200">|</span>
-            <span class="text-sm font-black text-slate-800 truncate">{{ manual.icon }} {{ manual.title }}</span>
+            <span class="text-slate-200 flex-shrink-0">|</span>
+            <span class="text-sm font-black text-slate-800 truncate min-w-0">{{ manual.icon }} {{ manual.title }}</span>
 
             {% if not manual.is_published %}
             <span class="ml-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex-shrink-0">Draft</span>
             {% endif %}
 
-            {# Center: search bar #}
-            <div class="flex-1 flex justify-center px-3 hidden sm:flex" id="viewerSearchWrap">
+            {# Center: search bar — sm and above #}
+            <div class="flex-1 hidden sm:flex justify-center px-3" id="viewerSearchWrap">
                 <div class="relative w-full max-w-xs">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
@@ -100,25 +154,36 @@
                     <input id="viewerSearchInput" type="text" placeholder="Search…"
                            autocomplete="off"
                            class="w-full border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">
-                    <div id="viewerSearchDropdown" class="search-dropdown absolute top-full mt-1.5 left-0 right-0 bg-white rounded-xl border border-slate-200 shadow-xl z-50" style="display:none; min-width:300px;">
+                    <div id="viewerSearchDropdown" class="search-dropdown absolute top-full mt-1.5 left-0 right-0" style="min-width:300px;">
                         <div id="viewerSearchResults"></div>
                     </div>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-auto sm:ml-0">
                 {% if can_edit %}
+                {# Edit Manual — hidden on xs #}
                 <a href="{% url 'manual:manual_edit' manual_slug=manual.slug %}"
-                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
+                   class="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors">
                     ⚙️ Edit Manual
                 </a>
                 {% if page %}
                 <a href="{% url 'manual:page_edit' manual_slug=manual.slug page_id=page.pk %}"
-                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors">
-                    ✏️ Edit Page
+                   class="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors">
+                    <span class="sm:hidden">✏️</span>
+                    <span class="hidden sm:inline">✏️ Edit Page</span>
                 </a>
                 {% endif %}
                 {% endif %}
+
+                {# Mobile search icon #}
+                <button id="viewerMobileSearchToggle"
+                        class="sm:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        aria-label="Search">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                    </svg>
+                </button>
 
                 {# Mobile nav toggle #}
                 <button @click="mobileNavOpen = !mobileNavOpen"
@@ -130,6 +195,25 @@
             </div>
         </div>
     </header>
+
+    {# Mobile search bar (below header) #}
+    <div id="viewerMobileSearchBar" class="sm:hidden bg-white border-b border-slate-200"
+         style="max-height:0;overflow:hidden;transition:max-height .25s ease,padding .25s ease;">
+        <div class="px-4 py-2.5">
+            <div class="relative" id="viewerMobileSearchWrap">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                </svg>
+                <input id="viewerMobileSearchInput" type="text" placeholder="Search in this manual…"
+                       autocomplete="off"
+                       class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">
+                <div id="viewerMobileSearchDropdown" class="search-dropdown absolute top-full mt-1.5 left-0 right-0"
+                     style="max-height:60vh;overflow-y:auto;">
+                    <div id="viewerMobileSearchResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="max-w-[1200px] mx-auto flex min-h-[calc(100vh-56px)]">
 
@@ -150,31 +234,49 @@
             </div>
         </aside>
 
-        {# Mobile nav drawer #}
+        {# Mobile nav overlay #}
         <div x-show="mobileNavOpen" x-transition.opacity
              class="lg:hidden fixed inset-0 z-30 bg-black/40"
              @click="mobileNavOpen = false">
         </div>
+        {# Mobile nav drawer #}
         <div x-show="mobileNavOpen" x-transition
-             class="lg:hidden fixed top-14 left-0 bottom-0 z-40 w-72 bg-white border-r border-slate-200 overflow-y-auto p-4 nav-tree">
-            {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+             class="lg:hidden fixed top-0 left-0 bottom-0 z-40 w-[85vw] max-w-xs bg-white border-r border-slate-200 overflow-y-auto shadow-xl">
+            {# Drawer header #}
+            <div class="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 bg-white sticky top-0">
+                <span class="text-sm font-black text-slate-800 truncate">{{ manual.icon }} {{ manual.title }}</span>
+                <button @click="mobileNavOpen = false" class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 nav-tree">
+                {% if can_edit %}
+                <a href="{% url 'manual:page_new' manual_slug=manual.slug %}"
+                   class="flex items-center gap-2 px-3 py-2.5 mb-3 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 border border-dashed border-indigo-300 hover:bg-indigo-100 transition-colors">
+                    ＋ New Page
+                </a>
+                {% endif %}
+                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+            </div>
         </div>
 
         {# ─── Content area ─── #}
-        <main class="flex-1 min-w-0 p-6 md:p-10">
+        <main class="flex-1 min-w-0 p-4 sm:p-6 md:p-10">
             {% if page %}
             {# Breadcrumb #}
             {% with crumbs=page.breadcrumb %}
             {% if crumbs|length > 1 %}
-            <nav class="flex items-center gap-1 text-xs text-slate-400 mb-6 flex-wrap">
-                <a href="{% url 'manual:viewer' manual_slug=manual.slug %}" class="hover:text-indigo-600 transition-colors">{{ manual.title }}</a>
+            <nav class="breadcrumb-scroll flex items-center gap-1 text-xs text-slate-400 mb-5 sm:mb-6">
+                <a href="{% url 'manual:viewer' manual_slug=manual.slug %}" class="hover:text-indigo-600 transition-colors flex-shrink-0">{{ manual.title }}</a>
                 {% for crumb in crumbs %}
-                <span class="text-slate-300">/</span>
+                <span class="text-slate-300 flex-shrink-0">/</span>
                 {% if crumb.pk == page.pk %}
-                <span class="text-slate-600 font-semibold">{{ crumb.title }}</span>
+                <span class="text-slate-600 font-semibold flex-shrink-0">{{ crumb.title }}</span>
                 {% else %}
                 <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=crumb.pk %}"
-                   class="hover:text-indigo-600 transition-colors">{{ crumb.title }}</a>
+                   class="hover:text-indigo-600 transition-colors flex-shrink-0">{{ crumb.title }}</a>
                 {% endif %}
                 {% endfor %}
             </nav>
@@ -182,44 +284,42 @@
             {% endwith %}
 
             {# Page header #}
-            <div class="flex items-start justify-between gap-4 mb-6">
-                <div>
-                    <div class="flex items-center gap-2 mb-1 flex-wrap">
-                        {% if page.is_faq %}
-                        <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">❓ FAQ</span>
-                        {% endif %}
-                        {% if not page.is_published %}
-                        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Draft</span>
-                        {% endif %}
-                    </div>
-                    <h1 class="text-2xl md:text-3xl font-black text-slate-900">{{ page.title }}</h1>
-                    <p class="text-xs text-slate-400 mt-1">
-                        Last updated {{ page.updated_at|date:"d M Y, H:i" }}
-                        {% if page.created_by %} by {{ page.created_by.username }}{% endif %}
-                    </p>
+            <div class="mb-5 sm:mb-6">
+                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                    {% if page.is_faq %}
+                    <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">❓ FAQ</span>
+                    {% endif %}
+                    {% if not page.is_published %}
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Draft</span>
+                    {% endif %}
                 </div>
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{{ page.title }}</h1>
+                <p class="text-xs text-slate-400 mt-1">
+                    Last updated {{ page.updated_at|date:"d M Y, H:i" }}
+                    {% if page.created_by %} by {{ page.created_by.username }}{% endif %}
+                </p>
             </div>
 
             {# TipTap content #}
-            <div class="tiptap-content bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm"
+            <div class="tiptap-content bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 md:p-8 shadow-sm"
                  id="tiptap-render">
             </div>
 
-            {# Child pages list (if this is a parent node) #}
+            {# Child pages list #}
             {% if page.children.exists %}
-            <div class="mt-8">
-                <h2 class="text-base font-bold text-slate-700 mb-3">📂 Sub-pages</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="mt-6 sm:mt-8">
+                <h2 class="text-sm sm:text-base font-bold text-slate-700 mb-3">📂 Sub-pages</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {% for child in page.get_all_children %}
                     {% if child.is_published or can_edit %}
                     <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=child.pk %}"
-                       class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
-                        <span class="text-xl">{% if child.is_faq %}❓{% else %}📄{% endif %}</span>
-                        <div class="min-w-0">
+                       class="flex items-center gap-3 p-3.5 sm:p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                        <span class="text-xl flex-shrink-0">{% if child.is_faq %}❓{% else %}📄{% endif %}</span>
+                        <div class="min-w-0 flex-1">
                             <div class="text-sm font-semibold text-slate-800 group-hover:text-indigo-700 truncate">{{ child.title }}</div>
                             {% if not child.is_published %}<div class="text-xs text-slate-400">Draft</div>{% endif %}
                         </div>
-                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-auto flex-shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
                     </a>
@@ -230,11 +330,11 @@
             {% endif %}
 
             {% else %}
-            <div class="flex flex-col items-center justify-center py-24 text-center">
-                <div class="text-6xl mb-5">{{ manual.icon }}</div>
-                <h1 class="text-2xl font-black text-slate-800 mb-2">{{ manual.title }}</h1>
+            <div class="flex flex-col items-center justify-center py-16 sm:py-24 text-center">
+                <div class="text-5xl sm:text-6xl mb-4 sm:mb-5">{{ manual.icon }}</div>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-800 mb-2">{{ manual.title }}</h1>
                 {% if manual.description %}
-                <p class="text-slate-500 max-w-md">{{ manual.description }}</p>
+                <p class="text-slate-500 max-w-md text-sm sm:text-base px-4">{{ manual.description }}</p>
                 {% endif %}
                 {% if not root_pages %}
                 <p class="mt-6 text-sm text-slate-400">
@@ -257,12 +357,25 @@
 
     {{ page_content|json_script:"page-content-data" }}
 
-    {# TipTap viewer + Alpine #}
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script>
     const PAGE_CONTENT = JSON.parse(document.getElementById('page-content-data').textContent || 'null');
 
-    // Lightweight TipTap JSON → HTML renderer (no ProseMirror dependency needed for read-only)
+    // Mobile search toggle
+    (function () {
+        const toggleBtn = document.getElementById('viewerMobileSearchToggle');
+        const bar = document.getElementById('viewerMobileSearchBar');
+        const input = document.getElementById('viewerMobileSearchInput');
+        if (!toggleBtn || !bar) return;
+        toggleBtn.addEventListener('click', () => {
+            const isOpen = bar.style.maxHeight === '80px';
+            bar.style.maxHeight = isOpen ? '0' : '80px';
+            bar.style.overflow = isOpen ? 'hidden' : 'visible';
+            if (!isOpen && input) setTimeout(() => input.focus(), 50);
+        });
+    })();
+
+    // TipTap JSON → HTML renderer
     function renderTipTap(doc) {
         if (!doc || !doc.content) return '<p class="text-slate-400 italic">No content yet.</p>';
         return renderNodes(doc.content);
@@ -300,7 +413,7 @@
                 const style = w ? `width:${w}px;max-width:100%` : 'max-width:100%';
                 return `<img src="${escAttr(src)}" alt="${escAttr(alt)}" title="${escAttr(title)}" style="${style}" loading="lazy" decoding="async" onclick="openLightbox(this.src)">`;
             }
-            case 'table': return `<table>${renderNodes(node.content)}</table>`;
+            case 'table': return `<div class="table-wrapper"><table>${renderNodes(node.content)}</table></div>`;
             case 'tableRow': return `<tr>${renderNodes(node.content)}</tr>`;
             case 'tableHeader': return `<th>${renderNodes(node.content)}</th>`;
             case 'tableCell': return `<td>${renderNodes(node.content)}</td>`;
@@ -363,7 +476,6 @@
         return String(str).replace(/"/g,'&quot;');
     }
 
-    // Convert any YouTube share/watch URL to embeddable /embed/VIDEO_ID URL
     function toYoutubeEmbedUrl(url) {
         if (!url) return '';
         if (url.includes('/embed/')) return url;
@@ -383,66 +495,72 @@
         }
     });
 
-    // ─── Viewer search bar ───
+    // ─── Viewer search (desktop) ───
     (function () {
         const SEARCH_URL = "{% url 'manual:search' %}";
-        const input = document.getElementById('viewerSearchInput');
-        const dropdown = document.getElementById('viewerSearchDropdown');
-        const resultsEl = document.getElementById('viewerSearchResults');
-        if (!input) return;
 
-        let timer = null, activeIdx = -1;
+        function setupSearch(inputId, resultsId, dropdownId, wrapperId) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const resultsEl = document.getElementById(resultsId);
+            if (!input) return;
 
-        function renderItems(results, query) {
-            if (!results.length) {
-                resultsEl.innerHTML = `<div style="padding:14px;text-align:center;font-size:12px;color:#94a3b8">No results for "<strong>${query}</strong>"</div>`;
-            } else {
-                resultsEl.innerHTML = results.slice(0, 8).map((r, i) => `
-                    <a class="sd-item" href="${r.url}" style="display:flex;align-items:flex-start;gap:8px;padding:9px 12px;text-decoration:none;color:inherit;transition:background .1s;" data-idx="${i}">
-                        <span style="font-size:16px;flex-shrink:0">${r.icon || r.manual_icon || '📄'}</span>
-                        <div style="flex:1;min-width:0">
-                            <div style="font-size:12px;font-weight:600;color:#1e293b">${r.title}</div>
-                            ${r.subtitle ? `<div style="font-size:11px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">${r.subtitle}</div>` : ''}
-                        </div>
-                    </a>
-                `).join('');
-                if (results.length > 8) {
-                    resultsEl.innerHTML += `<div onclick="location.href='${SEARCH_URL}?q=${encodeURIComponent(query)}'" style="padding:7px 12px;font-size:11px;color:#94a3b8;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;cursor:pointer">View all results →</div>`;
+            let timer = null, activeIdx = -1;
+
+            function renderItems(results, query) {
+                if (!results.length) {
+                    resultsEl.innerHTML = `<div style="padding:14px;text-align:center;font-size:12px;color:#94a3b8">No results for "<strong>${query}</strong>"</div>`;
+                } else {
+                    resultsEl.innerHTML = results.slice(0, 8).map((r, i) => `
+                        <a class="sd-item" href="${r.url}" style="display:flex;align-items:flex-start;gap:8px;padding:9px 12px;text-decoration:none;color:inherit;transition:background .1s;" data-idx="${i}">
+                            <span style="font-size:16px;flex-shrink:0">${r.icon || r.manual_icon || '📄'}</span>
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:12px;font-weight:600;color:#1e293b">${r.title}</div>
+                                ${r.subtitle ? `<div style="font-size:11px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">${r.subtitle}</div>` : ''}
+                            </div>
+                        </a>
+                    `).join('');
+                    if (results.length > 8) {
+                        resultsEl.innerHTML += `<div onclick="location.href='${SEARCH_URL}?q=${encodeURIComponent(query)}'" style="padding:7px 12px;font-size:11px;color:#94a3b8;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;cursor:pointer">View all results →</div>`;
+                    }
                 }
+                dropdown.style.display = 'block';
+                resultsEl.querySelectorAll('.sd-item').forEach(el => {
+                    el.addEventListener('mouseenter', () => el.style.background = '#f0f4ff');
+                    el.addEventListener('mouseleave', () => el.style.background = '');
+                });
             }
-            dropdown.style.display = 'block';
-            // hover styles
-            resultsEl.querySelectorAll('.sd-item').forEach(el => {
-                el.addEventListener('mouseenter', () => el.style.background = '#f0f4ff');
-                el.addEventListener('mouseleave', () => el.style.background = '');
+
+            input.addEventListener('input', () => {
+                const q = input.value.trim();
+                clearTimeout(timer);
+                activeIdx = -1;
+                if (!q) { dropdown.style.display = 'none'; return; }
+                timer = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        const data = await res.json();
+                        renderItems(data.results, q);
+                    } catch (_) {}
+                }, 280);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.sd-item');
+                if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx-1, -1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
+                else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0 && items[activeIdx]) location.href = items[activeIdx].href; else if (input.value.trim()) location.href = SEARCH_URL + '?q=' + encodeURIComponent(input.value.trim()); }
+                else if (e.key === 'Escape') { dropdown.style.display = 'none'; input.blur(); }
+            });
+
+            document.addEventListener('click', (e) => {
+                const wrapper = wrapperId ? document.getElementById(wrapperId) : input.parentElement;
+                if (wrapper && !wrapper.contains(e.target)) dropdown.style.display = 'none';
             });
         }
 
-        input.addEventListener('input', () => {
-            const q = input.value.trim();
-            clearTimeout(timer);
-            activeIdx = -1;
-            if (!q) { dropdown.style.display = 'none'; return; }
-            timer = setTimeout(async () => {
-                try {
-                    const res = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const data = await res.json();
-                    renderItems(data.results, q);
-                } catch (_) {}
-            }, 280);
-        });
-
-        input.addEventListener('keydown', (e) => {
-            const items = dropdown.querySelectorAll('.sd-item');
-            if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx-1, -1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
-            else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0 && items[activeIdx]) location.href = items[activeIdx].href; else if (input.value.trim()) location.href = SEARCH_URL + '?q=' + encodeURIComponent(input.value.trim()); }
-            else if (e.key === 'Escape') { dropdown.style.display = 'none'; input.blur(); }
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!document.getElementById('viewerSearchWrap').contains(e.target)) dropdown.style.display = 'none';
-        });
+        setupSearch('viewerSearchInput', 'viewerSearchResults', 'viewerSearchDropdown', 'viewerSearchWrap');
+        setupSearch('viewerMobileSearchInput', 'viewerMobileSearchResults', 'viewerMobileSearchDropdown', 'viewerMobileSearchWrap');
     })();
     </script>
 </body>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load custom_tags %}
 
-{% block title %}{{ case.case_number }} — {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}{{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}
 <div class="flex items-center gap-2">
     <a href="javascript:history.back()" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100" title="Back">
