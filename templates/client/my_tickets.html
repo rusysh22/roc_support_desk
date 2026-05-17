@@ -8,37 +8,36 @@
 <div class="max-w-4xl mx-auto" x-data="{ compact: false, searchInput: '{{ search_query|escapejs }}' }">
 
   {# ── Hero Header ── #}
-  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 p-6 sm:p-8 mb-6 shadow-xl shadow-indigo-500/15">
-    <div class="absolute inset-0 opacity-10">
-      <svg class="w-full h-full" viewBox="0 0 400 200" fill="none"><circle cx="350" cy="30" r="120" fill="white" opacity="0.15"/><circle cx="50" cy="180" r="80" fill="white" opacity="0.1"/></svg>
-    </div>
-    <div class="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+  <div class="mb-8">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          <span class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center text-xl">🎫</span>
-          My Tickets
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+          <span class="text-3xl">🎫</span> My Tickets
         </h1>
-        <p class="text-indigo-200 text-sm mt-1.5">Track, search and manage all your support conversations.</p>
+        <p class="text-slate-500 text-sm mt-1.5">Track, search and manage all your support conversations.</p>
       </div>
-      <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-2 bg-white text-indigo-700 font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-indigo-50 transition-all">
+      <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow hover:bg-indigo-700 transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         New Ticket
       </a>
     </div>
 
     {# Stats row #}
-    <div class="relative grid grid-cols-3 gap-3 mt-5">
-      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
-        <p class="text-2xl font-black text-white">{{ count_all }}</p>
-        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">Total</p>
+    <div class="grid grid-cols-3 gap-3 sm:gap-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-center relative overflow-hidden group">
+        <div class="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <p class="relative text-3xl sm:text-4xl font-black text-slate-800">{{ count_all }}</p>
+        <p class="relative text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Total Tickets</p>
       </div>
-      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
-        <p class="text-2xl font-black text-white">{{ count_mine }}</p>
-        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">My Tickets</p>
+      <div class="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 shadow-sm shadow-indigo-100 flex flex-col items-center justify-center relative overflow-hidden group">
+        <div class="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <p class="relative text-3xl sm:text-4xl font-black text-indigo-600">{{ count_mine }}</p>
+        <p class="relative text-[10px] sm:text-xs text-indigo-500/80 font-bold uppercase tracking-wider mt-1">My Tickets</p>
       </div>
-      <div class="bg-white/10 backdrop-blur rounded-xl px-4 py-3 text-center border border-white/10">
-        <p class="text-2xl font-black text-white">{{ count_following }}</p>
-        <p class="text-[11px] text-indigo-200 font-medium uppercase tracking-wider mt-0.5">Following</p>
+      <div class="bg-white rounded-2xl border border-purple-100 p-4 sm:p-5 shadow-sm shadow-purple-100 flex flex-col items-center justify-center relative overflow-hidden group">
+        <div class="absolute inset-0 bg-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <p class="relative text-3xl sm:text-4xl font-black text-purple-600">{{ count_following }}</p>
+        <p class="relative text-[10px] sm:text-xs text-purple-500/80 font-bold uppercase tracking-wider mt-1">Following</p>
       </div>
     </div>
   </div>

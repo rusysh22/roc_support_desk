@@ -652,12 +652,12 @@ function chatRoom() {
       if (this._isInsertingMention) return;
       const sel = this.quill.getSelection();
       if (!sel) { this._hideMention(); return; }
-      const text = this.quill.getText(0, sel.index);
-      const atIdx = text.lastIndexOf('@');
+      const fullText = this.quill.getText(0, sel.index);
+      const atIdx = fullText.lastIndexOf('@');
       if (atIdx === -1) { this._hideMention(); return; }
       // Only trigger if @ is at start of word (preceded by space, newline, or start)
-      if (atIdx > 0 && !/[\s\n]/.test(text[atIdx - 1])) { this._hideMention(); return; }
-      const query = text.slice(atIdx + 1);
+      if (atIdx > 0 && !/[\s\n]/.test(fullText[atIdx - 1])) { this._hideMention(); return; }
+      const query = fullText.slice(atIdx + 1);
       // Stop if query contains space (user typed past the mention)
       if (/\s/.test(query)) { this._hideMention(); return; }
 
@@ -701,26 +701,50 @@ function chatRoom() {
           this._hideMention();
           return;
       }
-      
-      const mentionText = '@' + name + ' ';
-      const targetIdx = atIdx + mentionText.length;
-      
+
+      // Calculate how many characters to delete: '@' + query
+      const deleteLen = queryLen + 1;
+      const docLen = this.quill.getLength(); // includes trailing \n
+
+      // Bounds check: make sure atIdx + deleteLen doesn't exceed document
+      if (atIdx + deleteLen > docLen - 1) {
+          this._hideMention();
+          return;
+      }
+
       this._isInsertingMention = true;
       this._hideMention();
-      
-      // Wait for any remaining Quill events to settle before mutation
-      setTimeout(() => {
+
+      // Use requestAnimationFrame to let Quill fully settle
+      requestAnimationFrame(() => {
         try {
-          this.quill.focus();
-          this.quill.deleteText(atIdx, queryLen + 1, 'user');
-          this.quill.insertText(atIdx, mentionText, 'user');
-          this.quill.setSelection(targetIdx, 0, 'user');
+          // Re-check document length after settling
+          const currentLen = this.quill.getLength();
+          if (atIdx >= currentLen) {
+            return;
+          }
+
+          const mentionText = '@' + name + ' ';
+
+          // Step 1: Delete the @query text
+          const safeDeleteLen = Math.min(deleteLen, currentLen - 1 - atIdx);
+          if (safeDeleteLen > 0) {
+            this.quill.deleteText(atIdx, safeDeleteLen, 'silent');
+          }
+
+          // Step 2: Insert the mention text
+          this.quill.insertText(atIdx, mentionText, 'silent');
+
+          // Step 3: Move cursor to after the mention
+          const newPos = Math.min(atIdx + mentionText.length, this.quill.getLength() - 1);
+          this.quill.setSelection(newPos, 0, 'silent');
         } catch(e) {
-          console.error("Mention insertion error:", e);
+          // Silently recover - don't crash the editor
+          console.warn("Mention insert recovered:", e.message);
         } finally {
           this._isInsertingMention = false;
         }
-      }, 50);
+      });
     },
 
     _escAttrSimple(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); },
