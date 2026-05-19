@@ -296,7 +296,7 @@
                         <template x-teleport="body">
                             <div>
                                 <!-- Backdrop -->
-                                <div x-show="licenseOpen" x-cloak class="fixed inset-0 z-[9998] bg-black/20" @click="licenseOpen = false"></div>
+                                <div x-show="licenseOpen" x-cloak class="fixed inset-0 z-[9998]" style="background:rgba(0,0,0,0.25);" @click="licenseOpen = false"></div>
                                 <!-- Popup card -->
                                 <div x-show="licenseOpen" x-cloak
                                      x-transition:enter="transition ease-out duration-150"
@@ -305,7 +305,7 @@
                                      x-transition:leave="transition ease-in duration-100"
                                      x-transition:leave-start="opacity-100 scale-100 translate-y-0"
                                      x-transition:leave-end="opacity-0 scale-95 translate-y-2"
-                                     :style="sidebarCollapsed ? 'left:80px;bottom:16px;' : 'left:8px;bottom:72px;'"
+                                     :style="sidebarCollapsed ? 'left:80px;bottom:20px;' : 'left:276px;bottom:20px;'"
                                      class="fixed z-[9999] w-64 rounded-2xl overflow-hidden"
                                      style="background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 10px 40px rgba(0,0,0,0.22),0 2px 8px rgba(0,0,0,0.10);"
                                      @click.stop>
