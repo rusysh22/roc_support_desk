@@ -199,23 +199,23 @@
             <p class="text-sm text-slate-500 mb-4">
                 All dates and times across the system will display in your selected timezone.
             </p>
-            <form method="POST" class="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <form method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="timezone">
-                <div class="flex-1 w-full">
-                    <label class="jk-label mb-1.5 block" for="timezone_select">Your Timezone</label>
-                    <select id="timezone_select" name="timezone" class="jk-input w-full">
+                <label class="jk-label mb-1.5 block" for="timezone_select">Your Timezone</label>
+                <div class="flex gap-3 items-center">
+                    <select id="timezone_select" name="timezone" class="jk-input flex-1">
                         {% for tz_val, tz_label in timezone_choices %}
                         <option value="{{ tz_val }}" {% if tz_val == profile_user.timezone %}selected{% endif %}>
                             {{ tz_label }}
                         </option>
                         {% endfor %}
                     </select>
-                    <p class="text-xs text-slate-400 mt-1.5" id="tz-browser-hint"></p>
+                    <button type="submit" class="jk-btn jk-btn-primary whitespace-nowrap flex-shrink-0">
+                        🌐 Save Timezone
+                    </button>
                 </div>
-                <button type="submit" class="jk-btn jk-btn-primary whitespace-nowrap">
-                    🌐 Save Timezone
-                </button>
+                <p class="text-xs text-slate-400 mt-1.5" id="tz-browser-hint"></p>
             </form>
         </div>
     </div>
@@ -253,7 +253,7 @@
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" name="email_enabled" class="sr-only peer"
                                    x-model="emailOn" {% if notif_pref.email_enabled %}checked{% endif %}>
-                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                         </label>
                     </div>
 
@@ -271,7 +271,7 @@
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" name="whatsapp_enabled" class="sr-only peer"
                                        x-model="waOn" {% if notif_pref.whatsapp_enabled %}checked{% endif %}>
-                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                             </label>
                         </div>
                         <div x-show="waOn" x-collapse class="px-3 pb-3">
@@ -295,7 +295,7 @@
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" name="teams_enabled" class="sr-only peer"
                                        x-model="teamsOn" {% if notif_pref.teams_enabled %}checked{% endif %}>
-                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
                             </label>
                         </div>
                         <div x-show="teamsOn" x-collapse class="px-3 pb-3">
@@ -311,7 +311,7 @@
                 {# ── Event Types ── #}
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">📌 Notify Me When...</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
-                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 has-[input:checked]:border-indigo-300 has-[input:checked]:bg-indigo-50/50 transition-colors cursor-pointer">
                         <input type="checkbox" name="on_new_message" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                {% if notif_pref.on_new_message %}checked{% endif %}>
                         <div>
@@ -319,7 +319,7 @@
                             <p class="text-[11px] text-slate-400">Reply on my tickets</p>
                         </div>
                     </label>
-                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 has-[input:checked]:border-indigo-300 has-[input:checked]:bg-indigo-50/50 transition-colors cursor-pointer">
                         <input type="checkbox" name="on_mention" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                {% if notif_pref.on_mention %}checked{% endif %}>
                         <div>
@@ -327,7 +327,7 @@
                             <p class="text-[11px] text-slate-400">Someone tags me in chat</p>
                         </div>
                     </label>
-                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 has-[input:checked]:border-indigo-300 has-[input:checked]:bg-indigo-50/50 transition-colors cursor-pointer">
                         <input type="checkbox" name="on_status_change" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                {% if notif_pref.on_status_change %}checked{% endif %}>
                         <div>
@@ -335,7 +335,7 @@
                             <p class="text-[11px] text-slate-400">Ticket status updated</p>
                         </div>
                     </label>
-                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer">
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-200 has-[input:checked]:border-indigo-300 has-[input:checked]:bg-indigo-50/50 transition-colors cursor-pointer">
                         <input type="checkbox" name="on_follower_added" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                {% if notif_pref.on_follower_added %}checked{% endif %}>
                         <div>
@@ -365,7 +365,7 @@
                 <p class="text-xs text-slate-400 mb-5 -mt-3">Notifications will be paused during quiet hours (based on your timezone: {{ profile_user.timezone }}).</p>
 
                 <button type="submit" class="jk-btn jk-btn-primary w-full">
-                    🔔 Save Notification Settings
+                    💾 Save Notification Settings
                 </button>
             </form>
         </div>

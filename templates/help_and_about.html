@@ -12,11 +12,14 @@
     <!-- HEADER                                                         -->
     <!-- ============================================================= -->
     <div class="text-center mb-6">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-2xl shadow-lg mb-3">
+        <div class="mb-3">
             {% if site_config.logo %}
-            <img src="{{ site_config.logo.url }}" alt="Logo" class="w-10 h-10 object-contain">
+            <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}"
+                 class="mx-auto object-contain" style="height: clamp(52px, 8vw, 72px); max-width: min(280px, 80vw);">
             {% else %}
-            <span>?</span>
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-2xl shadow-lg">
+                <span>?</span>
+            </div>
             {% endif %}
         </div>
         <h1 class="text-xl font-bold text-slate-800">Help & About</h1>
