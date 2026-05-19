@@ -41,10 +41,28 @@ _INST_HOUR_MAX = 200
 _INST_DAY_MAX = 1500
 
 
+def _get_business_hours_config() -> tuple[int, int, frozenset]:
+    """
+    Return (hour_start, hour_end, business_days) from SiteConfig DB,
+    falling back to module-level defaults if DB is unavailable.
+    """
+    try:
+        from core.models import SiteConfig
+        cfg = SiteConfig.get_solo()
+        hour_start = cfg.wa_business_hour_start
+        hour_end = cfg.wa_business_hour_end
+        days = frozenset(
+            int(d.strip()) for d in cfg.wa_business_days.split(",") if d.strip().isdigit()
+        )
+        return hour_start, hour_end, days
+    except Exception:
+        return BUSINESS_HOUR_START, BUSINESS_HOUR_END, BUSINESS_DAYS
+
+
 def is_within_business_hours(now: datetime | None = None) -> bool:
     """
-    Return True if the given moment (default: now) falls within
-    Mon-Fri 07:00-20:00 WIB.
+    Return True if the given moment (default: now) falls within the
+    configured WA business hours window (reads from SiteConfig DB).
     """
     from zoneinfo import ZoneInfo
     from datetime import timezone as dt_timezone
@@ -53,15 +71,12 @@ def is_within_business_hours(now: datetime | None = None) -> bool:
     if now is None:
         now = datetime.now(tz)
     elif now.tzinfo is None:
-        # naive datetime treated as UTC
         now = now.replace(tzinfo=dt_timezone.utc).astimezone(tz)
     else:
         now = now.astimezone(tz)
 
-    return (
-        now.weekday() in BUSINESS_DAYS
-        and BUSINESS_HOUR_START <= now.hour < BUSINESS_HOUR_END
-    )
+    hour_start, hour_end, business_days = _get_business_hours_config()
+    return now.weekday() in business_days and hour_start <= now.hour < hour_end
 
 
 def _cache_incr(key: str, window_seconds: int) -> int:

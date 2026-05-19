@@ -3252,10 +3252,10 @@ def whatsapp_disconnect_view(request):
 def whatsapp_status_view(request):
     """
     Dashboard view for monitoring Evolution API WhatsApp connection.
-    Also handles saving WhatsApp internal notification recipients.
+    Handles two POST forms: wa_notif (notification recipients) and wa_config (gateway config).
     """
     from gateways.services import EvolutionAPIService
-    from core.models import NotificationConfig, User as UserModel
+    from core.models import NotificationConfig, SiteConfig, User as UserModel
     from django.contrib import messages
     from datetime import datetime
 
@@ -3268,6 +3268,26 @@ def whatsapp_status_view(request):
         notif_cfg.updated_by = request.user
         notif_cfg.save()
         messages.success(request, "WhatsApp notification settings updated successfully.")
+        return redirect('desk:whatsapp_status')
+
+    # Handle WA gateway config save (instance names + business hours)
+    if request.method == 'POST' and request.POST.get('form_type') == 'wa_config':
+        site_cfg = SiteConfig.get_solo()
+        site_cfg.wa_main_instance = request.POST.get('wa_main_instance', '').strip()
+        site_cfg.wa_notif_instance = request.POST.get('wa_notif_instance', '').strip()
+        try:
+            hour_start = int(request.POST.get('wa_business_hour_start', 7))
+            hour_end = int(request.POST.get('wa_business_hour_end', 20))
+            site_cfg.wa_business_hour_start = max(0, min(23, hour_start))
+            site_cfg.wa_business_hour_end = max(0, min(23, hour_end))
+        except (ValueError, TypeError):
+            pass
+        raw_days = request.POST.getlist('wa_business_days')
+        valid_days = [d for d in raw_days if d.isdigit() and 0 <= int(d) <= 6]
+        site_cfg.wa_business_days = ','.join(valid_days) if valid_days else '0,1,2,3,4'
+        site_cfg.updated_by = request.user
+        site_cfg.save()
+        messages.success(request, "WhatsApp gateway configuration saved successfully.")
         return redirect('desk:whatsapp_status')
 
     svc = EvolutionAPIService()
@@ -3312,14 +3332,25 @@ def whatsapp_status_view(request):
         if v not in staff_wa_values:
             wa_options.append({'value': v, 'label': v, 'selected': True})
 
-    from django.conf import settings as djsettings
-    from gateways.throttle import WARateLimiter, get_circuit_status
-    from core.models import SiteConfig
+    from gateways.throttle import WARateLimiter, get_circuit_status, _get_business_hours_config
     site_cfg = SiteConfig.get_solo()
     daily_sent = WARateLimiter.get_daily_count()
     daily_limit = site_cfg.get_wa_daily_limit()
     circuit = get_circuit_status()
-    notif_instance = getattr(djsettings, "EVOLUTION_NOTIF_INSTANCE_NAME", "").strip()
+
+    # Effective instance names (DB overrides .env)
+    from django.conf import settings as djsettings
+    effective_main = site_cfg.wa_main_instance.strip() or getattr(djsettings, 'EVOLUTION_INSTANCE_NAME', '')
+    effective_notif = site_cfg.wa_notif_instance.strip() or getattr(djsettings, 'EVOLUTION_NOTIF_INSTANCE_NAME', '').strip()
+
+    # Business hours config for display
+    bh_start, bh_end, bh_days = _get_business_hours_config()
+    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    bh_days_display = ', '.join(day_names[d] for d in sorted(bh_days) if d < 7)
+    wa_day_options = [
+        {'num': str(i), 'label': day_names[i], 'checked': i in bh_days}
+        for i in range(7)
+    ]
 
     return render(request, "desk/whatsapp_status.html", {
         "instance_state": instance_state,
@@ -3331,7 +3362,14 @@ def whatsapp_status_view(request):
         "daily_limit": daily_limit,
         "wa_instance_activated_at": site_cfg.wa_instance_activated_at,
         "circuit": circuit,
-        "notif_instance": notif_instance,
+        "notif_instance": effective_notif,
+        "site_cfg": site_cfg,
+        "effective_main": effective_main,
+        "bh_start": bh_start,
+        "bh_end": bh_end,
+        "bh_days": list(bh_days),
+        "bh_days_display": bh_days_display,
+        "wa_day_options": wa_day_options,
     })
 
 
@@ -3343,11 +3381,11 @@ def wa_circuit_reset_view(request):
     from django.contrib import messages
 
     if not (request.user.is_staff or request.user.is_superuser):
-        messages.error(request, "Hanya admin yang dapat mereset circuit breaker.")
+        messages.error(request, "Only admins can reset the circuit breaker.")
         return redirect("desk:whatsapp_status")
 
     reset_circuit()
-    messages.success(request, "Circuit breaker berhasil direset. Pengiriman WA kembali aktif.")
+    messages.success(request, "Circuit breaker reset. Outbound WA sends re-enabled.")
     return redirect("desk:whatsapp_status")
 
 

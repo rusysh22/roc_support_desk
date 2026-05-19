@@ -43,7 +43,13 @@ class EvolutionAPIService:
     def __init__(self) -> None:
         self.base_url: str = settings.EVOLUTION_API_URL.rstrip("/")
         self.api_key: str = settings.EVOLUTION_API_KEY
-        self.instance: str = settings.EVOLUTION_INSTANCE_NAME
+        # DB config overrides .env when set
+        try:
+            from core.models import SiteConfig
+            db_instance = SiteConfig.get_solo().wa_main_instance.strip()
+        except Exception:
+            db_instance = ""
+        self.instance: str = db_instance or settings.EVOLUTION_INSTANCE_NAME
         self.timeout: int = 30  # seconds
 
     # ------------------------------------------------------------------
@@ -727,7 +733,13 @@ class EvolutionNotifService(EvolutionAPIService):
 
     def __init__(self) -> None:
         super().__init__()
-        notif_instance = getattr(settings, "EVOLUTION_NOTIF_INSTANCE_NAME", "").strip()
+        # DB config takes priority, then .env
+        try:
+            from core.models import SiteConfig
+            db_notif = SiteConfig.get_solo().wa_notif_instance.strip()
+        except Exception:
+            db_notif = ""
+        notif_instance = db_notif or getattr(settings, "EVOLUTION_NOTIF_INSTANCE_NAME", "").strip()
         if notif_instance:
             self.instance = notif_instance
 

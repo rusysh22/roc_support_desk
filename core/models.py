@@ -400,6 +400,48 @@ class SiteConfig(AuditableModel):
         ),
     )
 
+    # --- WhatsApp Gateway Config (overrides .env values when set) ---
+    wa_main_instance = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="WA Main Instance Name",
+        help_text=(
+            "Evolution API instance name for customer-facing messages. "
+            "Overrides EVOLUTION_INSTANCE_NAME in .env when set."
+        ),
+    )
+    wa_notif_instance = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="WA Notif Instance Name",
+        help_text=(
+            "Evolution API instance name for internal staff notifications. "
+            "Overrides EVOLUTION_NOTIF_INSTANCE_NAME in .env when set. "
+            "Leave blank to use the same instance as customer messages."
+        ),
+    )
+    wa_business_hour_start = models.PositiveSmallIntegerField(
+        default=7,
+        verbose_name="WA Business Hour Start",
+        help_text="Hour (0-23) when internal WA broadcasts become active. Default: 7 (07:00 WIB).",
+    )
+    wa_business_hour_end = models.PositiveSmallIntegerField(
+        default=20,
+        verbose_name="WA Business Hour End",
+        help_text="Hour (0-23) after which internal WA broadcasts are paused. Default: 20 (20:00 WIB).",
+    )
+    wa_business_days = models.CharField(
+        max_length=20,
+        default="0,1,2,3,4",
+        verbose_name="WA Business Days",
+        help_text=(
+            "Comma-separated weekday numbers (0=Mon … 6=Sun) when broadcasts are allowed. "
+            "Default: 0,1,2,3,4 (Monday–Friday)."
+        ),
+    )
+
     terms_and_privacy = models.TextField(
         blank=True,
         default=(
