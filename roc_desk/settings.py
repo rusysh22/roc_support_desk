@@ -267,6 +267,12 @@ EVOLUTION_API_KEY = env("EVOLUTION_API_KEY", default="")
 EVOLUTION_INSTANCE_NAME = env("EVOLUTION_INSTANCE_NAME", default="")
 EVOLUTION_WEBHOOK_TOKEN = env("EVOLUTION_WEBHOOK_TOKEN", default="")
 
+# Optional second instance dedicated to internal notifications (staff/admin).
+# If not set, the main EVOLUTION_INSTANCE_NAME is used for all sends.
+# Using a separate number for internal notifications eliminates the mixed
+# inbound/outbound profile that triggers WhatsApp anti-spam review.
+EVOLUTION_NOTIF_INSTANCE_NAME = env("EVOLUTION_NOTIF_INSTANCE_NAME", default="")
+
 IMAP_HOST = env("IMAP_HOST", default="imap.gmail.com")
 IMAP_USER = env("IMAP_USER", default="")
 IMAP_APP_PASSWORD = env("IMAP_APP_PASSWORD", default="")

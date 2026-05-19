@@ -3312,12 +3312,14 @@ def whatsapp_status_view(request):
         if v not in staff_wa_values:
             wa_options.append({'value': v, 'label': v, 'selected': True})
 
+    from django.conf import settings as djsettings
     from gateways.throttle import WARateLimiter, get_circuit_status
     from core.models import SiteConfig
     site_cfg = SiteConfig.get_solo()
     daily_sent = WARateLimiter.get_daily_count()
     daily_limit = site_cfg.get_wa_daily_limit()
     circuit = get_circuit_status()
+    notif_instance = getattr(djsettings, "EVOLUTION_NOTIF_INSTANCE_NAME", "").strip()
 
     return render(request, "desk/whatsapp_status.html", {
         "instance_state": instance_state,
@@ -3329,12 +3331,13 @@ def whatsapp_status_view(request):
         "daily_limit": daily_limit,
         "wa_instance_activated_at": site_cfg.wa_instance_activated_at,
         "circuit": circuit,
+        "notif_instance": notif_instance,
     })
 
 
 @require_POST
 @login_required
-def wa_circuit_reset_view(request) -> HttpResponseRedirect:
+def wa_circuit_reset_view(request):
     """Manually reset the WA circuit breaker from the dashboard."""
     from gateways.throttle import reset_circuit
     from django.contrib import messages

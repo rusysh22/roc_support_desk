@@ -1449,17 +1449,20 @@ def check_wa_session_warning_task(self, case_id: str) -> str:
         if time_since_update >= timedelta(minutes=45):
             if case.requester and case.requester.phone_number:
                 from gateways.spintax import WA_SESSION_WARNING, pick_template
-                from gateways.throttle import WARateLimiter
+                from gateways.throttle import WARateLimiter, is_circuit_open
 
                 svc = EvolutionAPIService()
                 try:
-                    allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
-                    if not allowed:
-                        logger.warning("WA session warning throttled for case %s: %s", case.case_number, reason)
+                    if is_circuit_open():
+                        logger.warning("WA session warning skipped — circuit open (case %s)", case.case_number)
                     else:
-                        warning_msg = pick_template(WA_SESSION_WARNING, seed=f"warn-{case.id}")
-                        svc.send_with_human_pacing(case.requester.phone_number, warning_msg)
-                        logger.info("Sent WA session warning message for case %s", case.case_number)
+                        allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
+                        if not allowed:
+                            logger.warning("WA session warning throttled for case %s: %s", case.case_number, reason)
+                        else:
+                            warning_msg = pick_template(WA_SESSION_WARNING, seed=f"warn-{case.id}")
+                            svc.send_with_human_pacing(case.requester.phone_number, warning_msg)
+                            logger.info("Sent WA session warning message for case %s", case.case_number)
                 except Exception as exc:
                     logger.warning("Failed to send WA warning message for case %s: %s", case.case_number, str(exc))
             return "success:warning_sent"
@@ -1498,17 +1501,20 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
             # Session expired. Send expiry message.
             if case.requester and case.requester.phone_number:
                 from gateways.spintax import WA_SESSION_EXPIRED, pick_template
-                from gateways.throttle import WARateLimiter
+                from gateways.throttle import WARateLimiter, is_circuit_open
 
                 svc = EvolutionAPIService()
                 try:
-                    allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
-                    if not allowed:
-                        logger.warning("WA session expiry throttled for case %s: %s", case.case_number, reason)
+                    if is_circuit_open():
+                        logger.warning("WA session expiry skipped — circuit open (case %s)", case.case_number)
                     else:
-                        expiry_msg = pick_template(WA_SESSION_EXPIRED, seed=f"expiry-{case.id}")
-                        svc.send_with_human_pacing(case.requester.phone_number, expiry_msg)
-                        logger.info("Sent WA session expiry message for case %s", case.case_number)
+                        allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
+                        if not allowed:
+                            logger.warning("WA session expiry throttled for case %s: %s", case.case_number, reason)
+                        else:
+                            expiry_msg = pick_template(WA_SESSION_EXPIRED, seed=f"expiry-{case.id}")
+                            svc.send_with_human_pacing(case.requester.phone_number, expiry_msg)
+                            logger.info("Sent WA session expiry message for case %s", case.case_number)
                 except Exception as exc:
                     logger.warning("Failed to send WA expiry message for case %s: %s", case.case_number, str(exc))
 
@@ -2177,7 +2183,7 @@ def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
 def _send_single_wa_notif_task(phone: str, text: str) -> str:
     """Send one pre-composed WA notification to a single internal recipient."""
     from django.core.cache import cache as _cache
-    from gateways.services import EvolutionAPIService
+    from gateways.services import EvolutionNotifService
     from gateways.throttle import WARateLimiter, is_within_business_hours, is_circuit_open
 
     # Internal broadcast notifications only go out during business hours
@@ -2201,9 +2207,11 @@ def _send_single_wa_notif_task(phone: str, text: str) -> str:
         return f"skipped:{reason}"
 
     try:
-        svc = EvolutionAPIService()
+        # Use the dedicated notification instance if configured (EVOLUTION_NOTIF_INSTANCE_NAME),
+        # otherwise falls back to the main customer-facing instance transparently.
+        svc = EvolutionNotifService()
         svc.send_with_human_pacing(phone, text)
-        logger.info("WA notif sent to %s", phone)
+        logger.info("WA notif sent to %s via instance '%s'", phone, svc.instance)
         return "success"
     except Exception as exc:
         logger.error("_send_single_wa_notif_task failed for %s: %s", phone, exc)

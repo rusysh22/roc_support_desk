@@ -60,10 +60,20 @@
         {% if circuit.open %}
         <div class="mx-6 mt-4 flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
             <svg class="h-5 w-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <div>
+            <div class="flex-1">
                 <p class="text-sm font-semibold text-red-800">Circuit Breaker AKTIF — Semua pengiriman WA diblokir</p>
-                <p class="text-xs text-red-700 mt-0.5">Instance WA terputus {{ circuit.disconnect_count_today }}× hari ini (threshold: {{ circuit.max_disconnects }}×). Semua outbound diblokir otomatis. Circuit akan reset otomatis (max 4 jam) atau saat health check mendeteksi instance kembali online.</p>
+                <p class="text-xs text-red-700 mt-0.5">Instance WA terputus {{ circuit.disconnect_count_today }}× hari ini (threshold: {{ circuit.max_disconnects }}×). Circuit akan reset otomatis maksimal 4 jam atau saat health check mendeteksi instance kembali online.</p>
             </div>
+            {% if request.user.is_staff or request.user.is_superuser %}
+            <form method="post" action="{% url 'desk:wa_circuit_reset' %}" class="shrink-0">
+                {% csrf_token %}
+                <button type="submit"
+                    onclick="return confirm('Reset circuit breaker? Pastikan instance WA sudah kembali online.')"
+                    class="px-3 py-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                    Reset Manual
+                </button>
+            </form>
+            {% endif %}
         </div>
         {% elif circuit.disconnect_count_today > 0 %}
         <div class="mx-6 mt-4 flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
@@ -72,7 +82,7 @@
         </div>
         {% endif %}
 
-        <div class="p-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <!-- Circuit Breaker Status -->
             <div class="bg-slate-50 rounded-lg p-4 border {% if circuit.open %}border-red-300 bg-red-50{% else %}border-slate-200{% endif %}">
                 <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Circuit Breaker</p>
@@ -115,6 +125,17 @@
                 <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Jam Operasional</p>
                 <p class="text-sm font-semibold text-slate-900 mt-1">Senin–Jumat, 07:00–20:00 WIB</p>
                 <p class="text-xs text-slate-500 mt-1">Broadcast internal hanya dikirim di jam ini.</p>
+            </div>
+            <!-- Dual-Number Status -->
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 sm:col-span-4 lg:col-span-1">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Instance Notifikasi</p>
+                {% if notif_instance %}
+                <p class="text-sm font-semibold text-green-700 mt-1">{{ notif_instance }}</p>
+                <p class="text-xs text-green-600 mt-1">Notifikasi internal dikirim via instance terpisah</p>
+                {% else %}
+                <p class="text-sm font-semibold text-amber-700 mt-1">Sama dengan customer</p>
+                <p class="text-xs text-amber-600 mt-1">Set <code class="bg-amber-100 px-1 rounded">EVOLUTION_NOTIF_INSTANCE_NAME</code> di <code class="bg-amber-100 px-1 rounded">.env</code> untuk instance terpisah</p>
+                {% endif %}
             </div>
         </div>
     </div>

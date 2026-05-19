@@ -712,6 +712,27 @@ class EvolutionAPIService:
 
 
 # ======================================================================
+# Gateways — Notification-dedicated Evolution API Service
+# ======================================================================
+
+class EvolutionNotifService(EvolutionAPIService):
+    """
+    Variant of EvolutionAPIService that targets the optional second
+    WhatsApp instance reserved for internal staff notifications.
+
+    Falls back transparently to the main instance when
+    EVOLUTION_NOTIF_INSTANCE_NAME is not configured, so existing
+    deployments require no changes.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        notif_instance = getattr(settings, "EVOLUTION_NOTIF_INSTANCE_NAME", "").strip()
+        if notif_instance:
+            self.instance = notif_instance
+
+
+# ======================================================================
 # Gateways — IMAP Email Service
 # ======================================================================
 import email
