@@ -92,6 +92,39 @@ def _cache_incr(key: str, window_seconds: int) -> int:
         return 1
 
 
+def _get_rate_config() -> dict:
+    """
+    Load rate-limit and circuit-breaker config from SiteConfig, cached 60s.
+    Falls back to module-level defaults if the DB is unreachable.
+    """
+    _CACHE_KEY = "wa_rate_cfg"
+    cached = cache.get(_CACHE_KEY)
+    if cached is not None:
+        return cached
+    try:
+        from core.models import SiteConfig
+        cfg = SiteConfig.get_solo()
+        config = {
+            "recipient_cooldown": cfg.wa_rate_recipient_cooldown,
+            "burst_max": cfg.wa_rate_burst_max,
+            "minute_max": cfg.wa_rate_minute_max,
+            "hour_max": cfg.wa_rate_hour_max,
+            "cb_max_disconnects": cfg.wa_cb_max_disconnects,
+            "cb_block_hours": cfg.wa_cb_block_hours,
+        }
+    except Exception:
+        config = {
+            "recipient_cooldown": _RECIPIENT_WINDOW_SECONDS,
+            "burst_max": _BURST_MAX,
+            "minute_max": _INST_MINUTE_MAX,
+            "hour_max": _INST_HOUR_MAX,
+            "cb_max_disconnects": _CB_MAX_DISCONNECTS,
+            "cb_block_hours": 4,
+        }
+    cache.set(_CACHE_KEY, config, timeout=60)
+    return config
+
+
 class WARateLimiter:
     """
     Check and record outbound WhatsApp rate limits.
@@ -120,6 +153,7 @@ class WARateLimiter:
         ts_min = now.strftime("%Y%m%d%H%M")
 
         clean = phone.lstrip("+")
+        rc = _get_rate_config()
 
         recipient_key = f"wa_rl:rcpt:{clean}"
         burst_key = f"wa_rl:burst:{ts_min}"
@@ -130,20 +164,20 @@ class WARateLimiter:
         # --- Read-only checks first ---
         if (cache.get(recipient_key) or 0) >= _RECIPIENT_MAX:
             return False, f"rate_limit:recipient:{clean}"
-        if (cache.get(burst_key) or 0) >= _BURST_MAX:
+        if (cache.get(burst_key) or 0) >= rc["burst_max"]:
             return False, "rate_limit:burst"
-        if (cache.get(inst_min_key) or 0) >= _INST_MINUTE_MAX:
+        if (cache.get(inst_min_key) or 0) >= rc["minute_max"]:
             return False, "rate_limit:instance_per_minute"
-        if (cache.get(inst_hour_key) or 0) >= _INST_HOUR_MAX:
+        if (cache.get(inst_hour_key) or 0) >= rc["hour_max"]:
             return False, "rate_limit:instance_per_hour"
-        # Respect warm-up limit if instance is newly activated
+        # Respect warm-up daily cap
         from core.models import SiteConfig
         daily_limit = SiteConfig.get_solo().get_wa_daily_limit()
         if (cache.get(inst_day_key) or 0) >= daily_limit:
             return False, f"rate_limit:instance_per_day(limit={daily_limit})"
 
         # --- All clear — record ---
-        _cache_incr(recipient_key, _RECIPIENT_WINDOW_SECONDS)
+        _cache_incr(recipient_key, rc["recipient_cooldown"])
         _cache_incr(burst_key, _BURST_WINDOW_SECONDS)
         _cache_incr(inst_min_key, 60)
         _cache_incr(inst_hour_key, 3600)
@@ -184,15 +218,17 @@ def record_disconnect() -> int:
     """
     from django.utils import timezone
 
+    rc = _get_rate_config()
     date_key = _CB_DISCONNECT_KEY.format(date=timezone.now().strftime("%Y%m%d"))
     count = _cache_incr(date_key, window_seconds=86400)
-    if count >= _CB_MAX_DISCONNECTS and not cache.get(_CB_OPEN_KEY):
-        # Trip: block all outbound for 4 hours (auto-expire as a safety fallback)
-        cache.set(_CB_OPEN_KEY, 1, timeout=4 * 3600)
+    if count >= rc["cb_max_disconnects"] and not cache.get(_CB_OPEN_KEY):
+        block_seconds = rc["cb_block_hours"] * 3600
+        cache.set(_CB_OPEN_KEY, 1, timeout=block_seconds)
         logger.warning(
             "WA circuit breaker TRIPPED after %d disconnects today. "
-            "All outbound WA sends blocked.",
+            "All outbound WA sends blocked for %d hour(s).",
             count,
+            rc["cb_block_hours"],
         )
     return count
 
@@ -211,8 +247,10 @@ def get_circuit_status() -> dict:
     from django.utils import timezone
 
     date_key = _CB_DISCONNECT_KEY.format(date=timezone.now().strftime("%Y%m%d"))
+    rc = _get_rate_config()
     return {
         "open": bool(cache.get(_CB_OPEN_KEY)),
         "disconnect_count_today": cache.get(date_key) or 0,
-        "max_disconnects": _CB_MAX_DISCONNECTS,
+        "max_disconnects": rc["cb_max_disconnects"],
+        "block_hours": rc["cb_block_hours"],
     }

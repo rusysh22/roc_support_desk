@@ -163,7 +163,12 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         if not is_invalid_phone:
             from django.core.cache import cache as _cache
             _clean = sender_phone.lstrip("+")
-            _cache.set(f"wa_last_inbound:{_clean}", 1, timeout=7 * 86400)
+            try:
+                from core.models import SiteConfig as _SC
+                _opt_in_days = _SC.get_solo().wa_opt_in_ttl_days
+            except Exception:
+                _opt_in_days = 7
+            _cache.set(f"wa_last_inbound:{_clean}", 1, timeout=_opt_in_days * 86400)
 
         # ---------------------------------------------------------
         # 4. Session threading
@@ -1681,7 +1686,7 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                         logger.error("Error attaching file %s to WA escalate payload: %s", att.original_filename, e)
 
                 if first and wa_text:
-                    response_data = svc.send_with_human_pacing(forward_to, f"{wa_text}\n\n[Catatan: semua lampiran melebihi batas ukuran]")
+                    response_data = svc.send_with_human_pacing(forward_to, f"{wa_text}\n\n[Note: all attachments exceeded the size limit]")
             else:
                 response_data = svc.send_with_human_pacing(forward_to, wa_text)
 

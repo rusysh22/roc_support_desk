@@ -260,12 +260,29 @@ class EvolutionAPIService:
         import random
         import time
 
+        # Load pacing config from DB (cached 60s)
+        try:
+            from django.core.cache import cache as _dcache
+            _pacing = _dcache.get("wa_pacing_cfg")
+            if _pacing is None:
+                from core.models import SiteConfig as _SC
+                _cfg = _SC.get_solo()
+                _pacing = {
+                    "read_min": _cfg.wa_read_pause_min_ms / 1000.0,
+                    "read_max": _cfg.wa_read_pause_max_ms / 1000.0,
+                    "typing_cps": _cfg.wa_typing_speed_cps,
+                }
+                _dcache.set("wa_pacing_cfg", _pacing, timeout=60)
+        except Exception:
+            _pacing = {"read_min": 1.0, "read_max": 3.5, "typing_cps": 25}
+
         # Simulate reading the conversation before starting to type
-        read_pause = random.uniform(1.0, 3.5)
+        read_pause = random.uniform(_pacing["read_min"], max(_pacing["read_min"] + 0.1, _pacing["read_max"]))
         time.sleep(read_pause)
 
-        # Typing speed ~25 chars/sec, capped at 12 s for long messages
-        typing_duration = max(1.5, min(len(text) / 25.0, 12.0) + random.uniform(-0.5, 2.0))
+        # Typing duration proportional to message length, capped at 12s
+        typing_cps = max(1, _pacing["typing_cps"])
+        typing_duration = max(1.5, min(len(text) / typing_cps, 12.0) + random.uniform(-0.5, 2.0))
         presence_type = "recording" if has_audio else "composing"
         self.send_presence(phone_number, presence=presence_type, delay=int(typing_duration * 1000))
         time.sleep(typing_duration)

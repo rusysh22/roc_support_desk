@@ -3247,12 +3247,82 @@ def whatsapp_disconnect_view(request):
     return redirect("desk:whatsapp_status")
 
 
+def _compute_wa_warnings(cfg) -> dict:
+    """
+    Return {field_name: 'warning'|'danger'} for SiteConfig WA fields
+    that fall outside recommended safe ranges.
+    """
+    w = {}
+
+    # Recipient cooldown — lower is riskier
+    if cfg.wa_rate_recipient_cooldown < 3:
+        w['wa_rate_recipient_cooldown'] = 'danger'
+    elif cfg.wa_rate_recipient_cooldown < 5:
+        w['wa_rate_recipient_cooldown'] = 'warning'
+
+    # Burst max — higher is riskier
+    if cfg.wa_rate_burst_max > 20:
+        w['wa_rate_burst_max'] = 'danger'
+    elif cfg.wa_rate_burst_max > 12:
+        w['wa_rate_burst_max'] = 'warning'
+
+    # Per-minute max — higher is riskier
+    if cfg.wa_rate_minute_max > 35:
+        w['wa_rate_minute_max'] = 'danger'
+    elif cfg.wa_rate_minute_max > 20:
+        w['wa_rate_minute_max'] = 'warning'
+
+    # Per-hour max — higher is riskier
+    if cfg.wa_rate_hour_max > 600:
+        w['wa_rate_hour_max'] = 'danger'
+    elif cfg.wa_rate_hour_max > 350:
+        w['wa_rate_hour_max'] = 'warning'
+
+    # CB max disconnects — higher = too lenient
+    if cfg.wa_cb_max_disconnects > 6:
+        w['wa_cb_max_disconnects'] = 'danger'
+    elif cfg.wa_cb_max_disconnects > 3:
+        w['wa_cb_max_disconnects'] = 'warning'
+
+    # CB block hours — lower = too short recovery
+    if cfg.wa_cb_block_hours < 1:
+        w['wa_cb_block_hours'] = 'danger'
+    elif cfg.wa_cb_block_hours < 2:
+        w['wa_cb_block_hours'] = 'warning'
+
+    # Read pause min — lower is riskier
+    if cfg.wa_read_pause_min_ms < 200:
+        w['wa_read_pause_min_ms'] = 'danger'
+    elif cfg.wa_read_pause_min_ms < 500:
+        w['wa_read_pause_min_ms'] = 'warning'
+
+    # Read pause max — lower is riskier
+    if cfg.wa_read_pause_max_ms < 800:
+        w['wa_read_pause_max_ms'] = 'danger'
+    elif cfg.wa_read_pause_max_ms < 1500:
+        w['wa_read_pause_max_ms'] = 'warning'
+
+    # Typing speed — higher = bot-like
+    if cfg.wa_typing_speed_cps > 65:
+        w['wa_typing_speed_cps'] = 'danger'
+    elif cfg.wa_typing_speed_cps > 40:
+        w['wa_typing_speed_cps'] = 'warning'
+
+    # Opt-in TTL — too short or too long both carry risk
+    if cfg.wa_opt_in_ttl_days < 3 or cfg.wa_opt_in_ttl_days > 30:
+        w['wa_opt_in_ttl_days'] = 'danger'
+    elif cfg.wa_opt_in_ttl_days < 5 or cfg.wa_opt_in_ttl_days > 14:
+        w['wa_opt_in_ttl_days'] = 'warning'
+
+    return w
+
+
 @staff_required
 @feature_required('whatsapp')
 def whatsapp_status_view(request):
     """
     Dashboard view for monitoring Evolution API WhatsApp connection.
-    Handles two POST forms: wa_notif (notification recipients) and wa_config (gateway config).
+    Handles three POST forms: wa_notif, wa_config (gateway/hours), wa_limits (rate/pacing).
     """
     from gateways.services import EvolutionAPIService
     from core.models import NotificationConfig, SiteConfig, User as UserModel
@@ -3288,6 +3358,35 @@ def whatsapp_status_view(request):
         site_cfg.updated_by = request.user
         site_cfg.save()
         messages.success(request, "WhatsApp gateway configuration saved successfully.")
+        return redirect('desk:whatsapp_status')
+
+    # Handle rate limits & pacing config save
+    if request.method == 'POST' and request.POST.get('form_type') == 'wa_limits':
+        site_cfg = SiteConfig.get_solo()
+
+        def _int(key, default):
+            try:
+                return max(1, int(request.POST.get(key, default)))
+            except (ValueError, TypeError):
+                return default
+
+        site_cfg.wa_rate_recipient_cooldown = _int('wa_rate_recipient_cooldown', 10)
+        site_cfg.wa_rate_burst_max = _int('wa_rate_burst_max', 8)
+        site_cfg.wa_rate_minute_max = _int('wa_rate_minute_max', 15)
+        site_cfg.wa_rate_hour_max = _int('wa_rate_hour_max', 200)
+        site_cfg.wa_cb_max_disconnects = _int('wa_cb_max_disconnects', 2)
+        site_cfg.wa_cb_block_hours = _int('wa_cb_block_hours', 4)
+        site_cfg.wa_read_pause_min_ms = _int('wa_read_pause_min_ms', 1000)
+        site_cfg.wa_read_pause_max_ms = _int('wa_read_pause_max_ms', 3500)
+        site_cfg.wa_typing_speed_cps = _int('wa_typing_speed_cps', 25)
+        site_cfg.wa_opt_in_ttl_days = _int('wa_opt_in_ttl_days', 7)
+        site_cfg.updated_by = request.user
+        site_cfg.save()
+        # Invalidate cached rate config so changes take effect immediately
+        from django.core.cache import cache as _djcache
+        _djcache.delete("wa_rate_cfg")
+        _djcache.delete("wa_pacing_cfg")
+        messages.success(request, "Rate limits and pacing configuration saved.")
         return redirect('desk:whatsapp_status')
 
     svc = EvolutionAPIService()
@@ -3352,6 +3451,8 @@ def whatsapp_status_view(request):
         for i in range(7)
     ]
 
+    wa_warnings = _compute_wa_warnings(site_cfg)
+
     return render(request, "desk/whatsapp_status.html", {
         "instance_state": instance_state,
         "qr_base64": qr_base64,
@@ -3370,6 +3471,7 @@ def whatsapp_status_view(request):
         "bh_days": list(bh_days),
         "bh_days_display": bh_days_display,
         "wa_day_options": wa_day_options,
+        "wa_warnings": wa_warnings,
     })
 
 

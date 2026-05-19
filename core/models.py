@@ -442,6 +442,95 @@ class SiteConfig(AuditableModel):
         ),
     )
 
+    # --- WhatsApp Rate Limiter Config ---
+    wa_rate_recipient_cooldown = models.PositiveSmallIntegerField(
+        default=10,
+        verbose_name="WA Recipient Cooldown (s)",
+        help_text=(
+            "Minimum seconds between two messages to the same phone number. "
+            "Recommended: 10. Values below 5 risk triggering spam detection."
+        ),
+    )
+    wa_rate_burst_max = models.PositiveSmallIntegerField(
+        default=8,
+        verbose_name="WA Burst Limit (per 60s)",
+        help_text=(
+            "Maximum outbound messages in any rolling 60-second window. "
+            "Recommended: 8. Values above 12 are risky."
+        ),
+    )
+    wa_rate_minute_max = models.PositiveSmallIntegerField(
+        default=15,
+        verbose_name="WA Per-Minute Limit",
+        help_text=(
+            "Maximum outbound messages per minute across all recipients. "
+            "Recommended: 15. Values above 20 are risky."
+        ),
+    )
+    wa_rate_hour_max = models.PositiveIntegerField(
+        default=200,
+        verbose_name="WA Per-Hour Limit",
+        help_text=(
+            "Maximum outbound messages per hour. "
+            "Recommended: 200. Values above 350 are risky."
+        ),
+    )
+
+    # --- Circuit Breaker Config ---
+    wa_cb_max_disconnects = models.PositiveSmallIntegerField(
+        default=2,
+        verbose_name="WA CB Max Disconnects",
+        help_text=(
+            "Number of disconnects within 24 hours before the circuit breaker trips. "
+            "Recommended: 2. Higher values are too lenient and allow continued sends during instability."
+        ),
+    )
+    wa_cb_block_hours = models.PositiveSmallIntegerField(
+        default=4,
+        verbose_name="WA CB Block Duration (hours)",
+        help_text=(
+            "Hours all outbound sends stay blocked after the circuit breaker trips. "
+            "Recommended: 4. Values below 2 provide insufficient recovery time."
+        ),
+    )
+
+    # --- Human Pacing Config ---
+    wa_read_pause_min_ms = models.PositiveSmallIntegerField(
+        default=1000,
+        verbose_name="WA Read Pause Min (ms)",
+        help_text=(
+            "Minimum milliseconds to pause before starting to type a reply. "
+            "Simulates reading the incoming message. Recommended: 1000."
+        ),
+    )
+    wa_read_pause_max_ms = models.PositiveSmallIntegerField(
+        default=3500,
+        verbose_name="WA Read Pause Max (ms)",
+        help_text=(
+            "Maximum milliseconds to pause before starting to type a reply. "
+            "Recommended: 3500. Values below 1500 look bot-like."
+        ),
+    )
+    wa_typing_speed_cps = models.PositiveSmallIntegerField(
+        default=25,
+        verbose_name="WA Typing Speed (chars/s)",
+        help_text=(
+            "Simulated typing speed in characters per second used to calculate composing duration. "
+            "Recommended: 25. Values above 40 exceed human typing speed."
+        ),
+    )
+
+    # --- Opt-in Guard Config ---
+    wa_opt_in_ttl_days = models.PositiveSmallIntegerField(
+        default=7,
+        verbose_name="WA Opt-in TTL (days)",
+        help_text=(
+            "Days a contact is considered opted-in after their last inbound message. "
+            "Internal broadcast is skipped for contacts outside this window. "
+            "Recommended: 7. Below 3 is too restrictive; above 30 risks messaging stale contacts."
+        ),
+    )
+
     terms_and_privacy = models.TextField(
         blank=True,
         default=(
