@@ -401,7 +401,7 @@ def ask_ai(question: str, identifier: str) -> dict:
             ),
         }
 
-    # ── Build source list ──────────────────────────────────────────────
+    # ── Build source list (exclude internal system docs — file names are irrelevant to users) ──
     sources = [
         {
             "title": doc["title"],
@@ -409,7 +409,7 @@ def ask_ai(question: str, identifier: str) -> dict:
             "source_label": doc["source_label"],
         }
         for doc in context_docs
-        if doc.get("url")
+        if doc.get("url") and doc.get("source_type") != "static_docs"
     ]
 
     return {
