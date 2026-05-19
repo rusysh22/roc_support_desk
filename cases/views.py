@@ -3312,13 +3312,40 @@ def whatsapp_status_view(request):
         if v not in staff_wa_values:
             wa_options.append({'value': v, 'label': v, 'selected': True})
 
+    from gateways.throttle import WARateLimiter, get_circuit_status
+    from core.models import SiteConfig
+    site_cfg = SiteConfig.get_solo()
+    daily_sent = WARateLimiter.get_daily_count()
+    daily_limit = site_cfg.get_wa_daily_limit()
+    circuit = get_circuit_status()
+
     return render(request, "desk/whatsapp_status.html", {
         "instance_state": instance_state,
         "qr_base64": qr_base64,
         "last_connected": last_connected,
         "notif_cfg": notif_cfg,
         "wa_options": wa_options,
+        "daily_sent": daily_sent,
+        "daily_limit": daily_limit,
+        "wa_instance_activated_at": site_cfg.wa_instance_activated_at,
+        "circuit": circuit,
     })
+
+
+@require_POST
+@login_required
+def wa_circuit_reset_view(request) -> HttpResponseRedirect:
+    """Manually reset the WA circuit breaker from the dashboard."""
+    from gateways.throttle import reset_circuit
+    from django.contrib import messages
+
+    if not (request.user.is_staff or request.user.is_superuser):
+        messages.error(request, "Hanya admin yang dapat mereset circuit breaker.")
+        return redirect("desk:whatsapp_status")
+
+    reset_circuit()
+    messages.success(request, "Circuit breaker berhasil direset. Pengiriman WA kembali aktif.")
+    return redirect("desk:whatsapp_status")
 
 
 # =====================================================================

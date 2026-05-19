@@ -156,6 +156,16 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
             logger.info("Auto-registered new Employee from WA: %s (%s)", sender_phone, display_name)
 
         # ---------------------------------------------------------
+        # 3b. Record last inbound timestamp for this phone number in cache.
+        #     Used by broadcast guard (opt-in check) to skip recipients who
+        #     have never initiated a conversation with us in the past 7 days.
+        # ---------------------------------------------------------
+        if not is_invalid_phone:
+            from django.core.cache import cache as _cache
+            _clean = sender_phone.lstrip("+")
+            _cache.set(f"wa_last_inbound:{_clean}", 1, timeout=7 * 86400)
+
+        # ---------------------------------------------------------
         # 4. Session threading
         #    a) Check if the user is quoting a previous message we sent
         #    b) Otherwise, thread into a RECENT WhatsApp case
@@ -317,64 +327,44 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # ---------------------------------------------------------
         if is_new_case and sender_phone and not case.is_spam:
             from core.models import SiteConfig
-            import random
-            import time
-            
+            from gateways.spintax import WA_ACK_USER, pick_template, greeting_by_hour
+            from gateways.throttle import WARateLimiter
+
             site_config = SiteConfig.get_solo()
             site_name = getattr(site_config, 'site_name', 'Support Desk')
-            
+
             try:
-                # Spintax for greetings to avoid exact identical messages that trigger spam filters
-                greetings = ["Hello", "Hi", "Greetings", "Welcome", "Dear"]
-                random_greeting = random.choice(greetings)
-                
-                # Spintax for closings to replace "Automated Message"
-                closings = [
-                    f"_{site_name} Support Team_",
-                    f"_{site_name} Site_",
-                    f"_- {site_name}_",
-                    f"_Best regards, {site_name}_",
-                    f"_Thanks, {site_name}_"
-                ]
-                random_closing = random.choice(closings)
-                
-                ack_text = (
-                    f"✅ *Request Received*\n\n"
-                    f"{random_greeting} *{employee.full_name}*,\n"
-                    f"Thank you for contacting *{site_name}*.\n\n"
-                    f"📋 *Ticket Number:* `{case.case_number}`\n"
-                    f"📝 *Subject:* {case.subject[:80]}\n\n"
-                    f"Our team will review your request shortly.\n"
-                    f"You may reply to this message to add any additional information regarding your ticket.\n\n"
-                    f"{random_closing}"
-                )
-                
-                # Human-like delay: Random pause between 3 - 8 seconds before sending
-                sleep_duration = random.randint(3, 8)
-                logger.info("Applying human-like auto-reply delay of %s seconds for %s", sleep_duration, sender_phone)
-                
-                # Send 'composing' presence to simulate human typing
-                svc.send_presence(sender_phone, presence="composing", delay=sleep_duration * 1000)
-                
-                time.sleep(sleep_duration)
-                
-                ack_response = svc.send_whatsapp_message(sender_phone, ack_text)
-                # Save auto-reply as Message so reply-quotes can find it
-                ack_ext_id = ""
-                if ack_response:
-                    ack_ext_id = ack_response.get("key", {}).get("id", "")
-                Message.objects.create(
-                    case=case,
-                    body=ack_text,
-                    direction=Message.Direction.OUTBOUND,
-                    channel=Message.Channel.WHATSAPP,
-                    external_id=ack_ext_id,
-                    delivery_status=Message.DeliveryStatus.SUCCESS if ack_response else Message.DeliveryStatus.FAILED,
-                )
-                logger.info(
-                    "Sent WA acknowledgment for case %s to %s (ext_id=%s)",
-                    case.case_number, sender_phone, ack_ext_id,
-                )
+                allowed, reason = WARateLimiter.check_and_record(sender_phone)
+                if not allowed:
+                    logger.warning("WA ACK throttled for case %s: %s", case.case_number, reason)
+                else:
+                    from django.utils import timezone
+                    from zoneinfo import ZoneInfo
+                    now_wib = timezone.now().astimezone(ZoneInfo("Asia/Jakarta"))
+                    greet_time = greeting_by_hour(now_wib.hour)
+
+                    ack_text = pick_template(WA_ACK_USER, seed=case.case_number).format(
+                        name=employee.full_name,
+                        site=site_name,
+                        ticket_num=case.case_number,
+                        subject=case.subject[:80],
+                        greet_time=greet_time,
+                    )
+
+                    ack_response = svc.send_with_human_pacing(sender_phone, ack_text)
+                    ack_ext_id = ack_response.get("key", {}).get("id", "") if ack_response else ""
+                    Message.objects.create(
+                        case=case,
+                        body=ack_text,
+                        direction=Message.Direction.OUTBOUND,
+                        channel=Message.Channel.WHATSAPP,
+                        external_id=ack_ext_id,
+                        delivery_status=Message.DeliveryStatus.SUCCESS if ack_response else Message.DeliveryStatus.FAILED,
+                    )
+                    logger.info(
+                        "Sent WA acknowledgment for case %s to %s (ext_id=%s)",
+                        case.case_number, sender_phone, ack_ext_id,
+                    )
             except Exception as ack_exc:
                 logger.warning(
                     "Failed to send WA acknowledgment for case %s: %s",
@@ -1034,6 +1024,17 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 
         svc = EvolutionAPIService()
 
+        from gateways.throttle import WARateLimiter, is_within_business_hours, is_circuit_open, record_disconnect
+
+        # --- Check circuit breaker first ---
+        if is_circuit_open():
+            error_msg = "WA circuit breaker is open — instance disconnected too many times today. Retrying later."
+            logger.warning("Circuit breaker blocked WA send for case %s.", case.id)
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = error_msg
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            raise self.retry(exc=RuntimeError(error_msg), countdown=300)
+
         # --- Check WA instance is connected before attempting to send ---
         instance_state_data = svc.get_instance_state()
         instance_state = (
@@ -1042,6 +1043,7 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
             else None
         )
         if instance_state != "open":
+            record_disconnect()
             error_msg = (
                 f"WhatsApp instance is not connected (state: {instance_state or 'unknown'}). "
                 "Message will be retried automatically."
@@ -1055,16 +1057,38 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
             msg.save(update_fields=["delivery_status", "delivery_error"])
             # Retry with longer delay to give time for reconnection
             raise self.retry(exc=RuntimeError(error_msg), countdown=60)
+        allowed, reason = WARateLimiter.check_and_record(requester.phone_number)
+        if not allowed:
+            logger.warning("WA rate limit for outbound msg %s: %s", message_id, reason)
+            msg.delivery_status = Message.DeliveryStatus.FAILED
+            msg.delivery_error = f"Throttled: {reason}"
+            msg.save(update_fields=["delivery_status", "delivery_error"])
+            raise self.retry(exc=RuntimeError(reason), countdown=15)
 
-        # Human-like delay: simulate typing/recording before sending staff reply
-        import random
-        import time
-        sleep_duration = random.randint(2, 5)
+        # Conversation window: if the last inbound from this user was > 24 h ago,
+        # add extra reading delay to simulate picking up an old thread.
+        import time as _time
+        from cases.models import Message as _Message
+        last_inbound = (
+            _Message.objects.filter(
+                case=case,
+                direction=_Message.Direction.INBOUND,
+                channel=_Message.Channel.WHATSAPP,
+            )
+            .order_by("-sent_at")
+            .values_list("sent_at", flat=True)
+            .first()
+        )
+        if last_inbound:
+            import random as _rand
+            from django.utils import timezone as _tz
+            hours_since = (_tz.now() - last_inbound).total_seconds() / 3600
+            if hours_since > 48:
+                _time.sleep(_rand.uniform(30, 90))
+            elif hours_since > 24:
+                _time.sleep(_rand.uniform(10, 30))
+
         has_audio_att = msg.attachments.filter(mime_type__startswith="audio/").exists()
-        presence_type = "recording" if has_audio_att else "composing"
-        logger.info("Applying human-like staff reply delay of %s seconds for %s", sleep_duration, requester.phone_number)
-        svc.send_presence(requester.phone_number, presence=presence_type, delay=sleep_duration * 1000)
-        time.sleep(sleep_duration)
 
         attachments = msg.attachments.all()[:10]  # Max 10 files
 
@@ -1073,6 +1097,16 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
         # If there are attachments, we send the FIRST attachment as the main media message with the text as caption
         # Additional attachments will be sent as separate media messages without captions
         if attachments:
+            # Human-like pacing before sending media (read pause + composing)
+            import random, time
+            read_pause = random.uniform(1.0, 3.5)
+            time.sleep(read_pause)
+            typing_duration = max(1.5, min(len(msg.body or "") / 25.0, 8.0) + random.uniform(-0.3, 1.5))
+            presence_type = "recording" if has_audio_att else "composing"
+            svc.send_presence(requester.phone_number, presence=presence_type, delay=int(typing_duration * 1000))
+            time.sleep(typing_duration)
+            time.sleep(random.uniform(0.3, 0.8))
+
             first = True
             for att in attachments:
                 try:
@@ -1080,10 +1114,10 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
                     if att.file_size > 10 * 1024 * 1024:
                         logger.warning("Skipping attachment %s: exceeds 10MB limit.", att.original_filename)
                         continue
-                        
+
                     with att.file.open('rb') as f:
                         file_data = f.read()
-                        
+
                     base64_data = base64.b64encode(file_data).decode('utf-8')
                     caption = msg.body if first else ""
                     mime = att.mime_type or "application/octet-stream"
@@ -1115,19 +1149,19 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
                     first = False
                 except Exception as e:
                     logger.error("Error attaching file %s to WA payload: %s", att.original_filename, e)
-            
+
             # If all attachments failed (e.g. all >10MB) but we have text, fallback to text
             if first and msg.body:
-                 response_data = svc.send_whatsapp_message(
-                    phone_number=requester.phone_number,
-                    text=f"{msg.body}\n\n[Warning: Attachments exceeded 10MB limit]",
+                response_data = svc.send_with_human_pacing(
+                    requester.phone_number,
+                    f"{msg.body}\n\n[Warning: Attachments exceeded 10MB limit]",
                     quoted_msg_id=quoted_ext_id,
                 )
         else:
-            # Just send text
-            response_data = svc.send_whatsapp_message(
-                phone_number=requester.phone_number,
-                text=msg.body,
+            # Just send text — use paced send
+            response_data = svc.send_with_human_pacing(
+                requester.phone_number,
+                msg.body,
                 quoted_msg_id=quoted_ext_id,
             )
 
@@ -1414,21 +1448,18 @@ def check_wa_session_warning_task(self, case_id: str) -> str:
         time_since_update = timezone.now() - case.updated_at
         if time_since_update >= timedelta(minutes=45):
             if case.requester and case.requester.phone_number:
-                import random
-                import time
+                from gateways.spintax import WA_SESSION_WARNING, pick_template
+                from gateways.throttle import WARateLimiter
 
                 svc = EvolutionAPIService()
-                warning_msg = (
-                    "Hi, are you still there? 😊\n"
-                    "Your support session will automatically end in about 15 minutes "
-                    "due to inactivity. Please reply if you still need assistance."
-                )
                 try:
-                    sleep_duration = random.randint(3, 8)
-                    svc.send_presence(case.requester.phone_number, presence="composing", delay=sleep_duration * 1000)
-                    time.sleep(sleep_duration)
-                    svc.send_whatsapp_message(case.requester.phone_number, warning_msg)
-                    logger.info("Sent WA session warning message for case %s", case.case_number)
+                    allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
+                    if not allowed:
+                        logger.warning("WA session warning throttled for case %s: %s", case.case_number, reason)
+                    else:
+                        warning_msg = pick_template(WA_SESSION_WARNING, seed=f"warn-{case.id}")
+                        svc.send_with_human_pacing(case.requester.phone_number, warning_msg)
+                        logger.info("Sent WA session warning message for case %s", case.case_number)
                 except Exception as exc:
                     logger.warning("Failed to send WA warning message for case %s: %s", case.case_number, str(exc))
             return "success:warning_sent"
@@ -1466,24 +1497,18 @@ def check_wa_session_timeout_task(self, case_id: str) -> str:
         if time_since_update >= timedelta(minutes=60):
             # Session expired. Send expiry message.
             if case.requester and case.requester.phone_number:
-                import random
-                import time
+                from gateways.spintax import WA_SESSION_EXPIRED, pick_template
+                from gateways.throttle import WARateLimiter
 
                 svc = EvolutionAPIService()
-                expiry_msg = (
-                    "Your support session has ended due to 60 minutes of inactivity.\n"
-                    "If you have any further questions or require additional assistance, "
-                    "please feel free to send a new message, and a new ticket will be created for you."
-                )
                 try:
-                    # Human-like delay: simulate typing before sending session expiry
-                    sleep_duration = random.randint(5, 15)
-                    logger.info("Applying human-like session expiry delay of %s seconds for case %s", sleep_duration, case.case_number)
-                    svc.send_presence(case.requester.phone_number, presence="composing", delay=sleep_duration * 1000)
-                    time.sleep(sleep_duration)
-
-                    svc.send_whatsapp_message(case.requester.phone_number, expiry_msg)
-                    logger.info("Sent WA session expiry message for case %s", case.case_number)
+                    allowed, reason = WARateLimiter.check_and_record(case.requester.phone_number)
+                    if not allowed:
+                        logger.warning("WA session expiry throttled for case %s: %s", case.case_number, reason)
+                    else:
+                        expiry_msg = pick_template(WA_SESSION_EXPIRED, seed=f"expiry-{case.id}")
+                        svc.send_with_human_pacing(case.requester.phone_number, expiry_msg)
+                        logger.info("Sent WA session expiry message for case %s", case.case_number)
                 except Exception as exc:
                     logger.warning("Failed to send WA expiry message for case %s: %s", case.case_number, str(exc))
 
@@ -1583,23 +1608,46 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
 
         if channel == 'WHATSAPP':
             import base64
+            from gateways.throttle import WARateLimiter, is_circuit_open
+
+            if is_circuit_open():
+                if msg_obj:
+                    msg_obj.delivery_status = Message.DeliveryStatus.FAILED
+                    msg_obj.delivery_error = "WA circuit breaker open"
+                    msg_obj.save(update_fields=["delivery_status", "delivery_error"])
+                return "skipped:circuit_open"
+
+            allowed, reason = WARateLimiter.check_and_record(forward_to)
+            if not allowed:
+                if msg_obj:
+                    msg_obj.delivery_status = Message.DeliveryStatus.FAILED
+                    msg_obj.delivery_error = f"Throttled: {reason}"
+                    msg_obj.save(update_fields=["delivery_status", "delivery_error"])
+                return f"skipped:{reason}"
+
             svc = EvolutionAPIService()
 
-            # Build WA text
+            # Build WA text — minimal formatting to reduce template fingerprint
             wa_header = (
-                f"🚨 *Ticket Escalation: {case_number}*\n\n"
-                f"_*Subject:*_ {case.subject}\n"
-                f"_*Requester:*_ {requester_name} ({req_unit})\n\n"
-                f"*Notes from Support:*\n{custom_message}\n"
+                f"Eskalasi Tiket: {case_number}\n\n"
+                f"Perihal: {case.subject}\n"
+                f"Pemohon: {requester_name} ({req_unit})\n\n"
+                f"Catatan:\n{custom_message}\n"
             )
             if selected_messages:
                 conversation = build_conversation_text(selected_messages, fmt="wa")
-                wa_text = f"{wa_header}\n*--- Conversation ({len(selected_messages)} messages) ---*\n\n{conversation}\n\n_Reply to this message to respond._"
+                wa_text = f"{wa_header}\n--- Percakapan ({len(selected_messages)} pesan) ---\n\n{conversation}\n\nBalas pesan ini untuk merespons."
             else:
-                wa_text = f"{wa_header}\n*Original Problem:*\n{case.problem_description}\n\n_Reply to this message to add your response to the ticket (Requires linking)._"
+                wa_text = f"{wa_header}\nDeskripsi:\n{case.problem_description}\n\nBalas pesan ini untuk merespons."
 
             response_data = None
             if attachments:
+                import random as _rand, time as _time
+                # Human-like pacing before escalation send
+                _time.sleep(_rand.uniform(2.0, 5.0))
+                svc.send_presence(forward_to, presence="composing", delay=int(_rand.uniform(2, 4) * 1000))
+                _time.sleep(_rand.uniform(2.0, 4.0))
+
                 first = True
                 for att in attachments:
                     try:
@@ -1627,9 +1675,9 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                         logger.error("Error attaching file %s to WA escalate payload: %s", att.original_filename, e)
 
                 if first and wa_text:
-                    response_data = svc.send_whatsapp_message(forward_to, f"{wa_text}\n\n[Warning: All attachments exceeded limits]")
+                    response_data = svc.send_with_human_pacing(forward_to, f"{wa_text}\n\n[Catatan: semua lampiran melebihi batas ukuran]")
             else:
-                response_data = svc.send_whatsapp_message(forward_to, wa_text)
+                response_data = svc.send_with_human_pacing(forward_to, wa_text)
 
             if msg_obj:
                 if response_data:
@@ -1769,10 +1817,19 @@ def mark_wa_messages_read_task(self, case_id: str, message_external_ids: list[st
     from cases.models import CaseRecord
     from gateways.services import EvolutionAPIService
 
+    import random
+    import time
+
     try:
         case = CaseRecord.objects.select_related("requester").get(id=case_id)
         if not case.requester or not case.requester.phone_number:
             return "skipped:no_phone"
+
+        # Humans don't read messages the instant they arrive — add realistic delay
+        # ~90% of the time we wait 5-90 s; ~10% skip read receipt entirely
+        if random.random() < 0.10:
+            return "skipped:natural_skip"
+        time.sleep(random.uniform(5, 90))
 
         svc = EvolutionAPIService()
         result = svc.mark_messages_as_read(
@@ -2050,14 +2107,15 @@ def send_teams_notification_task(self, case_id: str) -> str:
 )
 def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
     """
-    Send a WhatsApp notification to internal recipients (agents/admins)
-    when a new support ticket is created.
-    Does NOT send to the requester — that is handled by the auto-reply in
-    process_evolution_webhook_task.
+    Dispatch staggered per-recipient WA notifications for a new ticket.
+
+    Each recipient gets its own task scheduled with a 20-45 s gap so
+    back-to-back identical sends — a primary spam signal — are avoided.
     """
+    import random
     from cases.models import CaseRecord
     from core.models import NotificationConfig, SiteConfig
-    from gateways.services import EvolutionAPIService
+    from gateways.spintax import WA_NOTIF_INTERNAL, pick_template
 
     try:
         notif_cfg = NotificationConfig.get_solo()
@@ -2073,38 +2131,32 @@ def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
         requester_display = (
             case.requester.full_name if case.requester else (case.requester_name or "—")
         )
-        priority_emoji = {
-            "Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢",
-        }.get(case.priority, "⚪")
-        source_emoji = {
-            "EvolutionAPI_WA": "💬", "Email": "📧", "WebForm": "🌐", "Teams_Bot": "🟦",
-        }.get(case.source, "📋")
+        source_label = case.get_source_display()
 
-        text = (
-            f"🔔 *New Ticket — {site_name}*\n\n"
-            f"📋 *Ticket #:* `{case.case_number}`\n"
-            f"👤 *From:* {requester_display}\n"
-            f"📝 *Subject:* {case.subject[:100]}\n"
-            f"⚡ *Priority:* {priority_emoji} {case.get_priority_display()}\n"
-            f"{source_emoji} *Source:* {case.get_source_display()}\n\n"
-            f"🔗 {case_url}"
-        )
+        # Shuffle to avoid always sending to the same person first
+        recipients_shuffled = list(recipients)
+        random.shuffle(recipients_shuffled)
 
-        svc = EvolutionAPIService()
-        errors = []
-        for phone in recipients:
-            try:
-                svc.send_whatsapp_message(phone, text)
-                logger.info("WA notif sent to %s for case %s", phone, case.case_number)
-            except Exception as send_exc:
-                logger.warning(
-                    "WA notif failed for %s / case %s: %s", phone, case.case_number, send_exc
-                )
-                errors.append(phone)
+        for i, phone in enumerate(recipients_shuffled):
+            # Pick a distinct template variant per recipient using phone as seed
+            text = pick_template(WA_NOTIF_INTERNAL, seed=f"{case.case_number}-{phone}").format(
+                site=site_name,
+                ticket_num=case.case_number,
+                requester_name=requester_display,
+                subject=case.subject[:100],
+                priority=case.get_priority_display(),
+                source_label=source_label,
+                case_url=case_url,
+            )
+            # Stagger: first recipient after 5-10 s, each subsequent one 20-45 s later
+            countdown = random.randint(5, 10) + i * random.randint(20, 45)
+            _send_single_wa_notif_task.apply_async(args=[phone, text], countdown=countdown)
+            logger.info(
+                "Scheduled WA notif to %s for case %s (countdown=%ss)",
+                phone, case.case_number, countdown,
+            )
 
-        if errors:
-            return f"partial:failed_for_{','.join(errors)}"
-        return "success"
+        return f"dispatched:{len(recipients_shuffled)}_recipients"
 
     except CaseRecord.DoesNotExist:
         return "error:case_not_found"
@@ -2114,6 +2166,48 @@ def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
+
+
+@shared_task(
+    name="gateways._send_single_wa_notif_task",
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def _send_single_wa_notif_task(phone: str, text: str) -> str:
+    """Send one pre-composed WA notification to a single internal recipient."""
+    from django.core.cache import cache as _cache
+    from gateways.services import EvolutionAPIService
+    from gateways.throttle import WARateLimiter, is_within_business_hours, is_circuit_open
+
+    # Internal broadcast notifications only go out during business hours
+    if not is_within_business_hours():
+        logger.info("WA notif to %s deferred: outside business hours", phone)
+        return "skipped:outside_business_hours"
+
+    if is_circuit_open():
+        logger.warning("WA notif to %s skipped: circuit breaker is open", phone)
+        return "skipped:circuit_open"
+
+    # Opt-in guard: only send to recipients who have messaged us in the last 7 days
+    clean_phone = phone.lstrip("+")
+    if not _cache.get(f"wa_last_inbound:{clean_phone}"):
+        logger.info("WA notif to %s skipped: no inbound in last 7 days (opt-in guard)", phone)
+        return "skipped:no_recent_inbound"
+
+    allowed, reason = WARateLimiter.check_and_record(phone)
+    if not allowed:
+        logger.warning("WA notif throttled for %s: %s", phone, reason)
+        return f"skipped:{reason}"
+
+    try:
+        svc = EvolutionAPIService()
+        svc.send_with_human_pacing(phone, text)
+        logger.info("WA notif sent to %s", phone)
+        return "success"
+    except Exception as exc:
+        logger.error("_send_single_wa_notif_task failed for %s: %s", phone, exc)
+        return "error:send_failed"
 
 
 @shared_task(
@@ -2391,6 +2485,94 @@ def notify_staff_chat_reply_task(self, message_id: str) -> str:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
+
+
+# =====================================================================
+# WhatsApp Presence Lifecycle — Business Hours Online/Offline
+# =====================================================================
+
+@shared_task(name="gateways.wa_circuit_health_check_task")
+def wa_circuit_health_check_task() -> str:
+    """
+    Periodically test the WA instance state and auto-reset the circuit breaker
+    if the instance is back online. Scheduled every 30 minutes via Celery Beat.
+    """
+    from gateways.services import EvolutionAPIService
+    from gateways.throttle import is_circuit_open, record_disconnect, reset_circuit
+
+    try:
+        svc = EvolutionAPIService()
+        state_data = svc.get_instance_state()
+        state = (
+            state_data.get("instance", {}).get("state")
+            if state_data
+            else None
+        )
+
+        if state == "open":
+            if is_circuit_open():
+                reset_circuit()
+                logger.info("wa_circuit_health_check: instance is open — circuit reset.")
+            return "ok:connected"
+        else:
+            record_disconnect()
+            logger.warning(
+                "wa_circuit_health_check: instance state=%s — disconnect recorded.",
+                state,
+            )
+            return f"warning:state={state}"
+
+    except Exception as exc:
+        logger.error("wa_circuit_health_check_task failed: %s", exc)
+        return f"error:{exc}"
+
+
+@shared_task(name="gateways.wa_set_online_task")
+def wa_set_online_task() -> str:
+    """
+    Set WhatsApp presence to 'available' at the start of business hours.
+    Schedule this via Celery beat at 07:00 WIB Mon-Fri.
+    """
+    import random
+    import time
+    from gateways.services import EvolutionAPIService
+
+    try:
+        # Small jitter so the cron doesn't fire at the exact same second every day
+        time.sleep(random.uniform(10, 90))
+        svc = EvolutionAPIService()
+        # Evolution API sets instance-level presence via /chat/updatePresence
+        url = svc._build_url("chat/updatePresence")
+        import requests as _req
+        _req.post(url, json={"presence": "available"}, headers=svc._headers(), timeout=15)
+        logger.info("WA instance presence set to available")
+        return "success"
+    except Exception as exc:
+        logger.warning("wa_set_online_task failed: %s", exc)
+        return f"error:{exc}"
+
+
+@shared_task(name="gateways.wa_set_offline_task")
+def wa_set_offline_task() -> str:
+    """
+    Set WhatsApp presence to 'unavailable' at end of business hours.
+    Schedule this via Celery beat at 20:00 WIB Mon-Fri.
+    """
+    import random
+    import time
+    from gateways.services import EvolutionAPIService
+
+    try:
+        time.sleep(random.uniform(10, 90))
+        svc = EvolutionAPIService()
+        url = svc._build_url("chat/updatePresence")
+        import requests as _req
+        _req.post(url, json={"presence": "unavailable"}, headers=svc._headers(), timeout=15)
+        logger.info("WA instance presence set to unavailable")
+        return "success"
+    except Exception as exc:
+        logger.warning("wa_set_offline_task failed: %s", exc)
+        return f"error:{exc}"
 
 
 # =====================================================================

@@ -224,6 +224,28 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 
+# WA presence lifecycle — set online at business hours start, offline at end
+# Times are in Asia/Jakarta (WIB). Requires celery-beat to be running.
+from celery.schedules import crontab  # noqa: E402
+from datetime import timedelta  # noqa: E402
+CELERY_BEAT_SCHEDULE = {
+    "wa-set-online": {
+        "task": "gateways.wa_set_online_task",
+        "schedule": crontab(hour=7, minute=0),
+        "options": {"expires": 600},
+    },
+    "wa-set-offline": {
+        "task": "gateways.wa_set_offline_task",
+        "schedule": crontab(hour=20, minute=0),
+        "options": {"expires": 600},
+    },
+    "wa-circuit-health-check": {
+        "task": "gateways.wa_circuit_health_check_task",
+        "schedule": timedelta(minutes=30),
+        "options": {"expires": 900},
+    },
+}
+
 # -----------------------------------------------------------------
 # Django Channels — WebSocket channel layer (Redis db 2)
 # -----------------------------------------------------------------

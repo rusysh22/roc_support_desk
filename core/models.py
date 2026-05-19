@@ -389,6 +389,17 @@ class SiteConfig(AuditableModel):
         help_text="Contact details (narahubung) shown on the login page footer. Supports plain text or simple HTML.",
     )
 
+    wa_instance_activated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="WA Instance Activation Date",
+        help_text=(
+            "Set this to the date the WhatsApp number was first connected. "
+            "Used to enforce a warm-up period (lower send caps in the first 14 days) "
+            "to reduce the chance of being flagged by WhatsApp."
+        ),
+    )
+
     terms_and_privacy = models.TextField(
         blank=True,
         default=(
@@ -434,13 +445,39 @@ class SiteConfig(AuditableModel):
     @classmethod
     def get_solo(cls):
         """
-        Returns the singleton instance of SiteConfig. 
+        Returns the singleton instance of SiteConfig.
         Creates one if it doesn't exist.
         """
         obj = cls.objects.first()
         if not obj:
             obj = cls.objects.create(site_name="Support Desk")
         return obj
+
+    def get_wa_daily_limit(self) -> int:
+        """
+        Return the effective daily WA outbound send cap based on instance age.
+
+        Warm-up schedule (days since wa_instance_activated_at):
+          Day  0– 3 : 20 messages/day  (very cautious)
+          Day  4– 7 : 50 messages/day
+          Day  8–14 : 150 messages/day
+          Day 15+   : 1500 messages/day (full capacity)
+
+        If wa_instance_activated_at is not set, returns the full limit.
+        """
+        from django.utils import timezone
+
+        if not self.wa_instance_activated_at:
+            return 1500
+
+        days = (timezone.now() - self.wa_instance_activated_at).days
+        if days <= 3:
+            return 20
+        if days <= 7:
+            return 50
+        if days <= 14:
+            return 150
+        return 1500
 
     def __str__(self):
         return self.site_name

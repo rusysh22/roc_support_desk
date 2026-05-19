@@ -237,6 +237,38 @@ class EvolutionAPIService:
             logger.error("Failed to send presence '%s' to %s: %s", presence, clean_number, exc)
             return None
 
+    def send_with_human_pacing(
+        self,
+        phone_number: str,
+        text: str,
+        quoted_msg_id: Optional[str] = None,
+        has_audio: bool = False,
+    ) -> dict | None:
+        """
+        Human-paced send: brief read-pause → composing presence → natural
+        typing wait → tiny review pause → send.
+
+        Replaces the scattered inline sleep/presence pattern in tasks so
+        every outbound message goes through the same realistic timing.
+        """
+        import random
+        import time
+
+        # Simulate reading the conversation before starting to type
+        read_pause = random.uniform(1.0, 3.5)
+        time.sleep(read_pause)
+
+        # Typing speed ~25 chars/sec, capped at 12 s for long messages
+        typing_duration = max(1.5, min(len(text) / 25.0, 12.0) + random.uniform(-0.5, 2.0))
+        presence_type = "recording" if has_audio else "composing"
+        self.send_presence(phone_number, presence=presence_type, delay=int(typing_duration * 1000))
+        time.sleep(typing_duration)
+
+        # Tiny review pause before hitting send
+        time.sleep(random.uniform(0.3, 1.0))
+
+        return self.send_whatsapp_message(phone_number, text, quoted_msg_id=quoted_msg_id)
+
     def send_whatsapp_message(
         self,
         phone_number: str,
