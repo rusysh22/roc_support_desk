@@ -136,63 +136,73 @@
     </div>
     <div id="services-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {% for category in categories %}
-        <div class="spotlight-card group relative bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 jk-category-card flex flex-col"
+        <div class="spotlight-card group bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 jk-category-card flex flex-col overflow-hidden"
              data-name="{{ category.name }}"
              data-desc="{{ category.description|default:'' }}">
-            
-            {% if user.role_access == "SuperAdmin" %}
-            <!-- Admin Actions -->
-            <div class="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onclick="event.stopPropagation(); openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}', {{ category.is_attachment_mandatory|yesno:'true,false' }}, '{{ category.template_subject|escapejs }}', '{{ category.template_text|escapejs }}')"
-                        class="w-7 h-7 bg-white hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Edit">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                </button>
-                <button onclick="event.stopPropagation(); openDeleteModal('{{ category.id }}', '{{ category.name|escapejs }}')"
-                        class="w-7 h-7 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-full flex items-center justify-center shadow-sm border border-slate-200 transition-colors" title="Delete">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                </button>
-            </div>
-            {% endif %}
 
+            <!-- Main content area — full-card link -->
             <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
-               class="flex-1 flex flex-col focus:outline-none">
-                
+               class="flex-1 flex flex-col p-5 pb-4 focus:outline-none">
+
                 <div class="mb-4">
                     <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-indigo-50/80 text-2xl shadow-sm border border-indigo-100/50">
                         {{ category.icon|default:"📝" }}
                     </span>
                 </div>
-                
+
                 <h3 class="text-[17px] font-bold text-slate-800 mb-2 group-hover:text-indigo-700 transition-colors">{{ category.name }}</h3>
-                <p class="text-sm text-slate-500 line-clamp-2 mb-4 flex-1">{{ category.description|default:"Submit a request for this service." }}</p>
-                
-                <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <div class="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 group-hover:gap-2.5 transition-all">
-                        {% if category.children.all %}
-                        <span>View {{ category.children.count }} Services</span>
-                        {% else %}
-                        <span>Submit Request</span>
-                        {% endif %}
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
+                <p class="text-sm text-slate-500 line-clamp-2 flex-1">{{ category.description|default:"Submit a request for this service." }}</p>
+            </a>
+
+            <!-- Footer row — outside the main <a> so admin buttons sit cleanly beside the action link -->
+            <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <!-- Navigation action -->
+                <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+                   tabindex="-1"
+                   class="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 group-hover:gap-2.5 transition-all">
+                    {% if category.children.all %}
+                    <span>View {{ category.children.count }} Services</span>
+                    {% else %}
+                    <span>Submit Request</span>
+                    {% endif %}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </a>
+
+                <!-- Right side: confidential badge + admin actions -->
+                <div class="flex items-center gap-1.5 flex-shrink-0">
                     {% if category.is_confidential %}
                     <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200 uppercase tracking-wide">Private</span>
                     {% endif %}
+
+                    {% if user.role_access == "SuperAdmin" %}
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="openEditModal('{{ category.id }}', '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', '{{ category.icon|escapejs }}', '{{ category.prefix_code|escapejs }}', '{{ category.slug|escapejs }}', {{ category.is_confidential|yesno:'true,false' }}, '{{ category.parent_id|default:"" }}', {{ category.is_attachment_mandatory|yesno:'true,false' }}, '{{ category.template_subject|escapejs }}', '{{ category.template_text|escapejs }}')"
+                                class="w-7 h-7 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg flex items-center justify-center border border-slate-200 hover:border-indigo-200 transition-colors"
+                                title="Edit">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <button onclick="openDeleteModal('{{ category.id }}', '{{ category.name|escapejs }}')"
+                                class="w-7 h-7 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg flex items-center justify-center border border-slate-200 hover:border-rose-200 transition-colors"
+                                title="Delete">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
-            </a>
-            
+            </div>
+
             {% if category.children.all %}
-            <div class="jk-sub-category-list hidden mt-4 pt-3 border-t border-slate-100">
+            <div class="jk-sub-category-list hidden px-5 pb-5 pt-3 border-t border-slate-100">
                 <p class="text-[11px] font-bold text-indigo-500 mb-2 uppercase tracking-wider">Matched Services</p>
                 <div class="space-y-1.5">
                     {% for child in category.children.all %}
-                    <a href="{% url 'cases:create_case_category' slug=child.slug %}" 
+                    <a href="{% url 'cases:create_case_category' slug=child.slug %}"
                        class="jk-sub-category-item hidden items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 transition-colors"
                        data-name="{{ child.name }}" data-desc="{{ child.description|default:'' }}">
                         <span class="text-sm font-medium text-slate-700 flex items-center gap-2">
-                            <span class="text-base">{{ child.icon|default:'📝' }}</span> 
+                            <span class="text-base">{{ child.icon|default:'📝' }}</span>
                             {{ child.name }}
                         </span>
                         <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
