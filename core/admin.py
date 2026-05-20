@@ -2,6 +2,7 @@
 Core App — Django Admin Registration
 ======================================
 """
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.shortcuts import redirect
@@ -444,9 +445,49 @@ class UserNotificationPreferenceAdmin(ModelAdmin):
 # AI Assistant Configuration Admin
 # =====================================================================
 
+class _APIKeyWidget(forms.TextInput):
+    """Password-style widget that never echoes the saved key back to the browser."""
+
+    input_type = "password"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attrs.setdefault("autocomplete", "new-password")
+        self.attrs.setdefault("placeholder", "Enter new API key to replace the saved one…")
+
+    def format_value(self, value):
+        del value  # key must never appear in HTML source
+        return ""
+
+
+class _AIConfigAdminForm(forms.ModelForm):
+    ai_api_key = forms.CharField(
+        label="API Key",
+        required=False,
+        widget=_APIKeyWidget,
+        help_text=(
+            "Stored encrypted. Leave blank to keep the current key. "
+            "Enter a new value to replace it."
+        ),
+    )
+
+    class Meta:
+        model = AIConfig
+        fields = "__all__"
+
+    def clean_ai_api_key(self):
+        new_key = self.cleaned_data.get("ai_api_key", "").strip()
+        if not new_key:
+            # Preserve whatever is already saved — don't wipe the key on a blank submit.
+            return self.instance.ai_api_key if self.instance.pk else ""
+        return new_key
+
+
 @admin.register(AIConfig)
 class AIConfigAdmin(ModelAdmin):
     """Singleton admin for the Gemini AI assistant configuration."""
+
+    form = _AIConfigAdminForm
 
     fieldsets = (
         (
