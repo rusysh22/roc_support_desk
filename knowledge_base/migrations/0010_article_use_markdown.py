@@ -27,13 +27,21 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(add_use_markdown_safe, noop),
-        migrations.AlterField(
-            model_name="article",
-            name="use_markdown",
-            field=models.BooleanField(
-                default=False,
-                help_text="When enabled, content fields are stored as Markdown and rendered as formatted HTML.",
-                verbose_name="Use Markdown",
-            ),
+        # AlterField fails because RunPython adds the column at DB level but
+        # Django's migration state has no prior knowledge of the field.
+        # SeparateDatabaseAndState syncs the state without touching the DB again.
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.AddField(
+                    model_name="article",
+                    name="use_markdown",
+                    field=models.BooleanField(
+                        default=False,
+                        help_text="When enabled, content fields are stored as Markdown and rendered as formatted HTML.",
+                        verbose_name="Use Markdown",
+                    ),
+                ),
+            ],
         ),
     ]
