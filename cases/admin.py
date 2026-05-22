@@ -1,16 +1,13 @@
 """
 Cases App — Django Admin Registration
-=======================================
-Provides full admin interfaces with inline messages and attachments,
-list filters, and audit field auto-population.
 """
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline, StackedInline
 
 from .models import (
-    Attachment, CaseAuditLog, CaseCategory, CaseDocument, CaseRecord,
-    CategoryApproverConfig, DocumentApprovalLog, DocumentApprovalStage,
-    DocumentApprovalStep, DocumentApproverConfig, DocumentTemplate, Message, RCATemplate,
+    Attachment, CaseAuditLog, CaseCategory, CaseRecord,
+    ChangeRequestApproval, ChangeRequestDocument,
+    DocumentTemplate, Message, RCATemplate,
 )
 
 
@@ -19,14 +16,12 @@ from .models import (
 # =====================================================================
 
 class AttachmentInline(TabularInline):
-    """Inline attachments within a Message."""
     model = Attachment
     extra = 0
     readonly_fields = ("id", "file_size", "mime_type", "created_at")
 
 
 class MessageInline(StackedInline):
-    """Inline messages within a CaseRecord."""
     model = Message
     extra = 0
     readonly_fields = (
@@ -36,16 +31,28 @@ class MessageInline(StackedInline):
     show_change_link = True
 
 
+class ChangeRequestApprovalInline(TabularInline):
+    model = ChangeRequestApproval
+    extra = 0
+    fields = ("approver", "order", "status", "acted_at", "notes")
+    readonly_fields = ("acted_at", "token")
+    ordering = ("order",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 # =====================================================================
 # Ticket Category
 # =====================================================================
 
 @admin.register(CaseCategory)
 class CaseCategoryAdmin(ModelAdmin):
-    """Admin for service catalogue categories."""
-
-    list_display = ("name", "parent", "workflow_type", "prefix_code", "slug", "is_confidential", "created_at")
-    list_filter = ("parent", "is_confidential", "workflow_type")
+    list_display = (
+        "name", "parent", "enable_change_request", "prefix_code", "slug",
+        "is_confidential", "created_at",
+    )
+    list_filter = ("parent", "is_confidential", "enable_change_request")
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
@@ -63,8 +70,6 @@ class CaseCategoryAdmin(ModelAdmin):
 
 @admin.register(RCATemplate)
 class RCATemplateAdmin(ModelAdmin):
-    """Admin for RCA quick-fill templates."""
-
     list_display = ("name", "category", "order", "created_at")
     list_filter = ("category",)
     list_editable = ("order",)
@@ -84,19 +89,10 @@ class RCATemplateAdmin(ModelAdmin):
 
 @admin.register(CaseRecord)
 class CaseRecordAdmin(ModelAdmin):
-    """Admin for case management — includes inline messages."""
-
     list_display = (
-        "case_number",
-        "subject",
-        "status",
-        "source",
-        "requester",
-        "assigned_to",
-        "created_at",
-        "response_due_at",
-        "resolution_due_at",
-        "is_spam",
+        "case_number", "subject", "status", "source",
+        "requester", "assigned_to", "created_at",
+        "response_due_at", "resolution_due_at", "is_spam",
     )
     list_filter = ("is_spam", "status", "source", "category", "assigned_to")
     search_fields = ("subject", "requester__full_name", "requester__email")
@@ -147,16 +143,9 @@ class CaseRecordAdmin(ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(ModelAdmin):
-    """Admin for individual messages."""
-
     list_display = (
-        "case",
-        "direction",
-        "channel",
-        "sender_display",
-        "body_preview",
-        "external_id",
-        "sent_at",
+        "case", "direction", "channel", "sender_display",
+        "body_preview", "external_id", "sent_at",
     )
     list_filter = ("direction", "channel")
     search_fields = ("body", "external_id")
@@ -164,10 +153,10 @@ class MessageAdmin(ModelAdmin):
         "id", "external_id", "sent_at",
         "created_at", "updated_at", "created_by", "updated_by",
     )
+    inlines = [AttachmentInline]
 
     def has_module_permission(self, request):
         return False
-    inlines = [AttachmentInline]
 
     @admin.display(description="Sender")
     def sender_display(self, obj):
@@ -194,8 +183,6 @@ class MessageAdmin(ModelAdmin):
 
 @admin.register(Attachment)
 class AttachmentAdmin(ModelAdmin):
-    """Admin for file attachments."""
-
     list_display = ("original_filename", "mime_type", "file_size", "message", "created_at")
     search_fields = ("original_filename",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
@@ -211,53 +198,16 @@ class AttachmentAdmin(ModelAdmin):
 
 
 # =====================================================================
-# Document Template System
+# Document Template (admin letter management, no portal integration)
 # =====================================================================
-
-class DocumentApproverConfigInline(TabularInline):
-    """Inline approver config within a DocumentApprovalStage."""
-    model = DocumentApproverConfig
-    extra = 1
-    fields = ("approver", "order")
-    ordering = ("order",)
-
-
-class DocumentApprovalStageInline(StackedInline):
-    """Inline approval stages within a DocumentTemplate."""
-    model = DocumentApprovalStage
-    extra = 0
-    fields = ("order", "label", "policy", "allow_user_selection")
-    ordering = ("order",)
-    show_change_link = True
-
-
-@admin.register(DocumentApprovalStage)
-class DocumentApprovalStageAdmin(ModelAdmin):
-    """Admin for individual approval stages."""
-
-    list_display = ("template", "order", "label", "policy", "allow_user_selection", "created_at")
-    list_filter = ("policy", "allow_user_selection", "template")
-    search_fields = ("template__title", "label")
-    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
-    inlines = [DocumentApproverConfigInline]
-
-    def save_model(self, request, obj, form, change):
-        if not change:
-            obj.created_by = request.user
-        obj.updated_by = request.user
-        super().save_model(request, obj, form, change)
-
 
 @admin.register(DocumentTemplate)
 class DocumentTemplateAdmin(ModelAdmin):
-    """Admin for document/letter templates."""
-
     list_display = ("title", "approval_flow", "is_required", "created_at")
     list_filter = ("approval_flow", "is_required", "categories")
     search_fields = ("title", "description")
     filter_horizontal = ("categories",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
-    inlines = [DocumentApprovalStageInline]
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -266,70 +216,20 @@ class DocumentTemplateAdmin(ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-class DocumentApprovalStepInline(TabularInline):
-    """Inline approval steps within a CaseDocument."""
-    model = DocumentApprovalStep
-    extra = 0
-    fields = ("approver", "stage_order", "order", "approval_type", "status", "acted_at", "notes")
-    readonly_fields = ("acted_at", "stage_order", "stage_policy")
-    ordering = ("stage_order", "order")
+# =====================================================================
+# Change Request Document
+# =====================================================================
 
-
-class DocumentApprovalLogInline(TabularInline):
-    """Inline audit log within a CaseDocument."""
-    model = DocumentApprovalLog
-    extra = 0
-    fields = ("action", "actor_name", "stage_order", "notes", "previous_status", "new_status", "created_at")
-    readonly_fields = ("action", "actor_name", "stage_order", "notes", "previous_status", "new_status", "created_at")
-    ordering = ("created_at",)
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(CaseDocument)
-class CaseDocumentAdmin(ModelAdmin):
-    """Admin for generated case documents."""
-
-    list_display = ("template", "case", "status", "revision_number", "submitted_at", "created_at")
-    list_filter = ("status", "template")
-    search_fields = ("case__subject", "template__title")
+@admin.register(ChangeRequestDocument)
+class ChangeRequestDocumentAdmin(ModelAdmin):
+    list_display = ("case", "status", "revision_number", "submitted_at", "created_at")
+    list_filter = ("status",)
+    search_fields = ("case__subject", "request_change")
     readonly_fields = (
-        "id", "token", "token_expires_at", "generated_pdf", "submitted_at", "revision_number",
+        "id", "generated_pdf", "submitted_at", "revision_number",
         "created_at", "updated_at", "created_by", "updated_by",
     )
-    inlines = [DocumentApprovalStepInline, DocumentApprovalLogInline]
-
-    def save_model(self, request, obj, form, change):
-        if not change:
-            obj.created_by = request.user
-        obj.updated_by = request.user
-        super().save_model(request, obj, form, change)
-
-
-# =====================================================================
-# Category Approver Config
-# =====================================================================
-
-class CategoryApproverConfigInline(TabularInline):
-    """Inline approver config within a CaseCategory (APPROVAL_ONLY flow)."""
-    model = CategoryApproverConfig
-    extra = 1
-    fields = ("approver", "order")
-    ordering = ("order",)
-
-
-@admin.register(CategoryApproverConfig)
-class CategoryApproverConfigAdmin(ModelAdmin):
-    """Admin for ticket-level approval chains."""
-
-    list_display = ("category", "approver", "order", "created_at")
-    list_filter = ("category",)
-    search_fields = ("category__name", "approver__username")
-    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    inlines = [ChangeRequestApprovalInline]
 
     def save_model(self, request, obj, form, change):
         if not change:

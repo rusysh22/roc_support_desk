@@ -1,4 +1,4 @@
-"""
+﻿"""
 Cases App — Views
 ==================
 Client-facing (public) and Admin/Staff (auth-required) views.
@@ -31,10 +31,9 @@ from django.core.cache import cache
 from core.models import CompanyUnit, Employee, User
 from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
 from .models import (
-    Attachment, CaseCategory, CaseRecord, CaseDocument, Message,
-    CaseComment, CaseAuditLog, RCATemplate,
-    CategoryApproverConfig, DocumentApprovalLog, DocumentApprovalStage,
-    DocumentTemplate, DocumentApproverConfig, DocumentApprovalStep,
+    Attachment, CaseCategory, CaseRecord, ChangeRequestApproval,
+    ChangeRequestDocument, Message, CaseComment, CaseAuditLog,
+    RCATemplate, DocumentTemplate,
 )
 
 from licensing.decorators import feature_required
@@ -976,10 +975,6 @@ def create_case(request, slug=None):
                     employee.save(update_fields=["full_name", "unit", "job_role"])
 
             category = form.cleaned_data["category"]
-            needs_approval = category.workflow_type in (
-                CaseCategory.WorkflowType.APPROVAL_ONLY,
-                CaseCategory.WorkflowType.DOCUMENT_APPROVAL,
-            )
             case = CaseRecord.objects.create(
                 requester=employee,
                 requester_email=email,
@@ -991,7 +986,7 @@ def create_case(request, slug=None):
                 problem_description=form.cleaned_data["problem_description"],
                 link=form.cleaned_data.get("link", ""),
                 source=CaseRecord.Source.WEBFORM,
-                status=CaseRecord.Status.PENDING_APPROVAL if needs_approval else CaseRecord.Status.OPEN,
+                status=CaseRecord.Status.OPEN,
                 has_unread_messages=True,
             )
 
@@ -1024,9 +1019,6 @@ def create_case(request, slug=None):
                 action=CaseAuditLog.ActionText.CREATED,
                 new_value="Case created via Public Portal"
             )
-
-            # Create CaseDocuments / trigger approval flow based on category workflow_type
-            _create_case_documents_from_post(request, case, category)
 
             messages.success(request, f"Your ticket ({case.case_number}) has been created successfully.")
 
@@ -4185,28 +4177,9 @@ def api_users_list(request):
         
     return JsonResponse(data, safe=False)
 
-def _log_approval_action(document, action, *, actor=None, actor_name="", step=None,
-                         stage_order=None, notes="", previous_status="", new_status="",
-                         ip_address=None):
-    """Create one DocumentApprovalLog entry. Never raises — audit failure must not break flow."""
-    try:
-        resolved_name = actor_name or (
-            actor.get_full_name() or actor.username if actor else "System"
-        )
-        DocumentApprovalLog.objects.create(
-            document=document,
-            action=action,
-            actor=actor,
-            actor_name=resolved_name,
-            step=step,
-            stage_order=stage_order,
-            notes=notes,
-            previous_status=previous_status,
-            new_status=new_status,
-            ip_address=ip_address,
-        )
-    except Exception:
-        pass
+# =====================================================================
+# Change Request Document (Surat Kronologi)
+# =====================================================================
 
 
 def _assert_case_not_locked(case):
@@ -4219,195 +4192,6 @@ def _assert_case_not_locked(case):
             f"Ticket {case.case_number} is locked while approval workflow is running "
             f"(status: {case.status}). No changes are allowed until the workflow completes."
         )
-
-
-def _create_case_documents_from_post(request, case, category):
-    """
-    Called after a case is created. Behaviour depends on category.workflow_type:
-
-    STANDARD          — no-op.
-    DOCUMENT_ONLY     — create CaseDocument(s), skip approval chain.
-    APPROVAL_ONLY     — create a CaseDocument with no template body; wire up
-                        CategoryApproverConfig approvers.
-    DOCUMENT_APPROVAL — create CaseDocument(s) with stage-based approval chain.
-    """
-    from cases.utils_pdf import generate_case_document_pdf
-
-    wt = category.workflow_type
-    if wt == CaseCategory.WorkflowType.STANDARD:
-        return
-
-    now = timezone.now()
-
-    if wt == CaseCategory.WorkflowType.APPROVAL_ONLY:
-        # No document body — create a bare CaseDocument as the approval container
-        doc = CaseDocument.objects.create(
-            case=case,
-            template=None,
-            filled_data={},
-            status=CaseDocument.Status.PENDING_APPROVAL,
-            submitted_at=now,
-        )
-        _log_approval_action(doc, DocumentApprovalLog.Action.SUBMITTED,
-                             previous_status="", new_status=CaseDocument.Status.PENDING_APPROVAL)
-
-        step_order = 1
-        for cfg in category.approver_configs.order_by("order"):
-            approve_by = None
-            DocumentApprovalStep.objects.create(
-                document=doc,
-                approver=cfg.approver,
-                order=step_order,
-                stage_order=1,
-                stage_policy=DocumentApprovalStage.Policy.ALL_REQUIRED,
-                approval_type=DocumentApprovalStep.ApprovalType.CLICK,
-                status=DocumentApprovalStep.Status.PENDING,
-                approve_by=approve_by,
-            )
-            step_order += 1
-
-        _notify_next_document_approver(doc)
-        return
-
-    # DOCUMENT_ONLY or DOCUMENT_APPROVAL
-    templates = category.document_templates.prefetch_related(
-        "approval_stages__approver_configs"
-    ).all()
-
-    for tmpl in templates:
-        placeholders = tmpl.extract_placeholders()
-        filled = {}
-        has_data = False
-        for ph in placeholders:
-            val = request.POST.get(f"doc_{tmpl.id}_{ph}", "").strip()
-            if val:
-                has_data = True
-            filled[ph] = val
-
-        if not has_data and not tmpl.is_required:
-            continue
-
-        token_expires_at = (
-            now + timezone.timedelta(days=tmpl.token_validity_days)
-            if tmpl.token_validity_days > 0 else None
-        )
-
-        needs_approval = (
-            wt == CaseCategory.WorkflowType.DOCUMENT_APPROVAL
-            and tmpl.approval_flow != DocumentTemplate.ApprovalFlow.NONE
-            and tmpl.approval_stages.exists()
-        )
-
-        doc = CaseDocument.objects.create(
-            case=case,
-            template=tmpl,
-            filled_data=filled,
-            status=CaseDocument.Status.PENDING_APPROVAL if needs_approval else CaseDocument.Status.DRAFT,
-            submitted_at=now,
-            token_expires_at=token_expires_at,
-        )
-        _log_approval_action(doc, DocumentApprovalLog.Action.SUBMITTED,
-                             previous_status="", new_status=doc.status)
-
-        if needs_approval:
-            approve_by = (
-                now + timezone.timedelta(days=tmpl.approver_deadline_days)
-                if tmpl.approver_deadline_days > 0 else None
-            )
-            approval_type = (
-                DocumentApprovalStep.ApprovalType.SIGNATURE
-                if tmpl.approval_flow == DocumentTemplate.ApprovalFlow.SIGNATURE_ONLY
-                else DocumentApprovalStep.ApprovalType.CLICK
-            )
-
-            for stage in tmpl.approval_stages.order_by("order"):
-                # If stage allows user selection, read from POST: stage_<stage.id>_approver_<n>
-                if stage.allow_user_selection:
-                    n = 0
-                    while True:
-                        uid = request.POST.get(f"stage_{stage.id}_approver_{n}")
-                        if not uid:
-                            break
-                        approver = User.objects.filter(id=uid).first()
-                        if approver:
-                            DocumentApprovalStep.objects.create(
-                                document=doc,
-                                approver=approver,
-                                order=n + 1,
-                                stage_order=stage.order,
-                                stage_policy=stage.policy,
-                                approval_type=approval_type,
-                                status=DocumentApprovalStep.Status.PENDING,
-                                approve_by=approve_by,
-                            )
-                        n += 1
-                else:
-                    for cfg in stage.approver_configs.order_by("order"):
-                        DocumentApprovalStep.objects.create(
-                            document=doc,
-                            approver=cfg.approver,
-                            order=cfg.order,
-                            stage_order=stage.order,
-                            stage_policy=stage.policy,
-                            approval_type=approval_type,
-                            status=DocumentApprovalStep.Status.PENDING,
-                            approve_by=approve_by,
-                        )
-
-            generate_case_document_pdf(doc)
-            _notify_next_document_approver(doc)
-        elif wt == CaseCategory.WorkflowType.DOCUMENT_ONLY:
-            generate_case_document_pdf(doc)
-
-
-def _notify_next_document_approver(document):
-    """
-    Post a system message to notify the next pending approver in the current stage.
-    Only approvers in the lowest-order pending stage are notified.
-    """
-    # Find the lowest stage_order that still has pending steps
-    first_pending = document.approval_steps.filter(
-        status=DocumentApprovalStep.Status.PENDING
-    ).order_by("stage_order", "order").first()
-
-    if not first_pending:
-        return
-
-    current_stage_order = first_pending.stage_order
-    stage_policy = first_pending.stage_policy
-
-    # Collect all pending steps in this stage
-    stage_steps = document.approval_steps.filter(
-        stage_order=current_stage_order,
-        status=DocumentApprovalStep.Status.PENDING,
-    ).order_by("order")
-
-    if stage_policy == DocumentApprovalStage.Policy.ANY_ONE:
-        # Notify all approvers in the stage simultaneously
-        notified = [s.approver for s in stage_steps]
-    else:
-        # ALL_REQUIRED: notify only the first pending in the stage
-        notified = [stage_steps.first().approver] if stage_steps.exists() else []
-
-    review_path = reverse("cases:document_approval_review", args=[document.token])
-    doc_title = document.template.title if document.template else f"Approval for {document.case.case_number}"
-
-    for approver in notified:
-        approver_name = approver.get_full_name() or approver.username
-        try:
-            Message.objects.create(
-                case=document.case,
-                body=(
-                    f"[Document Approval Required — Stage {current_stage_order}]\n"
-                    f"Dokumen '{doc_title}' memerlukan persetujuan dari {approver_name}. "
-                    f"Silakan review di: {review_path}"
-                ),
-                direction=Message.Direction.OUTBOUND,
-                channel=Message.Channel.WEB,
-                is_system=True,
-            )
-        except Exception:
-            pass
 
 
 @login_required
@@ -4486,19 +4270,13 @@ def document_template_create(request):
             tmpl.updated_by = request.user
             tmpl.save()
             form.save_m2m()
-            _save_approval_stages(request, tmpl)
             messages.success(request, f"Template '{tmpl.title}' created successfully.")
             return redirect("desk:document_template_list")
     else:
         form = DocumentTemplateForm()
 
-    staff_users = User.objects.filter(is_active=True).exclude(
-        role_access=User.RoleAccess.PORTALUSER
-    ).order_by("first_name")
     return render(request, "desk/document_templates/form.html", {
         "form": form,
-        "staff_users": staff_users,
-        "existing_stages_json": "[]",
         "is_edit": False,
     })
 
@@ -4519,32 +4297,14 @@ def document_template_edit(request, template_id):
             obj.updated_by = request.user
             obj.save()
             form.save_m2m()
-            tmpl.approval_stages.all().delete()
-            _save_approval_stages(request, obj)
             messages.success(request, f"Template '{obj.title}' updated.")
             return redirect("desk:document_template_list")
     else:
         form = DocumentTemplateForm(instance=tmpl)
 
-    import json
-    stages_for_js = []
-    for stage in tmpl.approval_stages.order_by("order").prefetch_related("approver_configs"):
-        stages_for_js.append({
-            "label": stage.label,
-            "policy": stage.policy,
-            "allowUserSelection": stage.allow_user_selection,
-            "approvers": [
-                {"id": str(cfg.approver_id)} for cfg in stage.approver_configs.order_by("order")
-            ],
-        })
-    staff_users = User.objects.filter(is_active=True).exclude(
-        role_access=User.RoleAccess.PORTALUSER
-    ).order_by("first_name")
     return render(request, "desk/document_templates/form.html", {
         "form": form,
         "tmpl": tmpl,
-        "staff_users": staff_users,
-        "existing_stages_json": json.dumps(stages_for_js),
         "is_edit": True,
     })
 
@@ -4562,76 +4322,6 @@ def document_template_delete(request, template_id):
     return redirect("desk:document_template_list")
 
 
-def _save_approval_stages(request, tmpl):
-    """
-    Parse stage_<n>_* POST fields and persist DocumentApprovalStage + DocumentApproverConfig rows.
-
-    Expected POST shape (built by the template form JS):
-      stage_count          — total number of stages
-      stage_<n>_order      — stage order (1-based)
-      stage_<n>_label      — optional label
-      stage_<n>_policy     — "all_required" | "any_one"
-      stage_<n>_allow_user_selection — "1" if checked
-      stage_<n>_approver_count      — how many approvers in this stage
-      stage_<n>_approver_<m>        — User ID of approver m in stage n
-      stage_<n>_approver_order_<m>  — display order of approver m
-    """
-    stage_count = int(request.POST.get("stage_count", 0))
-    for n in range(stage_count):
-        order = int(request.POST.get(f"stage_{n}_order", n + 1))
-        label = request.POST.get(f"stage_{n}_label", "").strip()
-        policy = request.POST.get(f"stage_{n}_policy", DocumentApprovalStage.Policy.ALL_REQUIRED)
-        allow_sel = request.POST.get(f"stage_{n}_allow_user_selection") == "1"
-
-        stage = DocumentApprovalStage.objects.create(
-            template=tmpl,
-            order=order,
-            label=label,
-            policy=policy,
-            allow_user_selection=allow_sel,
-            created_by=request.user,
-            updated_by=request.user,
-        )
-
-        approver_count = int(request.POST.get(f"stage_{n}_approver_count", 0))
-        for m in range(approver_count):
-            approver_id = request.POST.get(f"stage_{n}_approver_{m}")
-            approver_order = int(request.POST.get(f"stage_{n}_approver_order_{m}", m + 1))
-            if not approver_id:
-                continue
-            approver = User.objects.filter(id=approver_id).first()
-            if approver:
-                DocumentApproverConfig.objects.get_or_create(
-                    stage=stage,
-                    approver=approver,
-                    defaults={"order": approver_order, "created_by": request.user, "updated_by": request.user},
-                )
-
-
-# =====================================================================
-# Phase 3 — HTMX: Document Template Fields (called on category change)
-# =====================================================================
-
-def category_document_templates(request, category_id):
-    """
-    HTMX endpoint. Returns the document fill-form section for all templates
-    linked to the given category. Returns empty string if none exist.
-    """
-    category = get_object_or_404(CaseCategory, id=category_id)
-    templates = category.document_templates.prefetch_related("approval_stages__approver_configs").all()
-    if not templates.exists():
-        return HttpResponse("")
-
-    template_data = []
-    for tmpl in templates:
-        template_data.append({
-            "template": tmpl,
-            "placeholders": tmpl.extract_placeholders(),
-        })
-
-    return render(request, "client/partials/document_template_fields.html", {
-        "template_data": template_data,
-    })
 
 
 def document_template_preview_html(request, template_id):
@@ -4647,348 +4337,86 @@ def document_template_preview_html(request, template_id):
     rendered_html = render_document_html(tmpl.body_html, filled)
     return HttpResponse(rendered_html)
 
-
 # =====================================================================
-# Phase 4 — PDF: Generate & Serve
-# =====================================================================
-
-@login_required
-def document_pdf_staff(request, doc_id):
-    """Serve or regenerate the PDF for a CaseDocument (staff only)."""
-    doc = get_object_or_404(CaseDocument, id=doc_id)
-    if not _check_confidential_access(doc.case, request.user):
-        return HttpResponseForbidden("Access denied.")
-
-    from cases.utils_pdf import generate_case_document_pdf
-    if not doc.generated_pdf:
-        generate_case_document_pdf(doc)
-        doc.refresh_from_db()
-
-    if doc.generated_pdf:
-        response = HttpResponse(doc.generated_pdf.read(), content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="{doc.template.title}.pdf"'
-        return response
-    return HttpResponse("PDF not available.", status=404)
-
-
-# =====================================================================
-# Phase 5 — Approval Flow
+# Change Request Document Views (Surat Kronologi)
 # =====================================================================
 
-def document_approval_review(request, token):
-    """
-    Public approval review page, accessible via magic-link token OR login.
-    Returns 410 Gone if the token has expired.
-    """
-    doc = get_object_or_404(CaseDocument, token=token)
-
-    if doc.is_token_expired:
-        return render(request, "client/document_approval_expired.html", {
-            "doc": doc,
-        }, status=410)
-
-    acting_user = request.user if request.user.is_authenticated else None
-
-    step = (
-        doc.approval_steps.filter(approver=acting_user, status=DocumentApprovalStep.Status.PENDING).first()
-        if acting_user else None
-    )
-    pending_step = doc.approval_steps.filter(
-        status=DocumentApprovalStep.Status.PENDING
-    ).order_by("stage_order", "order").first()
-
-    return render(request, "client/document_approval.html", {
-        "doc": doc,
-        "step": step,
-        "pending_step": pending_step,
-        "all_steps": doc.approval_steps.order_by("stage_order", "order"),
-        "approval_logs": doc.approval_logs.order_by("created_at"),
-        "can_act": step is not None,
-    })
-
-
-@require_POST
-def document_approval_approve(request, token):
-    """
-    Handle an approval action (click or signature) for a CaseDocument step.
-    Applies ANY_ONE stage policy: when one approver acts, all siblings in the same
-    stage are marked SKIPPED and the workflow advances to the next stage.
-    """
-    doc = get_object_or_404(CaseDocument, token=token)
-    client_ip, _ = _get_client_ip(request)
-
-    if doc.is_token_expired:
-        _log_approval_action(doc, DocumentApprovalLog.Action.TOKEN_EXPIRED,
-                             previous_status=doc.status, new_status=doc.status,
-                             ip_address=client_ip)
-        messages.error(request, "Link persetujuan ini sudah kadaluarsa dan tidak dapat digunakan lagi.")
-        return redirect("cases:document_approval_review", token=token)
-
-    if not request.user.is_authenticated:
-        return HttpResponseForbidden("Please log in to approve documents.")
-    acting_user = request.user
-
-    step = doc.approval_steps.filter(
-        approver=acting_user, status=DocumentApprovalStep.Status.PENDING
-    ).first()
-    if not step:
-        messages.error(request, "No pending approval step found for your account.")
-        return redirect("cases:document_approval_review", token=token)
-
-    signature_file = request.FILES.get("signature_image")
-    if signature_file:
-        step.approval_type = DocumentApprovalStep.ApprovalType.SIGNATURE
-        step.signature_image = signature_file
-
-    notes = request.POST.get("notes", "").strip()
-    step.status = DocumentApprovalStep.Status.APPROVED
-    step.notes = notes
-    step.acted_at = timezone.now()
-    step.save()
-
-    _log_approval_action(
-        doc, DocumentApprovalLog.Action.APPROVED,
-        actor=acting_user, step=step,
-        stage_order=step.stage_order, notes=notes,
-        previous_status=DocumentApprovalStep.Status.PENDING,
-        new_status=DocumentApprovalStep.Status.APPROVED,
-        ip_address=client_ip,
-    )
-
-    # ANY_ONE policy: skip all other pending steps in the same stage
-    if step.stage_policy == DocumentApprovalStage.Policy.ANY_ONE:
-        sibling_steps = doc.approval_steps.filter(
-            stage_order=step.stage_order,
-            status=DocumentApprovalStep.Status.PENDING,
-        ).exclude(pk=step.pk)
-        for sibling in sibling_steps:
-            sibling.status = DocumentApprovalStep.Status.SKIPPED
-            sibling.acted_at = timezone.now()
-            sibling.save(update_fields=["status", "acted_at"])
-            _log_approval_action(
-                doc, DocumentApprovalLog.Action.SKIPPED,
-                actor=None, step=sibling,
-                stage_order=sibling.stage_order,
-                notes=f"Skipped: ANY_ONE policy satisfied by {acting_user.get_full_name() or acting_user.username}",
-                previous_status=DocumentApprovalStep.Status.PENDING,
-                new_status=DocumentApprovalStep.Status.SKIPPED,
+def _notify_change_request_approvers(doc):
+    """Post a system message for each pending approver with their magic-link URL."""
+    for approval in doc.approvals.filter(
+        status=ChangeRequestApproval.Status.PENDING
+    ).select_related("approver"):
+        approval_url = reverse("cases:change_request_approve", args=[approval.token])
+        approver_name = approval.approver.get_full_name() or approval.approver.username
+        try:
+            Message.objects.create(
+                case=doc.case,
+                body=(
+                    f"[Change Request Approval — Rev.{doc.revision_number}]\n"
+                    f"Ticket {doc.case.case_number} requires approval from {approver_name}.\n"
+                    f"Review: {approval_url}"
+                ),
+                direction=Message.Direction.OUTBOUND,
+                channel=Message.Channel.WEB,
+                is_system=True,
             )
-
-    # Check whether the current stage is complete, then advance
-    remaining_in_stage = doc.approval_steps.filter(
-        stage_order=step.stage_order,
-        status=DocumentApprovalStep.Status.PENDING,
-    ).count()
-
-    if remaining_in_stage == 0:
-        # Current stage done — find the next stage
-        next_stage_steps = doc.approval_steps.filter(
-            stage_order__gt=step.stage_order,
-            status=DocumentApprovalStep.Status.PENDING,
-        ).order_by("stage_order")
-
-        if next_stage_steps.exists():
-            next_stage_order = next_stage_steps.first().stage_order
-            _log_approval_action(
-                doc, DocumentApprovalLog.Action.STAGE_STARTED,
-                stage_order=next_stage_order,
-                previous_status=doc.status, new_status=doc.status,
-            )
-            _notify_next_document_approver(doc)
-        else:
-            # All stages complete — fully approved
-            prev_status = doc.status
-            doc.status = CaseDocument.Status.APPROVED
-            doc.save(update_fields=["status"])
-            _log_approval_action(
-                doc, DocumentApprovalLog.Action.FULLY_APPROVED,
-                actor=acting_user,
-                previous_status=prev_status, new_status=CaseDocument.Status.APPROVED,
-            )
-            from cases.utils_pdf import generate_case_document_pdf
-            generate_case_document_pdf(doc)
-
-            # Transition the case to OPEN if all its documents are fully approved
-            all_docs_approved = not doc.case.documents.exclude(
-                status__in=[CaseDocument.Status.APPROVED, CaseDocument.Status.DRAFT]
-            ).filter(status=CaseDocument.Status.PENDING_APPROVAL).exists()
-
-            if all_docs_approved and doc.case.status == CaseRecord.Status.PENDING_APPROVAL:
-                doc.case.status = CaseRecord.Status.OPEN
-                doc.case.save(update_fields=["status"])
-                _log_approval_action(
-                    doc, DocumentApprovalLog.Action.TICKET_ACTIVATED,
-                    actor=acting_user,
-                    previous_status=CaseRecord.Status.PENDING_APPROVAL,
-                    new_status=CaseRecord.Status.OPEN,
-                )
-                try:
-                    Message.objects.create(
-                        case=doc.case,
-                        body=(
-                            f"[Ticket Activated]\n"
-                            f"Semua persetujuan dokumen telah selesai. "
-                            f"Tiket {doc.case.case_number} sekarang berstatus OPEN dan akan segera diproses."
-                        ),
-                        direction=Message.Direction.OUTBOUND,
-                        channel=Message.Channel.WEB,
-                        is_system=True,
-                    )
-                except Exception:
-                    pass
-    else:
-        # Stage not yet complete (ALL_REQUIRED): notify next pending approver in same stage
-        _notify_next_document_approver(doc)
-
-    messages.success(request, "Document approved successfully.")
-    return redirect("cases:document_approval_review", token=token)
+        except Exception:
+            pass
 
 
-@require_POST
-def document_approval_reject(request, token):
+def _finalize_approved_change_request(doc):
     """
-    Reject a CaseDocument step. Sets the document to REJECTED and the case to
-    REVISION_REQUIRED so the requester can submit a revised version.
+    Generate the change request PDF, attach it to the ticket as a system
+    Message+Attachment, and transition the case to OPEN.
+    Returns True on success.
     """
-    doc = get_object_or_404(CaseDocument, token=token)
-    client_ip, _ = _get_client_ip(request)
+    from cases.utils_pdf import generate_change_request_pdf
+    from django.core.files.base import ContentFile
 
-    if doc.is_token_expired:
-        _log_approval_action(doc, DocumentApprovalLog.Action.TOKEN_EXPIRED,
-                             previous_status=doc.status, new_status=doc.status,
-                             ip_address=client_ip)
-        messages.error(request, "Link persetujuan ini sudah kadaluarsa.")
-        return redirect("cases:document_approval_review", token=token)
+    pdf_bytes = generate_change_request_pdf(doc)
+    if pdf_bytes is None:
+        return False
 
-    if not request.user.is_authenticated:
-        return HttpResponseForbidden("Please log in to reject documents.")
-    acting_user = request.user
-
-    step = doc.approval_steps.filter(
-        approver=acting_user, status=DocumentApprovalStep.Status.PENDING
-    ).first()
-    if not step:
-        messages.error(request, "No pending approval step found for your account.")
-        return redirect("cases:document_approval_review", token=token)
-
-    rejection_reason = request.POST.get("notes", "").strip()
-    step.status = DocumentApprovalStep.Status.REJECTED
-    step.notes = rejection_reason
-    step.acted_at = timezone.now()
-    step.save()
-
-    prev_doc_status = doc.status
-    doc.status = CaseDocument.Status.REJECTED
+    filename = f"change_request_rev{doc.revision_number}.pdf"
+    doc.generated_pdf.save(filename, ContentFile(pdf_bytes), save=True)
+    doc.status = ChangeRequestDocument.Status.APPROVED
     doc.save(update_fields=["status"])
 
-    _log_approval_action(
-        doc, DocumentApprovalLog.Action.REJECTED,
-        actor=acting_user, step=step,
-        stage_order=step.stage_order, notes=rejection_reason,
-        previous_status=prev_doc_status,
-        new_status=CaseDocument.Status.REJECTED,
-        ip_address=client_ip,
-    )
-
-    # Set the case to REVISION_REQUIRED so the requester can revise and resubmit
-    if doc.case.status == CaseRecord.Status.PENDING_APPROVAL:
-        doc.case.status = CaseRecord.Status.REVISION_REQUIRED
-        doc.case.save(update_fields=["status"])
-
-    doc_title = doc.template.title if doc.template else f"dokumen persetujuan"
-    rejector_name = acting_user.get_full_name() or acting_user.username
-
-    _log_approval_action(
-        doc, DocumentApprovalLog.Action.REVISION_REQUESTED,
-        actor=acting_user, notes=rejection_reason,
-        previous_status=CaseRecord.Status.PENDING_APPROVAL,
-        new_status=CaseRecord.Status.REVISION_REQUIRED,
-    )
-
-    try:
-        Message.objects.create(
-            case=doc.case,
-            body=(
-                f"[Document Rejected — Revision Required]\n"
-                f"Dokumen '{doc_title}' ditolak oleh {rejector_name}. "
-                f"Alasan: {rejection_reason or 'Tidak ada alasan yang diberikan.'}\n"
-                f"Pemohon diminta untuk melakukan revisi dan mengirim ulang dokumen."
-            ),
-            direction=Message.Direction.OUTBOUND,
-            channel=Message.Channel.WEB,
-            is_system=True,
-        )
-    except Exception:
-        pass
-
-    messages.error(request, "Document rejected. The requester has been notified to revise.")
-    return redirect("cases:document_approval_review", token=token)
-
-
-# =====================================================================
-# Phase 6 — Portal: Approval Tracking & Document Revision
-# =====================================================================
-
-def portal_pending_approvals(request):
-    """
-    Portal page showing the requester's tickets that are pending approval
-    or require revision. Accessible via guest_token or authenticated portal user.
-    """
-    guest_token = request.GET.get("token", "").strip()
-    cases_qs = None
-
-    if request.user.is_authenticated and request.user.role_access == User.RoleAccess.PORTALUSER:
-        cases_qs = CaseRecord.objects.filter(
-            requester_email=request.user.email,
-            status__in=[CaseRecord.Status.PENDING_APPROVAL, CaseRecord.Status.REVISION_REQUIRED],
-        ).prefetch_related("documents").order_by("-created_at")
-    elif guest_token:
-        cases_qs = CaseRecord.objects.filter(
-            guest_token=guest_token,
-            status__in=[CaseRecord.Status.PENDING_APPROVAL, CaseRecord.Status.REVISION_REQUIRED],
-        ).prefetch_related("documents").order_by("-created_at")
-
-    return render(request, "client/portal_pending_approvals.html", {
-        "cases": cases_qs or [],
-        "guest_token": guest_token,
-    })
-
-
-def portal_approval_status(request, case_id):
-    """
-    Shows the full approval history (DocumentApprovalLog timeline) for a ticket.
-    Accessible to the requester via guest_token query param or authenticated portal user.
-    """
-    guest_token = request.GET.get("token", "").strip()
-    case = get_object_or_404(CaseRecord, id=case_id)
-
-    is_owner = (
-        (request.user.is_authenticated and request.user.email == case.requester_email)
-        or (guest_token and case.guest_token == guest_token)
-    )
-    if not is_owner and not (request.user.is_authenticated and hasattr(request.user, "role_access")):
-        return HttpResponseForbidden("Access denied.")
-
-    documents = case.documents.prefetch_related(
-        "approval_logs", "approval_steps"
-    ).order_by("created_at")
-
-    return render(request, "client/portal_approval_status.html", {
-        "case": case,
-        "documents": documents,
-        "guest_token": guest_token,
-    })
-
-
-def portal_document_revise(request, doc_id):
-    """
-    Portal page for the requester to submit a revised document after rejection.
-    The revision creates a new CaseDocument with revision_number incremented,
-    resets the approval chain from stage 1, and sets the case back to PENDING_APPROVAL.
-    """
-    guest_token = request.GET.get("token", request.POST.get("token", "")).strip()
-    doc = get_object_or_404(CaseDocument, id=doc_id)
     case = doc.case
+    msg = Message.objects.create(
+        case=case,
+        body=(
+            f"[Change Request Approved — Rev.{doc.revision_number}]\n"
+            f"The change request document has been fully approved and attached."
+        ),
+        direction=Message.Direction.OUTBOUND,
+        channel=Message.Channel.WEB,
+        is_system=True,
+    )
+
+    attach = Attachment(
+        message=msg,
+        original_filename=filename,
+        mime_type="application/pdf",
+        file_size=len(pdf_bytes),
+    )
+    attach.file.save(filename, ContentFile(pdf_bytes), save=True)
+
+    if case.status == CaseRecord.Status.PENDING_APPROVAL:
+        case.status = CaseRecord.Status.OPEN
+        case.save(update_fields=["status"])
+
+    return True
+
+
+def portal_change_request_new(request, case_id):
+    """
+    Create a new ChangeRequestDocument for a ticket.
+    GET: form with request_change + chronology fields and optional approver selection.
+    POST: create the document and route it to selected approvers (or auto-approve).
+    """
+    case = get_object_or_404(CaseRecord, id=case_id)
+    guest_token = request.GET.get("token", request.POST.get("token", "")).strip()
 
     is_owner = (
         (request.user.is_authenticated and request.user.email == case.requester_email)
@@ -4997,90 +4425,284 @@ def portal_document_revise(request, doc_id):
     if not is_owner:
         return HttpResponseForbidden("Access denied.")
 
-    if doc.status != CaseDocument.Status.REJECTED:
-        messages.error(request, "This document is not in a rejected state.")
-        return redirect("cases:portal_approval_status", case_id=case.id)
+    if not case.category.enable_change_request:
+        return HttpResponseForbidden("Change request is not enabled for this category.")
+
+    active_doc = case.change_requests.filter(
+        status__in=[
+            ChangeRequestDocument.Status.PENDING_APPROVAL,
+            ChangeRequestDocument.Status.APPROVED,
+        ]
+    ).first()
+    if active_doc:
+        messages.info(request, "A change request is already active or approved for this ticket.")
+        query = f"?token={guest_token}" if guest_token else ""
+        return redirect(f"{reverse('cases:portal_change_request_detail', args=[active_doc.id])}{query}")
+
+    available_approvers = User.objects.filter(
+        is_active=True,
+        role_access__in=[
+            User.RoleAccess.SUPERADMIN,
+            User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK,
+        ],
+    ).order_by("first_name", "last_name")
 
     if request.method == "POST":
-        from cases.utils_pdf import generate_case_document_pdf
+        request_change = request.POST.get("request_change", "").strip()
+        chronology = request.POST.get("chronology", "").strip()
 
-        tmpl = doc.template
-        placeholders = tmpl.extract_placeholders() if tmpl else []
-        filled = {}
-        for ph in placeholders:
-            filled[ph] = request.POST.get(f"doc_{ph}", "").strip()
+        if not request_change or not chronology:
+            messages.error(request, "Both fields are required.")
+            return render(request, "client/change_request_form.html", {
+                "case": case,
+                "available_approvers": available_approvers,
+                "guest_token": guest_token,
+            })
 
-        now = timezone.now()
-        token_expires_at = None
-        if tmpl and tmpl.token_validity_days > 0:
-            token_expires_at = now + timezone.timedelta(days=tmpl.token_validity_days)
+        approver_ids = request.POST.getlist("approvers")
+        has_approvers = bool(approver_ids)
 
-        # Create a new revision document
-        new_doc = CaseDocument.objects.create(
+        doc = ChangeRequestDocument.objects.create(
             case=case,
-            template=tmpl,
-            filled_data=filled,
-            revision_number=doc.revision_number + 1,
-            status=CaseDocument.Status.PENDING_APPROVAL if (tmpl and tmpl.approval_stages.exists()) else CaseDocument.Status.DRAFT,
-            submitted_at=now,
-            token_expires_at=token_expires_at,
+            request_change=request_change,
+            chronology=chronology,
+            status=(
+                ChangeRequestDocument.Status.PENDING_APPROVAL
+                if has_approvers else ChangeRequestDocument.Status.APPROVED
+            ),
+            submitted_at=timezone.now(),
         )
 
-        _log_approval_action(
-            new_doc, DocumentApprovalLog.Action.REVISION_SUBMITTED,
-            actor=request.user if request.user.is_authenticated else None,
-            notes=f"Revision #{new_doc.revision_number} submitted.",
-            previous_status=doc.status,
-            new_status=new_doc.status,
-        )
-
-        # Rebuild approval steps from template stages (reset to stage 1)
-        if tmpl:
-            approve_by = (
-                now + timezone.timedelta(days=tmpl.approver_deadline_days)
-                if tmpl.approver_deadline_days > 0 else None
-            )
-            approval_type = (
-                DocumentApprovalStep.ApprovalType.SIGNATURE
-                if tmpl.approval_flow == DocumentTemplate.ApprovalFlow.SIGNATURE_ONLY
-                else DocumentApprovalStep.ApprovalType.CLICK
-            )
-            for stage in tmpl.approval_stages.order_by("order"):
-                for cfg in stage.approver_configs.order_by("order"):
-                    DocumentApprovalStep.objects.create(
-                        document=new_doc,
-                        approver=cfg.approver,
-                        order=cfg.order,
-                        stage_order=stage.order,
-                        stage_policy=stage.policy,
-                        approval_type=approval_type,
-                        status=DocumentApprovalStep.Status.PENDING,
-                        approve_by=approve_by,
+        if has_approvers:
+            for order, uid in enumerate(approver_ids, start=1):
+                approver = User.objects.filter(id=uid).first()
+                if approver:
+                    ChangeRequestApproval.objects.create(
+                        document=doc,
+                        approver=approver,
+                        order=order,
                     )
-            generate_case_document_pdf(new_doc)
-
-        # Reactivate the approval workflow on the case
-        if case.status == CaseRecord.Status.REVISION_REQUIRED:
             case.status = CaseRecord.Status.PENDING_APPROVAL
             case.save(update_fields=["status"])
+            _notify_change_request_approvers(doc)
+            messages.success(request, "Change request submitted and sent to approvers.")
+        else:
+            _finalize_approved_change_request(doc)
+            messages.success(request, "Change request approved and attached to the ticket.")
 
-        _notify_next_document_approver(new_doc)
-        messages.success(request, f"Revisi dokumen berhasil dikirim (Revisi #{new_doc.revision_number}).")
         query = f"?token={guest_token}" if guest_token else ""
-        return redirect(f"{reverse('cases:portal_approval_status', args=[case.id])}{query}")
+        return redirect(
+            f"{reverse('cases:portal_change_request_detail', args=[doc.id])}{query}"
+        )
 
-    placeholders = doc.template.extract_placeholders() if doc.template else []
-    prefilled_fields = [
-        {
-            "key": ph,
-            "label": ph.replace("_", " ").capitalize(),
-            "value": doc.filled_data.get(ph, ""),
-        }
-        for ph in placeholders
-    ]
-    return render(request, "client/portal_document_revise.html", {
+    return render(request, "client/change_request_form.html", {
+        "case": case,
+        "available_approvers": available_approvers,
+        "guest_token": guest_token,
+    })
+
+
+def portal_change_request_detail(request, doc_id):
+    """Show the status and approval timeline for a ChangeRequestDocument."""
+    doc = get_object_or_404(ChangeRequestDocument, id=doc_id)
+    case = doc.case
+    guest_token = request.GET.get("token", "").strip()
+
+    is_owner = (
+        (request.user.is_authenticated and request.user.email == case.requester_email)
+        or (guest_token and case.guest_token == guest_token)
+    )
+    staff_access = request.user.is_authenticated and hasattr(request.user, "role_access")
+    if not is_owner and not staff_access:
+        return HttpResponseForbidden("Access denied.")
+
+    return render(request, "client/change_request_status.html", {
         "doc": doc,
         "case": case,
-        "prefilled_fields": prefilled_fields,
+        "approvals": doc.approvals.order_by("order").select_related("approver"),
         "guest_token": guest_token,
+    })
+
+
+def portal_change_request_revise(request, doc_id):
+    """
+    Allow the requester to submit a revised change request after rejection.
+    Creates a new ChangeRequestDocument with revision_number incremented.
+    """
+    doc = get_object_or_404(ChangeRequestDocument, id=doc_id)
+    case = doc.case
+    guest_token = request.GET.get("token", request.POST.get("token", "")).strip()
+
+    is_owner = (
+        (request.user.is_authenticated and request.user.email == case.requester_email)
+        or (guest_token and case.guest_token == guest_token)
+    )
+    if not is_owner:
+        return HttpResponseForbidden("Access denied.")
+
+    if doc.status != ChangeRequestDocument.Status.REJECTED:
+        messages.error(request, "This change request is not in a rejected state.")
+        return redirect("cases:portal_change_request_detail", doc_id=doc.id)
+
+    available_approvers = User.objects.filter(
+        is_active=True,
+        role_access__in=[
+            User.RoleAccess.SUPERADMIN,
+            User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK,
+        ],
+    ).order_by("first_name", "last_name")
+
+    if request.method == "POST":
+        request_change = request.POST.get("request_change", "").strip()
+        chronology = request.POST.get("chronology", "").strip()
+
+        if not request_change or not chronology:
+            messages.error(request, "Both fields are required.")
+            return render(request, "client/change_request_form.html", {
+                "case": case,
+                "doc": doc,
+                "available_approvers": available_approvers,
+                "is_revision": True,
+                "guest_token": guest_token,
+            })
+
+        approver_ids = request.POST.getlist("approvers")
+        has_approvers = bool(approver_ids)
+
+        new_doc = ChangeRequestDocument.objects.create(
+            case=case,
+            request_change=request_change,
+            chronology=chronology,
+            revision_number=doc.revision_number + 1,
+            status=(
+                ChangeRequestDocument.Status.PENDING_APPROVAL
+                if has_approvers else ChangeRequestDocument.Status.APPROVED
+            ),
+            submitted_at=timezone.now(),
+        )
+
+        if has_approvers:
+            for order, uid in enumerate(approver_ids, start=1):
+                approver = User.objects.filter(id=uid).first()
+                if approver:
+                    ChangeRequestApproval.objects.create(
+                        document=new_doc,
+                        approver=approver,
+                        order=order,
+                    )
+            case.status = CaseRecord.Status.PENDING_APPROVAL
+            case.save(update_fields=["status"])
+            _notify_change_request_approvers(new_doc)
+            messages.success(request, f"Revision #{new_doc.revision_number} submitted.")
+        else:
+            _finalize_approved_change_request(new_doc)
+            messages.success(request, f"Revision #{new_doc.revision_number} approved and attached.")
+
+        query = f"?token={guest_token}" if guest_token else ""
+        return redirect(
+            f"{reverse('cases:portal_change_request_detail', args=[new_doc.id])}{query}"
+        )
+
+    rejection_note = (
+        doc.approvals.filter(status=ChangeRequestApproval.Status.REJECTED)
+        .order_by("-acted_at")
+        .values_list("notes", flat=True)
+        .first()
+    )
+    return render(request, "client/change_request_form.html", {
+        "case": case,
+        "doc": doc,
+        "available_approvers": available_approvers,
+        "is_revision": True,
+        "rejection_note": rejection_note or "",
+        "prefill_request_change": doc.request_change,
+        "prefill_chronology": doc.chronology,
+        "guest_token": guest_token,
+    })
+
+
+def change_request_approve(request, token):
+    """
+    Magic-link page for approvers to review and act on a ChangeRequestDocument.
+    GET: show the document with approve/reject form.
+    POST: process the approval or rejection.
+    """
+    approval = get_object_or_404(ChangeRequestApproval, token=token)
+    doc = approval.document
+    case = doc.case
+
+    if approval.status != ChangeRequestApproval.Status.PENDING:
+        return render(request, "client/change_request_approval.html", {
+            "approval": approval, "doc": doc, "case": case, "already_acted": True,
+        })
+
+    if approval.is_token_expired:
+        return render(request, "client/change_request_approval.html", {
+            "approval": approval, "doc": doc, "case": case, "token_expired": True,
+        })
+
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        notes = request.POST.get("notes", "").strip()
+        now = timezone.now()
+
+        if action == "approve":
+            approval.status = ChangeRequestApproval.Status.APPROVED
+            approval.notes = notes
+            approval.acted_at = now
+            approval.save(update_fields=["status", "notes", "acted_at"])
+
+            if doc.is_fully_approved:
+                _finalize_approved_change_request(doc)
+            else:
+                _notify_change_request_approvers(doc)
+
+            return render(request, "client/change_request_approval.html", {
+                "approval": approval, "doc": doc, "case": case,
+                "success": True, "action_done": "approved",
+            })
+
+        elif action == "reject":
+            if not notes:
+                messages.error(request, "Please provide a reason for rejection.")
+                return render(request, "client/change_request_approval.html", {
+                    "approval": approval, "doc": doc, "case": case,
+                })
+
+            approval.status = ChangeRequestApproval.Status.REJECTED
+            approval.notes = notes
+            approval.acted_at = now
+            approval.save(update_fields=["status", "notes", "acted_at"])
+
+            doc.status = ChangeRequestDocument.Status.REJECTED
+            doc.save(update_fields=["status"])
+
+            if case.status == CaseRecord.Status.PENDING_APPROVAL:
+                case.status = CaseRecord.Status.REVISION_REQUIRED
+                case.save(update_fields=["status"])
+
+            try:
+                approver_name = approval.approver.get_full_name() or approval.approver.username
+                Message.objects.create(
+                    case=case,
+                    body=(
+                        f"[Change Request Rejected — Rev.{doc.revision_number}]\n"
+                        f"Rejected by {approver_name}.\nReason: {notes}"
+                    ),
+                    direction=Message.Direction.OUTBOUND,
+                    channel=Message.Channel.WEB,
+                    is_system=True,
+                )
+            except Exception:
+                pass
+
+            return render(request, "client/change_request_approval.html", {
+                "approval": approval, "doc": doc, "case": case,
+                "success": True, "action_done": "rejected",
+            })
+
+    return render(request, "client/change_request_approval.html", {
+        "approval": approval, "doc": doc, "case": case,
     })

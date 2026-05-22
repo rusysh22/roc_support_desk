@@ -17,7 +17,7 @@ urlpatterns = [
     path("category/<uuid:category_id>/update/", views.update_category, name="update_category"),
     path("category/<uuid:category_id>/delete/", views.delete_category, name="delete_category"),
 
-    # Sub-category selection (for main categories with children)
+    # Sub-category selection
     path("category/<slug:slug>/", views.category_children, name="category_children"),
 
     # Create a new case (optional category pre-selection via slug)
@@ -31,19 +31,12 @@ urlpatterns = [
     # Dynamic Form Public Renderer
     path("f/<slug:slug>/", views.public_form_view, name="public_form"),
 
-    # HTMX: document template fields on category change
-    path("category/<uuid:category_id>/document-templates/", views.category_document_templates, name="category_document_templates"),
-
-    # HTMX: preview rendered document HTML
+    # Document template preview (HTMX, admin staff)
     path("document-preview/<uuid:template_id>/", views.document_template_preview_html, name="document_template_preview_html"),
 
-    # Approval: magic-link review page (public)
-    path("document/<uuid:token>/review/", views.document_approval_review, name="document_approval_review"),
-    path("document/<uuid:token>/approve/", views.document_approval_approve, name="document_approval_approve"),
-    path("document/<uuid:token>/reject/", views.document_approval_reject, name="document_approval_reject"),
-
-    # Portal: approval tracking and revision
-    path("portal/approvals/", views.portal_pending_approvals, name="portal_pending_approvals"),
-    path("portal/approvals/<uuid:case_id>/", views.portal_approval_status, name="portal_approval_status"),
-    path("portal/document/<uuid:doc_id>/revise/", views.portal_document_revise, name="portal_document_revise"),
+    # Change Request Document (Surat Kronologi)
+    path("change-request/<uuid:case_id>/new/", views.portal_change_request_new, name="portal_change_request_new"),
+    path("change-request/<uuid:doc_id>/", views.portal_change_request_detail, name="portal_change_request_detail"),
+    path("change-request/<uuid:doc_id>/revise/", views.portal_change_request_revise, name="portal_change_request_revise"),
+    path("change-request/approve/<uuid:token>/", views.change_request_approve, name="change_request_approve"),
 ]
