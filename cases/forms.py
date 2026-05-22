@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 import dns.resolver
 
 from core.models import CompanyUnit
-from .models import CaseCategory, CaseRecord
+from .models import CaseCategory, CaseRecord, DocumentTemplate
 
 
 # =====================================================================
@@ -369,5 +369,39 @@ class StaffReplyForm(forms.Form):
                 f'File "{f.name}" has a disallowed type ({detected_mime}). '
                 f"Accepted types: PDF, images, Word, Excel, PowerPoint, plain text, CSV, ZIP."
             )
-        
+
         return f
+
+
+# =====================================================================
+# Document Template Form (Admin)
+# =====================================================================
+
+class DocumentTemplateForm(forms.ModelForm):
+    """Form for creating/editing a DocumentTemplate."""
+
+    class Meta:
+        model = DocumentTemplate
+        fields = [
+            "title", "description", "body_html", "categories",
+            "is_required", "approval_flow",
+            "token_validity_days", "approver_deadline_days",
+        ]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "jk-input", "placeholder": "e.g. Surat Kronologi"}),
+            "description": forms.Textarea(attrs={
+                "class": "jk-input",
+                "rows": 3,
+                "placeholder": "Short description of this document template...",
+            }),
+            "body_html": forms.Textarea(attrs={
+                "id": "document-body-editor",
+                "class": "jk-input font-mono text-sm",
+                "rows": 20,
+                "placeholder": "Write the document body in HTML. Use {{placeholder}} for dynamic fields.",
+            }),
+            "categories": forms.CheckboxSelectMultiple(),
+            "approval_flow": forms.Select(attrs={"class": "jk-input"}),
+            "token_validity_days": forms.NumberInput(attrs={"class": "jk-input", "min": "0"}),
+            "approver_deadline_days": forms.NumberInput(attrs={"class": "jk-input", "min": "0"}),
+        }

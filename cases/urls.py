@@ -30,4 +30,20 @@ urlpatterns = [
 
     # Dynamic Form Public Renderer
     path("f/<slug:slug>/", views.public_form_view, name="public_form"),
+
+    # HTMX: document template fields on category change
+    path("category/<uuid:category_id>/document-templates/", views.category_document_templates, name="category_document_templates"),
+
+    # HTMX: preview rendered document HTML
+    path("document-preview/<uuid:template_id>/", views.document_template_preview_html, name="document_template_preview_html"),
+
+    # Approval: magic-link review page (public)
+    path("document/<uuid:token>/review/", views.document_approval_review, name="document_approval_review"),
+    path("document/<uuid:token>/approve/", views.document_approval_approve, name="document_approval_approve"),
+    path("document/<uuid:token>/reject/", views.document_approval_reject, name="document_approval_reject"),
+
+    # Portal: approval tracking and revision
+    path("portal/approvals/", views.portal_pending_approvals, name="portal_pending_approvals"),
+    path("portal/approvals/<uuid:case_id>/", views.portal_approval_status, name="portal_approval_status"),
+    path("portal/document/<uuid:doc_id>/revise/", views.portal_document_revise, name="portal_document_revise"),
 ]

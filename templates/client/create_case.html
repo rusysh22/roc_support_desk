@@ -578,6 +578,9 @@
                 </div>
                 {% endif %}
 
+                <!-- Document Templates (loaded dynamically when category changes) -->
+                <div id="document-templates-container"></div>
+
                 <hr class="jk-divider">
 
                 <!-- Submit -->
@@ -636,4 +639,32 @@
   @keyframes track-bar-shrink { from { width: 100%; } to { width: 0%; } }
 </style>
 {% endif %}
+
+<script>
+(function () {
+    const categorySelect = document.getElementById('id_category');
+    const container = document.getElementById('document-templates-container');
+    if (!categorySelect || !container) return;
+
+    function loadDocumentTemplates(categoryId) {
+        if (!categoryId) {
+            container.innerHTML = '';
+            return;
+        }
+        htmx.ajax('GET', `/category/${categoryId}/document-templates/`, {
+            target: '#document-templates-container',
+            swap: 'innerHTML',
+        });
+    }
+
+    categorySelect.addEventListener('change', function () {
+        loadDocumentTemplates(this.value);
+    });
+
+    // On page load, if a category is already selected (e.g. pre-selected via slug)
+    if (categorySelect.value) {
+        loadDocumentTemplates(categorySelect.value);
+    }
+})();
+</script>
 {% endblock %}

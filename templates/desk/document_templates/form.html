@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit{% else %}Create{% endif %} Document Template | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+
+{% block extra_head %}
+<!-- Quill.js for rich HTML editing -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<style>
+    .ql-toolbar.ql-snow { border-radius: 0.75rem 0.75rem 0 0; border-color: #e2e8f0; background: #f8fafc; }
+    .ql-container.ql-snow { border-radius: 0 0 0.75rem 0.75rem; border-color: #e2e8f0; min-height: 300px; font-size: 0.875rem; }
+    .ql-editor { min-height: 300px; }
+    .placeholder-chip { cursor: pointer; user-select: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6" x-data="documentTemplateForm()">
+
+    <div class="flex items-center gap-4">
+        <a href="{% url 'desk:document_template_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </a>
+        <div>
+            <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit Template: {{ tmpl.title }}{% else %}Create Document Template{% endif %}</h2>
+            <p class="text-sm text-slate-600 mt-0.5">Define the document structure. Use <code class="bg-slate-100 px-1 rounded text-xs">&#123;&#123;placeholder&#125;&#125;</code> for dynamic fields users fill in.</p>
+        </div>
+    </div>
+
+    {% if form.errors %}
+    <div class="p-4 rounded-xl bg-red-50 text-red-800 border border-red-200 text-sm">
+        <strong class="font-bold">Please fix the following errors:</strong>
+        <ul class="list-disc ml-5 mt-2 space-y-1">
+            {% for field in form %}{% for error in field.errors %}<li><b>{{ field.label }}</b>: {{ error }}</li>{% endfor %}{% endfor %}
+            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" id="template-form">
+        {% csrf_token %}
+        <!-- Hidden field to store Quill HTML output -->
+        <textarea name="body_html" id="body_html_hidden" class="hidden">{{ form.body_html.value|default:"" }}</textarea>
+
+        <div class="space-y-6">
+
+            <!-- Core Details -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+                <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Template Details</h3>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Template Title <span class="text-red-500">*</span></label>
+                    {{ form.title }}
+                    {% if form.title.errors %}<p class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+                    {{ form.description }}
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Approval Flow <span class="text-red-500">*</span></label>
+                        {{ form.approval_flow }}
+                    </div>
+                    <div class="flex items-center gap-3 pt-6">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            {{ form.is_required }}
+                            <span class="text-sm font-medium text-slate-700">Required (must submit before ticket)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Expiry & Deadline Config -->
+                <div class="pt-4 border-t border-slate-100">
+                    <h4 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <svg class="h-4 w-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Expiry &amp; Deadline Config
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Link Validity (days)
+                            </label>
+                            {{ form.token_validity_days }}
+                            <p class="text-xs text-slate-500 mt-1">
+                                How many days the approval link stays active.
+                                <strong>0</strong> = never expires.
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Approver Deadline (days)
+                            </label>
+                            {{ form.approver_deadline_days }}
+                            <p class="text-xs text-slate-500 mt-1">
+                                How many days each approver has to act before marked overdue.
+                                <strong>0</strong> = no deadline.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Applicable Categories</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border border-slate-200 rounded-xl bg-slate-50 max-h-48 overflow-y-auto">
+                        {% for checkbox in form.categories %}
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer p-1.5 rounded-lg hover:bg-white transition-colors">
+                            {{ checkbox.tag }}
+                            {{ checkbox.choice_label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">This document form will appear on ticket submission for selected categories.</p>
+                </div>
+            </div>
+
+            <!-- Document Body Editor -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-800">Document Body</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Use <code class="bg-slate-100 px-1 rounded">&#123;&#123;nama_pemohon&#125;&#125;</code> syntax for dynamic fields. Detected placeholders appear below.</p>
+                    </div>
+                    <button type="button" @click="toggleSourceMode()" class="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                        <span x-text="sourceMode ? 'Visual Editor' : 'HTML Source'"></span>
+                    </button>
+                </div>
+
+                <!-- Quill editor (hidden when source mode) -->
+                <div x-show="!sourceMode">
+                    <div id="quill-editor"></div>
+                </div>
+
+                <!-- Raw HTML source textarea (hidden when visual mode) -->
+                <div x-show="sourceMode">
+                    <textarea id="html-source-textarea" class="jk-input w-full font-mono text-xs" rows="20"
+                        @input="syncFromSource($event.target.value)">{{ form.body_html.value|default:"" }}</textarea>
+                </div>
+
+                <!-- Detected placeholders -->
+                <div id="placeholder-preview" class="mt-2">
+                    <p class="text-xs font-medium text-slate-600 mb-2">Detected placeholders:</p>
+                    <div id="placeholder-chips" class="flex flex-wrap gap-2">
+                        <span class="text-xs text-slate-400">Type &#123;&#123;variable&#125;&#125; in the editor to see placeholders here.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Stages -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4" id="stages-section">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-800">Approval Chain — Stages</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Add stages in order. Each stage can have multiple approvers with ALL or ANY-ONE policy.</p>
+                    </div>
+                    <button type="button" @click="addStage()" class="text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Add Stage
+                    </button>
+                </div>
+
+                <input type="hidden" name="stage_count" :value="stages.length">
+
+                <div class="space-y-4">
+                    <template x-for="(stage, si) in stages" :key="si">
+                        <div class="border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-3">
+                            <!-- Stage header -->
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-bold text-slate-500 uppercase">Stage</span>
+                                <span class="text-sm font-bold text-slate-700 w-6 text-center" x-text="si + 1"></span>
+                                <input type="hidden" :name="'stage_' + si + '_order'" :value="si + 1">
+                                <input type="text" :name="'stage_' + si + '_label'" x-model="stage.label"
+                                    class="jk-input flex-1 text-sm" placeholder="Stage label (optional, e.g. Manager Approval)">
+                                <button type="button" @click="removeStage(si)"
+                                    class="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                            <!-- Stage policy -->
+                            <div class="flex items-center gap-4 flex-wrap">
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                                    <input type="radio" :name="'stage_' + si + '_policy'"
+                                        value="all_required" x-model="stage.policy">
+                                    All Required (everyone must approve)
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                                    <input type="radio" :name="'stage_' + si + '_policy'"
+                                        value="any_one" x-model="stage.policy">
+                                    Any One (first to act advances)
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer ml-auto">
+                                    <input type="checkbox" :name="'stage_' + si + '_allow_user_selection'"
+                                        value="1" x-model="stage.allowUserSelection">
+                                    User picks approvers at submission
+                                </label>
+                            </div>
+                            <!-- Stage approvers -->
+                            <div class="space-y-2">
+                                <p class="text-xs font-semibold text-slate-500">Approvers in this stage:</p>
+                                <template x-for="(appr, ai) in stage.approvers" :key="ai">
+                                    <div class="flex items-center gap-2">
+                                        <select :name="'stage_' + si + '_approver_' + ai" class="jk-input flex-1 text-sm">
+                                            <option value="">Select approver...</option>
+                                            {% for user in staff_users %}
+                                            <option value="{{ user.id }}"
+                                                :selected="appr.id === '{{ user.id }}'">
+                                                {{ user.get_full_name|default:user.username }} ({{ user.role_access }})
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <input type="hidden" :name="'stage_' + si + '_approver_order_' + ai" :value="ai + 1">
+                                        <button type="button" @click="removeApproverFromStage(si, ai)"
+                                            class="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors shrink-0">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                </template>
+                                <input type="hidden" :name="'stage_' + si + '_approver_count'" :value="stage.approvers.length">
+                                <button type="button" @click="addApproverToStage(si)"
+                                    class="text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1 mt-1">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    Add approver to this stage
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="stages.length === 0" class="text-center py-6 text-sm text-slate-400">
+                        No stages added. Documents will be auto-approved without an approval chain.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="flex justify-end gap-3">
+                <a href="{% url 'desk:document_template_list' %}" class="px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Cancel</a>
+                <button type="submit" id="submit-btn" class="jk-btn-primary px-6 py-2.5 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all text-sm font-medium">
+                    {% if is_edit %}Save Changes{% else %}Create Template{% endif %}
+                </button>
+            </div>
+
+        </div>
+    </form>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function documentTemplateForm() {
+    return {
+        sourceMode: false,
+        quillEditor: null,
+        stages: {{ existing_stages_json|default:"[]"|safe }},
+
+        init() {
+            this.$nextTick(() => {
+                this.quillEditor = new Quill('#quill-editor', {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            [{ 'align': [] }],
+                            ['table'],
+                            ['clean']
+                        ]
+                    },
+                    placeholder: 'Write your document body here...'
+                });
+
+                const existing = document.getElementById('body_html_hidden').value;
+                if (existing) {
+                    this.quillEditor.clipboard.dangerouslyPasteHTML(existing);
+                }
+
+                this.quillEditor.on('text-change', () => {
+                    this.syncFromQuill();
+                });
+
+                this.updatePlaceholderChips(existing || '');
+            });
+
+            document.getElementById('template-form').addEventListener('submit', () => {
+                if (!this.sourceMode && this.quillEditor) {
+                    document.getElementById('body_html_hidden').value = this.quillEditor.root.innerHTML;
+                }
+            });
+        },
+
+        syncFromQuill() {
+            const html = this.quillEditor.root.innerHTML;
+            document.getElementById('body_html_hidden').value = html;
+            document.getElementById('html-source-textarea').value = html;
+            this.updatePlaceholderChips(html);
+        },
+
+        syncFromSource(html) {
+            document.getElementById('body_html_hidden').value = html;
+            if (this.quillEditor) {
+                this.quillEditor.clipboard.dangerouslyPasteHTML(html);
+            }
+            this.updatePlaceholderChips(html);
+        },
+
+        toggleSourceMode() {
+            if (!this.sourceMode && this.quillEditor) {
+                document.getElementById('html-source-textarea').value = this.quillEditor.root.innerHTML;
+            }
+            this.sourceMode = !this.sourceMode;
+        },
+
+        updatePlaceholderChips(html) {
+            const matches = [...new Set([...html.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]))];
+            const container = document.getElementById('placeholder-chips');
+            if (matches.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400">Type {{variable}} in the editor to see placeholders here.</span>';
+                return;
+            }
+            container.innerHTML = matches.map(ph =>
+                `<span class="placeholder-chip inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path></svg>
+                    ${ph}
+                </span>`
+            ).join('');
+        },
+
+        addStage() {
+            this.stages.push({
+                label: '',
+                policy: 'all_required',
+                allowUserSelection: false,
+                approvers: [{ id: '' }],
+            });
+        },
+
+        removeStage(si) {
+            this.stages.splice(si, 1);
+        },
+
+        addApproverToStage(si) {
+            this.stages[si].approvers.push({ id: '' });
+        },
+
+        removeApproverFromStage(si, ai) {
+            this.stages[si].approvers.splice(ai, 1);
+        },
+    }
+}
+</script>
+{% endblock %}

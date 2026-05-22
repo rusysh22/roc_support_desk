@@ -181,6 +181,15 @@
                 </a>
             </div>
             
+            {% if user.role_access in 'SuperAdmin,Manager' %}
+            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+            <a href="{% url 'desk:document_template_list' %}" class="jk-sidebar-link {% block nav_doc_templates %}{% endblock %}" style="flex:1;">
+                <span class="jk-sidebar-link-icon">📄</span>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Document Templates</span>
+            </a>
+            </div>
+            {% endif %}
+
             <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
             <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}" style="flex:1;">
                 <span class="jk-sidebar-link-icon">🔗</span>

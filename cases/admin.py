@@ -7,7 +7,11 @@ list filters, and audit field auto-population.
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline, StackedInline
 
-from .models import Attachment, CaseCategory, CaseRecord, Message, RCATemplate
+from .models import (
+    Attachment, CaseAuditLog, CaseCategory, CaseDocument, CaseRecord,
+    CategoryApproverConfig, DocumentApprovalLog, DocumentApprovalStage,
+    DocumentApprovalStep, DocumentApproverConfig, DocumentTemplate, Message, RCATemplate,
+)
 
 
 # =====================================================================
@@ -40,8 +44,8 @@ class MessageInline(StackedInline):
 class CaseCategoryAdmin(ModelAdmin):
     """Admin for service catalogue categories."""
 
-    list_display = ("name", "parent", "prefix_code", "slug", "icon", "is_confidential", "created_at")
-    list_filter = ("parent", "is_confidential")
+    list_display = ("name", "parent", "workflow_type", "prefix_code", "slug", "is_confidential", "created_at")
+    list_filter = ("parent", "is_confidential", "workflow_type")
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
@@ -198,6 +202,134 @@ class AttachmentAdmin(ModelAdmin):
 
     def has_module_permission(self, request):
         return False
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# Document Template System
+# =====================================================================
+
+class DocumentApproverConfigInline(TabularInline):
+    """Inline approver config within a DocumentApprovalStage."""
+    model = DocumentApproverConfig
+    extra = 1
+    fields = ("approver", "order")
+    ordering = ("order",)
+
+
+class DocumentApprovalStageInline(StackedInline):
+    """Inline approval stages within a DocumentTemplate."""
+    model = DocumentApprovalStage
+    extra = 0
+    fields = ("order", "label", "policy", "allow_user_selection")
+    ordering = ("order",)
+    show_change_link = True
+
+
+@admin.register(DocumentApprovalStage)
+class DocumentApprovalStageAdmin(ModelAdmin):
+    """Admin for individual approval stages."""
+
+    list_display = ("template", "order", "label", "policy", "allow_user_selection", "created_at")
+    list_filter = ("policy", "allow_user_selection", "template")
+    search_fields = ("template__title", "label")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    inlines = [DocumentApproverConfigInline]
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(DocumentTemplate)
+class DocumentTemplateAdmin(ModelAdmin):
+    """Admin for document/letter templates."""
+
+    list_display = ("title", "approval_flow", "is_required", "created_at")
+    list_filter = ("approval_flow", "is_required", "categories")
+    search_fields = ("title", "description")
+    filter_horizontal = ("categories",)
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    inlines = [DocumentApprovalStageInline]
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+class DocumentApprovalStepInline(TabularInline):
+    """Inline approval steps within a CaseDocument."""
+    model = DocumentApprovalStep
+    extra = 0
+    fields = ("approver", "stage_order", "order", "approval_type", "status", "acted_at", "notes")
+    readonly_fields = ("acted_at", "stage_order", "stage_policy")
+    ordering = ("stage_order", "order")
+
+
+class DocumentApprovalLogInline(TabularInline):
+    """Inline audit log within a CaseDocument."""
+    model = DocumentApprovalLog
+    extra = 0
+    fields = ("action", "actor_name", "stage_order", "notes", "previous_status", "new_status", "created_at")
+    readonly_fields = ("action", "actor_name", "stage_order", "notes", "previous_status", "new_status", "created_at")
+    ordering = ("created_at",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CaseDocument)
+class CaseDocumentAdmin(ModelAdmin):
+    """Admin for generated case documents."""
+
+    list_display = ("template", "case", "status", "revision_number", "submitted_at", "created_at")
+    list_filter = ("status", "template")
+    search_fields = ("case__subject", "template__title")
+    readonly_fields = (
+        "id", "token", "token_expires_at", "generated_pdf", "submitted_at", "revision_number",
+        "created_at", "updated_at", "created_by", "updated_by",
+    )
+    inlines = [DocumentApprovalStepInline, DocumentApprovalLogInline]
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# Category Approver Config
+# =====================================================================
+
+class CategoryApproverConfigInline(TabularInline):
+    """Inline approver config within a CaseCategory (APPROVAL_ONLY flow)."""
+    model = CategoryApproverConfig
+    extra = 1
+    fields = ("approver", "order")
+    ordering = ("order",)
+
+
+@admin.register(CategoryApproverConfig)
+class CategoryApproverConfigAdmin(ModelAdmin):
+    """Admin for ticket-level approval chains."""
+
+    list_display = ("category", "approver", "order", "created_at")
+    list_filter = ("category",)
+    search_fields = ("category__name", "approver__username")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):
         if not change:

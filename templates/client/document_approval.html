@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Persetujuan Dokumen | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+
+{% block extra_head %}
+<!-- signature_pad.js for digital signature canvas -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<style>
+    .sig-canvas { touch-action: none; cursor: crosshair; }
+    .step-badge-pending  { background:#fef3c7; color:#92400e; }
+    .step-badge-approved { background:#d1fae5; color:#065f46; }
+    .step-badge-rejected { background:#fee2e2; color:#991b1b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-50 py-8 px-4">
+<div class="max-w-3xl mx-auto space-y-6" x-data="approvalPage()">
+
+    <!-- Header -->
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <div class="flex items-start gap-4">
+            <div class="p-3 bg-indigo-100 rounded-xl shrink-0">
+                <svg class="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <h1 class="text-lg font-bold text-slate-900">{{ doc.template.title }}</h1>
+                <p class="text-sm text-slate-600 mt-0.5">Tiket: <span class="font-medium">{{ doc.case.case_number }}</span> — {{ doc.case.subject }}</p>
+                <div class="mt-2">
+                    {% if doc.status == 'draft' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Draft</span>
+                    {% elif doc.status == 'pending_approval' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Menunggu Persetujuan</span>
+                    {% elif doc.status == 'approved' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Disetujui</span>
+                    {% elif doc.status == 'rejected' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Ditolak</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if doc.generated_pdf %}
+            <a href="{% url 'desk:document_pdf_staff' doc.id %}" target="_blank"
+               class="shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Download PDF
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- PDF Preview -->
+    {% if doc.generated_pdf %}
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-700">Preview Dokumen</h2>
+            <button type="button" @click="pdfExpanded = !pdfExpanded"
+                class="text-xs text-indigo-600 font-medium hover:text-indigo-800">
+                <span x-text="pdfExpanded ? 'Perkecil' : 'Perbesar'"></span>
+            </button>
+        </div>
+        <div :style="pdfExpanded ? 'height:800px' : 'height:500px'" class="transition-all duration-300">
+            <iframe src="{% url 'desk:document_pdf_staff' doc.id %}"
+                class="w-full h-full border-0"
+                title="{{ doc.template.title }}">
+                <p>Browser Anda tidak mendukung tampilan PDF inline.
+                    <a href="{% url 'desk:document_pdf_staff' doc.id %}">Klik untuk download.</a>
+                </p>
+            </iframe>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+        <p class="text-sm text-amber-800">PDF belum tersedia. Harap hubungi admin.</p>
+    </div>
+    {% endif %}
+
+    <!-- Approval Steps Progress (grouped by stage) -->
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-4">Status Persetujuan</h2>
+        {% regroup all_steps by stage_order as stage_groups %}
+        <div class="space-y-4">
+        {% for stage_group in stage_groups %}
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Stage {{ stage_group.grouper }}</span>
+                    {% with first_step=stage_group.list|first %}
+                    {% if first_step.stage_policy == "any_one" %}
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Salah satu persetuju</span>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                {% for s in stage_group.list %}
+                <div class="flex items-center gap-3 p-3 rounded-xl border
+                    {% if s.status == 'approved' %}border-green-200 bg-green-50
+                    {% elif s.status == 'rejected' %}border-red-200 bg-red-50
+                    {% elif s.status == 'skipped' %}border-slate-100 bg-slate-50 opacity-60
+                    {% else %}border-slate-200 bg-slate-50{% endif %}">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0
+                        {% if s.status == 'approved' %}bg-green-500 text-white
+                        {% elif s.status == 'rejected' %}bg-red-500 text-white
+                        {% elif s.status == 'skipped' %}bg-slate-200 text-slate-400
+                        {% else %}bg-slate-300 text-slate-600{% endif %}">
+                        {{ s.order }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-slate-900">{{ s.approver.get_full_name|default:s.approver.username }}</p>
+                        {% if s.acted_at %}
+                        <p class="text-xs text-slate-500">Ditindaklanjuti: {{ s.acted_at|date:"d M Y, H:i" }}</p>
+                        {% elif s.approve_by %}
+                        <p class="text-xs {% if s.is_overdue %}text-red-600 font-semibold{% else %}text-slate-500{% endif %}">
+                            Batas: {{ s.approve_by|date:"d M Y, H:i" }}
+                            {% if s.is_overdue %} — <span class="text-red-600">Lewat Batas!</span>{% endif %}
+                        </p>
+                        {% endif %}
+                        {% if s.notes %}
+                        <p class="text-xs text-slate-600 mt-0.5 italic">"{{ s.notes }}"</p>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="text-xs font-medium px-2.5 py-1 rounded-full
+                            {% if s.status == 'approved' %}step-badge-approved
+                            {% elif s.status == 'rejected' %}step-badge-rejected
+                            {% elif s.status == 'skipped' %}bg-slate-100 text-slate-400
+                            {% else %}step-badge-pending{% endif %}">
+                            {% if s.status == 'pending' %}Menunggu
+                            {% elif s.status == 'approved' %}Disetujui
+                            {% elif s.status == 'skipped' %}Dilewati
+                            {% else %}Ditolak{% endif %}
+                        </span>
+                        {% if s.is_overdue %}
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">Overdue</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+
+    <!-- Approval History Log -->
+    {% if approval_logs %}
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-4">Riwayat Lengkap</h2>
+        <div class="space-y-1">
+            {% for log in approval_logs %}
+            <div class="flex gap-3 py-2">
+                <div class="mt-0.5 shrink-0">
+                    {% if log.action == "approved" or log.action == "fully_approved" %}
+                    <div class="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg class="h-3 w-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                    {% elif log.action == "rejected" or log.action == "revision_requested" %}
+                    <div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                        <svg class="h-3 w-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </div>
+                    {% else %}
+                    <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
+                        <svg class="h-3 w-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-baseline gap-2 flex-wrap">
+                        <span class="text-xs font-semibold text-slate-700">{{ log.get_action_display }}</span>
+                        {% if log.stage_order %}<span class="text-xs text-slate-400">Stage {{ log.stage_order }}</span>{% endif %}
+                        <span class="text-xs text-slate-400 ml-auto">{{ log.created_at|date:"d M Y, H:i" }}</span>
+                    </div>
+                    {% if log.actor_name %}<p class="text-xs text-slate-500">{{ log.actor_name }}</p>{% endif %}
+                    {% if log.notes %}<p class="text-xs text-slate-600 mt-1 italic bg-slate-50 rounded p-1.5">"{{ log.notes }}"</p>{% endif %}
+                </div>
+            </div>
+            {% if not forloop.last %}<div class="ml-3 w-px h-2 bg-slate-200"></div>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Panel (only shown if user has a pending step) -->
+    {% if can_act and request.user.is_authenticated %}
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5">
+        <h2 class="text-sm font-semibold text-slate-700">Tindakan Anda</h2>
+
+        <!-- Approval Type Tabs -->
+        <div class="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+            <button type="button" @click="approvalMode = 'click'"
+                :class="approvalMode === 'click' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                Klik Validasi
+            </button>
+            <button type="button" @click="approvalMode = 'signature'"
+                :class="approvalMode === 'signature' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                Tanda Tangan Digital
+            </button>
+        </div>
+
+        <!-- Click Validation Mode -->
+        <div x-show="approvalMode === 'click'" x-transition>
+            <form method="post" action="{% url 'cases:document_approval_approve' doc.token %}">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Catatan (opsional)</label>
+                        <textarea name="notes" rows="3" class="jk-input w-full text-sm resize-none"
+                            placeholder="Tambahkan catatan persetujuan..."></textarea>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Setujui Dokumen
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Signature Mode -->
+        <div x-show="approvalMode === 'signature'" x-transition>
+            <form method="post" action="{% url 'cases:document_approval_approve' doc.token %}" enctype="multipart/form-data" id="signature-form">
+                {% csrf_token %}
+                <input type="hidden" name="signature_image" id="signature-data-input">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Tanda Tangan Digital <span class="text-red-500">*</span></label>
+                        <div class="relative border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 overflow-hidden">
+                            <canvas id="signature-canvas" class="sig-canvas w-full" height="200"></canvas>
+                            <button type="button" @click="clearSignature()"
+                                class="absolute top-2 right-2 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                                Hapus
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Gambar tanda tangan Anda di area di atas menggunakan mouse atau sentuhan.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Catatan (opsional)</label>
+                        <textarea name="notes" rows="2" class="jk-input w-full text-sm resize-none"
+                            placeholder="Tambahkan catatan..."></textarea>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="button" @click="submitSignature()"
+                            class="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            Tandatangani & Setujui
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Reject (always visible) -->
+        <div class="pt-4 border-t border-slate-100">
+            <button type="button" @click="showRejectForm = !showRejectForm"
+                class="text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-2">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                Tolak Dokumen
+            </button>
+            <div x-show="showRejectForm" x-transition class="mt-3">
+                <form method="post" action="{% url 'cases:document_approval_reject' doc.token %}">
+                    {% csrf_token %}
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Alasan Penolakan <span class="text-red-500">*</span></label>
+                            <textarea name="notes" rows="3" required class="jk-input w-full text-sm resize-none border-red-200 focus:border-red-400 focus:ring-red-300"
+                                placeholder="Tuliskan alasan penolakan..."></textarea>
+                        </div>
+                        <button type="submit" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors">
+                            Konfirmasi Tolak
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+    {% elif doc.status == 'approved' %}
+    <div class="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
+        <svg class="h-10 w-10 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <h3 class="text-base font-semibold text-green-800">Dokumen Telah Disetujui</h3>
+        <p class="text-sm text-green-700 mt-1">Semua tahap persetujuan telah selesai.</p>
+    </div>
+    {% elif doc.status == 'rejected' %}
+    <div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+        <svg class="h-10 w-10 text-red-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <h3 class="text-base font-semibold text-red-800">Dokumen Ditolak</h3>
+        <p class="text-sm text-red-700 mt-1">Dokumen ini telah ditolak. Silakan hubungi pemohon untuk revisi.</p>
+    </div>
+    {% else %}
+    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
+        <p class="text-sm text-slate-600">
+            {% if not request.user.is_authenticated %}
+            Silakan <a href="{% url 'login' %}?next={{ request.path }}" class="text-indigo-600 font-medium underline">login</a> untuk menyetujui dokumen ini.
+            {% else %}
+            Anda tidak memiliki akses untuk menyetujui dokumen ini.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    {% if messages %}
+    <div class="space-y-2">
+        {% for message in messages %}
+        <div class="p-4 rounded-xl {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %} border text-sm">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function approvalPage() {
+    return {
+        approvalMode: 'click',
+        showRejectForm: false,
+        pdfExpanded: false,
+        signaturePad: null,
+
+        init() {
+            this.$nextTick(() => {
+                const canvas = document.getElementById('signature-canvas');
+                if (canvas) {
+                    this.signaturePad = new SignaturePad(canvas, {
+                        backgroundColor: 'rgb(255, 255, 255)',
+                        penColor: 'rgb(30, 30, 30)',
+                        minWidth: 1,
+                        maxWidth: 3,
+                    });
+                    this.resizeCanvas(canvas);
+                    window.addEventListener('resize', () => this.resizeCanvas(canvas));
+                }
+            });
+        },
+
+        resizeCanvas(canvas) {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * ratio;
+            canvas.height = 200 * ratio;
+            canvas.getContext('2d').scale(ratio, ratio);
+            if (this.signaturePad) this.signaturePad.clear();
+        },
+
+        clearSignature() {
+            if (this.signaturePad) this.signaturePad.clear();
+        },
+
+        submitSignature() {
+            if (!this.signaturePad || this.signaturePad.isEmpty()) {
+                alert('Harap gambar tanda tangan Anda terlebih dahulu.');
+                return;
+            }
+            // Convert canvas to PNG blob and set as file input
+            this.signaturePad.canvas.toBlob(blob => {
+                const file = new File([blob], 'signature.png', { type: 'image/png' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+
+                // Create a real file input to attach the signature
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.name = 'signature_image';
+                fileInput.files = dt.files;
+
+                const form = document.getElementById('signature-form');
+                // Remove any existing signature input
+                const existing = form.querySelector('input[name="signature_image"][type="file"]');
+                if (existing) existing.remove();
+                form.appendChild(fileInput);
+
+                form.submit();
+            }, 'image/png');
+        },
+    }
+}
+</script>
+{% endblock %}

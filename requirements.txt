@@ -52,3 +52,6 @@ bleach>=6.1.0
 
 # Google Gemini AI
 google-genai>=1.0
+
+# PDF Generation (Document Template feature)
+weasyprint>=62.0
