@@ -4618,7 +4618,7 @@ def category_document_templates(request, category_id):
     linked to the given category. Returns empty string if none exist.
     """
     category = get_object_or_404(CaseCategory, id=category_id)
-    templates = category.document_templates.prefetch_related("approver_configs").all()
+    templates = category.document_templates.prefetch_related("approval_stages__approver_configs").all()
     if not templates.exists():
         return HttpResponse("")
 
