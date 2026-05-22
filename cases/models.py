@@ -912,6 +912,8 @@ class DocumentApproverConfig(AuditableModel):
     stage = models.ForeignKey(
         DocumentApprovalStage,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="approver_configs",
         verbose_name="Approval Stage",
     )
