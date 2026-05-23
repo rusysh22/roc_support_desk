@@ -7,7 +7,7 @@ from unfold.admin import ModelAdmin, TabularInline, StackedInline
 from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument,
-    DocumentTemplate, Message, RCATemplate,
+    DocumentTemplate, DocumentTemplateField, Message, RCATemplate,
 )
 
 
@@ -40,6 +40,17 @@ class ChangeRequestApprovalInline(TabularInline):
 
     def has_add_permission(self, request, obj=None):
         return False
+
+
+class DocumentTemplateFieldInline(TabularInline):
+    model = DocumentTemplateField
+    extra = 1
+    fields = ("order", "label", "placeholder", "is_required")
+    ordering = ("order",)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs[:10]
 
 
 # =====================================================================
@@ -203,11 +214,16 @@ class AttachmentAdmin(ModelAdmin):
 
 @admin.register(DocumentTemplate)
 class DocumentTemplateAdmin(ModelAdmin):
-    list_display = ("title", "approval_flow", "is_required", "created_at")
+    list_display = ("title", "field_count", "approval_flow", "is_required", "created_at")
     list_filter = ("approval_flow", "is_required", "categories")
     search_fields = ("title", "description")
     filter_horizontal = ("categories",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+    inlines = [DocumentTemplateFieldInline]
+
+    @admin.display(description="Fields")
+    def field_count(self, obj):
+        return obj.fields.count()
 
     def save_model(self, request, obj, form, change):
         if not change:

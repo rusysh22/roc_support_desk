@@ -626,6 +626,22 @@ def chat_room(request, case_uuid):
         and case.followers.filter(id=user.id).exists()
     )
 
+    # Supporting letter history for the sidebar panel
+    cr_docs_qs = (
+        case.change_requests
+        .select_related("document_template")
+        .prefetch_related("approvals__approver")
+        .order_by("-revision_number")
+    )
+    cr_panel = []
+    for cr_doc in cr_docs_qs:
+        cr_panel.append({
+            "doc": cr_doc,
+            "approvals": sorted(cr_doc.approvals.all(), key=lambda a: a.order),
+            "has_pdf": bool(cr_doc.generated_pdf),
+            "pdf_url": cr_doc.generated_pdf.url if cr_doc.generated_pdf else None,
+        })
+
     return render(request, "client/chat_room.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -639,6 +655,7 @@ def chat_room(request, case_uuid):
         "followers_json": followers_json,
         "participants_json": participants_json,
         "current_user_email": (user.email or "").lower() if user.is_authenticated else "",
+        "cr_panel": cr_panel,
     })
 
 

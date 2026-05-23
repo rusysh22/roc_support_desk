@@ -143,7 +143,7 @@
     {% endif %}
 
     <!-- Approval actions -->
-    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5" x-data="{ showReject: false }">
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4" x-data="{ showReject: false }">
         <h2 class="text-sm font-semibold text-slate-700">Your Action</h2>
 
         <p class="text-sm text-slate-600">
@@ -151,56 +151,66 @@
             to approve or reject the supporting letter above.
         </p>
 
-        <!-- Approve form -->
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="approve">
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Notes (optional)</label>
-                    <textarea name="notes" rows="3" class="jk-input w-full text-sm resize-none"
-                        placeholder="Add any approval notes..."></textarea>
-                </div>
+        <!-- Notes shared (shown above action buttons) -->
+        <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Notes <span class="text-slate-400 font-normal">(optional for approval, required for rejection)</span></label>
+            <textarea id="shared-notes" rows="3" class="jk-input w-full text-sm resize-none"
+                placeholder="Add notes here..."></textarea>
+        </div>
+
+        <!-- Action buttons — equal width, same height, side by side -->
+        <div class="grid grid-cols-2 gap-3">
+            <!-- Approve -->
+            <form method="post" id="form-approve">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="notes" id="notes-approve">
                 <button type="submit"
-                        class="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        onclick="document.getElementById('notes-approve').value = document.getElementById('shared-notes').value"
+                        class="w-full py-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
+                    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                     </svg>
-                    Approve Supporting Letter
+                    Approve
                 </button>
-            </div>
-        </form>
+            </form>
 
-        <!-- Reject toggle -->
-        <div class="pt-3 border-t border-slate-100">
+            <!-- Reject -->
             <button type="button" @click="showReject = !showReject"
-                    class="text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-2">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    :class="showReject
+                        ? 'bg-red-600 hover:bg-red-700 text-white border-transparent'
+                        : 'bg-white hover:bg-red-50 text-red-600 border-red-200'"
+                    class="w-full py-3 border text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
-                Reject Supporting Letter
+                Reject
             </button>
+        </div>
 
-            <div x-show="showReject" x-transition class="mt-3">
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="reject">
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">
-                                Rejection Reason <span class="text-red-500">*</span>
-                            </label>
-                            <textarea name="notes" rows="3" required
-                                class="jk-input w-full text-sm resize-none border-red-200 focus:border-red-400 focus:ring-red-300"
-                                placeholder="State the reason for rejection..."></textarea>
-                        </div>
-                        <button type="submit"
-                                class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                            Confirm Rejection
-                        </button>
+        <!-- Reject reason — expands below buttons -->
+        <div x-show="showReject" x-transition class="border-t border-red-100 pt-4 space-y-3">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reject">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-red-700 mb-1.5">
+                            Rejection Reason <span class="text-red-500">*</span>
+                        </label>
+                        <textarea name="notes" rows="3" required
+                            class="jk-input w-full text-sm resize-none border-red-200 focus:border-red-400"
+                            placeholder="State the reason for rejection..."></textarea>
                     </div>
-                </form>
-            </div>
+                    <button type="submit"
+                            class="w-full py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Confirm Rejection
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     {% endif %}

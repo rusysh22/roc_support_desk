@@ -248,7 +248,9 @@
                           {% if forloop.first and entry.doc.status == 'rejected' %}bg-red-50{% elif forloop.first and entry.doc.status == 'approved' %}bg-green-50{% else %}bg-white{% endif %}">
 
                 <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-[10px] font-bold text-slate-500">Rev. #{{ entry.doc.revision_number }}</span>
+                  <span class="text-[10px] font-bold text-slate-500">
+                    Rev. #{{ entry.doc.revision_number }}{% if entry.doc.document_template %} · {{ entry.doc.document_template.title }}{% endif %}
+                  </span>
                   {% if entry.doc.status == 'approved' %}
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Approved</span>
                   {% elif entry.doc.status == 'rejected' %}

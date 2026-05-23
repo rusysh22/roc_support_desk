@@ -235,6 +235,111 @@
     </div>
   </div>
 
+  {# ── Supporting Letter Panel ── #}
+  {% if cr_panel %}
+  <div class="jk-card mb-3 overflow-hidden">
+    {% for entry in cr_panel %}
+    <div class="{% if not forloop.first %}border-t border-slate-100{% endif %}">
+
+      {# Header row #}
+      <div class="flex items-center justify-between px-4 py-2.5
+                  {% if entry.doc.status == 'approved' %}bg-green-50
+                  {% elif entry.doc.status == 'rejected' %}bg-red-50
+                  {% elif entry.doc.status == 'pending_approval' %}bg-yellow-50
+                  {% else %}bg-slate-50{% endif %}">
+        <div class="flex items-center gap-2 min-w-0">
+          <svg class="h-3.5 w-3.5 flex-shrink-0
+                      {% if entry.doc.status == 'approved' %}text-green-600
+                      {% elif entry.doc.status == 'rejected' %}text-red-500
+                      {% elif entry.doc.status == 'pending_approval' %}text-yellow-600
+                      {% else %}text-slate-400{% endif %}"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span class="text-[11px] font-semibold text-slate-700 truncate">
+            {% if entry.doc.document_template %}{{ entry.doc.document_template.title }}{% else %}Supporting Letter{% endif %}
+            <span class="text-slate-400 font-normal">· Rev. #{{ entry.doc.revision_number }}</span>
+          </span>
+        </div>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-2
+                     {% if entry.doc.status == 'approved' %}bg-green-100 text-green-700
+                     {% elif entry.doc.status == 'rejected' %}bg-red-100 text-red-700
+                     {% elif entry.doc.status == 'pending_approval' %}bg-yellow-100 text-yellow-700
+                     {% else %}bg-slate-100 text-slate-500{% endif %}">
+          {% if entry.doc.status == 'approved' %}Approved
+          {% elif entry.doc.status == 'rejected' %}Rejected
+          {% elif entry.doc.status == 'pending_approval' %}Pending Approval
+          {% else %}Draft{% endif %}
+        </span>
+      </div>
+
+      {# Approval timeline #}
+      {% if entry.approvals %}
+      <div class="px-4 py-2 space-y-1.5">
+        {% for appr in entry.approvals %}
+        <div class="flex items-center gap-2.5">
+          <div class="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold
+                      {% if appr.status == 'approved' %}bg-green-500 text-white
+                      {% elif appr.status == 'rejected' %}bg-red-500 text-white
+                      {% else %}bg-slate-200 text-slate-600{% endif %}">
+            {% if appr.status == 'approved' %}
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+            {% elif appr.status == 'rejected' %}
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            {% else %}
+            {{ appr.order }}
+            {% endif %}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[11px] font-medium text-slate-800 truncate">
+              {{ appr.approver.get_full_name|default:appr.approver.username }}
+            </p>
+            {% if appr.acted_at %}
+            <p class="text-[10px] text-slate-400">{{ appr.acted_at|date:"d M Y, H:i" }}</p>
+            {% else %}
+            <p class="text-[10px] text-yellow-600">Awaiting action</p>
+            {% endif %}
+            {% if appr.notes %}
+            <p class="text-[10px] text-slate-500 italic mt-0.5">"{{ appr.notes }}"</p>
+            {% endif %}
+          </div>
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0
+                       {% if appr.status == 'approved' %}bg-green-100 text-green-700
+                       {% elif appr.status == 'rejected' %}bg-red-100 text-red-700
+                       {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+            {{ appr.status|title }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="px-4 py-2 text-[11px] text-slate-400">No approvers — auto-approved.</p>
+      {% endif %}
+
+      {# PDF download #}
+      {% if entry.has_pdf %}
+      <div class="px-4 pb-3 pt-1">
+        <a href="{{ entry.pdf_url }}" target="_blank"
+           class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download PDF
+        </a>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {# ── Message thread ── #}
   <div class="jk-card mb-3">
     <div class="jk-card-body p-0 relative">

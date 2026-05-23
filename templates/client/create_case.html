@@ -13,9 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
-  /* Quill editor sizing inside the modal */
-  #quill-rc .ql-editor { min-height: 120px; }
-  #quill-ch .ql-editor { min-height: 160px; }
+  .cr-field-editor .ql-editor { min-height: 130px; }
 </style>
 {% endblock %}
 
@@ -185,7 +183,7 @@
 
             <!-- Change Request Button (shown only when selected category supports it) -->
             <button type="button" id="cr-modal-trigger-btn" x-show="crEnabled" style="display:none"
-                    @click="$dispatch('open-cr-modal')"
+                    @click="window.dispatchEvent(new CustomEvent('open-cr-modal-btn'))"
                     class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium relative">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -635,11 +633,12 @@
                 <!-- Document Templates (loaded dynamically when category changes) -->
                 <div id="document-templates-container"></div>
 
-                <!-- Data for the Change Request modal -->
+                <!-- Data for the Supporting Letter modal -->
                 <script type="application/json" id="cr_enabled_category_ids">{{ category_cr_enabled_json|safe }}</script>
                 <script type="application/json" id="cr_approvers_data">{{ available_approvers_json|safe }}</script>
-                <input type="hidden" id="cr_request_change_input" name="cr_request_change">
-                <input type="hidden" id="cr_chronology_input" name="cr_chronology">
+                <script type="application/json" id="cr_category_templates">{{ category_document_templates_json|safe }}</script>
+                <!-- Dynamic field inputs injected by Alpine when user attaches the letter -->
+                <div id="cr_dynamic_inputs"></div>
 
                 <hr class="jk-divider">
 
@@ -700,13 +699,14 @@
 </style>
 {% endif %}
 
-<!-- Change Request Modal -->
+<!-- Supporting Letter Modal -->
 <div x-data="{
         open: false,
-        quillRC: null,
-        quillCH: null,
+        step: 'pick',
+        templates: [],
+        selectedTemplate: null,
+        quillInstances: {},
 
-        // Approver picker state
         allApprovers: JSON.parse(document.getElementById('cr_approvers_data')?.textContent || '[]'),
         selectedApprovers: [],
         approverSearch: '',
@@ -718,52 +718,83 @@
                 (!q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
             );
         },
-        addApprover(a) {
-            this.selectedApprovers.push(a);
-            this.approverSearch = '';
-            this.approverDropOpen = false;
-        },
-        removeApprover(id) {
-            this.selectedApprovers = this.selectedApprovers.filter(a => a.id !== id);
+        addApprover(a) { this.selectedApprovers.push(a); this.approverSearch = ''; this.approverDropOpen = false; },
+        removeApprover(id) { this.selectedApprovers = this.selectedApprovers.filter(a => a.id !== id); },
+
+        openModal(tpls) {
+            this.templates = tpls || [];
+            this.quillInstances = {};
+            this.selectedTemplate = null;
+            if (this.templates.length === 1) {
+                this.selectedTemplate = this.templates[0];
+                this.step = 'fill';
+            } else {
+                this.step = this.templates.length > 1 ? 'pick' : 'fill';
+            }
+            this.open = true;
+            if (this.step === 'fill') this.$nextTick(() => this._initQuills());
         },
 
-        openModal() {
-            this.open = true;
-            this.$nextTick(() => {
-                if (!this.quillRC) {
-                    const toolbar = [
-                        ['bold', 'italic', 'underline'],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['link', 'image'],
-                        ['clean']
-                    ];
-                    this.quillRC = new Quill('#quill-rc', {
+        pickTemplate(tpl) {
+            this.selectedTemplate = tpl;
+            this.step = 'fill';
+            this.$nextTick(() => this._initQuills());
+        },
+
+        _quillToolbar() {
+            return [
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['link', 'image'],
+                ['clean']
+            ];
+        },
+
+        _initQuills() {
+            const fields = this.selectedTemplate ? this.selectedTemplate.fields : [];
+            fields.forEach(f => {
+                const el = document.getElementById('cr-quill-field-' + f.order);
+                if (el && !this.quillInstances[f.order]) {
+                    this.quillInstances[f.order] = new Quill(el, {
                         theme: 'snow',
-                        placeholder: 'Describe what change or action you are requesting...',
-                        modules: { toolbar }
-                    });
-                    this.quillCH = new Quill('#quill-ch', {
-                        theme: 'snow',
-                        placeholder: 'Describe the background and chronology of the situation...',
-                        modules: { toolbar }
+                        placeholder: f.placeholder || ('Fill in ' + f.label + '...'),
+                        modules: { toolbar: this._quillToolbar() }
                     });
                 }
-                const rcVal = document.getElementById('cr_request_change_input').value;
-                const chVal = document.getElementById('cr_chronology_input').value;
-                if (rcVal) this.quillRC.root.innerHTML = rcVal;
-                if (chVal) this.quillCH.root.innerHTML = chVal;
             });
         },
 
+        _isEmpty(html) {
+            return !html || (html.replace(/<[^>]+>/g, '').trim() === '' && !html.includes('<img'));
+        },
+
         attachAndClose() {
-            const rcHtml = this.quillRC ? this.quillRC.root.innerHTML : '';
-            const chHtml = this.quillCH ? this.quillCH.root.innerHTML : '';
-            document.getElementById('cr_request_change_input').value = rcHtml;
-            document.getElementById('cr_chronology_input').value = chHtml;
-            const isEmpty = (h) => !h || (h.replace(/<[^>]+>/g, '').trim() === '' && !h.includes('<img'));
-            const hasContent = !isEmpty(rcHtml) && !isEmpty(chHtml);
+            const container = document.getElementById('cr_dynamic_inputs');
+            container.innerHTML = '';
+
+            const fields = this.selectedTemplate ? this.selectedTemplate.fields : [];
+            let hasContent = false;
+
+            if (this.selectedTemplate) {
+                const tidInput = document.createElement('input');
+                tidInput.type = 'hidden';
+                tidInput.name = 'cr_template_id';
+                tidInput.value = this.selectedTemplate.id;
+                container.appendChild(tidInput);
+
+                fields.forEach(f => {
+                    const q = this.quillInstances[f.order];
+                    const val = q ? q.root.innerHTML : '';
+                    if (!this._isEmpty(val)) hasContent = true;
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = 'cr_field_' + f.order;
+                    inp.value = val;
+                    container.appendChild(inp);
+                });
+            }
+
             window.dispatchEvent(new CustomEvent('cr-content-changed', { detail: { hasContent } }));
-            // When CR has content, tracking in My Tickets is mandatory
             if (hasContent) {
                 window.dispatchEvent(new CustomEvent('cr-tracking-required'));
             } else {
@@ -772,11 +803,9 @@
             this.open = false;
         },
 
-        cancelAndClose() {
-            this.open = false;
-        }
+        cancelAndClose() { this.open = false; }
     }"
-     @open-cr-modal.window="openModal()"
+     @open-cr-modal.window="openModal($event.detail.templates)"
      x-show="open"
      style="display:none"
      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
@@ -793,7 +822,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
-                Supporting Letter
+                <span x-text="selectedTemplate ? selectedTemplate.title : 'Supporting Letter'"></span>
             </h3>
             <button type="button" @click="cancelAndClose()"
                     class="text-slate-600 hover:text-slate-800 p-1 rounded-md hover:bg-slate-200 transition-colors">
@@ -804,96 +833,122 @@
         </div>
 
         <!-- Body -->
-        <div class="overflow-y-auto flex-1 p-5 space-y-5">
-            <p class="text-xs text-slate-500">
-                Optional. Attach a supporting letter to this ticket.
-                If approvers are selected, the letter is routed for approval before being attached.
-            </p>
+        <div class="overflow-y-auto flex-1 p-5">
 
-            <div>
-                <label class="jk-label">Request Change</label>
-                <div id="quill-rc" class="bg-white"></div>
-            </div>
-
-            <div>
-                <label class="jk-label">Chronology</label>
-                <div id="quill-ch" class="bg-white"></div>
-            </div>
-
-            {% if user.is_authenticated %}
-            <!-- Approver picker: searchable dropdown + ordered badges -->
-            <div @click.outside="approverDropOpen = false">
-                <p class="text-sm font-medium text-slate-700 mb-1.5">
-                    Approvers <span class="text-slate-400 font-normal text-xs">(optional — added in order)</span>
-                </p>
-                <p class="text-xs text-slate-500 mb-2">
-                    If selected, the supporting letter is routed for approval in the order shown before being attached to the ticket.
-                </p>
-
-                <!-- Selected approver badges (ordered) -->
-                <div x-show="selectedApprovers.length > 0" class="flex flex-wrap gap-2 mb-2.5">
-                    <template x-for="(approver, index) in selectedApprovers" :key="approver.id">
-                        <div class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg pl-1.5 pr-2 py-1">
-                            <span class="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center"
-                                  x-text="index + 1"></span>
-                            <span class="text-xs font-medium text-slate-800 max-w-[120px] truncate" x-text="approver.name"></span>
-                            <button type="button" @click="removeApprover(approver.id)"
-                                    class="flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors ml-0.5">
-                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
+            <!-- Step: Pick Template -->
+            <div x-show="step === 'pick'" class="space-y-3">
+                <p class="text-sm text-slate-600 mb-4">Select the document type to attach to this ticket:</p>
+                <template x-for="tpl in templates" :key="tpl.id">
+                    <button type="button" @click="pickTemplate(tpl)"
+                            class="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-colors flex items-center gap-4 group">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                            <svg class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
                         </div>
-                    </template>
-                </div>
-
-                <!-- Search input -->
-                <div class="relative">
-                    <input type="text"
-                           x-model="approverSearch"
-                           @focus="approverDropOpen = true"
-                           @input="approverDropOpen = true"
-                           placeholder="Search by name or email..."
-                           autocomplete="off"
-                           class="jk-input w-full text-sm pr-8">
-                    <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"
-                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-
-                    <!-- Dropdown -->
-                    <div x-show="approverDropOpen && filteredApprovers.length > 0"
-                         x-transition
-                         class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        <template x-for="approver in filteredApprovers" :key="approver.id">
-                            <button type="button" @click="addApprover(approver)"
-                                    class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 transition-colors border-b border-slate-100 last:border-0 flex items-center gap-3">
-                                <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
-                                     x-text="approver.name.charAt(0).toUpperCase()"></div>
-                                <div class="min-w-0 flex-1">
-                                    <p class="text-sm font-medium text-slate-800 truncate" x-text="approver.name"></p>
-                                    <p class="text-xs text-slate-500 truncate" x-text="approver.email"></p>
-                                </div>
-                                <svg class="h-4 w-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                                </svg>
-                            </button>
-                        </template>
-                    </div>
-                    <div x-show="approverDropOpen && approverSearch && filteredApprovers.length === 0"
-                         x-transition
-                         class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg">
-                        <p class="px-3 py-3 text-sm text-slate-500 text-center">No matching user found</p>
-                    </div>
-                </div>
-
-                <!-- Hidden inputs bound to the main form -->
-                <template x-for="approver in selectedApprovers" :key="approver.id">
-                    <input type="hidden" name="cr_approvers" :value="approver.id" form="main-ticket-form">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-slate-800" x-text="tpl.title"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="tpl.fields.length + ' field(s)'"></p>
+                        </div>
+                        <svg class="h-4 w-4 text-slate-400 group-hover:text-indigo-500 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
                 </template>
             </div>
-            {% endif %}
+
+            <!-- Step: Fill Fields -->
+            <div x-show="step === 'fill'" class="space-y-5">
+                <!-- Back button (only if multiple templates) -->
+                <template x-if="templates.length > 1">
+                    <button type="button" @click="step = 'pick'; selectedTemplate = null; quillInstances = {}"
+                            class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors mb-1">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
+                        Back to template selection
+                    </button>
+                </template>
+
+                <p class="text-xs text-slate-500">
+                    Fill in the fields below. If approvers are selected, the letter is routed for approval before being attached.
+                </p>
+
+                <!-- Dynamic fields from selected template -->
+                <template x-if="selectedTemplate">
+                    <div class="space-y-5">
+                        <template x-for="field in selectedTemplate.fields" :key="field.order">
+                            <div>
+                                <label class="jk-label">
+                                    <span x-text="field.label"></span>
+                                    <span x-show="field.required" class="text-red-500 ml-0.5">*</span>
+                                </label>
+                                <div :id="'cr-quill-field-' + field.order" class="bg-white cr-field-editor"></div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                {% if user.is_authenticated %}
+                <!-- Approver picker -->
+                <div @click.outside="approverDropOpen = false" class="pt-2 border-t border-slate-100">
+                    <p class="text-sm font-medium text-slate-700 mb-1">
+                        Approvers <span class="text-slate-400 font-normal text-xs">(optional — in order)</span>
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2">
+                        If selected, the letter is routed for approval in order before being attached.
+                    </p>
+                    <div x-show="selectedApprovers.length > 0" class="flex flex-wrap gap-2 mb-2.5">
+                        <template x-for="(approver, index) in selectedApprovers" :key="approver.id">
+                            <div class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg pl-1.5 pr-2 py-1">
+                                <span class="flex-shrink-0 w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center"
+                                      x-text="index + 1"></span>
+                                <span class="text-xs font-medium text-slate-800 max-w-[120px] truncate" x-text="approver.name"></span>
+                                <button type="button" @click="removeApprover(approver.id)"
+                                        class="flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors ml-0.5">
+                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="relative">
+                        <input type="text" x-model="approverSearch"
+                               @focus="approverDropOpen = true" @input="approverDropOpen = true"
+                               placeholder="Search by name or email..." autocomplete="off"
+                               class="jk-input w-full text-sm pr-8">
+                        <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <div x-show="approverDropOpen && filteredApprovers.length > 0" x-transition
+                             class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            <template x-for="approver in filteredApprovers" :key="approver.id">
+                                <button type="button" @click="addApprover(approver)"
+                                        class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 transition-colors border-b border-slate-100 last:border-0 flex items-center gap-3">
+                                    <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
+                                         x-text="approver.name.charAt(0).toUpperCase()"></div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium text-slate-800 truncate" x-text="approver.name"></p>
+                                        <p class="text-xs text-slate-500 truncate" x-text="approver.email"></p>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                        <div x-show="approverDropOpen && approverSearch && filteredApprovers.length === 0" x-transition
+                             class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg">
+                            <p class="px-3 py-3 text-sm text-slate-500 text-center">No matching user found</p>
+                        </div>
+                    </div>
+                    <template x-for="approver in selectedApprovers" :key="approver.id">
+                        <input type="hidden" name="cr_approvers" :value="approver.id" form="main-ticket-form">
+                    </template>
+                </div>
+                {% endif %}
+            </div>
         </div>
 
         <!-- Footer -->
@@ -902,7 +957,7 @@
                     class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                 Cancel
             </button>
-            <button type="button" @click="attachAndClose()"
+            <button type="button" x-show="step === 'fill'" @click="attachAndClose()"
                     class="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -917,45 +972,37 @@
 <script>
 (function () {
     const categorySelect = document.getElementById('id_category');
-    const container = document.getElementById('document-templates-container');
-    if (!categorySelect || !container) return;
+    if (!categorySelect) return;
 
     const crEnabledIds = JSON.parse(
         document.getElementById('cr_enabled_category_ids')?.textContent || '[]'
     );
-
-    function loadDocumentTemplates(categoryId) {
-        if (!categoryId) {
-            container.innerHTML = '';
-            return;
-        }
-        htmx.ajax('GET', `/category/${categoryId}/document-templates/`, {
-            target: '#document-templates-container',
-            swap: 'innerHTML',
-        });
-    }
+    const categoryTemplates = JSON.parse(
+        document.getElementById('cr_category_templates')?.textContent || '{}'
+    );
 
     function updateChangeRequestSection(categoryId) {
         const enabled = crEnabledIds.includes(String(categoryId));
         if (!enabled) {
-            document.getElementById('cr_request_change_input').value = '';
-            document.getElementById('cr_chronology_input').value = '';
+            document.getElementById('cr_dynamic_inputs').innerHTML = '';
         }
-        // Directly toggle the button's display (reliable regardless of Alpine timing)
         const crBtn = document.getElementById('cr-modal-trigger-btn');
         if (crBtn) crBtn.style.display = enabled ? 'inline-flex' : 'none';
-        // Also notify Alpine for the green dot state
         window.dispatchEvent(new CustomEvent('cr-enabled-change', { detail: { enabled } }));
     }
 
+    // Trigger the modal with templates for the current category
+    window.addEventListener('open-cr-modal-btn', function () {
+        const catId = String(categorySelect.value || '');
+        const templates = categoryTemplates[catId] || [];
+        window.dispatchEvent(new CustomEvent('open-cr-modal', { detail: { templates } }));
+    });
+
     categorySelect.addEventListener('change', function () {
-        loadDocumentTemplates(this.value);
         updateChangeRequestSection(this.value);
     });
 
-    // On page load, if a category is already selected (e.g. pre-selected via slug)
     if (categorySelect.value) {
-        loadDocumentTemplates(categorySelect.value);
         updateChangeRequestSection(categorySelect.value);
     }
 })();

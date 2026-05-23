@@ -831,6 +831,49 @@ class DocumentTemplate(AuditableModel):
         """Return unique list of placeholder names found in body_html."""
         return list(dict.fromkeys(re.findall(r'\{\{(\w+)\}\}', self.body_html)))
 
+    def ordered_fields(self):
+        return self.fields.order_by("order")
+
+
+# =====================================================================
+# Document Template Field
+# =====================================================================
+
+class DocumentTemplateField(AuditableModel):
+    """
+    A configurable input field belonging to a DocumentTemplate.
+    Up to 10 fields per template; each field becomes a Quill editor in the portal form.
+    """
+
+    template = models.ForeignKey(
+        DocumentTemplate,
+        on_delete=models.CASCADE,
+        related_name="fields",
+        verbose_name="Template",
+    )
+    order = models.PositiveSmallIntegerField(
+        default=1,
+        verbose_name="Order",
+        help_text="Display order (1 = first). Maximum 10 fields per template.",
+    )
+    label = models.CharField(max_length=200, verbose_name="Field Label")
+    placeholder = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Placeholder Hint",
+        help_text="Optional hint shown inside the editor.",
+    )
+    is_required = models.BooleanField(default=True, verbose_name="Required")
+
+    class Meta:
+        verbose_name = "Template Field"
+        verbose_name_plural = "Template Fields"
+        ordering = ["template", "order"]
+        unique_together = [("template", "order")]
+
+    def __str__(self):
+        return f"{self.template.title} — Field {self.order}: {self.label}"
+
 
 # =====================================================================
 # Change Request Document (Surat Kronologi)
@@ -867,8 +910,23 @@ class ChangeRequestDocument(AuditableModel):
         related_name="change_requests",
         verbose_name="Ticket",
     )
-    request_change = models.TextField(verbose_name="Request Change")
-    chronology = models.TextField(verbose_name="Chronology")
+    document_template = models.ForeignKey(
+        DocumentTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documents",
+        verbose_name="Document Template",
+    )
+    # field_values stores dynamic field content as [{label, value}, ...]
+    field_values = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Field Values",
+    )
+    # Legacy fields — kept nullable for existing records
+    request_change = models.TextField(blank=True, verbose_name="Request Change")
+    chronology = models.TextField(blank=True, verbose_name="Chronology")
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

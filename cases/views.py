@@ -34,7 +34,7 @@ from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
 from .models import (
     Attachment, CaseCategory, CaseRecord, ChangeRequestApproval,
     ChangeRequestDocument, Message, CaseComment, CaseAuditLog,
-    RCATemplate, DocumentTemplate,
+    RCATemplate, DocumentTemplate, DocumentTemplateField,
 )
 
 from licensing.decorators import feature_required
@@ -908,6 +908,34 @@ def create_case(request, slug=None):
     category_cr_enabled_json = json.dumps([
         str(c.id) for c in categories_qs if c.enable_change_request
     ])
+
+    # Build document templates per category for the dynamic CR modal
+    _cat_ids_with_cr = [c.id for c in categories_qs if c.enable_change_request]
+    _cr_templates = (
+        DocumentTemplate.objects
+        .filter(categories__id__in=_cat_ids_with_cr)
+        .prefetch_related("fields", "categories")
+        .distinct()
+    )
+    _cat_templates_map = {}
+    for tpl in _cr_templates:
+        tpl_data = {
+            "id": str(tpl.id),
+            "title": tpl.title,
+            "fields": [
+                {
+                    "order": f.order,
+                    "label": f.label,
+                    "placeholder": f.placeholder,
+                    "required": f.is_required,
+                }
+                for f in tpl.ordered_fields()
+            ],
+        }
+        for cat in tpl.categories.all():
+            _cat_templates_map.setdefault(str(cat.id), []).append(tpl_data)
+    category_document_templates_json = json.dumps(_cat_templates_map)
+
     available_approvers = User.objects.filter(
         is_active=True,
     ).order_by("first_name", "last_name")
@@ -952,6 +980,7 @@ def create_case(request, slug=None):
                     "category_templates_json": category_templates_json,
                     "category_templates_subject_json": category_templates_subject_json,
                     "category_cr_enabled_json": category_cr_enabled_json,
+                    "category_document_templates_json": category_document_templates_json,
                     "available_approvers_json": available_approvers_json,
                 })
 
@@ -960,7 +989,11 @@ def create_case(request, slug=None):
 
             cr_request_change_check = request.POST.get("cr_request_change", "").strip()
             cr_chronology_check = request.POST.get("cr_chronology", "").strip()
-            cr_has_content_early = bool(cr_request_change_check) or bool(cr_chronology_check)
+            # Also detect content in dynamic template fields
+            cr_dynamic_fields_check = any(
+                v.strip() for k, v in request.POST.items() if k.startswith("cr_field_")
+            )
+            cr_has_content_early = bool(cr_request_change_check) or bool(cr_chronology_check) or cr_dynamic_fields_check
 
             # Link ticket to logged-in portal user if they toggled tracking OR if CR content is present
             if request.user.is_authenticated and (
@@ -1039,14 +1072,32 @@ def create_case(request, slug=None):
 
             cr_is_pending_approval = False
 
-            if category.enable_change_request and _quill_has_content(cr_request_change) and _quill_has_content(cr_chronology):
+            # Dynamic template fields (new flow)
+            cr_template_id = request.POST.get("cr_template_id", "").strip()
+            cr_template = None
+            cr_field_values = []
+            cr_has_dynamic_content = False
+            if cr_template_id:
+                cr_template = DocumentTemplate.objects.filter(id=cr_template_id).prefetch_related("fields").first()
+                if cr_template:
+                    for field in cr_template.ordered_fields():
+                        val = request.POST.get(f"cr_field_{field.order}", "").strip()
+                        cr_field_values.append({"label": field.label, "value": val})
+                    cr_has_dynamic_content = any(_quill_has_content(fv["value"]) for fv in cr_field_values)
+
+            cr_use_dynamic = cr_has_dynamic_content and cr_template is not None
+            cr_use_legacy = (not cr_use_dynamic) and _quill_has_content(cr_request_change) and _quill_has_content(cr_chronology)
+
+            if category.enable_change_request and (cr_use_dynamic or cr_use_legacy):
                 from django.utils import timezone as _tz
                 approver_ids = request.POST.getlist("cr_approvers")
                 has_approvers = bool(approver_ids)
                 cr_doc = ChangeRequestDocument.objects.create(
                     case=case,
-                    request_change=cr_request_change,
-                    chronology=cr_chronology,
+                    document_template=cr_template if cr_use_dynamic else None,
+                    field_values=cr_field_values if cr_use_dynamic else [],
+                    request_change=cr_request_change if cr_use_legacy else "",
+                    chronology=cr_chronology if cr_use_legacy else "",
                     status=(
                         ChangeRequestDocument.Status.PENDING_APPROVAL
                         if has_approvers else ChangeRequestDocument.Status.APPROVED
@@ -1108,6 +1159,7 @@ def create_case(request, slug=None):
         "category_templates_json": category_templates_json,
         "category_templates_subject_json": category_templates_subject_json,
         "category_cr_enabled_json": category_cr_enabled_json,
+        "category_document_templates_json": category_document_templates_json,
         "available_approvers_json": available_approvers_json,
     })
 
@@ -4485,7 +4537,11 @@ def _finalize_approved_change_request(doc):
         return False
 
     safe_case_number = doc.case.case_number.replace("/", "-").replace(" ", "_")
-    filename = f"Surat_Kronologi_{safe_case_number}_Approved.pdf"
+    doc_title_slug = (
+        doc.document_template.title.replace(" ", "_")
+        if doc.document_template else "Supporting_Letter"
+    )
+    filename = f"{doc_title_slug}_{safe_case_number}_Approved.pdf"
     doc.generated_pdf.save(filename, ContentFile(pdf_bytes), save=True)
     doc.status = ChangeRequestDocument.Status.APPROVED
     doc.save(update_fields=["status"])
@@ -4528,7 +4584,8 @@ def _finalize_approved_change_request(doc):
 def portal_change_request_new(request, case_id):
     """
     Create a new ChangeRequestDocument for a ticket.
-    GET: form with request_change + chronology fields and optional approver selection.
+    GET (no template_id): show template picker if multiple templates linked to category.
+    GET (with template_id): show dynamic field form for the selected template.
     POST: create the document and route it to selected approvers (or auto-approve).
     """
     case = get_object_or_404(CaseRecord, id=case_id)
@@ -4542,7 +4599,7 @@ def portal_change_request_new(request, case_id):
         return HttpResponseForbidden("Access denied.")
 
     if not case.category.enable_change_request:
-        return HttpResponseForbidden("Change request is not enabled for this category.")
+        return HttpResponseForbidden("Supporting letter is not enabled for this category.")
 
     active_doc = case.change_requests.filter(
         status__in=[
@@ -4551,49 +4608,29 @@ def portal_change_request_new(request, case_id):
         ]
     ).first()
     if active_doc:
-        messages.info(request, "A change request is already active or approved for this ticket.")
+        messages.info(request, "A supporting letter is already active or approved for this ticket.")
         query = f"?token={guest_token}" if guest_token else ""
         return redirect(f"{reverse('cases:portal_change_request_detail', args=[active_doc.id])}{query}")
 
-    available_approvers = User.objects.filter(
-        is_active=True,
-    ).order_by("first_name", "last_name")
+    available_approvers = User.objects.filter(is_active=True).order_by("first_name", "last_name")
+    available_templates = (
+        DocumentTemplate.objects
+        .filter(categories=case.category)
+        .prefetch_related("fields")
+        .order_by("title")
+    )
 
-    if request.method == "POST":
-        request_change = request.POST.get("request_change", "").strip()
-        chronology = request.POST.get("chronology", "").strip()
+    def _quill_has_content(html):
+        text = re.sub(r'<[^>]+>', '', html or '').strip()
+        return bool(text) or '<img' in (html or '')
 
-        if not request_change or not chronology:
-            messages.error(request, "Both fields are required.")
-            return render(request, "client/change_request_form.html", {
-                "case": case,
-                "available_approvers": available_approvers,
-                "guest_token": guest_token,
-            })
-
-        approver_ids = request.POST.getlist("approvers")
+    def _build_approval_chain(doc, approver_ids):
         has_approvers = bool(approver_ids)
-
-        doc = ChangeRequestDocument.objects.create(
-            case=case,
-            request_change=request_change,
-            chronology=chronology,
-            status=(
-                ChangeRequestDocument.Status.PENDING_APPROVAL
-                if has_approvers else ChangeRequestDocument.Status.APPROVED
-            ),
-            submitted_at=timezone.now(),
-        )
-
         if has_approvers:
             for order, uid in enumerate(approver_ids, start=1):
                 approver = User.objects.filter(id=uid).first()
                 if approver:
-                    ChangeRequestApproval.objects.create(
-                        document=doc,
-                        approver=approver,
-                        order=order,
-                    )
+                    ChangeRequestApproval.objects.create(document=doc, approver=approver, order=order)
             case.status = CaseRecord.Status.PENDING_APPROVAL
             case.save(update_fields=["status"])
             _notify_change_request_approvers(doc)
@@ -4601,15 +4638,95 @@ def portal_change_request_new(request, case_id):
         else:
             _finalize_approved_change_request(doc)
             messages.success(request, "Supporting letter approved and attached to the ticket.")
+        return has_approvers
 
+    if request.method == "POST":
+        template_id = request.POST.get("template_id", "").strip()
+        approver_ids = request.POST.getlist("approvers")
+
+        if template_id:
+            # Dynamic template flow
+            selected_template = available_templates.filter(id=template_id).first()
+            if not selected_template:
+                messages.error(request, "Invalid document template selected.")
+                return render(request, "client/change_request_form.html", {
+                    "case": case, "available_approvers": available_approvers,
+                    "available_templates": available_templates, "guest_token": guest_token,
+                })
+
+            field_values = []
+            has_any_content = False
+            for field in selected_template.ordered_fields():
+                val = request.POST.get(f"field_{field.order}", "").strip()
+                if field.is_required and not _quill_has_content(val):
+                    messages.error(request, f"Field '{field.label}' is required.")
+                    return render(request, "client/change_request_form.html", {
+                        "case": case, "available_approvers": available_approvers,
+                        "available_templates": available_templates,
+                        "selected_template": selected_template,
+                        "guest_token": guest_token,
+                    })
+                field_values.append({"label": field.label, "value": val})
+                if _quill_has_content(val):
+                    has_any_content = True
+
+            if not has_any_content:
+                messages.error(request, "Please fill in at least one field.")
+                return render(request, "client/change_request_form.html", {
+                    "case": case, "available_approvers": available_approvers,
+                    "available_templates": available_templates,
+                    "selected_template": selected_template,
+                    "guest_token": guest_token,
+                })
+
+            doc = ChangeRequestDocument.objects.create(
+                case=case,
+                document_template=selected_template,
+                field_values=field_values,
+                status=(
+                    ChangeRequestDocument.Status.PENDING_APPROVAL
+                    if approver_ids else ChangeRequestDocument.Status.APPROVED
+                ),
+                submitted_at=timezone.now(),
+            )
+        else:
+            # Legacy 2-field flow (fallback when no templates configured for category)
+            request_change = request.POST.get("request_change", "").strip()
+            chronology = request.POST.get("chronology", "").strip()
+            if not _quill_has_content(request_change) or not _quill_has_content(chronology):
+                messages.error(request, "Both fields are required.")
+                return render(request, "client/change_request_form.html", {
+                    "case": case, "available_approvers": available_approvers,
+                    "available_templates": available_templates, "guest_token": guest_token,
+                })
+            doc = ChangeRequestDocument.objects.create(
+                case=case,
+                request_change=request_change,
+                chronology=chronology,
+                status=(
+                    ChangeRequestDocument.Status.PENDING_APPROVAL
+                    if approver_ids else ChangeRequestDocument.Status.APPROVED
+                ),
+                submitted_at=timezone.now(),
+            )
+
+        _build_approval_chain(doc, approver_ids)
         query = f"?token={guest_token}" if guest_token else ""
-        return redirect(
-            f"{reverse('cases:portal_change_request_detail', args=[doc.id])}{query}"
-        )
+        return redirect(f"{reverse('cases:portal_change_request_detail', args=[doc.id])}{query}")
+
+    # GET — resolve which template to show
+    selected_template = None
+    template_id_param = request.GET.get("template_id", "").strip()
+    if template_id_param:
+        selected_template = available_templates.filter(id=template_id_param).first()
+    elif available_templates.count() == 1:
+        selected_template = available_templates.first()
 
     return render(request, "client/change_request_form.html", {
         "case": case,
         "available_approvers": available_approvers,
+        "available_templates": available_templates,
+        "selected_template": selected_template,
         "guest_token": guest_token,
     })
 
@@ -4656,48 +4773,69 @@ def portal_change_request_revise(request, doc_id):
         messages.error(request, "This change request is not in a rejected state.")
         return redirect("cases:portal_change_request_detail", doc_id=doc.id)
 
-    available_approvers = User.objects.filter(
-        is_active=True,
-    ).order_by("first_name", "last_name")
+    available_approvers = User.objects.filter(is_active=True).order_by("first_name", "last_name")
+    selected_template = doc.document_template
+
+    def _quill_has_content(html):
+        text = re.sub(r'<[^>]+>', '', html or '').strip()
+        return bool(text) or '<img' in (html or '')
 
     if request.method == "POST":
-        request_change = request.POST.get("request_change", "").strip()
-        chronology = request.POST.get("chronology", "").strip()
-
-        if not request_change or not chronology:
-            messages.error(request, "Both fields are required.")
-            return render(request, "client/change_request_form.html", {
-                "case": case,
-                "doc": doc,
-                "available_approvers": available_approvers,
-                "is_revision": True,
-                "guest_token": guest_token,
-            })
-
         approver_ids = request.POST.getlist("approvers")
-        has_approvers = bool(approver_ids)
 
-        new_doc = ChangeRequestDocument.objects.create(
-            case=case,
-            request_change=request_change,
-            chronology=chronology,
-            revision_number=doc.revision_number + 1,
-            status=(
-                ChangeRequestDocument.Status.PENDING_APPROVAL
-                if has_approvers else ChangeRequestDocument.Status.APPROVED
-            ),
-            submitted_at=timezone.now(),
-        )
+        if selected_template:
+            field_values = []
+            for field in selected_template.ordered_fields():
+                val = request.POST.get(f"field_{field.order}", "").strip()
+                if field.is_required and not _quill_has_content(val):
+                    messages.error(request, f"Field '{field.label}' is required.")
+                    return render(request, "client/change_request_form.html", {
+                        "case": case, "doc": doc, "available_approvers": available_approvers,
+                        "selected_template": selected_template, "is_revision": True,
+                        "guest_token": guest_token,
+                        "prefill_field_values": doc.field_values,
+                    })
+                field_values.append({"label": field.label, "value": val})
 
-        if has_approvers:
+            new_doc = ChangeRequestDocument.objects.create(
+                case=case,
+                document_template=selected_template,
+                field_values=field_values,
+                revision_number=doc.revision_number + 1,
+                status=(
+                    ChangeRequestDocument.Status.PENDING_APPROVAL
+                    if approver_ids else ChangeRequestDocument.Status.APPROVED
+                ),
+                submitted_at=timezone.now(),
+            )
+        else:
+            request_change = request.POST.get("request_change", "").strip()
+            chronology = request.POST.get("chronology", "").strip()
+            if not _quill_has_content(request_change) or not _quill_has_content(chronology):
+                messages.error(request, "Both fields are required.")
+                return render(request, "client/change_request_form.html", {
+                    "case": case, "doc": doc, "available_approvers": available_approvers,
+                    "is_revision": True, "guest_token": guest_token,
+                    "prefill_request_change": doc.request_change,
+                    "prefill_chronology": doc.chronology,
+                })
+            new_doc = ChangeRequestDocument.objects.create(
+                case=case,
+                request_change=request_change,
+                chronology=chronology,
+                revision_number=doc.revision_number + 1,
+                status=(
+                    ChangeRequestDocument.Status.PENDING_APPROVAL
+                    if approver_ids else ChangeRequestDocument.Status.APPROVED
+                ),
+                submitted_at=timezone.now(),
+            )
+
+        if approver_ids:
             for order, uid in enumerate(approver_ids, start=1):
                 approver = User.objects.filter(id=uid).first()
                 if approver:
-                    ChangeRequestApproval.objects.create(
-                        document=new_doc,
-                        approver=approver,
-                        order=order,
-                    )
+                    ChangeRequestApproval.objects.create(document=new_doc, approver=approver, order=order)
             case.status = CaseRecord.Status.PENDING_APPROVAL
             case.save(update_fields=["status"])
             _notify_change_request_approvers(new_doc)
@@ -4707,9 +4845,7 @@ def portal_change_request_revise(request, doc_id):
             messages.success(request, f"Revision #{new_doc.revision_number} approved and attached.")
 
         query = f"?token={guest_token}" if guest_token else ""
-        return redirect(
-            f"{reverse('cases:portal_change_request_detail', args=[new_doc.id])}{query}"
-        )
+        return redirect(f"{reverse('cases:portal_change_request_detail', args=[new_doc.id])}{query}")
 
     rejection_note = (
         doc.approvals.filter(status=ChangeRequestApproval.Status.REJECTED)
@@ -4721,8 +4857,10 @@ def portal_change_request_revise(request, doc_id):
         "case": case,
         "doc": doc,
         "available_approvers": available_approvers,
+        "selected_template": selected_template,
         "is_revision": True,
         "rejection_note": rejection_note or "",
+        "prefill_field_values": doc.field_values,
         "prefill_request_change": doc.request_change,
         "prefill_chronology": doc.chronology,
         "guest_token": guest_token,

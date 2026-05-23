@@ -3,6 +3,14 @@
 
 {% block title %}{% if is_revision %}Revise{% else %}New{% endif %} Supporting Letter | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<style>
+  .cr-field-editor .ql-editor { min-height: 130px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
@@ -45,37 +53,86 @@
     </div>
     {% endif %}
 
-    <form method="post" x-data="{ hasApprovers: false }" class="space-y-5">
+    {% if not selected_template and available_templates.count > 1 %}
+    <!-- Template picker (multiple templates, none pre-selected) -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <h3 class="text-base font-semibold text-slate-800">Select Document Type</h3>
+        <div class="space-y-3">
+            {% for tpl in available_templates %}
+            <a href="?template_id={{ tpl.id }}{% if guest_token %}&token={{ guest_token }}{% endif %}"
+               class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-colors group">
+                <div class="w-10 h-10 rounded-lg bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                    <svg class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-slate-800">{{ tpl.title }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ tpl.fields.count }} field(s)</p>
+                </div>
+                <svg class="h-4 w-4 text-slate-400 group-hover:text-indigo-500 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% else %}
+
+    <form method="post" x-data="crForm()" class="space-y-5">
         {% csrf_token %}
         <input type="hidden" name="token" value="{{ guest_token }}">
+        {% if selected_template %}
+        <input type="hidden" name="template_id" value="{{ selected_template.id }}">
+        {% endif %}
 
-        <!-- Request Change + Chronology -->
+        {% if available_templates.count > 1 %}
+        <!-- Back to template selection -->
+        <a href="?{% if guest_token %}token={{ guest_token }}{% endif %}"
+           class="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to document selection
+        </a>
+        {% endif %}
+
+        <!-- Document Fields -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
-            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Request Details</h3>
+            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">
+                {% if selected_template %}{{ selected_template.title }}{% else %}Request Details{% endif %}
+            </h3>
 
+            {% if selected_template %}
+            <!-- Dynamic template fields -->
+            {% for field in selected_template.ordered_fields %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">
+                    {{ field.label }}{% if field.is_required %} <span class="text-red-500">*</span>{% endif %}
+                </label>
+                <div id="quill-field-{{ field.order }}" class="bg-white cr-field-editor"></div>
+                <input type="hidden" name="field_{{ field.order }}" id="input-field-{{ field.order }}">
+            </div>
+            {% endfor %}
+            {% else %}
+            <!-- Legacy 2-field form (no template configured) -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1.5">
                     Request Change <span class="text-red-500">*</span>
                 </label>
-                <textarea
-                    name="request_change"
-                    rows="4"
-                    required
-                    class="jk-input w-full resize-y text-sm"
-                    placeholder="Describe clearly what change or action you are requesting...">{{ prefill_request_change|default:"" }}</textarea>
+                <div id="quill-rc" class="bg-white cr-field-editor"></div>
+                <input type="hidden" name="request_change" id="input-rc">
             </div>
-
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1.5">
                     Chronology <span class="text-red-500">*</span>
                 </label>
-                <textarea
-                    name="chronology"
-                    rows="6"
-                    required
-                    class="jk-input w-full resize-y text-sm"
-                    placeholder="Describe the background and chronology of the situation...">{{ prefill_chronology|default:"" }}</textarea>
+                <div id="quill-ch" class="bg-white cr-field-editor"></div>
+                <input type="hidden" name="chronology" id="input-ch">
             </div>
+            {% endif %}
         </div>
 
         <!-- Approver Selection (optional) -->
@@ -93,7 +150,6 @@
                     </label>
                     <p class="text-xs text-slate-500 mt-0.5">
                         If selected, the document is routed for approval before being attached to the ticket.
-                        If skipped, the document is attached immediately.
                     </p>
                 </div>
             </div>
@@ -121,12 +177,78 @@
                class="px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                 Cancel
             </a>
-            <button type="submit"
+            <button type="submit" @click="beforeSubmit"
                     class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
                 {% if is_revision %}Submit Revised Letter{% else %}Submit Supporting Letter{% endif %}
             </button>
         </div>
     </form>
+    {% endif %}
 
 </div>
+
+<script>
+function crForm() {
+    return {
+        hasApprovers: false,
+
+        init() {
+            this.$nextTick(() => {
+                const toolbar = [
+                    ['bold', 'italic', 'underline'],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    ['link', 'image'],
+                    ['clean']
+                ];
+
+                {% if selected_template %}
+                {% for field in selected_template.ordered_fields %}
+                const q{{ field.order }} = new Quill('#quill-field-{{ field.order }}', {
+                    theme: 'snow',
+                    placeholder: '{{ field.placeholder|default:""|escapejs }}',
+                    modules: { toolbar }
+                });
+                {% if is_revision and prefill_field_values %}
+                {% for fv in prefill_field_values %}
+                {% if fv.label == field.label %}
+                q{{ field.order }}.root.innerHTML = {{ fv.value|default:"''"|safe }};
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                const qRC = new Quill('#quill-rc', { theme: 'snow', placeholder: 'Describe what change or action you are requesting...', modules: { toolbar } });
+                const qCH = new Quill('#quill-ch', { theme: 'snow', placeholder: 'Describe the background and chronology...', modules: { toolbar } });
+                {% if prefill_request_change %}qRC.root.innerHTML = {{ prefill_request_change|safe }};{% endif %}
+                {% if prefill_chronology %}qCH.root.innerHTML = {{ prefill_chronology|safe }};{% endif %}
+                window._qRC = qRC;
+                window._qCH = qCH;
+                {% endif %}
+
+                {% if selected_template %}
+                {% for field in selected_template.ordered_fields %}
+                window['_q{{ field.order }}'] = q{{ field.order }};
+                {% endfor %}
+                {% endif %}
+            });
+        },
+
+        beforeSubmit(e) {
+            {% if selected_template %}
+            {% for field in selected_template.ordered_fields %}
+            const inp{{ field.order }} = document.getElementById('input-field-{{ field.order }}');
+            if (inp{{ field.order }} && window['_q{{ field.order }}']) {
+                inp{{ field.order }}.value = window['_q{{ field.order }}'].root.innerHTML;
+            }
+            {% endfor %}
+            {% else %}
+            const inpRC = document.getElementById('input-rc');
+            const inpCH = document.getElementById('input-ch');
+            if (inpRC && window._qRC) inpRC.value = window._qRC.root.innerHTML;
+            if (inpCH && window._qCH) inpCH.value = window._qCH.root.innerHTML;
+            {% endif %}
+        }
+    };
+}
+</script>
 {% endblock %}
