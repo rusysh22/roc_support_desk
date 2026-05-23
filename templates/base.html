@@ -126,7 +126,7 @@
             </a>
             {% endif %}
 
-            {% if user.is_authenticated %}
+            {% if user.is_authenticated and user.role_access != 'PortalUser' %}
             <a href="{% url 'chat:my_approvals' %}" class="jk-sidebar-link {% block nav_my_approvals %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">✅</span>
                 <span x-show="!sidebarCollapsed" x-transition.opacity>My Approvals</span>

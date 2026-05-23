@@ -519,13 +519,13 @@
             <p class="flex-1 text-[11px] font-medium text-slate-700 truncate">{{ appr.approver.get_full_name|default:appr.approver.username }}</p>
             <button type="button"
                     @click="navigator.clipboard.writeText(window.location.origin + '{% url "cases:change_request_approve" appr.token %}').then(() => { copiedAppr = '{{ appr.token }}'; setTimeout(() => copiedAppr = null, 2000) })"
-                    class="flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors"
+                    class="flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-1.5 min-h-[28px] rounded-md transition-colors"
                     :class="copiedAppr === '{{ appr.token }}' ? 'bg-green-100 text-green-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'">
               <span x-text="copiedAppr === '{{ appr.token }}' ? 'Copied!' : 'Copy'"></span>
             </button>
             <button type="button"
                     @click="navigator.share ? navigator.share({ title: 'Approval Request', url: window.location.origin + '{% url "cases:change_request_approve" appr.token %}' }) : null"
-                    class="flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors">
+                    class="sm:hidden flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-1.5 min-h-[28px] rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors">
               Share
             </button>
           </div>
@@ -1396,7 +1396,7 @@ function chatRoom() {
 
       if (isSys) {
         el.className = 'flex justify-center mb-4';
-        el.innerHTML = `<div class="text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full max-w-xs text-center">${this.escHtml(data.body)}</div>`;
+        el.innerHTML = `<div class="text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full max-w-xs text-center">${this.renderBody(data.body)}</div>`;
       } else {
         const init = (data.sender_name || (isOut ? 'S' : 'U')).charAt(0).toUpperCase();
         const avatarClass = isOut ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700';
