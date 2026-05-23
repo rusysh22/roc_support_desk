@@ -4459,7 +4459,7 @@ def _notify_change_request_approvers(doc):
             Message.objects.create(
                 case=doc.case,
                 body=(
-                    f"[Change Request Approval — Rev.{doc.revision_number}]\n"
+                    f"[Supporting Letter Approval — Rev.{doc.revision_number}]\n"
                     f"Ticket {doc.case.case_number} requires approval from {approver_name}.\n"
                     f"Review: {approval_url}"
                 ),
@@ -4484,7 +4484,8 @@ def _finalize_approved_change_request(doc):
     if pdf_bytes is None:
         return False
 
-    filename = f"change_request_rev{doc.revision_number}.pdf"
+    safe_case_number = doc.case.case_number.replace("/", "-").replace(" ", "_")
+    filename = f"Surat_Kronologi_{safe_case_number}_Approved.pdf"
     doc.generated_pdf.save(filename, ContentFile(pdf_bytes), save=True)
     doc.status = ChangeRequestDocument.Status.APPROVED
     doc.save(update_fields=["status"])
@@ -4493,8 +4494,8 @@ def _finalize_approved_change_request(doc):
     msg = Message.objects.create(
         case=case,
         body=(
-            f"[Change Request Approved — Rev.{doc.revision_number}]\n"
-            f"The change request document has been fully approved and attached."
+            f"[Supporting Letter Approved — Rev.{doc.revision_number}]\n"
+            f"The supporting letter has been fully approved and attached."
         ),
         direction=Message.Direction.OUTBOUND,
         channel=Message.Channel.WEB,
@@ -4596,10 +4597,10 @@ def portal_change_request_new(request, case_id):
             case.status = CaseRecord.Status.PENDING_APPROVAL
             case.save(update_fields=["status"])
             _notify_change_request_approvers(doc)
-            messages.success(request, "Change request submitted and sent to approvers.")
+            messages.success(request, "Supporting letter submitted and sent to approvers.")
         else:
             _finalize_approved_change_request(doc)
-            messages.success(request, "Change request approved and attached to the ticket.")
+            messages.success(request, "Supporting letter approved and attached to the ticket.")
 
         query = f"?token={guest_token}" if guest_token else ""
         return redirect(
@@ -4803,7 +4804,7 @@ def change_request_approve(request, token):
                 Message.objects.create(
                     case=case,
                     body=(
-                        f"[Change Request Rejected — Rev.{doc.revision_number}]\n"
+                        f"[Supporting Letter Rejected — Rev.{doc.revision_number}]\n"
                         f"Rejected by {approver_name}.\nReason: {notes}"
                     ),
                     direction=Message.Direction.OUTBOUND,

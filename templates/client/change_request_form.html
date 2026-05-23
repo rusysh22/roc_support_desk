@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if is_revision %}Revise{% else %}New{% endif %} Change Request | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}{% if is_revision %}Revise{% else %}New{% endif %} Supporting Letter | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -17,7 +17,7 @@
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
             <h1 class="text-xl font-bold text-slate-900">
-                {% if is_revision %}Revise Change Request{% else %}New Change Request{% endif %}
+                {% if is_revision %}Revise Supporting Letter{% else %}New Supporting Letter{% endif %}
             </h1>
             <p class="text-sm text-slate-500">{{ case.subject }}</p>
         </div>
@@ -123,7 +123,7 @@
             </a>
             <button type="submit"
                     class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
-                {% if is_revision %}Submit Revision{% else %}Submit Change Request{% endif %}
+                {% if is_revision %}Submit Revised Letter{% else %}Submit Supporting Letter{% endif %}
             </button>
         </div>
     </form>

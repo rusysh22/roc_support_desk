@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Change Request Approval | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}Supporting Letter Approval | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -29,7 +29,7 @@
                 </svg>
             </div>
             <div class="flex-1 min-w-0">
-                <h1 class="text-lg font-bold text-slate-900">Change Request — Approval</h1>
+                <h1 class="text-lg font-bold text-slate-900">Supporting Letter — Approval</h1>
                 <p class="text-sm text-slate-600 mt-0.5">
                     Ticket: <span class="font-medium">{{ case.case_number }}</span> — {{ case.subject }}
                 </p>
@@ -89,7 +89,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <p class="text-lg font-bold text-green-800">Thank You!</p>
-        <p class="text-sm text-green-700">You have approved this change request.</p>
+        <p class="text-sm text-green-700">You have approved this supporting letter.</p>
         {% if doc.status == 'approved' %}
         <p class="text-sm text-green-600 font-medium">All approvals complete — the PDF has been attached to the ticket.</p>
         {% else %}
@@ -148,7 +148,7 @@
 
         <p class="text-sm text-slate-600">
             You have been asked by <span class="font-medium">{{ case.requester_name|default:case.requester_email }}</span>
-            to approve or reject the change request above.
+            to approve or reject the supporting letter above.
         </p>
 
         <!-- Approve form -->
@@ -166,7 +166,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
-                    Approve Change Request
+                    Approve Supporting Letter
                 </button>
             </div>
         </form>
@@ -178,7 +178,7 @@
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
-                Reject Change Request
+                Reject Supporting Letter
             </button>
 
             <div x-show="showReject" x-transition class="mt-3">

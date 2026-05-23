@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Change Request Status | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}Supporting Letter Status | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -28,7 +28,7 @@
         </a>
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
-            <h1 class="text-xl font-bold text-slate-900">Change Request Status</h1>
+            <h1 class="text-xl font-bold text-slate-900">Supporting Letter Status</h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="text-sm text-slate-500">Rev. #{{ doc.revision_number }}</span>
                 {% if doc.status == 'draft' %}
@@ -154,7 +154,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <p class="text-base font-semibold text-green-800">Document Approved</p>
-        <p class="text-sm text-green-700">The PDF has been generated and attached to the ticket as an attachment.</p>
+        <p class="text-sm text-green-700">The PDF has been generated and attached to the ticket.</p>
     </div>
     {% elif doc.status == 'rejected' %}
     <div class="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
@@ -172,7 +172,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
-            Submit Revision
+            Submit Revised Letter
         </a>
     </div>
     {% endif %}

@@ -104,7 +104,7 @@ def generate_change_request_pdf(doc) -> bytes | None:
     submitted_str = _format_dt_with_gmt(doc.submitted_at or doc.created_at)
 
     revision_row = (
-        f"<tr><td class='lbl'>Nomor Revisi</td><td class='sep'>:</td>"
+        f"<tr><td class='lbl'>Revision No.</td><td class='sep'>:</td>"
         f"<td>#{doc.revision_number}</td></tr>"
         if doc.revision_number > 1 else ""
     )
@@ -244,41 +244,41 @@ def generate_change_request_pdf(doc) -> bytes | None:
 </head>
 <body>
 
-<!-- Kop Surat -->
+<!-- Letterhead -->
 <div class="kop">
   {logo_tag}
   <div class="kop-text">
     <p class="kop-name">{site_name}</p>
-    <p class="kop-sub">Surat Kronologi / Change Request Document</p>
+    <p class="kop-sub">Supporting Letter Document</p>
   </div>
 </div>
 
-<!-- Judul Dokumen -->
+<!-- Document Title -->
 <div class="doc-title">
-  <h1>Surat Kronologi / Change Request</h1>
+  <h1>Supporting Letter</h1>
 </div>
 
-<!-- Identitas Pemohon -->
+<!-- Requester Identity -->
 <table class="meta">
-  <tr><td class="lbl">No. Tiket</td><td class="sep">:</td><td>{case.case_number}</td></tr>
-  <tr><td class="lbl">Nama Pemohon</td><td class="sep">:</td><td>{requester_name}</td></tr>
-  <tr><td class="lbl">Unit / Departemen</td><td class="sep">:</td><td>{requester_unit}</td></tr>
+  <tr><td class="lbl">Ticket No.</td><td class="sep">:</td><td>{case.case_number}</td></tr>
+  <tr><td class="lbl">Requester Name</td><td class="sep">:</td><td>{requester_name}</td></tr>
+  <tr><td class="lbl">Unit / Department</td><td class="sep">:</td><td>{requester_unit}</td></tr>
   <tr><td class="lbl">Email</td><td class="sep">:</td><td>{requester_email}</td></tr>
-  <tr><td class="lbl">Jabatan</td><td class="sep">:</td><td>{requester_role}</td></tr>
-  <tr><td class="lbl">Tanggal Pengajuan</td><td class="sep">:</td><td>{submitted_str}</td></tr>
+  <tr><td class="lbl">Job Title</td><td class="sep">:</td><td>{requester_role}</td></tr>
+  <tr><td class="lbl">Submission Date</td><td class="sep">:</td><td>{submitted_str}</td></tr>
   {revision_row}
 </table>
 
 <hr>
 
-<!-- Isi Dokumen -->
-<h2>Permintaan Perubahan</h2>
+<!-- Document Content -->
+<h2>Change Request</h2>
 <div class="content-html">{doc.request_change}</div>
 
-<h2>Kronologi</h2>
+<h2>Chronology</h2>
 <div class="content-html">{doc.chronology}</div>
 
-<!-- Tanda Tangan Approver -->
+<!-- Approver Signatures -->
 {sig_blocks}
 
 </body>
