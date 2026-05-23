@@ -904,6 +904,17 @@ def create_case(request, slug=None):
     category_templates_subject_json = json.dumps({
         str(c.id): c.template_subject for c in categories_qs if c.template_subject
     })
+    category_cr_enabled_json = json.dumps([
+        str(c.id) for c in categories_qs if c.enable_change_request
+    ])
+    available_approvers = User.objects.filter(
+        is_active=True,
+        role_access__in=[
+            User.RoleAccess.SUPERADMIN,
+            User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK,
+        ],
+    ).order_by("first_name", "last_name")
 
     if request.method == "POST":
         # Rate Limiting Check
@@ -940,6 +951,8 @@ def create_case(request, slug=None):
                     "company_units": CompanyUnit.objects.all(),
                     "category_templates_json": category_templates_json,
                     "category_templates_subject_json": category_templates_subject_json,
+                    "category_cr_enabled_json": category_cr_enabled_json,
+                    "available_approvers": available_approvers,
                 })
 
             email = form.cleaned_data["requester_email"]
@@ -1012,6 +1025,38 @@ def create_case(request, slug=None):
             from gateways.tasks import _dispatch_new_ticket_notifs
             _dispatch_new_ticket_notifs(str(case.id))
 
+            # Inline change request — process if fields are provided
+            cr_request_change = request.POST.get("cr_request_change", "").strip()
+            cr_chronology = request.POST.get("cr_chronology", "").strip()
+            if category.enable_change_request and cr_request_change and cr_chronology:
+                from django.utils import timezone as _tz
+                approver_ids = request.POST.getlist("cr_approvers")
+                has_approvers = bool(approver_ids)
+                cr_doc = ChangeRequestDocument.objects.create(
+                    case=case,
+                    request_change=cr_request_change,
+                    chronology=cr_chronology,
+                    status=(
+                        ChangeRequestDocument.Status.PENDING_APPROVAL
+                        if has_approvers else ChangeRequestDocument.Status.APPROVED
+                    ),
+                    submitted_at=_tz.now(),
+                )
+                if has_approvers:
+                    for order, uid in enumerate(approver_ids, start=1):
+                        approver = User.objects.filter(id=uid).first()
+                        if approver:
+                            ChangeRequestApproval.objects.create(
+                                document=cr_doc,
+                                approver=approver,
+                                order=order,
+                            )
+                    case.status = CaseRecord.Status.PENDING_APPROVAL
+                    case.save(update_fields=["status"])
+                    _notify_change_request_approvers(cr_doc)
+                else:
+                    _finalize_approved_change_request(cr_doc)
+
             # Create Audit Log entry
             CaseAuditLog.objects.create(
                 case=case,
@@ -1036,6 +1081,8 @@ def create_case(request, slug=None):
         "company_units": CompanyUnit.objects.all(),
         "category_templates_json": category_templates_json,
         "category_templates_subject_json": category_templates_subject_json,
+        "category_cr_enabled_json": category_cr_enabled_json,
+        "available_approvers": available_approvers,
     })
 
 

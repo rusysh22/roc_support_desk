@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Status Change Request | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}Change Request Status | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -16,17 +16,17 @@
         </a>
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
-            <h1 class="text-xl font-bold text-slate-900">Status Change Request</h1>
+            <h1 class="text-xl font-bold text-slate-900">Change Request Status</h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="text-sm text-slate-500">Rev. #{{ doc.revision_number }}</span>
                 {% if doc.status == 'draft' %}
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Draft</span>
                 {% elif doc.status == 'pending_approval' %}
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Menunggu Persetujuan</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending Approval</span>
                 {% elif doc.status == 'approved' %}
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Disetujui</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Approved</span>
                 {% elif doc.status == 'rejected' %}
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Ditolak</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Rejected</span>
                 {% endif %}
             </div>
         </div>
@@ -34,20 +34,20 @@
 
     <!-- Document Content -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Isi Dokumen</h2>
+        <h2 class="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Document Content</h2>
 
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Permintaan Perubahan</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Request Change</p>
             <p class="text-sm text-slate-800 whitespace-pre-wrap">{{ doc.request_change }}</p>
         </div>
 
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Kronologi</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Chronology</p>
             <p class="text-sm text-slate-800 whitespace-pre-wrap">{{ doc.chronology }}</p>
         </div>
 
         {% if doc.submitted_at %}
-        <p class="text-xs text-slate-400 pt-1">Dikirim pada {{ doc.submitted_at|date:"d M Y, H:i" }}</p>
+        <p class="text-xs text-slate-400 pt-1">Submitted on {{ doc.submitted_at|date:"d M Y, H:i" }}</p>
         {% endif %}
     </div>
 
@@ -60,8 +60,8 @@
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
             <div>
-                <p class="text-sm font-semibold text-indigo-800">Dokumen PDF Tersedia</p>
-                <p class="text-xs text-indigo-600">Dokumen sudah disetujui dan dilampirkan ke tiket.</p>
+                <p class="text-sm font-semibold text-indigo-800">PDF Document Available</p>
+                <p class="text-xs text-indigo-600">The document has been approved and attached to the ticket.</p>
             </div>
         </div>
         <a href="{{ doc.generated_pdf.url }}" target="_blank"
@@ -78,7 +78,7 @@
     <!-- Approval Timeline -->
     {% if approvals %}
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">Status Persetujuan</h2>
+        <h2 class="text-sm font-semibold text-slate-700 mb-4">Approval Status</h2>
         <div class="space-y-3">
             {% for approval in approvals %}
             <div class="flex items-center gap-3 p-3 rounded-xl border
@@ -110,7 +110,7 @@
                     {% if approval.acted_at %}
                     <p class="text-xs text-slate-500">{{ approval.acted_at|date:"d M Y, H:i" }}</p>
                     {% else %}
-                    <p class="text-xs text-slate-400">Menunggu tindakan</p>
+                    <p class="text-xs text-slate-400">Awaiting action</p>
                     {% endif %}
                     {% if approval.notes %}
                     <p class="text-xs text-slate-600 mt-0.5 italic">"{{ approval.notes }}"</p>
@@ -121,9 +121,9 @@
                     {% if approval.status == 'approved' %}bg-green-100 text-green-700
                     {% elif approval.status == 'rejected' %}bg-red-100 text-red-700
                     {% else %}bg-yellow-100 text-yellow-700{% endif %}">
-                    {% if approval.status == 'pending' %}Menunggu
-                    {% elif approval.status == 'approved' %}Disetujui
-                    {% else %}Ditolak{% endif %}
+                    {% if approval.status == 'pending' %}Pending
+                    {% elif approval.status == 'approved' %}Approved
+                    {% else %}Rejected{% endif %}
                 </span>
             </div>
             {% endfor %}
@@ -131,7 +131,7 @@
     </div>
     {% else %}
     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-        <p class="text-sm text-slate-500">Tidak ada approver — dokumen langsung disetujui.</p>
+        <p class="text-sm text-slate-500">No approvers — document was auto-approved immediately.</p>
     </div>
     {% endif %}
 
@@ -141,8 +141,8 @@
         <svg class="h-10 w-10 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <p class="text-base font-semibold text-green-800">Dokumen Disetujui</p>
-        <p class="text-sm text-green-700">PDF telah dibuat dan dilampirkan ke tiket sebagai attachment.</p>
+        <p class="text-base font-semibold text-green-800">Document Approved</p>
+        <p class="text-sm text-green-700">The PDF has been generated and attached to the ticket as an attachment.</p>
     </div>
     {% elif doc.status == 'rejected' %}
     <div class="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
@@ -151,16 +151,16 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <p class="font-semibold">Dokumen Ditolak</p>
+            <p class="font-semibold">Document Rejected</p>
         </div>
-        <p class="text-sm text-red-700">Anda dapat mengajukan revisi dengan perubahan yang diperlukan.</p>
+        <p class="text-sm text-red-700">You may submit a revision with the necessary corrections.</p>
         <a href="{% url 'cases:portal_change_request_revise' doc.id %}{% if guest_token %}?token={{ guest_token }}{% endif %}"
            class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 transition-colors">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
-            Ajukan Revisi
+            Submit Revision
         </a>
     </div>
     {% endif %}

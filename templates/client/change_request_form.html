@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if is_revision %}Revisi{% else %}Buat{% endif %} Change Request | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}{% if is_revision %}Revise{% else %}New{% endif %} Change Request | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -17,7 +17,7 @@
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
             <h1 class="text-xl font-bold text-slate-900">
-                {% if is_revision %}Revisi Change Request{% else %}Buat Change Request{% endif %}
+                {% if is_revision %}Revise Change Request{% else %}New Change Request{% endif %}
             </h1>
             <p class="text-sm text-slate-500">{{ case.subject }}</p>
         </div>
@@ -26,7 +26,7 @@
     <!-- Rejection note (revision only) -->
     {% if rejection_note %}
     <div class="p-4 rounded-xl bg-red-50 border border-red-200 space-y-1">
-        <p class="text-sm font-semibold text-red-800">Alasan Penolakan Sebelumnya</p>
+        <p class="text-sm font-semibold text-red-800">Previous Rejection Reason</p>
         <p class="text-sm text-red-700">{{ rejection_note }}</p>
     </div>
     {% endif %}
@@ -49,34 +49,32 @@
         {% csrf_token %}
         <input type="hidden" name="token" value="{{ guest_token }}">
 
-        <!-- Request Change -->
+        <!-- Request Change + Chronology -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
-            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Detail Permintaan</h3>
+            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Request Details</h3>
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1.5">
-                    Permintaan Perubahan <span class="text-red-500">*</span>
+                    Request Change <span class="text-red-500">*</span>
                 </label>
                 <textarea
                     name="request_change"
                     rows="4"
                     required
                     class="jk-input w-full resize-y text-sm"
-                    placeholder="Jelaskan apa yang ingin Anda ubah atau minta...">{{ prefill_request_change|default:"" }}</textarea>
-                <p class="text-xs text-slate-400 mt-1">Deskripsikan dengan jelas perubahan yang diminta.</p>
+                    placeholder="Describe clearly what change or action you are requesting...">{{ prefill_request_change|default:"" }}</textarea>
             </div>
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1.5">
-                    Kronologi <span class="text-red-500">*</span>
+                    Chronology <span class="text-red-500">*</span>
                 </label>
                 <textarea
                     name="chronology"
                     rows="6"
                     required
                     class="jk-input w-full resize-y text-sm"
-                    placeholder="Jelaskan latar belakang dan kronologi situasi ini...">{{ prefill_chronology|default:"" }}</textarea>
-                <p class="text-xs text-slate-400 mt-1">Sertakan konteks dan alasan yang mendukung permintaan Anda.</p>
+                    placeholder="Describe the background and chronology of the situation...">{{ prefill_chronology|default:"" }}</textarea>
             </div>
         </div>
 
@@ -91,27 +89,24 @@
                 </div>
                 <div>
                     <label for="toggle-approvers" class="text-sm font-semibold text-slate-800 cursor-pointer">
-                        Tambahkan Approver (opsional)
+                        Add Approvers <span class="text-slate-400 font-normal text-xs">(optional)</span>
                     </label>
                     <p class="text-xs text-slate-500 mt-0.5">
-                        Jika dipilih, dokumen akan dikirim ke approver sebelum dilampirkan ke tiket.
-                        Jika tidak dipilih, dokumen langsung dilampirkan.
+                        If selected, the document is routed for approval before being attached to the ticket.
+                        If skipped, the document is attached immediately.
                     </p>
                 </div>
             </div>
 
-            <div x-show="hasApprovers" x-transition class="space-y-3 pt-2">
-                <p class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Pilih Approver</p>
+            <div x-show="hasApprovers" x-transition class="pt-2">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
-                    {% for user in available_approvers %}
+                    {% for approver in available_approvers %}
                     <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer transition-colors">
-                        <input type="checkbox" name="approvers" value="{{ user.id }}"
+                        <input type="checkbox" name="approvers" value="{{ approver.id }}"
                             class="h-4 w-4 rounded border-slate-300 text-indigo-600">
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-slate-800 truncate">
-                                {{ user.get_full_name|default:user.username }}
-                            </p>
-                            <p class="text-xs text-slate-500 truncate">{{ user.email }}</p>
+                            <p class="text-sm font-medium text-slate-800 truncate">{{ approver.full_name|default:approver.username }}</p>
+                            <p class="text-xs text-slate-500 truncate">{{ approver.email }}</p>
                         </div>
                     </label>
                     {% endfor %}
@@ -124,11 +119,11 @@
         <div class="flex justify-end gap-3">
             <a href="{% url 'cases:dashboard' %}"
                class="px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                Batal
+                Cancel
             </a>
             <button type="submit"
                     class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
-                {% if is_revision %}Kirim Revisi{% else %}Kirim Change Request{% endif %}
+                {% if is_revision %}Submit Revision{% else %}Submit Change Request{% endif %}
             </button>
         </div>
     </form>

@@ -581,6 +581,63 @@
                 <!-- Document Templates (loaded dynamically when category changes) -->
                 <div id="document-templates-container"></div>
 
+                <!-- Change Request / Chronology Letter (shown when category enables it) -->
+                <script type="application/json" id="cr_enabled_category_ids">{{ category_cr_enabled_json|safe }}</script>
+                <div id="change-request-section" style="display:none">
+                    <hr class="jk-divider">
+                    <div class="mb-2" x-data="{ showApprovers: false }">
+                        <h3 class="text-sm font-semibold text-slate-600 mb-1 flex items-center gap-2">
+                            <svg class="h-4 w-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Change Request / Chronology Letter
+                        </h3>
+                        <p class="text-xs text-slate-500 mb-4">
+                            Optional. Fill in the fields below to attach a change request document to this ticket.
+                            If approvers are selected, the document will be sent for approval before being attached.
+                        </p>
+
+                        <div class="jk-form-group">
+                            <label class="jk-label">Request Change</label>
+                            <textarea name="cr_request_change" rows="4" class="jk-input w-full resize-y text-sm"
+                                placeholder="Describe what change or action you are requesting..."></textarea>
+                        </div>
+
+                        <div class="jk-form-group">
+                            <label class="jk-label">Chronology</label>
+                            <textarea name="cr_chronology" rows="5" class="jk-input w-full resize-y text-sm"
+                                placeholder="Describe the background and chronology of the situation..."></textarea>
+                        </div>
+
+                        {% if available_approvers %}
+                        <div class="jk-form-group">
+                            <label class="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-700 mb-1.5">
+                                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                    @change="showApprovers = $event.target.checked">
+                                Add Approvers <span class="text-slate-400 font-normal text-xs">(optional)</span>
+                            </label>
+                            <p class="text-xs text-slate-500 mb-2">
+                                If selected, the document is routed for approval before being attached to the ticket.
+                            </p>
+                            <div x-show="showApprovers" x-transition
+                                 class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-52 overflow-y-auto">
+                                {% for approver in available_approvers %}
+                                <label class="flex items-center gap-2.5 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors border border-transparent hover:border-indigo-200">
+                                    <input type="checkbox" name="cr_approvers" value="{{ approver.id }}"
+                                        class="h-4 w-4 rounded border-slate-300 text-indigo-600 shrink-0">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-slate-800 truncate">{{ approver.full_name|default:approver.username }}</p>
+                                        <p class="text-xs text-slate-500 truncate">{{ approver.email }}</p>
+                                    </div>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <hr class="jk-divider">
 
                 <!-- Submit -->
@@ -646,6 +703,11 @@
     const container = document.getElementById('document-templates-container');
     if (!categorySelect || !container) return;
 
+    const crSection = document.getElementById('change-request-section');
+    const crEnabledIds = JSON.parse(
+        document.getElementById('cr_enabled_category_ids')?.textContent || '[]'
+    );
+
     function loadDocumentTemplates(categoryId) {
         if (!categoryId) {
             container.innerHTML = '';
@@ -657,13 +719,20 @@
         });
     }
 
+    function updateChangeRequestSection(categoryId) {
+        if (!crSection) return;
+        crSection.style.display = crEnabledIds.includes(categoryId) ? 'block' : 'none';
+    }
+
     categorySelect.addEventListener('change', function () {
         loadDocumentTemplates(this.value);
+        updateChangeRequestSection(this.value);
     });
 
     // On page load, if a category is already selected (e.g. pre-selected via slug)
     if (categorySelect.value) {
         loadDocumentTemplates(categorySelect.value);
+        updateChangeRequestSection(categorySelect.value);
     }
 })();
 </script>
