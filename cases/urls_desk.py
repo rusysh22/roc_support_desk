@@ -97,9 +97,6 @@ urlpatterns = [
     path("document-templates/<uuid:template_id>/edit/", views.document_template_edit, name="document_template_edit"),
     path("document-templates/<uuid:template_id>/delete/", views.document_template_delete, name="document_template_delete"),
 
-    # Document PDF (staff)
-    path("documents/<uuid:doc_id>/pdf/", views.document_pdf_staff, name="document_pdf_staff"),
-
     # Notifications Bell
     path("notifications/", views.notification_bell, name="notifications"),
     path("notifications/<str:notif_type>/<str:notif_id>/read/", views.mark_notification_read, name="mark_notification_read"),
