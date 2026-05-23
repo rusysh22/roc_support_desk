@@ -30,6 +30,9 @@ urlpatterns = [
     path("my-tickets/", views_chat.my_tickets, name="my_tickets"),
     path("my-tickets/status/", views_chat.my_tickets_status, name="my_tickets_status"),
 
+    # My Approvals — outstanding approval requests assigned to the logged-in user
+    path("my-approvals/", views_chat.my_approvals, name="my_approvals"),
+
     # Followers
     path("<uuid:case_uuid>/followers/search/", views_chat.chat_search_users, name="search_users"),
     path("<uuid:case_uuid>/followers/add/", views_chat.chat_add_follower, name="add_follower"),

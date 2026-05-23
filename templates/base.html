@@ -127,6 +127,13 @@
             {% endif %}
 
             {% if user.is_authenticated %}
+            <a href="{% url 'chat:my_approvals' %}" class="jk-sidebar-link {% block nav_my_approvals %}{% endblock %}">
+                <span class="jk-sidebar-link-icon">✅</span>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>My Approvals</span>
+            </a>
+            {% endif %}
+
+            {% if user.is_authenticated %}
             <a href="{% url 'app_portal:portal' %}" class="jk-sidebar-link {% block nav_app_portal %}{% endblock %}">
                 <span class="jk-sidebar-link-icon">🚀</span>
                 <span x-show="!sidebarCollapsed" x-transition.opacity>App Portal</span>

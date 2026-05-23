@@ -502,6 +502,38 @@
       <p class="px-4 py-2 text-[11px] text-slate-400">No approvers — auto-approved.</p>
       {% endif %}
 
+      {# Approval links — visible to requester while pending so they can re-share #}
+      {% if entry.doc.status == 'pending_approval' and entry.approvals and not is_staff %}
+      <div class="px-4 pb-3 pt-2 border-t border-yellow-100" x-data="{ copiedAppr: null }">
+        <p class="text-[10px] font-semibold text-slate-500 mb-2 flex items-center gap-1">
+          <svg class="h-3 w-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+          </svg>
+          Approval Links — share with approvers
+        </p>
+        <div class="space-y-1.5">
+          {% for appr in entry.approvals %}{% if appr.status == 'pending' %}
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">{{ appr.order }}</span>
+            <p class="flex-1 text-[11px] font-medium text-slate-700 truncate">{{ appr.approver.get_full_name|default:appr.approver.username }}</p>
+            <button type="button"
+                    @click="navigator.clipboard.writeText(window.location.origin + '{% url "cases:change_request_approve" appr.token %}').then(() => { copiedAppr = '{{ appr.token }}'; setTimeout(() => copiedAppr = null, 2000) })"
+                    class="flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors"
+                    :class="copiedAppr === '{{ appr.token }}' ? 'bg-green-100 text-green-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'">
+              <span x-text="copiedAppr === '{{ appr.token }}' ? 'Copied!' : 'Copy'"></span>
+            </button>
+            <button type="button"
+                    @click="navigator.share ? navigator.share({ title: 'Approval Request', url: window.location.origin + '{% url "cases:change_request_approve" appr.token %}' }) : null"
+                    class="flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors">
+              Share
+            </button>
+          </div>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       {# PDF download #}
       {% if entry.has_pdf %}
       <div class="px-4 pb-3 pt-1">

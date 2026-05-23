@@ -1313,6 +1313,34 @@ def my_tickets(request):
 
 
 @login_required
+def my_approvals(request):
+    """
+    Shows all ChangeRequestApprovals assigned to the logged-in user.
+    Pending approvals are listed first; completed ones follow.
+    """
+    pending = (
+        ChangeRequestApproval.objects
+        .filter(approver=request.user, status=ChangeRequestApproval.Status.PENDING)
+        .select_related("document__case__category", "document__document_template", "document__case")
+        .order_by("created_at")
+    )
+    completed = (
+        ChangeRequestApproval.objects
+        .filter(approver=request.user, status__in=[
+            ChangeRequestApproval.Status.APPROVED,
+            ChangeRequestApproval.Status.REJECTED,
+        ])
+        .select_related("document__case__category", "document__document_template", "document__case")
+        .order_by("-acted_at")[:30]
+    )
+    return render(request, "client/my_approvals.html", {
+        "pending_approvals": pending,
+        "completed_approvals": completed,
+        "pending_count": pending.count(),
+    })
+
+
+@login_required
 @require_GET
 def my_tickets_status(request):
     """JSON endpoint: returns unread counts per open ticket for the portal user. Used for polling."""

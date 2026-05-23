@@ -210,7 +210,7 @@ function crForm() {
                 });
                 {% if is_revision and prefill_field_values %}
                 {% for fv in prefill_field_values %}{% if fv.label == field.label %}
-                q{{ field.order }}.root.innerHTML = {{ fv.value|default:"''"|safe }};
+                q{{ field.order }}.root.innerHTML = '{{ fv.value|default:""|escapejs }}';
                 {% endif %}{% endfor %}
                 {% elif field.default_content %}
                 q{{ field.order }}.root.innerHTML = '{{ field.default_content|escapejs }}';
@@ -219,8 +219,8 @@ function crForm() {
                 {% else %}
                 const qRC = new Quill('#quill-rc', { theme: 'snow', placeholder: 'Describe what change or action you are requesting...', modules: { toolbar } });
                 const qCH = new Quill('#quill-ch', { theme: 'snow', placeholder: 'Describe the background and chronology...', modules: { toolbar } });
-                {% if prefill_request_change %}qRC.root.innerHTML = {{ prefill_request_change|safe }};{% endif %}
-                {% if prefill_chronology %}qCH.root.innerHTML = {{ prefill_chronology|safe }};{% endif %}
+                {% if prefill_request_change %}qRC.root.innerHTML = '{{ prefill_request_change|escapejs }}';{% endif %}
+                {% if prefill_chronology %}qCH.root.innerHTML = '{{ prefill_chronology|escapejs }}';{% endif %}
                 window._qRC = qRC;
                 window._qCH = qCH;
                 {% endif %}
