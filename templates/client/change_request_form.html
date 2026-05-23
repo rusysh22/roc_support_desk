@@ -209,11 +209,11 @@ function crForm() {
                     modules: { toolbar }
                 });
                 {% if is_revision and prefill_field_values %}
-                {% for fv in prefill_field_values %}
-                {% if fv.label == field.label %}
+                {% for fv in prefill_field_values %}{% if fv.label == field.label %}
                 q{{ field.order }}.root.innerHTML = {{ fv.value|default:"''"|safe }};
-                {% endif %}
-                {% endfor %}
+                {% endif %}{% endfor %}
+                {% elif field.default_content %}
+                q{{ field.order }}.root.innerHTML = '{{ field.default_content|escapejs }}';
                 {% endif %}
                 {% endfor %}
                 {% else %}

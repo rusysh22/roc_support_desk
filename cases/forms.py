@@ -382,11 +382,7 @@ class DocumentTemplateForm(forms.ModelForm):
 
     class Meta:
         model = DocumentTemplate
-        fields = [
-            "title", "description", "body_html", "categories",
-            "is_required", "approval_flow",
-            "token_validity_days", "approver_deadline_days",
-        ]
+        fields = ["title", "description", "body_html", "categories"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "jk-input", "placeholder": "e.g. Surat Kronologi"}),
             "description": forms.Textarea(attrs={
@@ -401,7 +397,4 @@ class DocumentTemplateForm(forms.ModelForm):
                 "placeholder": "Write the document body in HTML. Use {{placeholder}} for dynamic fields.",
             }),
             "categories": forms.CheckboxSelectMultiple(),
-            "approval_flow": forms.Select(attrs={"class": "jk-input"}),
-            "token_validity_days": forms.NumberInput(attrs={"class": "jk-input", "min": "0"}),
-            "approver_deadline_days": forms.NumberInput(attrs={"class": "jk-input", "min": "0"}),
         }

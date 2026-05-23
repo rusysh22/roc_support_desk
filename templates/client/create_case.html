@@ -755,11 +755,15 @@
             fields.forEach(f => {
                 const el = document.getElementById('cr-quill-field-' + f.order);
                 if (el && !this.quillInstances[f.order]) {
-                    this.quillInstances[f.order] = new Quill(el, {
+                    const q = new Quill(el, {
                         theme: 'snow',
                         placeholder: f.placeholder || ('Fill in ' + f.label + '...'),
                         modules: { toolbar: this._quillToolbar() }
                     });
+                    if (f.default_content) {
+                        q.root.innerHTML = f.default_content;
+                    }
+                    this.quillInstances[f.order] = q;
                 }
             });
         },

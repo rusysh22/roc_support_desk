@@ -927,6 +927,7 @@ def create_case(request, slug=None):
                     "order": f.order,
                     "label": f.label,
                     "placeholder": f.placeholder,
+                    "default_content": f.default_content,
                     "required": f.is_required,
                 }
                 for f in tpl.ordered_fields()

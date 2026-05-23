@@ -46,7 +46,7 @@ class DocumentTemplateFieldInline(TabularInline):
     model = DocumentTemplateField
     extra = 1
     max_num = 10
-    fields = ("order", "label", "placeholder", "is_required")
+    fields = ("order", "label", "placeholder", "default_content", "is_required")
     ordering = ("order",)
 
 
@@ -211,8 +211,8 @@ class AttachmentAdmin(ModelAdmin):
 
 @admin.register(DocumentTemplate)
 class DocumentTemplateAdmin(ModelAdmin):
-    list_display = ("title", "field_count", "approval_flow", "is_required", "created_at")
-    list_filter = ("approval_flow", "is_required", "categories")
+    list_display = ("title", "field_count", "created_at")
+    list_filter = ("categories",)
     search_fields = ("title", "description")
     filter_horizontal = ("categories",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")

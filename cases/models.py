@@ -778,12 +778,6 @@ class DocumentTemplate(AuditableModel):
     category, this template's fill-form appears in the submission flow.
     """
 
-    class ApprovalFlow(models.TextChoices):
-        NONE = "none", "No Approval Required"
-        CLICK_ONLY = "click_only", "Click Validation Only"
-        SIGNATURE_ONLY = "signature_only", "Signature Only"
-        BOTH = "both", "Click Validation + Signature"
-
     title = models.CharField(max_length=200, verbose_name="Template Title")
     description = models.TextField(blank=True, verbose_name="Description")
     body_html = models.TextField(
@@ -796,27 +790,6 @@ class DocumentTemplate(AuditableModel):
         related_name="document_templates",
         verbose_name="Applicable Categories",
         help_text="Document fill-form appears on ticket submission for these categories.",
-    )
-    is_required = models.BooleanField(
-        default=False,
-        verbose_name="Required",
-        help_text="If checked, user must complete this document to submit the ticket.",
-    )
-    approval_flow = models.CharField(
-        max_length=20,
-        choices=ApprovalFlow.choices,
-        default=ApprovalFlow.CLICK_ONLY,
-        verbose_name="Approval Flow",
-    )
-    token_validity_days = models.PositiveIntegerField(
-        default=7,
-        verbose_name="Link Validity (days)",
-        help_text="How many days the approval magic-link URL remains valid. 0 = never expires.",
-    )
-    approver_deadline_days = models.PositiveIntegerField(
-        default=3,
-        verbose_name="Approver Deadline (days)",
-        help_text="How many days each approver has to act before the step is considered overdue. 0 = no deadline.",
     )
 
     class Meta:
@@ -861,7 +834,13 @@ class DocumentTemplateField(AuditableModel):
         max_length=300,
         blank=True,
         verbose_name="Placeholder Hint",
-        help_text="Optional hint shown inside the editor.",
+        help_text="Optional hint text shown inside the empty editor.",
+    )
+    default_content = models.TextField(
+        blank=True,
+        verbose_name="Default Content",
+        help_text="Optional HTML template pre-filled into the editor when the user opens the form. "
+                  "Supports basic HTML tags. Leave blank for an empty editor.",
     )
     is_required = models.BooleanField(default=True, verbose_name="Required")
 
