@@ -1150,6 +1150,17 @@ def create_case(request, slug=None):
 
             return redirect("cases:case_submitted", case_id=case.id)
     else:
+        if request.user.is_authenticated and request.user.email:
+            try:
+                emp = Employee.objects.select_related("unit").get(email=request.user.email)
+                initial.setdefault("requester_name", emp.full_name)
+                initial.setdefault("requester_email", emp.email)
+                if emp.unit:
+                    initial.setdefault("company_unit", emp.unit)
+                if emp.job_role:
+                    initial.setdefault("job_role", emp.job_role)
+            except Employee.DoesNotExist:
+                initial.setdefault("requester_email", request.user.email)
         form = CaseCreateForm(initial=initial)
 
     return render(request, "client/create_case.html", {

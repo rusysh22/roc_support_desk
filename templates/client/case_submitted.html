@@ -127,7 +127,14 @@
                     </button>
                 </form>
 
-                <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary flex-1 justify-center">
+                <a href="{% url 'cases:my_tickets' %}" class="jk-btn jk-btn-primary flex-1 justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    My Ticket List
+                </a>
+
+                <a href="{% url 'cases:dashboard' %}" class="jk-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border-none flex-1 justify-center">
                     ← Back to Service Portal
                 </a>
             </div>
