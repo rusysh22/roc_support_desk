@@ -45,12 +45,9 @@ class ChangeRequestApprovalInline(TabularInline):
 class DocumentTemplateFieldInline(TabularInline):
     model = DocumentTemplateField
     extra = 1
+    max_num = 10
     fields = ("order", "label", "placeholder", "is_required")
     ordering = ("order",)
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs[:10]
 
 
 # =====================================================================
