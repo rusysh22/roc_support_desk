@@ -38,8 +38,22 @@
         </div>
     </div>
 
+    <!-- Access denied (logged-in user is not the assigned approver) -->
+    {% if access_denied %}
+    <div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-center space-y-2">
+        <svg class="h-10 w-10 text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-11a9 9 0 100 18A9 9 0 0012 4z"/>
+        </svg>
+        <p class="text-base font-semibold text-red-800">Access Denied</p>
+        <p class="text-sm text-red-700">
+            You are logged in as a different user. This approval link is assigned to
+            <span class="font-medium">{{ approval.approver.get_full_name|default:approval.approver.username }}</span>.
+        </p>
+    </div>
+
     <!-- Expired token -->
-    {% if token_expired %}
+    {% elif token_expired %}
     <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center space-y-2">
         <svg class="h-10 w-10 text-amber-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

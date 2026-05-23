@@ -1103,7 +1103,34 @@ def create_case(request, slug=None):
 def case_submitted(request, case_id):
     """Confirmation page after a case has been submitted."""
     case = get_object_or_404(CaseRecord, id=case_id)
-    return render(request, "client/case_submitted.html", {"case": case})
+
+    # Build approval links for pending CR tickets so the submitter can share them.
+    pending_approvals = []
+    if case.status == CaseRecord.Status.PENDING_APPROVAL:
+        active_doc = (
+            case.change_requests
+            .filter(status=ChangeRequestDocument.Status.PENDING_APPROVAL)
+            .order_by("-revision_number")
+            .first()
+        )
+        if active_doc:
+            for appr in active_doc.approvals.filter(
+                status=ChangeRequestApproval.Status.PENDING
+            ).order_by("order").select_related("approver"):
+                url = request.build_absolute_uri(
+                    reverse("cases:change_request_approve", args=[appr.token])
+                )
+                pending_approvals.append({
+                    "order": appr.order,
+                    "name": appr.approver.get_full_name() or appr.approver.username,
+                    "email": appr.approver.email or "",
+                    "url": url,
+                })
+
+    return render(request, "client/case_submitted.html", {
+        "case": case,
+        "pending_approvals": pending_approvals,
+    })
 
 def send_case_email(request, case_id):
     """View to trigger an email to the requester with case details."""
@@ -4694,10 +4721,20 @@ def change_request_approve(request, token):
     Magic-link page for approvers to review and act on a ChangeRequestDocument.
     GET: show the document with approve/reject form.
     POST: process the approval or rejection.
+
+    Access rules:
+    - Authenticated user: must be the exact approver assigned to this token.
+    - Unauthenticated user: the magic-link token in the URL is the credential.
     """
     approval = get_object_or_404(ChangeRequestApproval, token=token)
     doc = approval.document
     case = doc.case
+
+    # Logged-in users who are NOT the assigned approver are denied.
+    if request.user.is_authenticated and request.user != approval.approver:
+        return render(request, "client/change_request_approval.html", {
+            "approval": approval, "doc": doc, "case": case, "access_denied": True,
+        })
 
     if approval.status != ChangeRequestApproval.Status.PENDING:
         return render(request, "client/change_request_approval.html", {
