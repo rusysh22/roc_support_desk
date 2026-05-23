@@ -593,24 +593,38 @@
 
                 {% if user.is_authenticated and user.role_access == 'PortalUser' %}
                 <!-- My Tickets live-chat tracking opt-in — portal users only -->
-                <div class="mb-5 flex items-center justify-between gap-4 px-4 py-3.5 bg-indigo-50 border border-indigo-100 rounded-xl"
-                     x-data="{ tracked: false }">
+                <div class="mb-5 flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl transition-colors"
+                     :class="crRequired ? 'bg-green-50 border border-green-200' : 'bg-indigo-50 border border-indigo-100'"
+                     x-data="{ tracked: false, crRequired: false }"
+                     @cr-tracking-required.window="crRequired = true; tracked = true;"
+                     @cr-tracking-released.window="crRequired = false;">
                     <input type="hidden" name="track_via_chat" :value="tracked.toString()">
                     <div class="flex items-start gap-3 flex-1 min-w-0">
-                        <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 text-base mt-0.5">🗂️</div>
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-base mt-0.5"
+                             :class="crRequired ? 'bg-green-100' : 'bg-indigo-100'">🗂️</div>
                         <div>
-                            <p class="text-sm font-semibold text-slate-800">Track via Live Chat</p>
-                            <p class="text-xs text-slate-500 mt-0.5 leading-snug">
+                            <p class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                                Track via Live Chat
+                                <span x-show="crRequired"
+                                      class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-green-600 text-white uppercase tracking-wide">
+                                    Required for CR
+                                </span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-0.5 leading-snug" x-show="!crRequired">
                                 Enable to follow up and continue the conversation from the
                                 <strong class="text-slate-600">My Tickets</strong> sidebar after submission.
                             </p>
+                            <p class="text-xs text-green-700 mt-0.5 leading-snug font-medium" x-show="crRequired">
+                                Automatically enabled — CR workflow history and approval status will appear in My Tickets.
+                            </p>
                         </div>
                     </div>
-                    <!-- Toggle switch -->
+                    <!-- Toggle switch — locked when CR is required -->
                     <button type="button"
-                            @click="tracked = !tracked; if (tracked) $dispatch('show-track-bubble')"
-                            class="relative flex-shrink-0 w-12 h-6 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
-                            :class="tracked ? 'bg-indigo-600 shadow-inner' : 'bg-slate-200'"
+                            @click="if (!crRequired) { tracked = !tracked; if (tracked) $dispatch('show-track-bubble'); }"
+                            :disabled="crRequired"
+                            class="relative flex-shrink-0 w-12 h-6 rounded-full transition-all duration-200 focus:outline-none"
+                            :class="[tracked ? 'bg-indigo-600 shadow-inner' : 'bg-slate-200', crRequired ? 'cursor-not-allowed opacity-80' : 'focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1']"
                             role="switch" :aria-checked="tracked.toString()">
                         <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200"
                               :style="tracked ? 'transform: translateX(1.5rem)' : 'transform: translateX(0)'"></span>
@@ -749,6 +763,12 @@
             const isEmpty = (h) => !h || (h.replace(/<[^>]+>/g, '').trim() === '' && !h.includes('<img'));
             const hasContent = !isEmpty(rcHtml) && !isEmpty(chHtml);
             window.dispatchEvent(new CustomEvent('cr-content-changed', { detail: { hasContent } }));
+            // When CR has content, tracking in My Tickets is mandatory
+            if (hasContent) {
+                window.dispatchEvent(new CustomEvent('cr-tracking-required'));
+            } else {
+                window.dispatchEvent(new CustomEvent('cr-tracking-released'));
+            }
             this.open = false;
         },
 

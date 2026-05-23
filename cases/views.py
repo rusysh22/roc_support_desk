@@ -958,8 +958,14 @@ def create_case(request, slug=None):
             email = form.cleaned_data["requester_email"]
             company_unit = form.cleaned_data["company_unit"]
 
-            # Link ticket to logged-in portal user if they toggled "Track via Live Chat"
-            if request.user.is_authenticated and request.POST.get("track_via_chat") == "true":
+            cr_request_change_check = request.POST.get("cr_request_change", "").strip()
+            cr_chronology_check = request.POST.get("cr_chronology", "").strip()
+            cr_has_content_early = bool(cr_request_change_check) or bool(cr_chronology_check)
+
+            # Link ticket to logged-in portal user if they toggled tracking OR if CR content is present
+            if request.user.is_authenticated and (
+                request.POST.get("track_via_chat") == "true" or cr_has_content_early
+            ):
                 email = request.user.email
 
             # Auto-link or auto-create Employee safely
@@ -1058,11 +1064,17 @@ def create_case(request, slug=None):
                             )
                     case.status = CaseRecord.Status.PENDING_APPROVAL
                     case.save(update_fields=["status"])
+                    # Add the submitter as follower so CR workflow history is accessible in My Tickets
+                    if request.user.is_authenticated:
+                        case.followers.add(request.user)
                     _notify_change_request_approvers(cr_doc)
                     # Desk notification is deferred — _finalize_approved_change_request
                     # will dispatch it once all approvers have approved.
                     cr_is_pending_approval = True
                 else:
+                    # No approvers — auto-approved, still add submitter as follower
+                    if request.user.is_authenticated:
+                        case.followers.add(request.user)
                     _finalize_approved_change_request(cr_doc)
 
             # Notify desk agents only when the ticket is immediately active.

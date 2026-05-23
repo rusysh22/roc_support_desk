@@ -31,7 +31,10 @@ from django.views.decorators.http import require_GET, require_POST
 from ipware import get_client_ip as _get_client_ip
 
 from core.models import CompanyUnit, Employee, User
-from .models import Attachment, CaseAuditLog, CaseCategory, CaseRecord, Message
+from .models import (
+    Attachment, CaseAuditLog, CaseCategory, CaseRecord,
+    ChangeRequestApproval, ChangeRequestDocument, Message,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1087,7 +1090,11 @@ def my_tickets(request):
         CaseRecord.objects
         .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
         .select_related("category")
-        .prefetch_related("messages", "followers", "change_requests")
+        .prefetch_related(
+            "messages", "followers",
+            "change_requests",
+            "change_requests__approvals__approver",
+        )
         .distinct()
     )
 
@@ -1218,7 +1225,19 @@ def my_tickets(request):
 
         total_messages = c.messages.filter(is_deleted=False).count()
 
-        # Active CR doc for tickets awaiting approval / needing revision
+        # CR history — all CR docs sorted newest first, with their approvals
+        all_cr_docs = sorted(c.change_requests.all(), key=lambda d: d.revision_number, reverse=True)
+        cr_history = []
+        for cr_doc in all_cr_docs:
+            cr_approvals = sorted(cr_doc.approvals.all(), key=lambda a: a.order)
+            cr_history.append({
+                "doc": cr_doc,
+                "approvals": cr_approvals,
+                "has_pdf": bool(cr_doc.generated_pdf),
+                "pdf_url": cr_doc.generated_pdf.url if cr_doc.generated_pdf else None,
+            })
+
+        # Active CR doc for the action button
         active_cr_doc = None
         if c.status in (CaseRecord.Status.PENDING_APPROVAL, CaseRecord.Status.REVISION_REQUIRED):
             active_cr_doc = next(
@@ -1234,6 +1253,7 @@ def my_tickets(request):
             "can_chat": can_chat,
             "can_reopen": can_reopen,
             "active_cr_doc": active_cr_doc,
+            "cr_history": cr_history,
             "unread_count": unread_count,
             "is_follower": is_follower,
             "total_messages": total_messages,
