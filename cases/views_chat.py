@@ -1087,7 +1087,7 @@ def my_tickets(request):
         CaseRecord.objects
         .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
         .select_related("category")
-        .prefetch_related("messages", "followers")
+        .prefetch_related("messages", "followers", "change_requests")
         .distinct()
     )
 
@@ -1151,6 +1151,8 @@ def my_tickets(request):
                     })
 
     STATUS_LABEL = {
+        CaseRecord.Status.PENDING_APPROVAL: ("On Approval", "amber"),
+        CaseRecord.Status.REVISION_REQUIRED: ("Revision Required", "red"),
         CaseRecord.Status.OPEN: ("Waiting", "yellow"),
         CaseRecord.Status.INVESTIGATING: ("In Progress", "blue"),
         CaseRecord.Status.PENDING_INFO: ("Need Info", "orange"),
@@ -1216,12 +1218,22 @@ def my_tickets(request):
 
         total_messages = c.messages.filter(is_deleted=False).count()
 
+        # Active CR doc for tickets awaiting approval / needing revision
+        active_cr_doc = None
+        if c.status in (CaseRecord.Status.PENDING_APPROVAL, CaseRecord.Status.REVISION_REQUIRED):
+            active_cr_doc = next(
+                (cr for cr in c.change_requests.all()
+                 if cr.status in ("pending_approval", "rejected")),
+                None,
+            )
+
         enriched.append({
             "case": c,
             "status_label": label,
             "status_color": color,
             "can_chat": can_chat,
             "can_reopen": can_reopen,
+            "active_cr_doc": active_cr_doc,
             "unread_count": unread_count,
             "is_follower": is_follower,
             "total_messages": total_messages,
@@ -1252,6 +1264,8 @@ def my_tickets(request):
         "show_closed": show_closed,
         "status_choices": [
             ("", "All statuses"),
+            (CaseRecord.Status.PENDING_APPROVAL, "On Approval"),
+            (CaseRecord.Status.REVISION_REQUIRED, "Revision Required"),
             (CaseRecord.Status.OPEN, "Waiting"),
             (CaseRecord.Status.INVESTIGATING, "In Progress"),
             (CaseRecord.Status.PENDING_INFO, "Need Info"),

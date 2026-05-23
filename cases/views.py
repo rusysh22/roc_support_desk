@@ -15,6 +15,7 @@ Staff views (login + role_access required):
     - ``case_send_reply``   — HTMX partial to send a staff reply.
     - ``chat_thread``       — HTMX partial to refresh chat messages.
 """
+import re
 from functools import wraps
 
 from ipware import get_client_ip as _get_client_ip
@@ -909,12 +910,11 @@ def create_case(request, slug=None):
     ])
     available_approvers = User.objects.filter(
         is_active=True,
-        role_access__in=[
-            User.RoleAccess.SUPERADMIN,
-            User.RoleAccess.MANAGER,
-            User.RoleAccess.SUPPORTDESK,
-        ],
     ).order_by("first_name", "last_name")
+    available_approvers_json = json.dumps([
+        {'id': str(u.id), 'name': u.get_full_name() or u.username, 'email': u.email or ''}
+        for u in available_approvers
+    ])
 
     if request.method == "POST":
         # Rate Limiting Check
@@ -952,7 +952,7 @@ def create_case(request, slug=None):
                     "category_templates_json": category_templates_json,
                     "category_templates_subject_json": category_templates_subject_json,
                     "category_cr_enabled_json": category_cr_enabled_json,
-                    "available_approvers": available_approvers,
+                    "available_approvers_json": available_approvers_json,
                 })
 
             email = form.cleaned_data["requester_email"]
@@ -1022,13 +1022,18 @@ def create_case(request, slug=None):
                     file_size=uploaded_file.size,
                 )
 
-            from gateways.tasks import _dispatch_new_ticket_notifs
-            _dispatch_new_ticket_notifs(str(case.id))
-
-            # Inline change request — process if fields are provided
+            # Inline change request — process BEFORE dispatching desk notification
+            # so we can delay notification until CR is fully approved.
             cr_request_change = request.POST.get("cr_request_change", "").strip()
             cr_chronology = request.POST.get("cr_chronology", "").strip()
-            if category.enable_change_request and cr_request_change and cr_chronology:
+
+            def _quill_has_content(html):
+                text = re.sub(r'<[^>]+>', '', html or '').strip()
+                return bool(text) or '<img' in (html or '')
+
+            cr_is_pending_approval = False
+
+            if category.enable_change_request and _quill_has_content(cr_request_change) and _quill_has_content(cr_chronology):
                 from django.utils import timezone as _tz
                 approver_ids = request.POST.getlist("cr_approvers")
                 has_approvers = bool(approver_ids)
@@ -1054,8 +1059,17 @@ def create_case(request, slug=None):
                     case.status = CaseRecord.Status.PENDING_APPROVAL
                     case.save(update_fields=["status"])
                     _notify_change_request_approvers(cr_doc)
+                    # Desk notification is deferred — _finalize_approved_change_request
+                    # will dispatch it once all approvers have approved.
+                    cr_is_pending_approval = True
                 else:
                     _finalize_approved_change_request(cr_doc)
+
+            # Notify desk agents only when the ticket is immediately active.
+            # Tickets pending CR approval are hidden from the desk until approved.
+            if not cr_is_pending_approval:
+                from gateways.tasks import _dispatch_new_ticket_notifs
+                _dispatch_new_ticket_notifs(str(case.id))
 
             # Create Audit Log entry
             CaseAuditLog.objects.create(
@@ -1082,7 +1096,7 @@ def create_case(request, slug=None):
         "category_templates_json": category_templates_json,
         "category_templates_subject_json": category_templates_subject_json,
         "category_cr_enabled_json": category_cr_enabled_json,
-        "available_approvers": available_approvers,
+        "available_approvers_json": available_approvers_json,
     })
 
 
@@ -1280,6 +1294,13 @@ def case_list(request):
         cases = cases.filter(is_archived=True)
     else:  # inbox
         cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
+        # Tickets in the CR approval workflow are hidden from the desk inbox
+        # until fully approved; desk agents can still find them via status filter.
+        if not status_filter:
+            cases = cases.exclude(status__in=[
+                CaseRecord.Status.PENDING_APPROVAL,
+                CaseRecord.Status.REVISION_REQUIRED,
+            ])
 
     if status_filter:
         status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
@@ -4449,9 +4470,17 @@ def _finalize_approved_change_request(doc):
     )
     attach.file.save(filename, ContentFile(pdf_bytes), save=True)
 
-    if case.status == CaseRecord.Status.PENDING_APPROVAL:
+    was_pending = case.status == CaseRecord.Status.PENDING_APPROVAL
+    if was_pending:
         case.status = CaseRecord.Status.OPEN
         case.save(update_fields=["status"])
+        # Now that the ticket is active, dispatch the desk notification that
+        # was deferred when the ticket was first submitted with pending approvers.
+        try:
+            from gateways.tasks import _dispatch_new_ticket_notifs
+            _dispatch_new_ticket_notifs(str(case.id))
+        except Exception:
+            pass
 
     return True
 
@@ -4488,11 +4517,6 @@ def portal_change_request_new(request, case_id):
 
     available_approvers = User.objects.filter(
         is_active=True,
-        role_access__in=[
-            User.RoleAccess.SUPERADMIN,
-            User.RoleAccess.MANAGER,
-            User.RoleAccess.SUPPORTDESK,
-        ],
     ).order_by("first_name", "last_name")
 
     if request.method == "POST":
@@ -4594,11 +4618,6 @@ def portal_change_request_revise(request, doc_id):
 
     available_approvers = User.objects.filter(
         is_active=True,
-        role_access__in=[
-            User.RoleAccess.SUPERADMIN,
-            User.RoleAccess.MANAGER,
-            User.RoleAccess.SUPPORTDESK,
-        ],
     ).order_by("first_name", "last_name")
 
     if request.method == "POST":

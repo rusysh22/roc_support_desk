@@ -3,6 +3,18 @@
 
 {% block title %}Change Request Status | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
+{% block extra_head %}
+<style>
+  .cr-content p { margin-bottom: 0.4rem; }
+  .cr-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.4rem; }
+  .cr-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.4rem; }
+  .cr-content img { max-width: 100%; border-radius: 0.5rem; margin: 0.5rem 0; }
+  .cr-content strong { font-weight: 600; }
+  .cr-content em { font-style: italic; }
+  .cr-content a { color: #4f46e5; text-decoration: underline; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
@@ -38,12 +50,12 @@
 
         <div>
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Request Change</p>
-            <p class="text-sm text-slate-800 whitespace-pre-wrap">{{ doc.request_change }}</p>
+            <div class="text-sm text-slate-800 cr-content">{{ doc.request_change|safe }}</div>
         </div>
 
         <div>
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Chronology</p>
-            <p class="text-sm text-slate-800 whitespace-pre-wrap">{{ doc.chronology }}</p>
+            <div class="text-sm text-slate-800 cr-content">{{ doc.chronology|safe }}</div>
         </div>
 
         {% if doc.submitted_at %}

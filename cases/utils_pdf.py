@@ -213,11 +213,15 @@ def generate_change_request_pdf(doc) -> bytes | None:
     padding-bottom: 3px;
     margin: 18px 0 8px;
   }}
-  .content-text {{
-    font-size: 11pt;
-    white-space: pre-wrap;
-    margin: 0;
-  }}
+  /* Quill HTML output styling */
+  .content-html {{ font-size: 11pt; }}
+  .content-html p {{ margin: 0 0 5pt; }}
+  .content-html ul {{ list-style-type: disc; padding-left: 1.4em; margin: 0 0 5pt; }}
+  .content-html ol {{ list-style-type: decimal; padding-left: 1.4em; margin: 0 0 5pt; }}
+  .content-html li {{ margin-bottom: 2pt; }}
+  .content-html strong {{ font-weight: bold; }}
+  .content-html em {{ font-style: italic; }}
+  .content-html img {{ max-width: 100%; display: block; margin: 6pt 0; }}
 
   /* ── Signatures ── */
   .sig-row {{
@@ -269,10 +273,10 @@ def generate_change_request_pdf(doc) -> bytes | None:
 
 <!-- Isi Dokumen -->
 <h2>Permintaan Perubahan</h2>
-<p class="content-text">{doc.request_change}</p>
+<div class="content-html">{doc.request_change}</div>
 
 <h2>Kronologi</h2>
-<p class="content-text">{doc.chronology}</p>
+<div class="content-html">{doc.chronology}</div>
 
 <!-- Tanda Tangan Approver -->
 {sig_blocks}
