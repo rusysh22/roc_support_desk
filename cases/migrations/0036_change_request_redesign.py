@@ -14,6 +14,10 @@ Adds:
 - CaseCategory.enable_change_request
 - ChangeRequestDocument
 - ChangeRequestApproval
+
+Uses SeparateDatabaseAndState + IF EXISTS SQL for all drop operations so
+the migration is safe even when the 0035 tables were never created in the DB
+(state desync — django_migrations recorded the migration but tables are absent).
 """
 import uuid
 import django.db.models.deletion
@@ -30,32 +34,49 @@ class Migration(migrations.Migration):
 
     operations = [
 
-        # ── Remove leaf models first (most dependent) ────────────────────────
+        # ── Drop old tables safely (IF EXISTS handles state-desync) ──────────
 
-        # DocumentApprovalLog references CaseDocument and DocumentApprovalStep
-        migrations.DeleteModel(name='DocumentApprovalLog'),
-
-        # DocumentApprovalStep references CaseDocument
-        migrations.DeleteModel(name='DocumentApprovalStep'),
-
-        # DocumentApproverConfig references DocumentApprovalStage
-        migrations.DeleteModel(name='DocumentApproverConfig'),
-
-        # DocumentApprovalStage references DocumentTemplate (kept)
-        migrations.DeleteModel(name='DocumentApprovalStage'),
-
-        # CaseDocument references CaseRecord and DocumentTemplate (both kept)
-        migrations.DeleteModel(name='CaseDocument'),
-
-        # CategoryApproverConfig references CaseCategory (kept)
-        migrations.DeleteModel(name='CategoryApproverConfig'),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.DeleteModel(name='DocumentApprovalLog'),
+                migrations.DeleteModel(name='DocumentApprovalStep'),
+                migrations.DeleteModel(name='DocumentApproverConfig'),
+                migrations.DeleteModel(name='DocumentApprovalStage'),
+                migrations.DeleteModel(name='CaseDocument'),
+                migrations.DeleteModel(name='CategoryApproverConfig'),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql="""
+                        DROP TABLE IF EXISTS cases_documentapprovallog CASCADE;
+                        DROP TABLE IF EXISTS cases_documentapprovalstep CASCADE;
+                        DROP TABLE IF EXISTS cases_documentapproverconfig CASCADE;
+                        DROP TABLE IF EXISTS cases_documentapprovalstage CASCADE;
+                        DROP TABLE IF EXISTS cases_casedocument CASCADE;
+                        DROP TABLE IF EXISTS cases_categoryapproverconfig CASCADE;
+                    """,
+                    reverse_sql="",
+                ),
+            ],
+        ),
 
         # ── CaseCategory: swap workflow_type → enable_change_request ─────────
 
-        migrations.RemoveField(
-            model_name='casecategory',
-            name='workflow_type',
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RemoveField(
+                    model_name='casecategory',
+                    name='workflow_type',
+                ),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE cases_casecategory DROP COLUMN IF EXISTS workflow_type;",
+                    reverse_sql="",
+                ),
+            ],
         ),
+
         migrations.AddField(
             model_name='casecategory',
             name='enable_change_request',
