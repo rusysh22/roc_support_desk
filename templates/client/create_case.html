@@ -39,6 +39,14 @@
             crEnabled: false,
             crHasContent: false,
             qrOpen: false,
+            init() {
+                // Set initial state based on the already-selected category (e.g. pre-selected via URL)
+                const catEl = document.getElementById('id_category');
+                if (catEl && catEl.value) {
+                    const crIds = JSON.parse(document.getElementById('cr_enabled_category_ids')?.textContent || '[]');
+                    this.crEnabled = crIds.includes(catEl.value);
+                }
+            },
             qrImageURL: null,
             isGenerating: false,
             categoryName: '{{ selected_category.name|default:"New Support Request"|escapejs }}',
@@ -176,7 +184,7 @@
             <div class="flex items-center gap-2">
 
             <!-- Change Request Button (shown only when selected category supports it) -->
-            <button type="button" x-show="crEnabled" style="display:none"
+            <button type="button" id="cr-modal-trigger-btn" x-show="crEnabled" style="display:none"
                     @click="$dispatch('open-cr-modal')"
                     class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium relative">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -908,11 +916,15 @@
     }
 
     function updateChangeRequestSection(categoryId) {
-        const enabled = crEnabledIds.includes(categoryId);
+        const enabled = crEnabledIds.includes(String(categoryId));
         if (!enabled) {
             document.getElementById('cr_request_change_input').value = '';
             document.getElementById('cr_chronology_input').value = '';
         }
+        // Directly toggle the button's display (reliable regardless of Alpine timing)
+        const crBtn = document.getElementById('cr-modal-trigger-btn');
+        if (crBtn) crBtn.style.display = enabled ? 'inline-flex' : 'none';
+        // Also notify Alpine for the green dot state
         window.dispatchEvent(new CustomEvent('cr-enabled-change', { detail: { enabled } }));
     }
 
