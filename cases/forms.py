@@ -9,7 +9,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 import dns.resolver
 
-from core.models import CompanyUnit
+from core.models import CompanyUnit, JobRole
 from .models import CaseCategory, CaseRecord, DocumentTemplate
 
 
@@ -54,6 +54,10 @@ class CaseCreateForm(forms.Form):
             "placeholder": "e.g. Staff IT, Manager Finance",
         }),
     )
+
+    # Overridden to 'master' mode in __init__ when site_config.job_role_mode == 'master'
+    _job_role_mode = 'freetext'
+
     category = forms.ModelChoiceField(
         queryset=CaseCategory.objects.none(),
         label="Category",
@@ -63,8 +67,19 @@ class CaseCreateForm(forms.Form):
         }),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, job_role_mode='freetext', **kwargs):
         super().__init__(*args, **kwargs)
+        self._job_role_mode = job_role_mode
+
+        if job_role_mode == 'master':
+            active_roles = JobRole.objects.filter(is_active=True)
+            choices = [('', '— Pilih Job Role —')] + [(r.name, r.name) for r in active_roles]
+            self.fields['job_role'] = forms.ChoiceField(
+                label="Job Role",
+                choices=choices,
+                widget=forms.Select(attrs={"class": "jk-select"}),
+            )
+
         # Only show leaf categories (exclude parents that have children)
         parent_ids = CaseCategory.objects.filter(
             parent__isnull=False

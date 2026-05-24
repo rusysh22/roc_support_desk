@@ -605,6 +605,73 @@ class CompanyUnitDeleteView(FeatureRequiredMixin, SuperAdminRequiredMixin, Delet
 
 
 # =====================================================================
+# Job Role Master Data (SuperAdmin / Manager only)
+# =====================================================================
+
+from .models import JobRole
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponseRedirect
+
+
+class ManagerOrSuperAdminMixin(UserPassesTestMixin):
+    def test_func(self):
+        return (
+            self.request.user.is_authenticated
+            and self.request.user.role_access in ('SuperAdmin', 'Manager')
+        )
+
+
+class JobRoleForm(forms.ModelForm):
+    class Meta:
+        model = JobRole
+        fields = ['name', 'order', 'is_active']
+        widgets = {
+            'name':  forms.TextInput(attrs={'class': 'jk-input', 'placeholder': 'e.g. Staff IT'}),
+            'order': forms.NumberInput(attrs={'class': 'jk-input', 'min': '0'}),
+        }
+
+
+class JobRoleListView(ManagerOrSuperAdminMixin, ListView):
+    model = JobRole
+    template_name = 'core/job_role_list.html'
+    context_object_name = 'job_roles'
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = JobRole.objects.all()
+        q = self.request.GET.get('q')
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return qs
+
+
+class JobRoleCreateView(ManagerOrSuperAdminMixin, SuccessMessageMixin, CreateView):
+    model = JobRole
+    form_class = JobRoleForm
+    template_name = 'core/job_role_form.html'
+    success_url = reverse_lazy('desk:job_role_list')
+    success_message = "Job role created successfully"
+
+
+class JobRoleUpdateView(ManagerOrSuperAdminMixin, SuccessMessageMixin, UpdateView):
+    model = JobRole
+    form_class = JobRoleForm
+    template_name = 'core/job_role_form.html'
+    success_url = reverse_lazy('desk:job_role_list')
+    success_message = "Job role updated successfully"
+
+
+class JobRoleDeleteView(ManagerOrSuperAdminMixin, DeleteView):
+    model = JobRole
+    template_name = 'core/job_role_confirm_delete.html'
+    success_url = reverse_lazy('desk:job_role_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Job role deleted successfully")
+        return super().delete(request, *args, **kwargs)
+
+
+# =====================================================================
 # SSO Pending Whitelist View
 # =====================================================================
 

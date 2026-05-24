@@ -195,6 +195,12 @@
                 <span x-show="!sidebarCollapsed" x-transition.opacity>Document Templates</span>
             </a>
             </div>
+            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+            <a href="{% url 'desk:job_role_list' %}" class="jk-sidebar-link {% block nav_job_roles %}{% endblock %}" style="flex:1;">
+                <span class="jk-sidebar-link-icon">🏷️</span>
+                <span x-show="!sidebarCollapsed" x-transition.opacity>Job Roles</span>
+            </a>
+            </div>
             {% endif %}
 
             <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">

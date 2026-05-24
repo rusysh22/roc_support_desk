@@ -610,8 +610,41 @@ class SiteConfig(AuditableModel):
             return 150
         return 1500
 
+    JOB_ROLE_MODE_CHOICES = [
+        ('freetext', 'Free Text'),
+        ('master',   'Master Data'),
+    ]
+    job_role_mode = models.CharField(
+        max_length=10,
+        choices=JOB_ROLE_MODE_CHOICES,
+        default='freetext',
+        verbose_name="Job Role Input Mode",
+        help_text=(
+            "Free Text: users type their job role freely. "
+            "Master Data: users pick from the Job Roles master list."
+        ),
+    )
+
     def __str__(self):
         return self.site_name
+
+
+# =====================================================================
+# Job Role Master Data
+# =====================================================================
+
+class JobRole(models.Model):
+    name = models.CharField(max_length=150, unique=True, verbose_name="Job Role Name")
+    is_active = models.BooleanField(default=True, verbose_name="Active")
+    order = models.PositiveIntegerField(default=0, verbose_name="Display Order")
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = "Job Role"
+        verbose_name_plural = "Job Roles"
+
+    def __str__(self):
+        return self.name
 
 
 # =====================================================================

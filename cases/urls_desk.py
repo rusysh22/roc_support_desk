@@ -104,7 +104,8 @@ urlpatterns = [
 
 # Import the CompanyUnit CRUD from core.views
 from core.views import (
-    CompanyUnitListView, CompanyUnitCreateView, CompanyUnitUpdateView, CompanyUnitDeleteView
+    CompanyUnitListView, CompanyUnitCreateView, CompanyUnitUpdateView, CompanyUnitDeleteView,
+    JobRoleListView, JobRoleCreateView, JobRoleUpdateView, JobRoleDeleteView,
 )
 
 urlpatterns += [
@@ -113,4 +114,10 @@ urlpatterns += [
     path("company-units/create/", CompanyUnitCreateView.as_view(), name="company_unit_create"),
     path("company-units/<uuid:pk>/edit/", CompanyUnitUpdateView.as_view(), name="company_unit_edit"),
     path("company-units/<uuid:pk>/delete/", CompanyUnitDeleteView.as_view(), name="company_unit_delete"),
+
+    # Job Roles Master Data
+    path("job-roles/", JobRoleListView.as_view(), name="job_role_list"),
+    path("job-roles/create/", JobRoleCreateView.as_view(), name="job_role_create"),
+    path("job-roles/<int:pk>/edit/", JobRoleUpdateView.as_view(), name="job_role_edit"),
+    path("job-roles/<int:pk>/delete/", JobRoleDeleteView.as_view(), name="job_role_delete"),
 ]

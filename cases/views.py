@@ -879,8 +879,12 @@ def create_case(request, slug=None):
     If ``slug`` is provided, the category is pre-selected.
     """
     import json
+    from core.models import JobRole as JobRoleModel
     initial = {}
     selected_category = None
+
+    _site_cfg = SiteConfig.get_solo()
+    _job_role_mode = _site_cfg.job_role_mode
 
     if slug:
         selected_category = get_object_or_404(CaseCategory, slug=slug)
@@ -959,7 +963,7 @@ def create_case(request, slug=None):
                 "company_units": CompanyUnit.objects.all(),
             }, status=429)
 
-        form = CaseCreateForm(request.POST, request.FILES)
+        form = CaseCreateForm(request.POST, request.FILES, job_role_mode=_job_role_mode)
         if form.is_valid():
             # Validate attachment sizes (10 MB limit)
             uploaded_files = request.FILES.getlist("attachments")
@@ -975,6 +979,7 @@ def create_case(request, slug=None):
                     form.add_error(None, err)
                 return render(request, "client/create_case.html", {
                     "form": form,
+                    "job_role_mode": _job_role_mode,
                     "selected_category": selected_category,
                     "categories": categories_qs,
                     "company_units": CompanyUnit.objects.all(),
@@ -1161,10 +1166,11 @@ def create_case(request, slug=None):
                     initial.setdefault("job_role", emp.job_role)
             except Employee.DoesNotExist:
                 initial.setdefault("requester_email", request.user.email)
-        form = CaseCreateForm(initial=initial)
+        form = CaseCreateForm(initial=initial, job_role_mode=_job_role_mode)
 
     return render(request, "client/create_case.html", {
         "form": form,
+        "job_role_mode": _job_role_mode,
         "selected_category": selected_category,
         "categories": categories_qs,
         "company_units": CompanyUnit.objects.all(),
