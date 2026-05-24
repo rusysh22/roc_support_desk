@@ -71,6 +71,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for cat in root_categories %}
+                    {% with cat_children=cat.children.all %}
                     <!-- Root category row -->
                     <tr class="bg-slate-50/70 hover:bg-slate-100/70 transition-colors">
                         <td class="text-center text-xl">{{ cat.icon|default:"📂" }}</td>
@@ -79,12 +80,12 @@
                             {% if cat.description %}
                             <p class="text-xs text-slate-500 mt-0.5 truncate max-w-xs">{{ cat.description }}</p>
                             {% endif %}
-                            {% if cat.children.count %}
+                            {% if cat_children %}
                             <span class="inline-flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
-                                {{ cat.children.count }} sub-categor{{ cat.children.count|pluralize:"y,ies" }}
+                                {{ cat_children|length }} sub-categor{{ cat_children|length|pluralize:"y,ies" }}
                             </span>
                             {% endif %}
                         </td>
@@ -114,7 +115,14 @@
                             </div>
                         </td>
                         <td class="text-right">
-                            <div class="flex items-center justify-end gap-2 pr-4">
+                            <div class="flex items-center justify-end gap-1 pr-4">
+                                <!-- Add sub-category shortcut -->
+                                <a href="{% url 'desk:category_create' %}?parent={{ cat.pk }}"
+                                   class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Add Sub-category">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                </a>
                                 <a href="{% url 'desk:category_edit' cat.pk %}"
                                    class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +142,7 @@
                     </tr>
 
                     <!-- Child category rows -->
-                    {% for child in cat.children.all %}
+                    {% for child in cat_children %}
                     <tr class="hover:bg-slate-50/50 transition-colors">
                         <td class="text-center text-lg pl-6">{{ child.icon|default:"📝" }}</td>
                         <td>
@@ -195,6 +203,7 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    {% endwith %}
 
                     {% empty %}
                     <tr>

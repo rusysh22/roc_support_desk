@@ -4420,10 +4420,36 @@ def toggle_wa_session(request, case_id):
 # =====================================================================
 
 @staff_required
+def _save_template_fields(request, tmpl):
+    """Parse fields_json from POST and (re)create all DocumentTemplateField rows."""
+    import json as _json
+    raw = request.POST.get("fields_json", "[]")
+    try:
+        fields_data = _json.loads(raw)
+    except ValueError:
+        fields_data = []
+
+    tmpl.fields.all().delete()
+    for idx, fdata in enumerate(fields_data):
+        label = (fdata.get("label") or "").strip()
+        if not label:
+            continue
+        DocumentTemplateField.objects.create(
+            template=tmpl,
+            order=idx + 1,
+            label=label,
+            placeholder=(fdata.get("placeholder") or "").strip(),
+            default_content=(fdata.get("default_content") or "").strip(),
+            is_required=bool(fdata.get("is_required", True)),
+            created_by=request.user,
+            updated_by=request.user,
+        )
+
+
 def document_template_list(request):
     """List all DocumentTemplates."""
     query = request.GET.get("q", "").strip()
-    qs = DocumentTemplate.objects.prefetch_related("categories").order_by("title")
+    qs = DocumentTemplate.objects.prefetch_related("categories", "fields").order_by("title")
     if query:
         qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query))
     return render(request, "desk/document_templates/list.html", {
@@ -4434,7 +4460,7 @@ def document_template_list(request):
 
 @staff_required
 def document_template_create(request):
-    """Create a new DocumentTemplate. SuperAdmin only."""
+    """Create a new DocumentTemplate. SuperAdmin or Manager only."""
     if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
         return HttpResponseForbidden("Only SuperAdmin and Manager can create document templates.")
 
@@ -4447,6 +4473,7 @@ def document_template_create(request):
             tmpl.updated_by = request.user
             tmpl.save()
             form.save_m2m()
+            _save_template_fields(request, tmpl)
             messages.success(request, f"Template '{tmpl.title}' created successfully.")
             return redirect("desk:document_template_list")
     else:
@@ -4455,6 +4482,7 @@ def document_template_create(request):
     return render(request, "desk/document_templates/form.html", {
         "form": form,
         "is_edit": False,
+        "existing_fields_json": "[]",
     })
 
 
@@ -4464,6 +4492,7 @@ def document_template_edit(request, template_id):
     if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
         return HttpResponseForbidden("Only SuperAdmin and Manager can edit document templates.")
 
+    import json as _json
     from cases.forms import DocumentTemplateForm
     tmpl = get_object_or_404(DocumentTemplate, id=template_id)
 
@@ -4474,15 +4503,20 @@ def document_template_edit(request, template_id):
             obj.updated_by = request.user
             obj.save()
             form.save_m2m()
+            _save_template_fields(request, obj)
             messages.success(request, f"Template '{obj.title}' updated.")
             return redirect("desk:document_template_list")
     else:
         form = DocumentTemplateForm(instance=tmpl)
 
+    existing_fields = list(
+        tmpl.fields.order_by("order").values("label", "placeholder", "default_content", "is_required")
+    )
     return render(request, "desk/document_templates/form.html", {
         "form": form,
         "tmpl": tmpl,
         "is_edit": True,
+        "existing_fields_json": _json.dumps(existing_fields),
     })
 
 
@@ -4511,8 +4545,10 @@ def category_manage_list(request):
         return HttpResponseForbidden("Access denied.")
 
     q = request.GET.get("q", "").strip()
+    from django.db.models import Prefetch
     root_qs = CaseCategory.objects.filter(parent__isnull=True).prefetch_related(
-        "children", "document_templates"
+        Prefetch("children", queryset=CaseCategory.objects.prefetch_related("document_templates")),
+        "document_templates",
     ).order_by("name")
     if q:
         matched_ids = set(
@@ -4549,7 +4585,13 @@ def category_manage_create(request):
             messages.success(request, f"Category \"{cat.name}\" created.")
             return redirect("desk:category_list")
     else:
-        form = CaseCategoryForm()
+        initial = {}
+        parent_id = request.GET.get("parent")
+        if parent_id:
+            parent_obj = CaseCategory.objects.filter(pk=parent_id, parent__isnull=True).first()
+            if parent_obj:
+                initial["parent"] = parent_obj
+        form = CaseCategoryForm(initial=initial)
 
     return render(request, "desk/categories/form.html", {
         "form": form,

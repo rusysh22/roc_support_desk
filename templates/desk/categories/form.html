@@ -165,15 +165,14 @@
                     </div>
                 </div>
 
-                {% if not templateOpen %}
+                <!-- Collapsed summary — x-show is the single source of truth -->
                 <div x-show="!templateOpen" x-cloak>
                     {% if form.template_subject.value or form.template_text.value %}
                     <p class="text-xs text-indigo-600 font-medium">✓ Template is set</p>
                     {% else %}
-                    <p class="text-xs text-slate-400">No template set — tickets will start with blank fields.</p>
+                    <p class="text-xs text-slate-400">No template set — tickets will open with blank subject and description.</p>
                     {% endif %}
                 </div>
-                {% endif %}
             </div>
 
             <!-- Actions -->

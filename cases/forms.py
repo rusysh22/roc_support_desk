@@ -429,6 +429,7 @@ class CaseCategoryForm(forms.ModelForm):
             'template_subject', 'template_text',
             'is_confidential', 'is_attachment_mandatory', 'enable_change_request',
         ]
+        _cb = {'class': 'w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 shrink-0'}
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'jk-input',
@@ -442,9 +443,10 @@ class CaseCategoryForm(forms.ModelForm):
                 'placeholder': 'Short description shown on the portal...',
             }),
             'prefix_code': forms.TextInput(attrs={
-                'class': 'jk-input uppercase',
+                'class': 'jk-input',
                 'maxlength': '2',
                 'placeholder': 'RQ',
+                'style': 'text-transform:uppercase;',
             }),
             'template_subject': forms.TextInput(attrs={
                 'class': 'jk-input',
@@ -455,11 +457,17 @@ class CaseCategoryForm(forms.ModelForm):
                 'rows': 6,
                 'placeholder': 'e.g. Please describe the issue:\n\nSteps to reproduce:\n1. \n2.',
             }),
+            'is_confidential': forms.CheckboxInput(attrs=_cb),
+            'is_attachment_mandatory': forms.CheckboxInput(attrs=_cb),
+            'enable_change_request': forms.CheckboxInput(attrs=_cb),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['parent'].queryset = CaseCategory.objects.filter(parent__isnull=True).order_by('name')
+        parent_qs = CaseCategory.objects.filter(parent__isnull=True).order_by('name')
+        if self.instance and self.instance.pk:
+            parent_qs = parent_qs.exclude(pk=self.instance.pk)
+        self.fields['parent'].queryset = parent_qs
         self.fields['parent'].empty_label = '— Root Category (Main) —'
         self.fields['parent'].required = False
         self.fields['icon'].required = False
