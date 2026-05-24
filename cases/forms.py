@@ -413,3 +413,53 @@ class DocumentTemplateForm(forms.ModelForm):
             }),
             "categories": forms.CheckboxSelectMultiple(),
         }
+
+
+# =====================================================================
+# Ticket Category Form (Admin)
+# =====================================================================
+
+class CaseCategoryForm(forms.ModelForm):
+    """Form for creating/editing a CaseCategory from the desk admin UI."""
+
+    class Meta:
+        model = CaseCategory
+        fields = [
+            'name', 'parent', 'icon', 'description', 'prefix_code',
+            'template_subject', 'template_text',
+            'is_confidential', 'is_attachment_mandatory', 'enable_change_request',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'jk-input',
+                'placeholder': 'e.g. IT Support',
+            }),
+            'parent': forms.Select(attrs={'class': 'jk-select'}),
+            'icon': forms.HiddenInput(),
+            'description': forms.Textarea(attrs={
+                'class': 'jk-input',
+                'rows': 2,
+                'placeholder': 'Short description shown on the portal...',
+            }),
+            'prefix_code': forms.TextInput(attrs={
+                'class': 'jk-input uppercase',
+                'maxlength': '2',
+                'placeholder': 'RQ',
+            }),
+            'template_subject': forms.TextInput(attrs={
+                'class': 'jk-input',
+                'placeholder': 'e.g. [Issue] Brief description of the problem',
+            }),
+            'template_text': forms.Textarea(attrs={
+                'class': 'jk-input',
+                'rows': 6,
+                'placeholder': 'e.g. Please describe the issue:\n\nSteps to reproduce:\n1. \n2.',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['parent'].queryset = CaseCategory.objects.filter(parent__isnull=True).order_by('name')
+        self.fields['parent'].empty_label = '— Root Category (Main) —'
+        self.fields['parent'].required = False
+        self.fields['icon'].required = False

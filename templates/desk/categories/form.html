@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Category | {{ site_config.site_name }}{% endblock %}
+{% block nav_categories %}active{% endblock %}
+{% block page_title %}{% if is_edit %}Edit Category{% else %}New Category{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6" x-data="categoryFormApp('{{ form.icon.value|default:"📂" }}')">
+
+    <!-- Back link -->
+    <div>
+        <a href="{% url 'desk:category_list' %}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to Categories
+        </a>
+    </div>
+
+    {% if form.errors %}
+    <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800">
+        <strong class="font-bold">Please fix the following errors:</strong>
+        <ul class="list-disc ml-5 mt-2 space-y-1">
+            {% for field in form %}{% for error in field.errors %}<li><b>{{ field.label }}</b>: {{ error }}</li>{% endfor %}{% endfor %}
+            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <!-- Hidden icon value submitted with form -->
+        <input type="hidden" name="icon" :value="selectedIcon">
+
+        <div class="space-y-5">
+
+            <!-- Core Details -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+                <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Category Details</h3>
+
+                <!-- Icon + Name row -->
+                <div class="flex items-start gap-4">
+                    <!-- Icon Picker -->
+                    <div class="flex-shrink-0">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon</label>
+                        <div class="relative">
+                            <button type="button" @click.stop="iconPickerOpen = !iconPickerOpen"
+                                class="w-14 h-10 border border-slate-200 rounded-xl flex items-center justify-center text-2xl bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm">
+                                <span x-text="selectedIcon"></span>
+                            </button>
+                            <div x-show="iconPickerOpen" x-cloak @click.outside="iconPickerOpen = false"
+                                 class="absolute top-full left-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5" style="width:236px;">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-0.5">Choose Icon</p>
+                                <div class="grid grid-cols-8 gap-0.5">
+                                    <template x-for="e in icons" :key="e">
+                                        <button type="button" @click="selectedIcon = e; iconPickerOpen = false"
+                                            class="w-7 h-7 flex items-center justify-center text-base rounded-lg hover:bg-indigo-50 transition-colors"
+                                            :class="selectedIcon === e ? 'bg-indigo-100 ring-1 ring-indigo-400' : ''">
+                                            <span x-text="e"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Name -->
+                    <div class="flex-1">
+                        <label class="jk-label">Category Name <span class="text-red-500">*</span></label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <div class="jk-form-error">{{ form.name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Parent -->
+                <div class="jk-form-group">
+                    <label class="jk-label">Parent Category</label>
+                    {{ form.parent }}
+                    <p class="text-xs text-slate-400 mt-1">Leave empty to make this a root (main) category.</p>
+                    {% if form.parent.errors %}
+                    <div class="jk-form-error">{{ form.parent.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                <div class="jk-form-group">
+                    <label class="jk-label">Description</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <div class="jk-form-error">{{ form.description.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Prefix Code -->
+                <div class="jk-form-group" style="max-width:120px;">
+                    <label class="jk-label">Prefix Code <span class="text-red-500">*</span></label>
+                    {{ form.prefix_code }}
+                    <p class="text-xs text-slate-400 mt-1">2-char prefix for ticket IDs (e.g. RQ, IT, HR).</p>
+                    {% if form.prefix_code.errors %}
+                    <div class="jk-form-error">{{ form.prefix_code.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Behaviour Flags -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Behaviour</h3>
+
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    {{ form.is_confidential }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700 group-hover:text-slate-900">Confidential Category</span>
+                        <p class="text-xs text-slate-400 mt-0.5">Only staff with the "can handle confidential" permission can view tickets in this category.</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    {{ form.is_attachment_mandatory }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700 group-hover:text-slate-900">Attachment Mandatory</span>
+                        <p class="text-xs text-slate-400 mt-0.5">Users must upload at least one file when submitting a ticket in this category.</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    {{ form.enable_change_request }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700 group-hover:text-slate-900">Enable Change Request (Supporting Letter)</span>
+                        <p class="text-xs text-slate-400 mt-0.5">Users can attach a supporting document (surat kronologi / change request) when submitting tickets here. Requires a Document Template to be linked to this category.</p>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Ticket Template -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-800">Ticket Template</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Auto-fills the subject and description when a user opens a new ticket in this category.</p>
+                    </div>
+                    <button type="button" @click="templateOpen = !templateOpen"
+                        class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+                        :class="templateOpen ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'">
+                        <span x-text="templateOpen ? 'Collapse' : 'Expand'"></span>
+                    </button>
+                </div>
+
+                <div x-show="templateOpen" x-cloak class="space-y-4">
+                    <div class="jk-form-group">
+                        <label class="jk-label">Subject Template</label>
+                        {{ form.template_subject }}
+                        {% if form.template_subject.errors %}
+                        <div class="jk-form-error">{{ form.template_subject.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="jk-form-group">
+                        <label class="jk-label">Description Template</label>
+                        {{ form.template_text }}
+                        {% if form.template_text.errors %}
+                        <div class="jk-form-error">{{ form.template_text.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if not templateOpen %}
+                <div x-show="!templateOpen" x-cloak>
+                    {% if form.template_subject.value or form.template_text.value %}
+                    <p class="text-xs text-indigo-600 font-medium">✓ Template is set</p>
+                    {% else %}
+                    <p class="text-xs text-slate-400">No template set — tickets will start with blank fields.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3">
+                <button type="submit" class="jk-btn jk-btn-primary px-5 py-2 text-sm">
+                    {% if is_edit %}Save Changes{% else %}Create Category{% endif %}
+                </button>
+                <a href="{% url 'desk:category_list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-5 py-2 text-sm">
+                    Cancel
+                </a>
+            </div>
+
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function categoryFormApp(initialIcon) {
+    return {
+        selectedIcon: initialIcon || '📂',
+        iconPickerOpen: false,
+        templateOpen: !!({% if form.template_subject.value or form.template_text.value %}true{% else %}false{% endif %}),
+        icons: ['📝','📋','🎫','🔧','💻','🖥️','🖨️','📱','🔒','🌐','📧','📂','📁','🗂️','💾','🖱️','⌨️','🔌','📡','🏢','👤','👥','💰','📊','📈','🔔','⚠️','✅','🚨','🛠️','⚙️','🔑','📞','💬','🧾','📄','🏷️','🎯','🚀','💡','🔍','📌','🧩','🖊️','📮','🗓️','💼','🏦','🏭','🏗️'],
+    }
+}
+</script>
+{% endblock %}

@@ -4500,6 +4500,123 @@ def document_template_delete(request, template_id):
 
 
 
+# =====================================================================
+# Ticket Category Management (Desk Admin UI)
+# =====================================================================
+
+@staff_required
+def category_manage_list(request):
+    """List all ticket categories grouped as parent → children."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Access denied.")
+
+    q = request.GET.get("q", "").strip()
+    root_qs = CaseCategory.objects.filter(parent__isnull=True).prefetch_related(
+        "children", "document_templates"
+    ).order_by("name")
+    if q:
+        matched_ids = set(
+            CaseCategory.objects.filter(name__icontains=q).values_list("id", flat=True)
+        )
+        parent_ids = set(
+            CaseCategory.objects.filter(id__in=matched_ids, parent__isnull=False)
+            .values_list("parent_id", flat=True)
+        )
+        root_qs = root_qs.filter(
+            Q(id__in=matched_ids) | Q(id__in=parent_ids)
+        )
+
+    return render(request, "desk/categories/list.html", {
+        "root_categories": root_qs,
+        "search_query": q,
+    })
+
+
+@staff_required
+def category_manage_create(request):
+    """Create a new CaseCategory."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Access denied.")
+
+    from cases.forms import CaseCategoryForm
+    if request.method == "POST":
+        form = CaseCategoryForm(request.POST)
+        if form.is_valid():
+            cat = form.save(commit=False)
+            cat.created_by = request.user
+            cat.updated_by = request.user
+            cat.save()
+            messages.success(request, f"Category \"{cat.name}\" created.")
+            return redirect("desk:category_list")
+    else:
+        form = CaseCategoryForm()
+
+    return render(request, "desk/categories/form.html", {
+        "form": form,
+        "is_edit": False,
+    })
+
+
+@staff_required
+def category_manage_edit(request, category_id):
+    """Edit an existing CaseCategory."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Access denied.")
+
+    category = get_object_or_404(CaseCategory, id=category_id)
+    from cases.forms import CaseCategoryForm
+    if request.method == "POST":
+        form = CaseCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            cat = form.save(commit=False)
+            cat.updated_by = request.user
+            cat.save()
+            messages.success(request, f"Category \"{cat.name}\" updated.")
+            return redirect("desk:category_list")
+    else:
+        form = CaseCategoryForm(instance=category)
+
+    return render(request, "desk/categories/form.html", {
+        "form": form,
+        "category": category,
+        "is_edit": True,
+    })
+
+
+@staff_required
+def category_manage_delete(request, category_id):
+    """Show confirmation or perform deletion of a CaseCategory."""
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return HttpResponseForbidden("Only SuperAdmin can delete categories.")
+
+    category = get_object_or_404(CaseCategory, id=category_id)
+    ticket_count = CaseRecord.objects.filter(category=category).count()
+    children_count = category.children.count()
+
+    if request.method == "POST":
+        if ticket_count > 0:
+            messages.error(
+                request,
+                f'Cannot delete "{category.name}": {ticket_count} ticket(s) use this category.',
+            )
+            return redirect("desk:category_list")
+        if children_count > 0:
+            messages.error(
+                request,
+                f'Cannot delete "{category.name}": it has {children_count} sub-categor{"y" if children_count == 1 else "ies"}. Delete them first.',
+            )
+            return redirect("desk:category_list")
+        name = category.name
+        category.delete()
+        messages.success(request, f"Category \"{name}\" deleted.")
+        return redirect("desk:category_list")
+
+    return render(request, "desk/categories/confirm_delete.html", {
+        "category": category,
+        "ticket_count": ticket_count,
+        "children_count": children_count,
+    })
+
 
 def document_template_preview_html(request, template_id):
     """

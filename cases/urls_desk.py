@@ -91,6 +91,12 @@ urlpatterns = [
     path("rca-templates/create/", views.rca_template_create, name="rca_template_create"),
     path("rca-templates/<uuid:template_id>/delete/", views.rca_template_delete, name="rca_template_delete"),
 
+    # Ticket Category Management (Admin CRUD)
+    path("categories/", views.category_manage_list, name="category_list"),
+    path("categories/create/", views.category_manage_create, name="category_create"),
+    path("categories/<uuid:category_id>/edit/", views.category_manage_edit, name="category_edit"),
+    path("categories/<uuid:category_id>/delete/", views.category_manage_delete, name="category_delete"),
+
     # Document Templates (Admin CRUD)
     path("document-templates/", views.document_template_list, name="document_template_list"),
     path("document-templates/create/", views.document_template_create, name="document_template_create"),

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Category | {{ site_config.site_name }}{% endblock %}
+{% block nav_categories %}active{% endblock %}
+{% block page_title %}Delete Category{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white rounded-2xl border border-red-200 shadow-sm p-6 space-y-5">
+        <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Delete "{{ category.name }}"?</h2>
+                <p class="text-sm text-slate-500 mt-1">This action cannot be undone.</p>
+            </div>
+        </div>
+
+        {% if ticket_count > 0 %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+            <span class="shrink-0">⛔</span>
+            <span>This category has <strong>{{ ticket_count }} ticket{{ ticket_count|pluralize }}</strong> linked to it. Reassign or close them before deleting.</span>
+        </div>
+        {% endif %}
+
+        {% if children_count > 0 %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700">
+            <span class="shrink-0">⚠️</span>
+            <span>This category has <strong>{{ children_count }} sub-categor{{ children_count|pluralize:"y,ies" }}</strong>. Delete them first.</span>
+        </div>
+        {% endif %}
+
+        <form method="post" class="flex items-center gap-3">
+            {% csrf_token %}
+            {% if ticket_count == 0 and children_count == 0 %}
+            <button type="submit" class="jk-btn bg-red-600 hover:bg-red-700 text-white px-5 py-2 text-sm font-semibold">
+                Yes, Delete
+            </button>
+            {% else %}
+            <button type="submit" disabled class="jk-btn bg-red-200 text-red-400 px-5 py-2 text-sm font-semibold cursor-not-allowed">
+                Cannot Delete
+            </button>
+            {% endif %}
+            <a href="{% url 'desk:category_list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-5 py-2 text-sm">
+                Cancel
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}
