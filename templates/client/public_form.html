@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="{% static 'css/tailwind.css' %}?v=1">
 
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <script defer src="{% static 'vendor/alpine-3.14.8.min.js' %}"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -247,6 +247,11 @@
                         currentPage: 0,
                         totalPages: 1,
                         history: [],
+                        fieldAnswers: {},
+                        isFieldVisible(condFieldId, condValue) {
+                            if (!condFieldId) return true;
+                            return (this.fieldAnswers['field_' + condFieldId] || '') === condValue;
+                        },
                         logicMap: {
                             {% for field in fields %}{% if field.settings.logic %}
                             'field_{{ field.id }}': {{ field.settings.logic|safe }},
@@ -330,7 +335,7 @@
                                 this.$refs.formContainer.closest('.bg-white')?.scrollIntoView({behavior:'smooth', block:'start'});
                             }
                         }
-                    }" x-ref="formContainer">
+                    }" x-ref="formContainer" @form-answer.window="fieldAnswers[$event.detail.name] = $event.detail.value">
 
                     <!-- Progress Bar (only if multi-page) -->
                     {% has_page_break fields as is_multipage %}
@@ -459,8 +464,14 @@
                             {% else %}
                             <!-- Regular Field -->
                             <div class="field-group rounded-2xl p-4 sm:p-5 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 animate-fade-in {% if errors|get_item:field.id %}!border-red-200 !bg-red-50/50{% endif %}"
-                                 style="animation-delay: {{ forloop.counter0 }}00ms; z-index: calc(100 - {{ forloop.counter }});">
-                                
+                                 style="animation-delay: {{ forloop.counter0 }}00ms; z-index: calc(100 - {{ forloop.counter }});"
+                                 {% if field.settings.condition %}
+                                 data-cond-field="{{ field.settings.condition.field_id }}"
+                                 data-cond-value="{{ field.settings.condition.value|escapejs }}"
+                                 x-show="isFieldVisible($el.dataset.condField, $el.dataset.condValue)"
+                                 x-effect="const v = isFieldVisible($el.dataset.condField, $el.dataset.condValue); $el.querySelectorAll('input:not([type=hidden]), textarea, select').forEach(el => el.disabled = !v);"
+                                 {% endif %}>
+
                                 <!-- Label -->
                                 <label class="block text-sm sm:text-base font-bold text-slate-800 mb-1">
                                     <span class="text-indigo-500 text-xs font-black mr-1.5">{{ forloop.counter }}.</span>
@@ -577,8 +588,9 @@
                                             
                                             {% for choice in field.choices %}
                                             <label class="relative flex flex-col items-center cursor-pointer group z-10 flex-1">
-                                                <input type="radio" name="field_{{ field.id }}" value="{{ choice }}" 
+                                                <input type="radio" name="field_{{ field.id }}" value="{{ choice }}"
                                                     class="sr-only peer"
+                                                    @change="$dispatch('form-answer', {name: $event.target.name, value: $event.target.value})"
                                                     {% if field.is_required %}required{% endif %}
                                                     {% if answers|get_item:field.id == choice %}checked{% endif %}>
                                                 <!-- Circle -->
@@ -688,6 +700,7 @@
                                             this.selected = val;
                                             this.search = '';
                                             this.open = false;
+                                            this.$dispatch('form-answer', { name: 'field_{{ field.id }}', value: val });
                                         }
                                     }" @click.away="open = false; search = ''" class="relative">
                                         <!-- Hidden input for form submission -->
@@ -736,8 +749,9 @@
                                     <div class="space-y-2">
                                         {% for choice in field.choices %}
                                             <label class="choice-card flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-white">
-                                                <input type="radio" name="field_{{ field.id }}" value="{{ choice }}" 
+                                                <input type="radio" name="field_{{ field.id }}" value="{{ choice }}"
                                                     class="h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                                                    @change="$dispatch('form-answer', {name: $event.target.name, value: $event.target.value})"
                                                     {% if field.is_required %}required{% endif %}>
                                                 <span class="text-sm font-medium text-slate-700">{{ choice }}</span>
                                             </label>

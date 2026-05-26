@@ -8,14 +8,14 @@
 
 {% block extra_head %}
 <!-- SortableJS for drag-and-drop -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script src="{% static 'vendor/sortablejs-1.15.2.min.js' %}"></script>
 <!-- HTMX for dynamic field updates -->
-<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script src="{% static 'vendor/htmx-1.9.10.min.js' %}"></script>
 <!-- Quill.js for Rich Text Editing -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 <!-- QRCode.js for client-side QR generation -->
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="{% static 'vendor/qrcodejs-1.0.0.min.js' %}"></script>
 
 <style>
     /* Custom Quill styling to match UI */

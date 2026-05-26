@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 <!-- signature_pad.js for digital signature canvas -->
-<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script src="{% static 'vendor/signature_pad-4.1.7.min.js' %}"></script>
 <style>
     .sig-canvas { touch-action: none; cursor: crosshair; }
     .step-badge-pending  { background:#fef3c7; color:#92400e; }

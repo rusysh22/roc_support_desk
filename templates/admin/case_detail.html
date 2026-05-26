@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load custom_tags %}
+{% load static custom_tags %}
 
 {% block title %}{{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}
@@ -1274,7 +1274,7 @@
 
 {% block extra_scripts %}
 <!-- Tribute.js for @mentions in internal notes -->
-<link rel="stylesheet" href="https://unpkg.com/tributejs@5.1.3/dist/tribute.css">
+<link rel="stylesheet" href="{% static 'vendor/tributejs-5.1.3.css' %}">
 <style>
     /* Tailwind overrides for Tribute popup */
     .tribute-container {
@@ -1305,7 +1305,7 @@
         background: #f1f5f9;
     }
 </style>
-<script src="https://unpkg.com/tributejs@5.1.3/dist/tribute.min.js"></script>
+<script src="{% static 'vendor/tributejs-5.1.3.min.js' %}"></script>
 
 <script>
     // ── Quote Reply Helpers ─────────────────────────────────────

@@ -287,7 +287,6 @@ class CaseRCAForm(forms.ModelForm):
             
             for field_name, field in self.fields.items():
                 field.disabled = True
-                field.widget.attrs["readonly"] = True
                 field.widget.attrs["class"] += " bg-slate-100 opacity-80 cursor-not-allowed"
 
     def clean(self):

@@ -188,7 +188,7 @@ def search_knowledge(query: str, sources: str, max_docs: int) -> list[dict]:
 def _search_static_docs(query_text: str, max_docs: int = 3) -> list[dict]:
     """
     Search static markdown files in the docs/ directory.
-    Useful for answering general questions about the system (e.g. from SRS or Panduan).
+    Useful for answering general questions about the system (e.g. from SRS or User Guide).
     """
     import os
     from django.conf import settings
@@ -235,7 +235,7 @@ def _search_static_docs(query_text: str, max_docs: int = 3) -> list[dict]:
                     if len(word) > 3 and word in para_lower:
                         score += 1
                         
-                # Also boost if it mentions "apa" and "sistem" or similar in the same paragraph
+                # Append paragraph if any query keyword matched
                 if score > 0:
                     results.append({
                         "title": f"System Docs: {filename}",

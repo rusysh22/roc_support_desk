@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Calendar | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}{{ site_config.site_name|default:"RoC Desk" }} | Calendar{% endblock %}
@@ -11,8 +12,7 @@
 {% endblock %}
 
 {% block extra_head %}
-<!-- FullCalendar CDN -->
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<!-- FullCalendar — CSS is injected by the JS bundle -->
 <style>
     #calendar-container {
         background: white;
@@ -360,7 +360,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="{% static 'vendor/fullcalendar-6.1.11.global.min.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const calendarEl = document.getElementById('calendar');

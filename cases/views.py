@@ -15,8 +15,11 @@ Staff views (login + role_access required):
     - ``case_send_reply``   — HTMX partial to send a staff reply.
     - ``chat_thread``       — HTMX partial to refresh chat messages.
 """
+import logging
 import re
 from functools import wraps
+
+logger = logging.getLogger(__name__)
 
 from ipware import get_client_ip as _get_client_ip
 from django.contrib.auth.decorators import login_required
@@ -27,6 +30,7 @@ from django.http import HttpResponseForbidden, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.cache import cache
 
 from core.models import CompanyUnit, Employee, User
@@ -1302,7 +1306,7 @@ def public_form_view(request, slug):
                         errors[str(field.id)] = f"File {f.name} exceeds {site_config.max_upload_size_mb}MB limit."
                         break
                     
-                    filename = fs.save(f.name, f)
+                    filename = fs.save(os.path.basename(f.name), f)
                     saved_files.append(fs.url(filename))
                 
                 if field.field_type == 'attachment':
@@ -1822,8 +1826,8 @@ def case_detail(request, case_id):
             from gateways.tasks import mark_wa_messages_read_task
             try:
                 mark_wa_messages_read_task.delay(str(case.id), wa_external_ids)
-            except Exception:
-                pass  # Don't break page load if Celery is unavailable
+            except Exception as e:
+                logger.warning("Failed to queue mark_wa_messages_read for case %s: %s", case.id, e)
 
     # Record when staff last viewed this ticket
     from django.utils import timezone
@@ -2235,18 +2239,17 @@ def case_update_rca(request, case_id):
                 case_url = request.build_absolute_uri(reverse("desk:case_detail", kwargs={"case_id": case.id}))
                 send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
 
-            # Redirect to the previous page (likely the filtered table list)
-            # using the back_url passed through the form
             redirect_url = request.POST.get("back_url", "/desk/cases/")
-            
-            # safeguard against infinite reloads on the same detail page
-            if f"/desk/cases/{case_id}" in redirect_url:
+            if not url_has_allowed_host_and_scheme(
+                redirect_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ) or f"/desk/cases/{case_id}" in redirect_url:
                 redirect_url = "/desk/cases/"
-                
-            return HttpResponse(
-                f'<script>window.location.href = "{redirect_url}";</script>',
-                content_type="text/html"
-            )
+
+            response = HttpResponse()
+            response["HX-Redirect"] = redirect_url
+            return response
         else:
             # Revert instance mutation if validation fails so the template logic maintains the true DB status
             case.status = original_status
@@ -2419,8 +2422,8 @@ def chat_thread(request, case_id):
             from gateways.tasks import mark_wa_messages_read_task
             try:
                 mark_wa_messages_read_task.delay(str(case.id), wa_external_ids)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to queue mark_wa_messages_read for case %s: %s", case.id, e)
 
     messages = case.messages.select_related(
         "sender_employee", "sender_staff",
@@ -2459,8 +2462,8 @@ def message_delete(request, case_id, message_id):
             from gateways.tasks import delete_whatsapp_message_task
             try:
                 delete_whatsapp_message_task.delay(str(msg.id))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to queue delete_whatsapp_message for msg %s: %s", msg.id, e)
 
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
@@ -2502,8 +2505,8 @@ def message_edit(request, case_id, message_id):
         from gateways.tasks import edit_whatsapp_message_task
         try:
             edit_whatsapp_message_task.delay(str(msg.id))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to queue edit_whatsapp_message for msg %s: %s", msg.id, e)
 
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
@@ -2537,8 +2540,8 @@ def message_react(request, case_id, message_id):
                 from gateways.tasks import react_whatsapp_message_task
                 try:
                     react_whatsapp_message_task.delay(str(msg.id), "")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to queue react_whatsapp_message (remove) for msg %s: %s", msg.id, e)
         else:
             MessageReaction.objects.update_or_create(
                 message=msg,
@@ -2549,8 +2552,8 @@ def message_react(request, case_id, message_id):
                 from gateways.tasks import react_whatsapp_message_task
                 try:
                     react_whatsapp_message_task.delay(str(msg.id), emoji)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to queue react_whatsapp_message (add %s) for msg %s: %s", emoji, msg.id, e)
 
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
@@ -4049,9 +4052,22 @@ def form_edit_view(request, pk):
                     'phone_code': request.POST.get('settings_phone_code', '+62'),
                 })
                 
+            condition_field_id = request.POST.get('condition_field', '').strip()
+            condition_value = request.POST.get('condition_value', '').strip()
+            if condition_field_id and condition_value:
+                try:
+                    cond_obj = FormField.objects.get(id=condition_field_id, form=instance)
+                    field_settings['condition'] = {
+                        'field_id': condition_field_id,
+                        'value': condition_value,
+                        'field_label': cond_obj.label,
+                    }
+                except FormField.DoesNotExist:
+                    pass
+
             # Put at bottom
             last_order = instance.fields.count()
-            
+
             FormField.objects.create(
                 form=instance,
                 field_type=field_type,
@@ -4133,7 +4149,22 @@ def form_edit_view(request, pk):
                 field.settings['number_type'] = request.POST.get('settings_number_type', 'general')
                 field.settings['currency_type'] = request.POST.get('settings_currency_type', 'idr')
                 field.settings['phone_code'] = request.POST.get('settings_phone_code', '+62')
-            
+
+            condition_field_id = request.POST.get('condition_field', '').strip()
+            condition_value = request.POST.get('condition_value', '').strip()
+            if condition_field_id and condition_value:
+                try:
+                    cond_obj = FormField.objects.get(id=condition_field_id, form=instance)
+                    field.settings['condition'] = {
+                        'field_id': condition_field_id,
+                        'value': condition_value,
+                        'field_label': cond_obj.label,
+                    }
+                except FormField.DoesNotExist:
+                    field.settings.pop('condition', None)
+            else:
+                field.settings.pop('condition', None)
+
             field.updated_by = request.user
             field.save()
             return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
@@ -4752,8 +4783,8 @@ def _finalize_approved_change_request(doc):
         try:
             from gateways.tasks import _dispatch_new_ticket_notifs
             _dispatch_new_ticket_notifs(str(case.id))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to dispatch new ticket notifications for case %s: %s", case.id, e)
 
     return True
 

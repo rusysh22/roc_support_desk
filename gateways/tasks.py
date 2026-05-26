@@ -562,10 +562,12 @@ def _download_and_save_attachment(
 
 
 @shared_task(
+    bind=True,
     name="gateways.poll_imap_emails_task",
     max_retries=1,
+    default_retry_delay=60,
 )
-def poll_imap_emails_task() -> str:
+def poll_imap_emails_task(self) -> str:
     """
     Periodically poll the configured IMAP server for unread emails.
     Processes each email into a CaseRecord/Message.
@@ -751,7 +753,10 @@ def poll_imap_emails_task() -> str:
 
     except Exception as exc:
         logger.exception("Error polling IMAP emails: %s", exc)
-        return "error"
+        try:
+            raise self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
 
 
 def _get_or_create_default_email_category():

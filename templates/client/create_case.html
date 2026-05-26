@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Submit a Ticket | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Submit a Ticket{% endblock %}
@@ -6,12 +7,12 @@
 
 {% block extra_head %}
 <!-- Mailcheck.js for email typo detection -->
-<script src="https://cdn.jsdelivr.net/npm/mailcheck@1.1.1/src/mailcheck.min.js"></script>
+<script src="{% static 'vendor/mailcheck-1.1.1.min.js' %}"></script>
 <!-- QRCode.js for generating QR code of the link -->
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="{% static 'vendor/qrcodejs-1.0.0.min.js' %}"></script>
 <!-- Quill rich text editor -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 <style>
   .cr-field-editor .ql-editor { min-height: 130px; }
 </style>

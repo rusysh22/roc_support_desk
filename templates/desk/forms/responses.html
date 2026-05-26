@@ -9,8 +9,7 @@
 {% block content %}
 <div class="space-y-6">
 
-    <!-- Chart.js via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{% static 'vendor/chartjs.min.js' %}"></script>
 
     <div class="flex items-center gap-4 flex-wrap">
         <a href="{% url 'desk:form_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">

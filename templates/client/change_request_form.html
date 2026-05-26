@@ -4,8 +4,8 @@
 {% block title %}{% if is_revision %}Revise{% else %}New{% endif %} Supporting Letter | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
 {% block extra_head %}
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 <style>
   .cr-field-editor .ql-editor { min-height: 130px; }
 </style>

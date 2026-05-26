@@ -6,8 +6,8 @@
 
 {% block extra_head %}
 <!-- Quill.js for Rich Text Editing -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 
 <style>
     /* Custom Quill styling to match UI */
@@ -126,23 +126,61 @@
                 </div>
 
                 <!-- Access -->
-                <div>
+                <div x-data="{ requireLogin: false }" x-init="requireLogin = $el.querySelector('#id_requires_login').checked">
                     <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Access & Permissions</h3>
-                    <div class="space-y-4">
-                        <label class="inline-flex items-center cursor-pointer">
-                            {{ form.requires_login }}
-                            <span class="ml-3 text-sm font-medium text-slate-700">Require Users to Login (No Guests)</span>
+                    <div class="space-y-3">
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-700">Require Login</div>
+                                <div class="text-xs text-slate-500">Restrict to authenticated users only</div>
+                            </div>
+                            <div x-init="$el.querySelector('input').addEventListener('change', e => requireLogin = e.target.checked)">
+                                {{ form.requires_login }}
+                            </div>
                         </label>
-                        <br>
-                        <label class="inline-flex items-center cursor-pointer">
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border transition-colors"
+                               :class="!requireLogin ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50'">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-700">Collect User Login</div>
+                                <div class="text-xs text-slate-500">Auto-fill logged-in user info when submitting</div>
+                            </div>
+                            <div x-init="
+                                $watch('requireLogin', val => {
+                                    const inp = $el.querySelector('input');
+                                    if (!val) inp.checked = false;
+                                    inp.disabled = !val;
+                                });
+                            ">
+                                {{ form.collect_user }}
+                            </div>
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-700">Collect Company Unit</div>
+                                <div class="text-xs text-slate-500">Add a Company Unit dropdown to the form</div>
+                            </div>
+                            {{ form.collect_company }}
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-700 text-indigo-600">Publish Form Live</div>
+                                <div class="text-xs text-slate-500">Make this form publicly accessible</div>
+                            </div>
                             {{ form.is_published }}
-                            <span class="ml-3 text-sm font-medium text-slate-700 text-indigo-600">Publish Form Live (Publicly Accessible)</span>
                         </label>
-                        <br>
-                        <label class="inline-flex items-center cursor-pointer">
+
+                        <label class="flex items-center justify-between cursor-pointer group p-3 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 transition-colors">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-700 text-purple-600">Show on Client Portal</div>
+                                <div class="text-xs text-slate-500">Display as a card on the Client Portal dashboard</div>
+                            </div>
                             {{ form.show_on_portal }}
-                            <span class="ml-3 text-sm font-medium text-slate-700 text-purple-600">Show on Client Portal</span>
                         </label>
+
                     </div>
                 </div>
 
