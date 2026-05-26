@@ -883,7 +883,7 @@ def create_case(request, slug=None):
     If ``slug`` is provided, the category is pre-selected.
     """
     import json
-    from core.models import JobRole as JobRoleModel
+    from core.models import JobRole as JobRoleModel, SiteConfig
     initial = {}
     selected_category = None
 
