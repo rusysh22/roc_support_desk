@@ -1,7 +1,7 @@
 <div id="field-list-container" class="space-y-6" >
     {% if fields %}
         {% for field in fields %}
-        <div x-data="{ 
+        <div x-data="{
             editing: false,
             editLabel: '{{ field.label|escapejs }}',
             editHelp: '{{ field.help_text|escapejs }}',
@@ -20,7 +20,25 @@
             numType: '{{ field.settings.number_type|default:"general" }}',
             numCurrency: '{{ field.settings.currency_type|default:"idr" }}',
             numPhoneCode: '{{ field.settings.phone_code|default:"+62" }}',
+            condEnabled: {{ field.settings.condition|yesno:'true,false' }},
+            condFieldId: '{{ field.settings.condition.field_id|default:"" }}',
+            condValue: '{{ field.settings.condition.value|default:""|escapejs }}',
             hasCollision: false,
+            getEligibleFields() {
+                const all = Array.from(document.querySelectorAll('#field-list-container .field-item'));
+                const myIdx = all.indexOf(this.$el);
+                return all.slice(0, myIdx)
+                    .filter(c => ['dropdown', 'radio'].includes(c.dataset.type))
+                    .map(c => ({
+                        id: c.dataset.id,
+                        label: c.dataset.label,
+                        choices: JSON.parse(c.querySelector('[data-choices-json]')?.textContent || '[]')
+                    }));
+            },
+            getCondChoices() {
+                const f = this.getEligibleFields().find(f => f.id === this.condFieldId);
+                return f ? f.choices : [];
+            },
             addEditChoice() { 
                 let max = 50; 
                 if(this.editType === 'survey') max = 7;
@@ -57,7 +75,8 @@
                 }
                 return hasCollision;
             }
-        }" x-init="$watch('editing', val => { if(val) hasCollision = checkLogicCollision(); })" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}" data-type="{{ field.field_type }}" data-has-logic="{% if field.settings.logic %}true{% else %}false{% endif %}">
+        }" x-init="$watch('editing', val => { if(val) hasCollision = checkLogicCollision(); })" class="field-item group relative {% if field.field_type == 'page_break' %}bg-gradient-to-r from-indigo-50 via-white to-purple-50 border-2 border-dashed border-indigo-200{% elif field.field_type == 'title_desc' %}bg-indigo-50/30 border border-indigo-100{% else %}bg-white border border-transparent hover:border-indigo-100{% endif %} rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]" data-id="{{ field.id }}" data-type="{{ field.field_type }}" data-label="{{ field.label|escapejs }}" data-has-logic="{% if field.settings.logic %}true{% else %}false{% endif %}">
+            <template data-choices-json>{{ field.choices|safe|default:'[]' }}</template>
             
             <!-- Drag Handle (Left) -->
             <div x-show="!editing" class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-12 bg-white border border-slate-200 shadow-sm rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-move transition-all duration-300 z-10 text-slate-600 hover:text-indigo-500 hover:border-indigo-300 hover:shadow-md">
@@ -88,6 +107,12 @@
                                         {{ field.settings.phone_code|default:"+62" }}
                                     </span>
                                 {% endif %}
+                            {% endif %}
+                            {% if field.settings.condition %}
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 border border-amber-100 text-xs font-bold text-amber-700 uppercase tracking-widest">
+                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    IF &ldquo;{{ field.settings.condition.field_label|default:"..." }}&rdquo; = &ldquo;{{ field.settings.condition.value }}&rdquo;
+                                </span>
                             {% endif %}
                         </div>
                         
@@ -295,6 +320,41 @@
                     </label>
                 </div>
 
+                <!-- Conditional Logic -->
+                <div x-show="!['page_break','title_desc'].includes(editType)" class="pt-3 border-t border-slate-100 space-y-3">
+                    <p class="text-xs font-black text-slate-600 uppercase tracking-widest">Conditional Logic</p>
+                    <label class="flex items-center gap-2.5 cursor-pointer bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors">
+                        <input type="checkbox" x-model="condEnabled" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm font-semibold text-slate-700">Only show this field if...</span>
+                    </label>
+                    <div x-show="condEnabled" x-transition class="space-y-2 pl-1">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Trigger field (Dropdown or Radio)</label>
+                            <select x-model="condFieldId" @change="condValue = ''"
+                                    class="w-full bg-white border border-slate-200 text-sm font-semibold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- select a question --</option>
+                                <template x-for="f in getEligibleFields()" :key="f.id">
+                                    <option :value="f.id" x-text="f.label"></option>
+                                </template>
+                            </select>
+                            <p x-show="getEligibleFields().length === 0"
+                               class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
+                                No eligible fields before this one. Add a Dropdown or Radio field first.
+                            </p>
+                        </div>
+                        <div x-show="condFieldId" x-transition>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Show when answer equals</label>
+                            <select x-model="condValue"
+                                    class="w-full bg-white border border-slate-200 text-sm font-semibold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- select answer --</option>
+                                <template x-for="c in getCondChoices()" :key="c">
+                                    <option :value="c" x-text="c"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Choices (dynamic) -->
                 <div x-show="['dropdown', 'radio', 'checkbox', 'survey'].includes(editType)" x-transition class="pt-3 border-t border-slate-100">
                     <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Choices</label>
@@ -387,6 +447,8 @@
                                     fd.append('choices[]', c);
                                     fd.append('choice_logic[]', editLogicList[idx] || '');
                                 });
+                                fd.append('condition_field', (condEnabled && condFieldId && condValue) ? condFieldId : '');
+                                fd.append('condition_value', (condEnabled && condFieldId && condValue) ? condValue : '');
                                 fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
                                 fetch('{% url 'desk:form_edit' dynamic_form.pk %}', {
                                     method: 'POST',

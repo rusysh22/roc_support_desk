@@ -6,8 +6,9 @@
 {% block page_title %}{% if is_edit %}Edit Template{% else %}New Template{% endif %}{% endblock %}
 
 {% block extra_head %}
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<!-- Quill.js for rich HTML editing -->
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 <style>
     .ql-toolbar.ql-snow { border-radius: 0.75rem 0.75rem 0 0; border-color: #e2e8f0; background: #f8fafc; }
     .ql-container.ql-snow { border-radius: 0 0 0.75rem 0.75rem; border-color: #e2e8f0; font-size: 0.875rem; }
