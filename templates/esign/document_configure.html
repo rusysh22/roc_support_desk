@@ -46,6 +46,8 @@ const DOC_PAGE_COUNT     = {{ doc.page_count }};
 // Alpine's Proxy breaks PDF.js private class fields (#d, etc.).
 const _pdfConfigure = { doc: null };
 
+const INITIAL_CERT_STYLE = "{{ doc.certificate_style|default:'none' }}";
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
         signers: [],
@@ -53,6 +55,7 @@ document.addEventListener('alpine:init', () => {
         selectedSigner: null,
         placingMode: false,
         routingMode: 'sequential',
+        certificateStyle: INITIAL_CERT_STYLE,
         currentPage: 1,
         saving: false,
         addSignerModal: false,
@@ -193,6 +196,7 @@ document.addEventListener('alpine:init', () => {
             this.saving = true;
             const payload = {
                 routing_mode: this.routingMode,
+                certificate_style: this.certificateStyle,
                 signers: this.signers.map(s => ({
                     type: s.type, user_id: s.userId,
                     name: s.name, email: s.email,
@@ -338,6 +342,120 @@ document.addEventListener('alpine:init', () => {
                     class="jk-btn jk-btn-sm w-full">
                 <span x-text="placingMode ? '✅ Click on PDF to place box' : '🖊 Placement Mode'"></span>
             </button>
+        </div>
+
+        <!-- Certificate Style Picker -->
+        <div class="jk-card">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-sm text-slate-700">Certificate</h3>
+                <span class="text-xs text-slate-400">Optional</span>
+            </div>
+            <p class="text-xs text-slate-500 mb-3 leading-relaxed">
+                Choose whether to append a signing certificate to the final signed PDF.
+            </p>
+
+            <div class="space-y-2">
+                <!-- None -->
+                <label @click="certificateStyle = 'none'"
+                       :class="certificateStyle === 'none'
+                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
+                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'none' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
+                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'none'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-700">None</span>
+                            <span class="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Default</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">No certificate appended. Clean document only.</p>
+                    </div>
+                </label>
+
+                <!-- Compact -->
+                <label @click="certificateStyle = 'compact'"
+                       :class="certificateStyle === 'compact'
+                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
+                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'compact' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
+                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'compact'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-700">Compact Summary</span>
+                            <span class="text-xs bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full">Simple</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Minimal bordered box with signer names, dates, and document hash.</p>
+                        <!-- Mini preview -->
+                        <div class="mt-2 border border-slate-200 rounded-lg p-2 bg-slate-50 text-[10px] text-slate-500 font-mono leading-tight">
+                            <div class="font-semibold text-slate-600 border-b border-slate-200 pb-1 mb-1">Digital Signing Certificate  <span class="text-green-600">✓ Verified</span></div>
+                            <div>DOCUMENT  <span class="text-slate-700">Contract.pdf</span></div>
+                            <div>COMPLETED  <span class="text-slate-700">01 Jun 2025 14:30</span></div>
+                            <div class="mt-1">✓ Alice · 01 Jun · alice@mail.com</div>
+                            <div>✓ Bob &nbsp;&nbsp;· 01 Jun · bob@mail.com</div>
+                        </div>
+                    </div>
+                </label>
+
+                <!-- Full Page -->
+                <label @click="certificateStyle = 'page'"
+                       :class="certificateStyle === 'page'
+                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
+                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'page' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
+                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'page'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-700">Full Certificate Page</span>
+                            <span class="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">Detailed</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Complete audit page — title, hash, completion time, all signer details &amp; IPs.</p>
+                    </div>
+                </label>
+
+                <!-- Logo Stamp -->
+                <label @click="certificateStyle = 'logo_stamp'"
+                       :class="certificateStyle === 'logo_stamp'
+                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
+                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'logo_stamp' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
+                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'logo_stamp'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-700">Logo Stamp</span>
+                            <span class="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Branded</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Formal page with company logo, header band, and color-coded signer table.</p>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Active style indicator -->
+            <div class="mt-3 flex items-center gap-1.5 text-xs text-indigo-600"
+                 x-show="certificateStyle !== 'none'">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>Certificate will be appended when all signers complete.</span>
+            </div>
         </div>
 
         <div class="jk-card">

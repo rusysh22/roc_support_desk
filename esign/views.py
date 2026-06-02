@@ -205,17 +205,23 @@ def save_configuration(request, pk):
     except json.JSONDecodeError:
         return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
 
-    routing_mode = data.get("routing_mode", "sequential")
-    signer_data  = data.get("signers", [])
-    placement_data = data.get("placements", [])
+    routing_mode      = data.get("routing_mode", "sequential")
+    certificate_style = data.get("certificate_style", "none")
+    signer_data       = data.get("signers", [])
+    placement_data    = data.get("placements", [])
 
     if not signer_data:
         return JsonResponse({"ok": False, "error": "At least one signer is required."}, status=400)
 
+    valid_styles = {c[0] for c in SignatureDocument.CertificateStyle.choices}
+    if certificate_style not in valid_styles:
+        certificate_style = "none"
+
     doc.placements.all().delete()
     doc.signers.all().delete()
     doc.routing_mode = routing_mode
-    doc.save(update_fields=["routing_mode"])
+    doc.certificate_style = certificate_style
+    doc.save(update_fields=["routing_mode", "certificate_style"])
 
     created_signers = []
     for entry in signer_data:

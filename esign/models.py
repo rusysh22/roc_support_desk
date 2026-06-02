@@ -54,6 +54,12 @@ class SignatureDocument(AuditableModel):
         REJECTED  = "rejected",  "Rejected"
         CANCELLED = "cancelled", "Cancelled"
 
+    class CertificateStyle(models.TextChoices):
+        NONE       = "none",       "None (no certificate)"
+        PAGE       = "page",       "Full Certificate Page"
+        COMPACT    = "compact",    "Compact Summary"
+        LOGO_STAMP = "logo_stamp", "Logo Stamp"
+
     title        = models.CharField(max_length=255, verbose_name="Document Title")
     original_pdf = models.FileField(
         upload_to=_original_pdf_path,
@@ -90,6 +96,13 @@ class SignatureDocument(AuditableModel):
         blank=True,
         verbose_name="Document SHA-256",
         help_text="SHA-256 hash of the original PDF bytes for tamper-evidence.",
+    )
+    certificate_style = models.CharField(
+        max_length=20,
+        choices=CertificateStyle.choices,
+        default=CertificateStyle.NONE,
+        verbose_name="Certificate Style",
+        help_text="Choose whether and how to append a signing certificate to the final PDF.",
     )
 
     class Meta:
