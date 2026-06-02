@@ -33,10 +33,14 @@ const HAS_SAVED_SIG             = {{ has_saved_sig|lower }};
 const SAVED_SIG_URL             = "{% url 'esign_public:saved_signature_api' %}";
 const CREATE_MOBILE_SESSION_URL = "{% url 'esign_public:create_mobile_session' %}";
 
+// Stored outside Alpine so it is never wrapped in a reactive Proxy.
+// Alpine's Proxy breaks PDF.js private class fields (#d, etc.).
+const _pdf = { doc: null };
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('signPage', () => ({
         currentPage: 1, totalPages: 1,
-        pdfDoc: null, canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
+        canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
 
         pdfLoading: true,
         pdfError: null,
@@ -66,12 +70,12 @@ document.addEventListener('alpine:init', () => {
             pdfjsLib.GlobalWorkerOptions.workerSrc =
                 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
             try {
-                this.pdfDoc = await pdfjsLib.getDocument({
+                _pdf.doc = await pdfjsLib.getDocument({
                     url: "{{ document.original_pdf.url }}",
                     disableRange: true,
                     disableStream: true,
                 }).promise;
-                this.totalPages = this.pdfDoc.numPages;
+                this.totalPages = _pdf.doc.numPages;
                 await this.renderPage(1);
             } catch (err) {
                 this.pdfError = err.message || 'Failed to load PDF.';
@@ -110,9 +114,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         async renderPage(num) {
-            if (!this.pdfDoc) return;
+            if (!_pdf.doc) return;
             this.currentPage = num;
-            const page = await this.pdfDoc.getPage(num);
+            const page = await _pdf.doc.getPage(num);
             const viewport = page.getViewport({ scale: 1 });
             const wrapW = this.wrapEl.clientWidth || 600;
             const scale = wrapW / viewport.width;

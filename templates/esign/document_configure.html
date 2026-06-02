@@ -42,6 +42,10 @@ const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
 const USER_SEARCH_URL    = "{% url 'esign:user_search' %}";
 const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
+// Stored outside Alpine so it is never wrapped in a reactive Proxy.
+// Alpine's Proxy breaks PDF.js private class fields (#d, etc.).
+const _pdfConfigure = { doc: null };
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
         signers: [],
@@ -56,7 +60,6 @@ document.addEventListener('alpine:init', () => {
         newSigner: { name: '', email: '', userId: null, order: 1, role: 'signer' },
         userQuery: '',
         userResults: [],
-        pdfDoc: null,
         canvasEl: null,
         wrapEl: null,
         canvasW: 0,
@@ -67,14 +70,18 @@ document.addEventListener('alpine:init', () => {
             this.wrapEl   = document.getElementById('pdf-viewer-wrap');
             pdfjsLib.GlobalWorkerOptions.workerSrc =
                 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-            this.pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+            _pdfConfigure.doc = await pdfjsLib.getDocument({
+                url: PDF_URL,
+                disableRange: true,
+                disableStream: true,
+            }).promise;
             await this.renderPage(1);
         },
 
         async renderPage(num) {
-            if (!this.pdfDoc) return;
+            if (!_pdfConfigure.doc) return;
             this.currentPage = num;
-            const page = await this.pdfDoc.getPage(num);
+            const page = await _pdfConfigure.doc.getPage(num);
             const viewport = page.getViewport({ scale: 1 });
             const wrapW = this.wrapEl.clientWidth || 700;
             const scale = wrapW / viewport.width;
