@@ -1,4 +1,13 @@
+# syntax=docker/dockerfile:1
 # Dockerfile for RoC Support Desk
+#
+# Fast rebuild strategy:
+#   - Dockerfile.base holds all apt packages (rebuild only when apt deps change).
+#   - This file only runs pip install + copies code.
+#   - Code-only changes: only COPY . /app/ re-runs (seconds).
+#   - Dependency changes (requirements.txt): pip re-runs with wheel cache (fast).
+#   - Apt changes: rebuild Dockerfile.base, then this file.
+
 # ── Stage 1: build ────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
@@ -7,44 +16,33 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /build
 
-# Build-time only: gcc, build-essential, libpq-dev, libffi-dev needed to compile C extensions
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     gcc \
-    libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libffi-dev
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt && \
-    pip install --no-cache-dir --prefix=/install gunicorn psycopg2-binary
 
-# ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM python:3.12-slim
+# Wheel cache persists on host — pip skips re-downloading unchanged packages
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install -r requirements.txt && \
+    pip install --prefix=/install gunicorn psycopg2-binary
+
+# ── Stage 2: runtime — use pre-built base image ───────────────────────────────
+FROM roc-desk-base:latest
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Runtime only: libpq5, libmagic1 (python-magic), curl (healthcheck), Pango/Cairo (WeasyPrint PDF)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    libmagic1t64 \
-    curl \
-    libpango-1.0-0 \
-    libpangoft2-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf-2.0-0 \
-    libcairo2 \
-    shared-mime-info \
-    fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy compiled packages from builder
+# Copy compiled Python packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy project
+# Copy project source (invalidated on code change — everything above is cached)
 COPY . /app/
 
 RUN chmod +x /app/docker-entrypoint.sh

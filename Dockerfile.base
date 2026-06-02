@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+# Base image pre-loaded with all apt runtime dependencies.
+# Rebuild this only when apt packages change (rarely).
+# Usage: docker build -f Dockerfile.base -t roc-desk-base:latest .
+FROM python:3.12-slim
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libmagic1t64 \
+    curl \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libcairo2 \
+    shared-mime-info \
+    fonts-liberation
