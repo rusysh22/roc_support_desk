@@ -338,6 +338,26 @@
                     </ul>
                 </div>
 
+                <!-- v1.4.7 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.25), 0 2px 8px rgba(99,102,241,0.08);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-400 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-indigo-700 text-xs">v1.4.7</span>
+                        <span class="text-xs text-slate-600">24 May 2026</span>
+                        <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>Ticket Category Management</strong> — Categories and sub-categories can now be created, edited, and deleted directly from the desk UI — no need to access Django admin. Each category supports an emoji icon, name, parent, description, prefix code, and behaviour flags (Confidential, Attachment Required, Change Request).</li>
+                        <li><strong>Category: Behaviour flags</strong> — Toggle Confidential, Attachment Required, and Change Request (supporting letter) per category from a dedicated Behaviour section in the category form.</li>
+                        <li><strong>Category: Ticket template</strong> — Set a pre-filled subject and body text for new tickets submitted under each category, configurable from the same category form.</li>
+                        <li><strong>Category: Safety delete</strong> — Attempting to delete a category that still has active tickets or sub-categories shows a warning screen and disables the delete button until the blockers are resolved.</li>
+                        <li><strong>Document Template Management</strong> — Supporting letter templates can now be fully managed from the desk UI with a rich-text Quill editor (or raw HTML source mode) and an HTML source toggle.</li>
+                        <li><strong>Document Template: Dynamic field detection</strong> — Placeholder variables typed in the editor (e.g. <code>&#123;&#123;nama_pemohon&#125;&#125;</code>) are detected in real time and shown as chips below the editor.</li>
+                        <li><strong>Document Template: Inline field manager</strong> — Define up to 10 input fields per template (label, placeholder hint, default content, required toggle) directly from the template form. No admin panel needed.</li>
+                        <li><strong>Categories sidebar link</strong> — A new "🗂️ Categories" shortcut is now available in the sidebar for Manager and Super Admin roles.</li>
+                    </ul>
+                </div>
+
                 <!-- v1.4.0 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>

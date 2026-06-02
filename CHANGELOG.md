@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.4.7] — 2026-05-24
+
+### New Features
+
+- **Ticket Category Management** — Ticket categories and sub-categories can now be fully managed from the desk UI without needing to access Django admin.
+  - Create, edit, and delete root categories and sub-categories directly from the Categories page.
+  - Configure icon (emoji picker), name, parent category, description, and prefix code per category.
+  - Toggle behaviour flags per category: Confidential, Attachment Required, and Change Request (supporting letter).
+  - Set a ticket template subject and pre-filled body text per category from the same form.
+  - A confirmation screen with safety checks prevents deletion of categories that still have active tickets or sub-categories.
+
+- **Document Template Management** — Document templates for supporting letters can now be created and edited entirely from the desk UI.
+  - Write the document body using a full rich-text (Quill) editor or switch to raw HTML source mode.
+  - Dynamic field variables (`{{placeholder}}`) are detected automatically and shown as chips while editing.
+  - Define input fields users must fill in when completing the document: label, placeholder hint, optional default content, and required toggle. Up to 10 fields per template.
+  - Assign templates to one or more ticket categories from the same form.
+
+### Improvements
+
+- **Categories sidebar link** — A new "🗂️ Categories" shortcut is now available in the sidebar for Manager and Super Admin roles.
+- **Document Template list** — Removed broken Approval Flow and Required columns (fields removed in a previous migration). The list now correctly shows field count and applicable categories.
+
+---
+
 ## [1.4.0] — 2026-05-14
 
 ### New Features
