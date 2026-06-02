@@ -2,7 +2,46 @@
 {% block title %}{{ doc.title }} — E-Sign{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
+{% block extra_head %}
+<style>
+#share-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: #1e293b; color: #f1f5f9;
+    padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 9999;
+}
+#share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+<script>
+async function shareSigningLink(url, signerName, docTitle) {
+    const shareData = {
+        title: 'Signature Request — ' + docTitle,
+        text: signerName + ', please sign the document: ' + docTitle,
+        url: url,
+    };
+    if (navigator.share) {
+        try { await navigator.share(shareData); } catch (_) {}
+    } else {
+        try {
+            await navigator.clipboard.writeText(url);
+            showToast('Link copied to clipboard');
+        } catch (_) {
+            prompt('Copy this signing link:', url);
+        }
+    }
+}
+
+function showToast(msg) {
+    const t = document.getElementById('share-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+{% endblock %}
+
 {% block content %}
+<div id="share-toast"></div>
 <div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false">
 
 {% if doc.status == 'completed' and doc.signed_pdf %}
@@ -264,14 +303,28 @@
                         {% endif %}
                     </div>
 
-                    {% if signer.status == 'pending' %}
-                    <form method="post" action="{% url 'esign:signer_remind' pk=doc.pk signer_pk=signer.pk %}">
-                        {% csrf_token %}
-                        <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline text-xs flex-shrink-0">
-                            <svg class="h-3.5 w-3.5 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                            Remind
+                    {% if signer.status == 'pending' or signer.status == 'waiting' %}
+                    <div class="flex flex-col gap-1.5 flex-shrink-0">
+                        {% if signer.status == 'pending' %}
+                        <form method="post" action="{% url 'esign:signer_remind' pk=doc.pk signer_pk=signer.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline text-xs w-full">
+                                <svg class="h-3.5 w-3.5 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                                Remind
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% url 'esign_public:sign' token=signer.token as sign_path %}
+                        <button type="button"
+                                onclick="shareSigningLink('{{ request.scheme }}://{{ request.get_host }}{{ sign_path }}', '{{ signer.display_name|escapejs }}', '{{ doc.title|escapejs }}')"
+                                class="jk-btn jk-btn-sm jk-btn-outline text-xs w-full flex items-center justify-center gap-1"
+                                style="border-color:#6366f1;color:#4f46e5;">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                            </svg>
+                            Share Link
                         </button>
-                    </form>
+                    </div>
                     {% endif %}
                 </div>
             {% empty %}
