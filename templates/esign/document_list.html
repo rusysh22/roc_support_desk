@@ -8,8 +8,11 @@
         <h1 class="jk-page-title">E-Sign — My Documents</h1>
         <p class="jk-page-subtitle">Manage documents you have sent for signing.</p>
     </div>
-    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary">
-        + Upload New Document
+    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary inline-flex items-center gap-2">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Upload New Document
     </a>
 </div>
 

@@ -3,21 +3,52 @@
 {% block nav_esign %}active{% endblock %}
 
 {% block content %}
-<div class="jk-page-header">
-    <div>
-        <h1 class="jk-page-title">Upload PDF Document</h1>
-        <p class="jk-page-subtitle">Step 1 of 3 — Upload the file and set delivery preferences.</p>
+<div class="max-w-2xl mx-auto">
+
+    <!-- Back -->
+    <div class="mb-6">
+        <a href="{% url 'esign:document_list' %}"
+           class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to My Documents
+        </a>
     </div>
-    <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Back</a>
-</div>
 
-<div class="jk-card max-w-2xl">
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
+    <!-- Step indicator -->
+    <div class="flex items-center mb-8">
+        <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+            <span class="text-sm font-semibold text-indigo-600 hidden sm:inline">Upload &amp; Settings</span>
+        </div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-sm font-bold">2</div>
+            <span class="text-sm text-slate-400 hidden sm:inline">Signers &amp; Placement</span>
+        </div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-sm font-bold">3</div>
+            <span class="text-sm text-slate-400 hidden sm:inline">Sign &amp; Complete</span>
+        </div>
+    </div>
 
-        <div class="space-y-5">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-base font-bold text-slate-900 mb-1">Upload PDF Document</h2>
+        <p class="text-sm text-slate-500 mb-6">Upload the file and set delivery preferences.</p>
+
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+
             {% for field in form %}
-            <div>
+            <div class="jk-form-group">
                 <label class="jk-label" for="{{ field.id_for_label }}">
                     {{ field.label }}
                     {% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
@@ -27,16 +58,19 @@
                     <p class="text-xs text-slate-400 mt-1">{{ field.help_text }}</p>
                 {% endif %}
                 {% for error in field.errors %}
-                    <p class="text-xs text-red-500 mt-1">{{ error }}</p>
+                    <p class="jk-form-error mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
             {% endfor %}
-        </div>
 
-        <div class="mt-6 flex gap-3">
-            <button type="submit" class="jk-btn jk-btn-primary">Continue → Configure Signers</button>
-            <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">Cancel</a>
-        </div>
-    </form>
+            <div class="flex items-center gap-3 pt-2">
+                <button type="submit" class="jk-btn jk-btn-primary">
+                    Continue → Configure Signers
+                </button>
+                <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+
 </div>
 {% endblock %}

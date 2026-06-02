@@ -324,6 +324,7 @@ CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 
 # --- HTTPS & Security Headers ---
 SECURE_SSL_REDIRECT = not DEBUG
+SECURE_REDIRECT_EXEMPT = [r"^health/$"]
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True

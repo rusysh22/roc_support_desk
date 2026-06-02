@@ -6,7 +6,7 @@
 <div class="jk-page-header">
     <div>
         <h1 class="jk-page-title">My Signatures</h1>
-        <p class="jk-page-subtitle">Documents waiting for your signature.</p>
+        <p class="jk-page-subtitle">Documents pending or completed by you.</p>
     </div>
 </div>
 
@@ -39,8 +39,11 @@
                 {% endif %}
             </div>
             <a href="{% url 'esign_public:sign' token=signer.token %}"
-               class="jk-btn jk-btn-primary jk-btn-sm flex-shrink-0">
-                ✍ Sign Now
+               class="jk-btn jk-btn-primary jk-btn-sm flex-shrink-0 inline-flex items-center gap-1.5">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                Sign Now
             </a>
         </div>
     {% endfor %}

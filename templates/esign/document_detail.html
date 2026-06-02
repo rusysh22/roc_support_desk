@@ -12,9 +12,20 @@
         </p>
     </div>
     <div class="flex gap-2">
-        <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Back</a>
+        <a href="{% url 'esign:document_list' %}"
+           class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back
+        </a>
         {% if doc.status == 'completed' and doc.signed_pdf %}
-        <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary" download>⬇ Download Signed PDF</a>
+        <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary inline-flex items-center gap-2" download>
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download Signed PDF
+        </a>
         {% endif %}
     </div>
 </div>
@@ -48,16 +59,16 @@
             {% if doc.status == 'draft' %}
             <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
             {% endif %}
-            {% if doc.status in 'rejected,pending' %}
+            {% if doc.status == 'rejected' or doc.status == 'pending' %}
             <form method="post" action="{% url 'esign:document_reopen' pk=doc.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline"
                         onclick="return confirm('Reopen and resend this document to all signers?')">
-                    🔄 Reopen
+                    Reopen
                 </button>
             </form>
             {% endif %}
-            {% if doc.status not in 'completed,cancelled' %}
+            {% if doc.status != 'completed' and doc.status != 'cancelled' %}
             <form method="post" action="{% url 'esign:document_cancel' pk=doc.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="jk-btn jk-btn-sm jk-btn-danger"
