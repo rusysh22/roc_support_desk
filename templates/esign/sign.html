@@ -34,15 +34,33 @@
     border-radius: 6px;
     background: rgba(255,255,255,0.92);
     box-shadow: 0 4px 16px rgba(99,102,241,0.25);
-    overflow: hidden;
+    overflow: visible;
     touch-action: none;
     user-select: none;
 }
-.drag-overlay.dragging { cursor: grabbing; box-shadow: 0 8px 24px rgba(99,102,241,0.4); }
+.drag-overlay.dragging { cursor: grabbing; }
+.drag-overlay .sig-inner {
+    width: 100%; height: 100%;
+    overflow: hidden; border-radius: 4px;
+}
 .drag-handle {
     position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
-    width: 32px; height: 4px; background: #4f46e5; border-radius: 2px; opacity: 0.5;
+    width: 32px; height: 4px; background: #4f46e5; border-radius: 2px; opacity: 0.4;
+    pointer-events: none;
 }
+.resize-handle {
+    position: absolute; width: 10px; height: 10px;
+    background: white; border: 2px solid #4f46e5; border-radius: 2px;
+    touch-action: none; z-index: 10;
+}
+.resize-handle.nw { top:-5px;  left:-5px;  cursor: nw-resize; }
+.resize-handle.n  { top:-5px;  left:calc(50% - 5px); cursor: n-resize; }
+.resize-handle.ne { top:-5px;  right:-5px; cursor: ne-resize; }
+.resize-handle.e  { top:calc(50% - 5px); right:-5px; cursor: e-resize; }
+.resize-handle.se { bottom:-5px; right:-5px; cursor: se-resize; }
+.resize-handle.s  { bottom:-5px; left:calc(50% - 5px); cursor: s-resize; }
+.resize-handle.sw { bottom:-5px; left:-5px; cursor: sw-resize; }
+.resize-handle.w  { top:calc(50% - 5px); left:-5px;  cursor: w-resize; }
 </style>
 
 <script>
@@ -79,6 +97,12 @@ document.addEventListener('alpine:init', () => {
         showDragOverlay: false,
         dragX: 0, dragY: 0, dragW: 180, dragH: 60,
         isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
+
+        // Resize state
+        isResizing: false, resizeHandle: null,
+        resizeStartX: 0, resizeStartY: 0,
+        resizeStartDragX: 0, resizeStartDragY: 0,
+        resizeStartW: 0, resizeStartH: 0,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -222,6 +246,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         startDrag(e) {
+            if (this.isResizing) return;
             this.isDragging = true;
             const rect = e.currentTarget.getBoundingClientRect();
             this.dragOffsetX = e.clientX - rect.left;
@@ -230,13 +255,58 @@ document.addEventListener('alpine:init', () => {
         },
 
         moveDrag(e) {
-            if (!this.isDragging) return;
+            if (!this.isDragging || this.isResizing) return;
             const wrapRect = this.wrapEl.getBoundingClientRect();
             this.dragX = Math.max(0, Math.min(e.clientX - wrapRect.left - this.dragOffsetX, this.canvasW - this.dragW));
             this.dragY = Math.max(0, Math.min(e.clientY - wrapRect.top  - this.dragOffsetY, this.canvasH - this.dragH));
         },
 
         endDrag() { this.isDragging = false; },
+
+        startResize(e, handle) {
+            this.isResizing = true;
+            this.resizeHandle = handle;
+            this.resizeStartX = e.clientX;
+            this.resizeStartY = e.clientY;
+            this.resizeStartDragX = this.dragX;
+            this.resizeStartDragY = this.dragY;
+            this.resizeStartW = this.dragW;
+            this.resizeStartH = this.dragH;
+            e.currentTarget.setPointerCapture(e.pointerId);
+        },
+
+        moveResize(e) {
+            if (!this.isResizing) return;
+            const dx = e.clientX - this.resizeStartX;
+            const dy = e.clientY - this.resizeStartY;
+            const minW = 60, minH = 28;
+            let x = this.resizeStartDragX, y = this.resizeStartDragY;
+            let w = this.resizeStartW,     h = this.resizeStartH;
+
+            if (this.resizeHandle.includes('e')) w = Math.max(minW, w + dx);
+            if (this.resizeHandle.includes('s')) h = Math.max(minH, h + dy);
+            if (this.resizeHandle.includes('w')) {
+                const nw = Math.max(minW, w - dx);
+                x = x + (w - nw);
+                w = nw;
+            }
+            if (this.resizeHandle.includes('n')) {
+                const nh = Math.max(minH, h - dy);
+                y = y + (h - nh);
+                h = nh;
+            }
+
+            // Clamp to PDF canvas bounds
+            x = Math.max(0, Math.min(x, this.canvasW - w));
+            y = Math.max(0, Math.min(y, this.canvasH - h));
+            this.dragX = x; this.dragY = y;
+            this.dragW = w; this.dragH = h;
+        },
+
+        endResize() {
+            this.isResizing = false;
+            this.resizeHandle = null;
+        },
 
         cancelPlacement() {
             this.showDragOverlay = false;
@@ -381,7 +451,7 @@ document.addEventListener('alpine:init', () => {
                                 ✍ Sign Here
                             </div>
                         </template>
-                        <!-- Draggable signature overlay -->
+                        <!-- Draggable + resizable signature overlay -->
                         <div x-show="showDragOverlay && previewData"
                              class="drag-overlay"
                              :class="{ dragging: isDragging }"
@@ -391,7 +461,18 @@ document.addEventListener('alpine:init', () => {
                              @pointerup.stop="endDrag($event)"
                              @pointercancel="isDragging=false">
                             <div class="drag-handle"></div>
-                            <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                            <div class="sig-inner">
+                                <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                            </div>
+                            <!-- 8 resize handles -->
+                            <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle se" @pointerdown.stop="startResize($event,'se')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                         </div>
                     </div>
 
