@@ -23,62 +23,106 @@
 {% endif %}
 
 {% if documents %}
-<div class="jk-card">
-    <table class="jk-table w-full">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Routing</th>
-                <th>Status</th>
-                <th>Signatures</th>
-                <th>Created</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for doc in documents %}
-            <tr>
-                <td class="font-medium">{{ doc.title }}</td>
-                <td>
+<div class="space-y-3">
+    {% for doc in documents %}
+    <a href="{% if doc.status == 'draft' %}{% url 'esign:document_configure' pk=doc.pk %}{% else %}{% url 'esign:document_detail' pk=doc.pk %}{% endif %}"
+       class="block bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-indigo-300 hover:shadow-md transition-all group">
+        <div class="flex items-center gap-4">
+
+            <!-- Status icon -->
+            <div class="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
+                {% if doc.status == 'completed' %}bg-green-100 text-green-600
+                {% elif doc.status == 'rejected' %}bg-red-100 text-red-500
+                {% elif doc.status == 'cancelled' %}bg-slate-100 text-slate-400
+                {% elif doc.status == 'pending' %}bg-amber-100 text-amber-600
+                {% else %}bg-indigo-100 text-indigo-500{% endif %}">
+                {% if doc.status == 'completed' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% elif doc.status == 'rejected' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% elif doc.status == 'cancelled' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                {% elif doc.status == 'pending' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                {% else %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                {% endif %}
+            </div>
+
+            <!-- Title + meta -->
+            <div class="flex-1 min-w-0">
+                <p class="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors truncate">{{ doc.title }}</p>
+                <div class="flex items-center gap-3 mt-0.5">
+                    <span class="text-xs text-slate-400">{{ doc.created_at|date:"d M Y" }}</span>
+                    <span class="text-xs text-slate-300">·</span>
                     {% if doc.routing_mode == 'sequential' %}
-                        <span class="jk-badge jk-badge-blue">Sequential</span>
+                    <span class="text-xs text-slate-400 flex items-center gap-1">
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                        Sequential
+                    </span>
                     {% else %}
-                        <span class="jk-badge jk-badge-purple">Parallel</span>
+                    <span class="text-xs text-slate-400 flex items-center gap-1">
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                        Parallel
+                    </span>
                     {% endif %}
-                </td>
-                <td>
-                    {% if doc.status == 'draft' %}
-                        <span class="jk-badge jk-badge-gray">Draft</span>
-                    {% elif doc.status == 'pending' %}
-                        <span class="jk-badge jk-badge-yellow">Pending Signatures</span>
-                    {% elif doc.status == 'completed' %}
-                        <span class="jk-badge jk-badge-green">Completed</span>
-                    {% elif doc.status == 'rejected' %}
-                        <span class="jk-badge jk-badge-red">Rejected</span>
-                    {% elif doc.status == 'cancelled' %}
-                        <span class="jk-badge jk-badge-gray">Cancelled</span>
+                </div>
+            </div>
+
+            <!-- Signature progress -->
+            <div class="flex-shrink-0 text-center min-w-[80px]">
+                <p class="text-sm font-bold {% if doc.signed_count == doc.total_count and doc.total_count > 0 %}text-green-600{% else %}text-slate-700{% endif %}">
+                    {{ doc.signed_count }}/{{ doc.total_count }}
+                </p>
+                <div class="w-20 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                    {% if doc.total_count > 0 %}
+                    <div class="h-full rounded-full transition-all
+                        {% if doc.signed_count == doc.total_count %}bg-green-500{% else %}bg-indigo-400{% endif %}"
+                         style="width: {% widthratio doc.signed_count doc.total_count 100 %}%"></div>
                     {% endif %}
-                </td>
-                <td class="text-sm text-slate-600">{{ doc.signed_count }}/{{ doc.total_count }}</td>
-                <td class="text-sm text-slate-500">{{ doc.created_at|date:"d M Y" }}</td>
-                <td>
-                    {% if doc.status == 'draft' %}
-                        <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
-                    {% else %}
-                        <a href="{% url 'esign:document_detail' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">View</a>
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">signatures</p>
+            </div>
+
+            <!-- Status badge -->
+            <div class="flex-shrink-0">
+                {% if doc.status == 'draft' %}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Draft</span>
+                {% elif doc.status == 'pending' %}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Pending</span>
+                {% elif doc.status == 'completed' %}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Completed</span>
+                {% elif doc.status == 'rejected' %}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">Rejected</span>
+                {% elif doc.status == 'cancelled' %}
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">Cancelled</span>
+                {% endif %}
+            </div>
+
+            <!-- Arrow -->
+            <div class="flex-shrink-0 text-slate-300 group-hover:text-indigo-400 transition-colors">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
 </div>
+
 {% else %}
-<div class="jk-card text-center py-16 text-slate-400">
-    <p class="text-4xl mb-3">✍️</p>
-    <p class="font-medium">No documents yet.</p>
-    <p class="text-sm mt-1">Start by uploading a PDF for signing.</p>
-    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary mt-4">Upload Document</a>
+<div class="bg-white border border-slate-200 rounded-2xl text-center py-20 text-slate-400">
+    <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg class="h-8 w-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+    </div>
+    <p class="font-semibold text-slate-600 text-base">No documents yet</p>
+    <p class="text-sm mt-1 mb-5">Start by uploading a PDF for signing.</p>
+    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary inline-flex items-center gap-2">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Upload Document
+    </a>
 </div>
 {% endif %}
 {% endblock %}
