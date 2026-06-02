@@ -105,6 +105,16 @@ class SignerSignForm(forms.Form):
     # JSON array: [{"page":1,"x":0.1,"y":0.2,"w":0.3,"h":0.1}, ...]
     drop_placements = forms.CharField(required=False, widget=forms.HiddenInput())
 
+    # Stamp annotation preferences chosen by the signer
+    stamp_timestamp = forms.BooleanField(required=False, initial=True, widget=forms.HiddenInput())
+    stamp_name      = forms.BooleanField(required=False, initial=True, widget=forms.HiddenInput())
+    stamp_job_role  = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    stamp_job_role_text = forms.CharField(
+        required=False,
+        max_length=150,
+        widget=forms.HiddenInput(),
+    )
+
     def clean(self):
         cleaned = super().clean()
         action = cleaned.get("action")

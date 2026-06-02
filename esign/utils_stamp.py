@@ -20,6 +20,18 @@ import io
 from cases.utils_pdf import _format_dt_with_gmt
 
 
+def _build_annotations(signer):
+    """Return a list of annotation strings to print below the signer's signature."""
+    parts = []
+    if getattr(signer, "stamp_name", True):
+        parts.append(signer.display_name)
+    if getattr(signer, "stamp_job_role", False) and signer.stamp_job_role_text:
+        parts.append(signer.stamp_job_role_text)
+    if getattr(signer, "stamp_timestamp", True) and signer.acted_at:
+        parts.append(signer.acted_at.strftime("%d %b %Y %H:%M"))
+    return parts
+
+
 def _build_overlay(page_width, page_height, placements_for_page):
     """
     Return a BytesIO containing a single-page PDF overlay with all signature
@@ -57,6 +69,20 @@ def _build_overlay(page_width, page_height, placements_for_page):
         except Exception:
             # If the image fails to load, skip rather than crash the entire PDF
             continue
+
+        # Annotation strip — drawn just below the signature box
+        annotations = _build_annotations(signer)
+        if annotations:
+            from reportlab.lib import colors as rl_colors
+            c.setLineWidth(0.4)
+            c.setStrokeColor(rl_colors.HexColor("#94a3b8"))
+            c.line(abs_x, abs_y_pdf, abs_x + abs_w, abs_y_pdf)
+            c.setFont("Helvetica", 6.5)
+            c.setFillColor(rl_colors.HexColor("#374151"))
+            ann_y = abs_y_pdf - 9
+            for text in annotations:
+                c.drawString(abs_x + 2, ann_y, text[:70])
+                ann_y -= 8
 
     c.save()
     buf.seek(0)

@@ -115,6 +115,15 @@ def sign(request, token):
                     raw_bytes = base64.b64decode(sig_data)
                     img_file  = io.BytesIO(raw_bytes)
 
+                    # Save stamp annotation preferences chosen by the signer.
+                    signer.stamp_timestamp    = bool(form.cleaned_data.get("stamp_timestamp", True))
+                    signer.stamp_name         = bool(form.cleaned_data.get("stamp_name", True))
+                    signer.stamp_job_role     = bool(form.cleaned_data.get("stamp_job_role", False))
+                    signer.stamp_job_role_text = (form.cleaned_data.get("stamp_job_role_text") or "").strip()
+                    signer.save(update_fields=[
+                        "stamp_timestamp", "stamp_name", "stamp_job_role", "stamp_job_role_text"
+                    ])
+
                     # If the user positioned their signature(s) via drag & drop,
                     # replace existing placements with the user-chosen coordinates.
                     drop_placements_json = form.cleaned_data.get("drop_placements", "")

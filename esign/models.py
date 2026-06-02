@@ -226,6 +226,17 @@ class Signer(AuditableModel):
     signed_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="Signed From IP")
     signed_user_agent = models.TextField(blank=True, verbose_name="Signed User Agent")
 
+    # Stamp annotation preferences — chosen by the signer at signing time
+    stamp_timestamp = models.BooleanField(default=True, verbose_name="Include Timestamp on PDF")
+    stamp_name = models.BooleanField(default=True, verbose_name="Include Name on PDF")
+    stamp_job_role = models.BooleanField(default=False, verbose_name="Include Job Role on PDF")
+    stamp_job_role_text = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name="Job Role Text",
+        help_text="The job role/title the signer chose to include on the PDF.",
+    )
+
     class Meta:
         verbose_name = "Signer"
         verbose_name_plural = "Signers"
