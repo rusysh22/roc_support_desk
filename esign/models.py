@@ -63,10 +63,12 @@ class SignatureDocument(AuditableModel):
     title        = models.CharField(max_length=255, verbose_name="Document Title")
     original_pdf = models.FileField(
         upload_to=_original_pdf_path,
+        max_length=500,
         verbose_name="Original PDF",
     )
     signed_pdf = models.FileField(
         upload_to=_signed_pdf_path,
+        max_length=500,
         blank=True,
         null=True,
         verbose_name="Signed PDF",
