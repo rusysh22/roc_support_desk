@@ -115,6 +115,26 @@ def sign(request, token):
                     raw_bytes = base64.b64decode(sig_data)
                     img_file  = io.BytesIO(raw_bytes)
 
+                    # If the user dragged their signature to a custom position,
+                    # replace existing placements with the user-chosen coordinates.
+                    drop_x = form.cleaned_data.get("drop_x")
+                    drop_y = form.cleaned_data.get("drop_y")
+                    drop_w = form.cleaned_data.get("drop_w")
+                    drop_h = form.cleaned_data.get("drop_h")
+                    drop_page = form.cleaned_data.get("drop_page") or 1
+                    if drop_x is not None and drop_y is not None:
+                        from .models import SignaturePlacement
+                        signer.placements.all().delete()
+                        SignaturePlacement.objects.create(
+                            document=document,
+                            signer=signer,
+                            page_number=int(drop_page),
+                            x=max(0.0, min(1.0, drop_x)),
+                            y=max(0.0, min(1.0, drop_y)),
+                            width=max(0.01, min(1.0, drop_w)),
+                            height=max(0.01, min(1.0, drop_h)),
+                        )
+
                     actor_user = request.user if request.user.is_authenticated else None
                     record_signature(
                         signer, img_file, ip=ip,

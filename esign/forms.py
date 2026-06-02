@@ -82,6 +82,7 @@ class SignerSignForm(forms.Form):
     """
     Form submitted by a signer on the magic-link signing page.
     The signature image is captured as a base64 data-URL from the canvas.
+    drop_* fields carry the user-chosen placement position from the drag UI.
     """
 
     action = forms.ChoiceField(
@@ -91,7 +92,6 @@ class SignerSignForm(forms.Form):
     signature_data = forms.CharField(
         required=False,
         widget=forms.HiddenInput(),
-        help_text="Base64 PNG data-URL from the signature canvas.",
     )
     notes = forms.CharField(
         required=False,
@@ -102,6 +102,11 @@ class SignerSignForm(forms.Form):
             "placeholder": "Reason for rejection (required if rejecting)",
         }),
     )
+    drop_x    = forms.FloatField(required=False, widget=forms.HiddenInput())
+    drop_y    = forms.FloatField(required=False, widget=forms.HiddenInput())
+    drop_w    = forms.FloatField(required=False, widget=forms.HiddenInput())
+    drop_h    = forms.FloatField(required=False, widget=forms.HiddenInput())
+    drop_page = forms.IntegerField(required=False, widget=forms.HiddenInput())
 
     def clean(self):
         cleaned = super().clean()

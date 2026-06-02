@@ -8,8 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
-#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
-#pdf-canvas { display: block; max-width: 100%; }
+#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; min-height: 300px; }
+#pdf-canvas { display: block; width: 100%; height: auto; }
 .placement-box {
     position: absolute; border: 2px dashed #6366f1;
     background: rgba(99,102,241,0.08); border-radius: 4px;
@@ -17,14 +17,32 @@
     font-size: 11px; color: #4f46e5; font-weight: 600; pointer-events: none;
 }
 .sig-tab {
-    flex: 1; padding: 8px 2px; font-size: 11px; font-weight: 600;
+    flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 600;
     border-bottom: 2px solid transparent; color: #94a3b8;
-    cursor: pointer; text-align: center; transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none;
+    cursor: pointer; text-align: center; transition: all 0.15s;
+    background: none; border-top: none; border-left: none; border-right: none;
+    white-space: nowrap;
 }
 .sig-tab.active { border-bottom-color: #4f46e5; color: #4f46e5; }
 .sig-tab:hover:not(.active) { color: #475569; }
 #draw-canvas { touch-action: none; display: block; border-radius: 6px; background: #fafafe; }
-#type-canvas { display: block; background: #fafafe; font-family: 'Dancing Script', cursive; }
+#type-canvas { display: block; background: #fafafe; }
+.drag-overlay {
+    position: absolute;
+    cursor: grab;
+    border: 2px solid #4f46e5;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 4px 16px rgba(99,102,241,0.25);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+}
+.drag-overlay.dragging { cursor: grabbing; box-shadow: 0 8px 24px rgba(99,102,241,0.4); }
+.drag-handle {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 32px; height: 4px; background: #4f46e5; border-radius: 2px; opacity: 0.5;
+}
 </style>
 
 <script>
@@ -33,17 +51,14 @@ const HAS_SAVED_SIG             = {{ has_saved_sig|lower }};
 const SAVED_SIG_URL             = "{% url 'esign_public:saved_signature_api' %}";
 const CREATE_MOBILE_SESSION_URL = "{% url 'esign_public:create_mobile_session' %}";
 
-// Stored outside Alpine so it is never wrapped in a reactive Proxy.
-// Alpine's Proxy breaks PDF.js private class fields (#d, etc.).
+// Stored outside Alpine — Alpine's Proxy breaks PDF.js private class fields (#d).
 const _pdf = { doc: null };
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('signPage', () => ({
         currentPage: 1, totalPages: 1,
         canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
-
-        pdfLoading: true,
-        pdfError: null,
+        pdfLoading: true, pdfError: null,
 
         activeAction: 'sign',
         activeTab: HAS_SAVED_SIG ? 'saved' : 'draw',
@@ -53,16 +68,17 @@ document.addEventListener('alpine:init', () => {
         uploadedData: null,
         savedSigData: null,
         mobileData: null,
-
         saveForLater: false,
 
-        mobileSessionId: null,
-        mobileUrl: null,
-        mobilePollUrl: null,
-        mobileLoading: false,
-        mobileReady: false,
-        mobilePollTimer: null,
-        qrInstance: null,
+        // Mobile/QR state
+        mobileSessionId: null, mobileUrl: null, mobilePollUrl: null,
+        mobileLoading: false, mobileReady: false, mobilePollTimer: null, qrInstance: null,
+
+        // Drag-and-drop placement state
+        previewData: null,
+        showDragOverlay: false,
+        dragX: 0, dragY: 0, dragW: 180, dragH: 60,
+        isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -83,9 +99,7 @@ document.addEventListener('alpine:init', () => {
             } finally {
                 this.pdfLoading = false;
             }
-
             this.$nextTick(() => this.initDrawCanvas());
-
             if (HAS_SAVED_SIG) {
                 fetch(SAVED_SIG_URL)
                     .then(r => r.json())
@@ -97,20 +111,17 @@ document.addEventListener('alpine:init', () => {
         initDrawCanvas() {
             const dc = document.getElementById('draw-canvas');
             if (!dc || this.sigPad) return;
-            dc.width  = 320;
-            dc.height = 140;
+            dc.width  = 400;
+            dc.height = 160;
             this.sigPad = new SignaturePad(dc, {
                 backgroundColor: 'rgba(255,255,255,0)',
-                minWidth: 1.0,
-                maxWidth: 2.5,
+                minWidth: 1.0, maxWidth: 2.8,
             });
         },
 
         switchTab(tab) {
             this.activeTab = tab;
-            if (tab === 'draw') {
-                this.$nextTick(() => this.initDrawCanvas());
-            }
+            if (tab === 'draw') this.$nextTick(() => this.initDrawCanvas());
         },
 
         async renderPage(num) {
@@ -118,7 +129,7 @@ document.addEventListener('alpine:init', () => {
             this.currentPage = num;
             const page = await _pdf.doc.getPage(num);
             const viewport = page.getViewport({ scale: 1 });
-            const wrapW = this.wrapEl.clientWidth || 600;
+            const wrapW = this.wrapEl.clientWidth || 700;
             const scale = wrapW / viewport.width;
             const scaled = page.getViewport({ scale });
             this.canvasEl.width  = scaled.width;
@@ -126,6 +137,8 @@ document.addEventListener('alpine:init', () => {
             this.canvasW = scaled.width;
             this.canvasH = scaled.height;
             await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
+            // Reposition drag overlay if visible
+            if (this.showDragOverlay) this._snapToPlacement();
         },
 
         changePage(delta) {
@@ -136,10 +149,8 @@ document.addEventListener('alpine:init', () => {
         currentPagePlacements() {
             return PLACEMENTS.filter(p => p.page === this.currentPage).map(p => ({
                 ...p,
-                xPx: p.x * this.canvasW,
-                yPx: p.y * this.canvasH,
-                wPx: p.w * this.canvasW,
-                hPx: p.h * this.canvasH,
+                xPx: p.x * this.canvasW, yPx: p.y * this.canvasH,
+                wPx: p.w * this.canvasW, hPx: p.h * this.canvasH,
             }));
         },
 
@@ -154,7 +165,7 @@ document.addEventListener('alpine:init', () => {
             ctx.fillStyle = '#1e293b';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(this.typedName, 200, 60);
+            ctx.fillText(this.typedName, 200, 65);
             return canvas.toDataURL('image/png');
         },
 
@@ -165,6 +176,94 @@ document.addEventListener('alpine:init', () => {
             reader.onload = (e) => { this.uploadedData = e.target.result; };
             reader.readAsDataURL(file);
         },
+
+        getSignatureData() {
+            if (this.activeTab === 'saved')  return this.savedSigData || null;
+            if (this.activeTab === 'draw')   return (this.sigPad && !this.sigPad.isEmpty()) ? this.sigPad.toDataURL('image/png') : null;
+            if (this.activeTab === 'type')   return this.typedName.trim() ? this.renderTypedSig() : null;
+            if (this.activeTab === 'upload') return this.uploadedData || null;
+            if (this.activeTab === 'mobile') return this.mobileData || null;
+            return null;
+        },
+
+        // ── Drag & Drop ──────────────────────────────────────────────────────
+
+        _snapToPlacement() {
+            const pls = this.currentPagePlacements();
+            if (pls.length) {
+                this.dragX = pls[0].xPx;
+                this.dragY = pls[0].yPx;
+                this.dragW = pls[0].wPx;
+                this.dragH = pls[0].hPx;
+            } else {
+                this.dragW = Math.max(140, this.canvasW * 0.32);
+                this.dragH = Math.max(56,  this.canvasH * 0.09);
+                this.dragX = (this.canvasW - this.dragW) / 2;
+                this.dragY = (this.canvasH - this.dragH) / 2;
+            }
+        },
+
+        placeOnDocument() {
+            const data = this.getSignatureData();
+            if (!data) {
+                const msgs = {
+                    draw:   'Please draw your signature first.',
+                    type:   'Please type your name first.',
+                    upload: 'Please upload a signature image first.',
+                    mobile: 'Please complete the mobile signature first.',
+                    saved:  'No saved signature found.',
+                };
+                alert(msgs[this.activeTab] || 'Please provide your signature.');
+                return;
+            }
+            this.previewData = data;
+            this._snapToPlacement();
+            this.showDragOverlay = true;
+        },
+
+        startDrag(e) {
+            this.isDragging = true;
+            const rect = e.currentTarget.getBoundingClientRect();
+            this.dragOffsetX = e.clientX - rect.left;
+            this.dragOffsetY = e.clientY - rect.top;
+            e.currentTarget.setPointerCapture(e.pointerId);
+        },
+
+        moveDrag(e) {
+            if (!this.isDragging) return;
+            const wrapRect = this.wrapEl.getBoundingClientRect();
+            this.dragX = Math.max(0, Math.min(e.clientX - wrapRect.left - this.dragOffsetX, this.canvasW - this.dragW));
+            this.dragY = Math.max(0, Math.min(e.clientY - wrapRect.top  - this.dragOffsetY, this.canvasH - this.dragH));
+        },
+
+        endDrag() { this.isDragging = false; },
+
+        cancelPlacement() {
+            this.showDragOverlay = false;
+            this.previewData = null;
+        },
+
+        submitFinal() {
+            if (!this.previewData) { this.placeOnDocument(); return; }
+            document.getElementById('action-input').value        = 'sign';
+            document.getElementById('signature-data-input').value = this.previewData;
+            document.getElementById('save-sig-input').value      = this.saveForLater ? '1' : '0';
+            document.getElementById('drop-x-input').value        = this.dragX / this.canvasW;
+            document.getElementById('drop-y-input').value        = this.dragY / this.canvasH;
+            document.getElementById('drop-w-input').value        = this.dragW / this.canvasW;
+            document.getElementById('drop-h-input').value        = this.dragH / this.canvasH;
+            document.getElementById('drop-page-input').value     = this.currentPage;
+            document.getElementById('sign-form').submit();
+        },
+
+        submitReject() {
+            document.getElementById('action-input').value        = 'reject';
+            document.getElementById('signature-data-input').value = '';
+            document.getElementById('save-sig-input').value      = '0';
+            document.getElementById('sign-form').submit();
+        },
+
+        // ── Mobile / QR ──────────────────────────────────────────────────────
 
         async startMobileSession() {
             this.mobileLoading = true;
@@ -177,7 +276,6 @@ document.addEventListener('alpine:init', () => {
                 this.mobileSessionId = data.session_id;
                 this.mobileUrl       = data.mobile_url;
                 this.mobilePollUrl   = data.poll_url;
-
                 this.$nextTick(() => {
                     const container = document.getElementById('qr-container');
                     container.innerHTML = '';
@@ -187,7 +285,6 @@ document.addEventListener('alpine:init', () => {
                         colorDark: '#1e293b', colorLight: '#ffffff',
                     });
                 });
-
                 this.mobilePollTimer = setInterval(() => this.pollMobile(), 2500);
             } catch(e) {
                 alert('Failed to generate QR code. Please try again.');
@@ -212,48 +309,10 @@ document.addEventListener('alpine:init', () => {
 
         cancelMobile() {
             if (this.mobilePollTimer) clearInterval(this.mobilePollTimer);
-            this.mobileSessionId = null;
-            this.mobileUrl       = null;
-            this.mobilePollUrl   = null;
-            this.mobileReady     = false;
-            this.mobileData      = null;
+            this.mobileSessionId = null; this.mobileUrl = null; this.mobilePollUrl = null;
+            this.mobileReady = false; this.mobileData = null;
             const c = document.getElementById('qr-container');
             if (c) c.innerHTML = '';
-        },
-
-        getSignatureData() {
-            if (this.activeTab === 'saved')  return this.savedSigData || null;
-            if (this.activeTab === 'draw')   return (this.sigPad && !this.sigPad.isEmpty()) ? this.sigPad.toDataURL('image/png') : null;
-            if (this.activeTab === 'type')   return this.typedName.trim() ? this.renderTypedSig() : null;
-            if (this.activeTab === 'upload') return this.uploadedData || null;
-            if (this.activeTab === 'mobile') return this.mobileData || null;
-            return null;
-        },
-
-        submitSign() {
-            const data = this.getSignatureData();
-            if (!data) {
-                const msg = {
-                    saved:  'No saved signature found.',
-                    draw:   'Please draw your signature first.',
-                    type:   'Please type your name first.',
-                    upload: 'Please upload a signature image first.',
-                    mobile: 'Please complete the mobile signature first.',
-                }[this.activeTab] || 'Please provide your signature.';
-                alert(msg);
-                return;
-            }
-            document.getElementById('action-input').value       = 'sign';
-            document.getElementById('signature-data-input').value = data;
-            document.getElementById('save-sig-input').value     = this.saveForLater ? '1' : '0';
-            document.getElementById('sign-form').submit();
-        },
-
-        submitReject() {
-            document.getElementById('action-input').value        = 'reject';
-            document.getElementById('signature-data-input').value = '';
-            document.getElementById('save-sig-input').value      = '0';
-            document.getElementById('sign-form').submit();
         },
     }));
 });
@@ -261,10 +320,10 @@ document.addEventListener('alpine:init', () => {
 {% endblock %}
 
 {% block layout %}
-<div class="min-h-screen bg-slate-50 py-8 px-4" x-data="signPage">
-    <div class="max-w-5xl mx-auto">
+<div class="min-h-screen bg-slate-50 py-6 px-4" x-data="signPage">
+    <div class="max-w-7xl mx-auto">
 
-        <div class="text-center mb-6">
+        <div class="text-center mb-5">
             <h1 class="text-2xl font-bold text-slate-800">Signature Request</h1>
             <p class="text-slate-500 text-sm mt-1">{{ document.title }}</p>
         </div>
@@ -275,28 +334,37 @@ document.addEventListener('alpine:init', () => {
             {% endfor %}
         {% endif %}
 
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-            <!-- PDF viewer -->
-            <div class="lg:col-span-3">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                    <div class="flex items-center justify-between mb-3">
+            <!-- ── PDF Viewer (2/3) ── -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 h-full flex flex-col">
+                    <!-- Navigation bar -->
+                    <div class="flex items-center justify-between mb-3 flex-shrink-0">
                         <button @click="changePage(-1)" :disabled="currentPage <= 1"
-                                class="px-3 py-1 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40">‹</button>
-                        <span class="text-sm text-slate-600">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
+                                class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            Prev
+                        </button>
+                        <span class="text-sm text-slate-600 font-medium">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
                         <button @click="changePage(1)" :disabled="currentPage >= totalPages"
-                                class="px-3 py-1 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40">›</button>
+                                class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                            Next
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </button>
                     </div>
-                    <div id="pdf-viewer-wrap">
-                        <!-- Loading state -->
-                        <div x-show="pdfLoading" class="flex items-center justify-center py-16 text-slate-400 text-sm gap-2">
+
+                    <!-- PDF canvas -->
+                    <div id="pdf-viewer-wrap" class="flex-1">
+                        <!-- Loading -->
+                        <div x-show="pdfLoading" class="flex items-center justify-center py-20 text-slate-400 text-sm gap-2">
                             <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                             </svg>
                             Loading PDF…
                         </div>
-                        <!-- Error state -->
+                        <!-- Error -->
                         <div x-show="pdfError" class="flex flex-col items-center justify-center py-16 text-red-500 text-sm gap-2 px-4 text-center">
                             <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -304,19 +372,39 @@ document.addEventListener('alpine:init', () => {
                             <p class="font-semibold">Failed to load PDF preview</p>
                             <p class="text-xs text-red-400" x-text="pdfError"></p>
                         </div>
+                        <!-- Canvas -->
                         <canvas id="pdf-canvas" x-show="!pdfLoading && !pdfError"></canvas>
+                        <!-- Predefined placement boxes -->
                         <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
                             <div class="placement-box"
                                  :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
                                 ✍ Sign Here
                             </div>
                         </template>
+                        <!-- Draggable signature overlay -->
+                        <div x-show="showDragOverlay && previewData"
+                             class="drag-overlay"
+                             :class="{ dragging: isDragging }"
+                             :style="`left:${dragX}px;top:${dragY}px;width:${dragW}px;height:${dragH}px`"
+                             @pointerdown.stop="startDrag($event)"
+                             @pointermove.stop="moveDrag($event)"
+                             @pointerup.stop="endDrag($event)"
+                             @pointercancel="isDragging=false">
+                            <div class="drag-handle"></div>
+                            <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                        </div>
+                    </div>
+
+                    <!-- Placement hint -->
+                    <div x-show="showDragOverlay" class="mt-2 flex items-center gap-2 text-xs text-indigo-600 flex-shrink-0">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3"/></svg>
+                        Drag your signature to reposition it, then click <strong class="ml-1">Submit Signature</strong>.
                     </div>
                 </div>
             </div>
 
-            <!-- Signing panel -->
-            <div class="lg:col-span-2 space-y-4">
+            <!-- ── Signing Panel (1/3) ── -->
+            <div class="lg:col-span-1 space-y-4">
 
                 <!-- Signer info -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -338,6 +426,11 @@ document.addEventListener('alpine:init', () => {
                         <input type="hidden" name="action"         id="action-input"         value="sign">
                         <input type="hidden" name="signature_data" id="signature-data-input" value="">
                         <input type="hidden" name="save_signature" id="save-sig-input"       value="0">
+                        <input type="hidden" name="drop_x"         id="drop-x-input"         value="">
+                        <input type="hidden" name="drop_y"         id="drop-y-input"         value="">
+                        <input type="hidden" name="drop_w"         id="drop-w-input"         value="">
+                        <input type="hidden" name="drop_h"         id="drop-h-input"         value="">
+                        <input type="hidden" name="drop_page"      id="drop-page-input"      value="">
 
                         <!-- Sign view -->
                         <div x-show="activeAction === 'sign'">
@@ -371,12 +464,12 @@ document.addEventListener('alpine:init', () => {
 
                             <!-- Saved tab -->
                             {% if has_saved_sig %}
-                            <div x-show="activeTab === 'saved'" class="space-y-2 min-h-[100px] flex flex-col justify-center">
-                                <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-3 text-center bg-slate-50">
-                                    <img :src="savedSigData" alt="Saved signature" class="max-h-24 mx-auto">
+                            <div x-show="activeTab === 'saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
+                                <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50">
+                                    <img :src="savedSigData" alt="Saved signature" class="max-h-20 mx-auto">
                                 </div>
                                 <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">
-                                    Loading saved signature...
+                                    Loading saved signature…
                                 </div>
                                 <p class="text-xs text-slate-400 text-center">Your signature from a previous session.</p>
                             </div>
@@ -385,7 +478,7 @@ document.addEventListener('alpine:init', () => {
                             <!-- Draw tab -->
                             <div x-show="activeTab === 'draw'" class="space-y-2">
                                 <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50">
-                                    <canvas id="draw-canvas" style="width:100%;height:140px;display:block;"></canvas>
+                                    <canvas id="draw-canvas" style="width:100%;height:160px;display:block;"></canvas>
                                 </div>
                                 <button type="button" @click="clearDraw()"
                                         class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">
@@ -416,13 +509,12 @@ document.addEventListener('alpine:init', () => {
                                     <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
                                 </label>
                                 <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50">
-                                    <img :src="uploadedData" alt="Uploaded signature" class="max-h-24 mx-auto">
+                                    <img :src="uploadedData" alt="Uploaded signature" class="max-h-20 mx-auto">
                                 </div>
                             </div>
 
                             <!-- Mobile / QR tab -->
                             <div x-show="activeTab === 'mobile'" class="space-y-3">
-                                <!-- No session yet -->
                                 <div x-show="!mobileUrl" class="text-center space-y-3">
                                     <p class="text-sm text-slate-500">Scan the QR code with your phone to draw on a touch screen.</p>
                                     <button type="button" @click="startMobileSession()" :disabled="mobileLoading"
@@ -430,38 +522,27 @@ document.addEventListener('alpine:init', () => {
                                         <span x-text="mobileLoading ? 'Generating…' : '📱 Generate QR Code'"></span>
                                     </button>
                                 </div>
-
-                                <!-- QR visible, waiting -->
-                                <div x-show="mobileUrl && !mobileReady" class="text-center space-y-3">
+                                <div x-show="mobileUrl && !mobileReady" class="text-center space-y-2">
                                     <p class="text-xs text-slate-500">Scan with your phone's camera:</p>
-                                    <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-3 bg-white"></div>
-                                    <div x-show="mobileUrl" class="text-xs text-slate-400 mt-1 break-all px-2">
-                                        <span x-text="mobileUrl"></span>
-                                    </div>
+                                    <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-2 bg-white"></div>
                                     <p class="text-xs text-amber-600 flex items-center justify-center gap-1.5 font-medium">
                                         <span class="inline-block w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
                                         Waiting for mobile signature…
                                     </p>
-                                    <button type="button" @click="cancelMobile()"
-                                            class="text-xs text-slate-400 hover:text-red-500 underline">Cancel</button>
+                                    <button type="button" @click="cancelMobile()" class="text-xs text-slate-400 hover:text-red-500 underline">Cancel</button>
                                 </div>
-
-                                <!-- Signature received -->
                                 <div x-show="mobileReady" class="space-y-2">
                                     <p class="text-xs text-green-600 font-semibold text-center">✅ Signature received from phone!</p>
                                     <div class="border border-green-200 bg-green-50 rounded-xl p-2 text-center">
-                                        <img :src="mobileData" alt="Mobile signature" class="max-h-24 mx-auto">
+                                        <img :src="mobileData" alt="Mobile signature" class="max-h-20 mx-auto">
                                     </div>
-                                    <button type="button" @click="cancelMobile()"
-                                            class="w-full text-xs text-slate-400 hover:text-slate-600 py-1 underline">
-                                        Redo on phone
-                                    </button>
+                                    <button type="button" @click="cancelMobile()" class="w-full text-xs text-slate-400 hover:text-slate-600 py-1 underline">Redo on phone</button>
                                 </div>
                             </div>
 
                             <!-- Save for later (system users only) -->
                             {% if request.user.is_authenticated and signer.user_id %}
-                            <div class="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                            <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
                                 <input type="checkbox" id="save-for-later" x-model="saveForLater"
                                        class="w-4 h-4 rounded accent-indigo-600">
                                 <label for="save-for-later" class="text-xs text-slate-500 cursor-pointer select-none">
@@ -471,10 +552,25 @@ document.addEventListener('alpine:init', () => {
                             {% endif %}
 
                             <div class="pt-3 space-y-2">
-                                <button type="button" @click="submitSign()"
-                                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition-colors">
-                                    ✅ Confirm Signature
+                                <!-- Step 1: Place on document -->
+                                <button type="button" @click="placeOnDocument()"
+                                        x-show="!showDragOverlay"
+                                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                    Place on Document
                                 </button>
+                                <!-- Step 2: Confirm placement + submit -->
+                                <div x-show="showDragOverlay" class="space-y-2">
+                                    <button type="button" @click="submitFinal()"
+                                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Submit Signature
+                                    </button>
+                                    <button type="button" @click="cancelPlacement()"
+                                            class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
+                                        ← Redo Signature
+                                    </button>
+                                </div>
                                 <button type="button" @click="activeAction='reject'"
                                         class="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
                                     Reject Document
@@ -502,7 +598,7 @@ document.addEventListener('alpine:init', () => {
             </div>
         </div>
 
-        <p class="text-center text-xs text-slate-400 mt-8">
+        <p class="text-center text-xs text-slate-400 mt-6">
             This document is processed through a secure digital signing system.
             Your signature will be recorded along with your IP address and timestamp.
         </p>
