@@ -218,6 +218,7 @@ class Signer(AuditableModel):
     acted_at = models.DateTimeField(null=True, blank=True, verbose_name="Acted At")
     signature_image = models.ImageField(
         upload_to=_signature_image_path,
+        max_length=255,
         blank=True,
         null=True,
         verbose_name="Signature Image",

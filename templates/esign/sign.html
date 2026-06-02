@@ -38,6 +38,9 @@ document.addEventListener('alpine:init', () => {
         currentPage: 1, totalPages: 1,
         pdfDoc: null, canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
 
+        pdfLoading: true,
+        pdfError: null,
+
         activeAction: 'sign',
         activeTab: HAS_SAVED_SIG ? 'saved' : 'draw',
 
@@ -62,14 +65,23 @@ document.addEventListener('alpine:init', () => {
             this.wrapEl   = document.getElementById('pdf-viewer-wrap');
             pdfjsLib.GlobalWorkerOptions.workerSrc =
                 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-            this.pdfDoc = await pdfjsLib.getDocument("{{ document.original_pdf.url }}").promise;
-            this.totalPages = this.pdfDoc.numPages;
-            await this.renderPage(1);
+            try {
+                this.pdfDoc = await pdfjsLib.getDocument({
+                    url: "{{ document.original_pdf.url }}",
+                    disableRange: true,
+                    disableStream: true,
+                }).promise;
+                this.totalPages = this.pdfDoc.numPages;
+                await this.renderPage(1);
+            } catch (err) {
+                this.pdfError = err.message || 'Failed to load PDF.';
+                console.error('PDF.js error:', err);
+            } finally {
+                this.pdfLoading = false;
+            }
 
-            // Init draw canvas
             this.$nextTick(() => this.initDrawCanvas());
 
-            // Load saved signature if user has one
             if (HAS_SAVED_SIG) {
                 fetch(SAVED_SIG_URL)
                     .then(r => r.json())
@@ -272,7 +284,23 @@ document.addEventListener('alpine:init', () => {
                                 class="px-3 py-1 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40">›</button>
                     </div>
                     <div id="pdf-viewer-wrap">
-                        <canvas id="pdf-canvas"></canvas>
+                        <!-- Loading state -->
+                        <div x-show="pdfLoading" class="flex items-center justify-center py-16 text-slate-400 text-sm gap-2">
+                            <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            </svg>
+                            Loading PDF…
+                        </div>
+                        <!-- Error state -->
+                        <div x-show="pdfError" class="flex flex-col items-center justify-center py-16 text-red-500 text-sm gap-2 px-4 text-center">
+                            <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                            </svg>
+                            <p class="font-semibold">Failed to load PDF preview</p>
+                            <p class="text-xs text-red-400" x-text="pdfError"></p>
+                        </div>
+                        <canvas id="pdf-canvas" x-show="!pdfLoading && !pdfError"></canvas>
                         <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
                             <div class="placement-box"
                                  :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
