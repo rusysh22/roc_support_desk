@@ -55,8 +55,8 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:8001/health/ || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 90s
 
   nginx:
     image: nginx:1.27-alpine
