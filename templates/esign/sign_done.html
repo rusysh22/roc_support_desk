@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}
-    {% if just_signed %}Tanda Tangan Berhasil
-    {% elif just_rejected %}Dokumen Ditolak
-    {% else %}Sudah Diproses{% endif %} — E-Sign
+    {% if just_signed %}Signature Successful
+    {% elif just_rejected %}Document Rejected
+    {% else %}Already Processed{% endif %} — E-Sign
 {% endblock %}
 
 {% block layout %}
@@ -18,7 +18,7 @@
                 </svg>
             </div>
             <div class="flex-1 min-w-0">
-                <p class="font-semibold text-slate-800">Tanda tangan berhasil direkam</p>
+                <p class="font-semibold text-slate-800">Signature recorded successfully</p>
                 <p class="text-sm text-slate-500 truncate">
                     <strong>{{ signer.display_name }}</strong> &mdash; {{ document.title }}
                 </p>
@@ -29,7 +29,7 @@
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                Unduh Dokumen Bertanda Tangan
+                Download Signed Document
             </a>
             {% endif %}
         </div>
@@ -43,22 +43,22 @@
                 <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
                 </svg>
-                <span class="text-sm font-semibold text-green-700">Dokumen Telah Sepenuhnya Ditandatangani</span>
-                <span class="text-xs text-green-600 ml-auto">{{ document.signed_count }}/{{ document.total_count }} tanda tangan</span>
+                <span class="text-sm font-semibold text-green-700">Document Fully Signed</span>
+                <span class="text-xs text-green-600 ml-auto">{{ document.signed_count }}/{{ document.total_count }} signatures</span>
             </div>
             <div class="p-4">
                 <iframe src="{{ document.signed_pdf.url }}"
                         class="w-full rounded-xl border border-slate-100"
                         style="height: 75vh; min-height: 500px;"
-                        title="Dokumen Bertanda Tangan">
+                        title="Signed Document">
                     <p class="text-sm text-slate-500 p-4">
-                        Browser Anda tidak mendukung tampilan PDF.
-                        <a href="{{ document.signed_pdf.url }}" class="text-indigo-600 underline">Unduh di sini</a>.
+                        Your browser does not support PDF preview.
+                        <a href="{{ document.signed_pdf.url }}" class="text-indigo-600 underline">Download here</a>.
                     </p>
                 </iframe>
             </div>
         </div>
-        <p class="text-center text-xs text-slate-400 mt-4 pb-6">Anda dapat menutup halaman ini setelah mengunduh dokumen.</p>
+        <p class="text-center text-xs text-slate-400 mt-4 pb-6">You can close this page after downloading the document.</p>
     </div>
 
     {% else %}
@@ -70,26 +70,26 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
             </div>
-            <h2 class="text-lg font-bold text-slate-800 mb-2">Menunggu Tanda Tangan Lainnya</h2>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">Waiting for Other Signatures</h2>
             <p class="text-sm text-slate-500 leading-relaxed">
-                Tanda tangan Anda telah berhasil direkam. Dokumen <strong>{{ document.title }}</strong>
-                akan tersedia untuk diunduh setelah semua pihak menandatangani.
+                Your signature has been successfully recorded. Document <strong>{{ document.title }}</strong>
+                will be available for download after all parties have signed.
             </p>
             {% if document.routing_mode == 'sequential' %}
             <p class="text-xs text-slate-400 mt-3">
-                Penandatanganan dilakukan secara berurutan. Penanda tangan berikutnya akan menerima notifikasi secara otomatis.
+                Signing is done in sequence. The next signer will be notified automatically.
             </p>
             {% endif %}
             <div class="mt-5 pt-5 border-t border-slate-100">
                 <p class="text-xs text-slate-400">
-                    Progres: <span class="font-semibold text-slate-600">{{ document.signed_count }}/{{ document.total_count }}</span> tanda tangan dikumpulkan
+                    Progress: <span class="font-semibold text-slate-600">{{ document.signed_count }}/{{ document.total_count }}</span> signatures collected
                 </p>
                 <div class="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
                     <div class="h-full bg-indigo-400 rounded-full transition-all"
                          style="width: {% widthratio document.signed_count document.total_count 100 %}%"></div>
                 </div>
             </div>
-            <p class="text-xs text-slate-400 mt-6">Anda dapat menutup halaman ini.</p>
+            <p class="text-xs text-slate-400 mt-6">You can close this page.</p>
         </div>
     </div>
     {% endif %}
@@ -103,15 +103,15 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
             </div>
-            <h1 class="text-xl font-bold text-red-700 mb-2">Dokumen Ditolak</h1>
-            <p class="text-sm text-slate-500">Penolakan Anda telah dicatat. Pemilik dokumen akan menerima notifikasi.</p>
+            <h1 class="text-xl font-bold text-red-700 mb-2">Document Rejected</h1>
+            <p class="text-sm text-slate-500">Your rejection has been recorded. The document owner will be notified.</p>
             {% if signer.notes %}
             <div class="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-left text-red-700">
-                <p class="font-medium mb-1">Alasan:</p>
+                <p class="font-medium mb-1">Reason:</p>
                 <p>{{ signer.notes }}</p>
             </div>
             {% endif %}
-            <p class="text-xs text-slate-400 mt-6">Anda dapat menutup halaman ini.</p>
+            <p class="text-xs text-slate-400 mt-6">You can close this page.</p>
         </div>
     </div>
 
@@ -124,9 +124,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
             </div>
-            <h1 class="text-xl font-bold text-slate-700 mb-2">Sudah Diproses</h1>
+            <h1 class="text-xl font-bold text-slate-700 mb-2">Already Processed</h1>
             <p class="text-sm text-slate-500">
-                Dokumen <strong>{{ document.title }}</strong> sudah diproses sebelumnya.
+                Document <strong>{{ document.title }}</strong> has already been processed.
                 Status: <strong>{{ document.get_status_display }}</strong>.
             </p>
             {% if document.status == 'completed' and document.signed_pdf %}
@@ -136,11 +136,11 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
-                    Unduh Dokumen Bertanda Tangan
+                    Download Signed Document
                 </a>
             </div>
             {% endif %}
-            <p class="text-xs text-slate-400 mt-6">Anda dapat menutup halaman ini.</p>
+            <p class="text-xs text-slate-400 mt-6">You can close this page.</p>
         </div>
     </div>
     {% endif %}
