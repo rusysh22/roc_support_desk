@@ -5,7 +5,7 @@ import esign.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("esign", "0003_signer_stamp_fields"),
+        ("esign", "0004_signaturedocument_certificate_style"),
     ]
 
     operations = [
