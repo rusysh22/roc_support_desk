@@ -91,6 +91,7 @@ class ContentSecurityPolicyMiddleware:
             "https://unpkg.com "
             "https://esm.sh "
             "https://nominatim.openstreetmap.org; "
+        "worker-src blob: https://cdn.jsdelivr.net; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "

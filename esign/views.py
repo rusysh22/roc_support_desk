@@ -279,7 +279,7 @@ def document_send(request, pk):
     ip, _ = get_client_ip(request)
     try:
         send_document(doc, actor_user=request.user, ip=ip)
-        messages.success(request, "Dokumen berhasil dikirim ke penanda tangan.")
+        messages.success(request, "Document sent to signers.")
     except ValueError as exc:
         messages.error(request, str(exc))
 
@@ -322,7 +322,7 @@ def signer_remind(request, pk, signer_pk):
 
     try:
         remind_signer(signer, actor_user=request.user)
-        messages.success(request, f"Pengingat dikirim ke {signer.display_name}.")
+        messages.success(request, f"Reminder sent to {signer.display_name}.")
     except ValueError as exc:
         messages.error(request, str(exc))
 
@@ -343,7 +343,7 @@ def document_reopen(request, pk):
     ip, _ = get_client_ip(request)
     try:
         reopen_document(doc, actor_user=request.user, ip=ip)
-        messages.success(request, "Dokumen dibuka kembali dan dikirim ulang ke semua penanda tangan.")
+        messages.success(request, "Document reopened and resent to all signers.")
     except ValueError as exc:
         messages.error(request, str(exc))
 
@@ -364,7 +364,7 @@ def document_cancel(request, pk):
     ip, _ = get_client_ip(request)
     try:
         cancel_document(doc, actor_user=request.user, ip=ip)
-        messages.success(request, "Dokumen dibatalkan.")
+        messages.success(request, "Document cancelled.")
     except ValueError as exc:
         messages.error(request, str(exc))
 

@@ -456,3 +456,52 @@ class SignatureEvent(models.Model):
     def __str__(self):
         actor = self.actor_user or self.actor_label or "system"
         return f"[{self.document.title}] {self.event} by {actor}"
+
+
+# ---------------------------------------------------------------------------
+# UserSavedSignature
+# ---------------------------------------------------------------------------
+
+class UserSavedSignature(models.Model):
+    """Stores a user's preferred reusable signature (base64 PNG data-URL)."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="saved_signature",
+        verbose_name="User",
+    )
+    signature_data = models.TextField(verbose_name="Signature Data (base64)")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+
+    class Meta:
+        verbose_name = "Saved Signature"
+        verbose_name_plural = "Saved Signatures"
+
+    def __str__(self):
+        return f"Saved signature for {self.user}"
+
+
+# ---------------------------------------------------------------------------
+# MobileDrawSession
+# ---------------------------------------------------------------------------
+
+class MobileDrawSession(models.Model):
+    """
+    Short-lived token allowing a signer to draw their signature on a mobile
+    device by scanning a QR code. The desktop page polls for completion.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    expires_at = models.DateTimeField(verbose_name="Expires At")
+    signature_data = models.TextField(blank=True, verbose_name="Signature Data (base64)")
+    is_complete = models.BooleanField(default=False, verbose_name="Complete")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created At")
+
+    class Meta:
+        verbose_name = "Mobile Draw Session"
+        verbose_name_plural = "Mobile Draw Sessions"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
