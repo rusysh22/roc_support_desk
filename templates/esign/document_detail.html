@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Detail Dokumen — {{ doc.title }}{% endblock %}
+{% block title %}Document Detail — {{ doc.title }}{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
 {% block content %}
@@ -7,14 +7,14 @@
     <div>
         <h1 class="jk-page-title">{{ doc.title }}</h1>
         <p class="jk-page-subtitle">
-            {% if doc.routing_mode == 'sequential' %}Berurutan{% else %}Bersamaan{% endif %} &middot;
-            {{ doc.signed_count }}/{{ doc.total_count }} tanda tangan terkumpul
+            {% if doc.routing_mode == 'sequential' %}Sequential{% else %}Parallel{% endif %} &middot;
+            {{ doc.signed_count }}/{{ doc.total_count }} signatures collected
         </p>
     </div>
     <div class="flex gap-2">
-        <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Kembali</a>
+        <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Back</a>
         {% if doc.status == 'completed' and doc.signed_pdf %}
-        <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary" download>⬇ Unduh PDF Bertanda Tangan</a>
+        <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary" download>⬇ Download Signed PDF</a>
         {% endif %}
     </div>
 </div>
@@ -36,25 +36,24 @@
         </span>
         <div>
             <p class="font-semibold">
-                {% if doc.status == 'completed' %}Dokumen Selesai Ditandatangani
-                {% elif doc.status == 'rejected' %}Dokumen Ditolak
-                {% elif doc.status == 'cancelled' %}Dokumen Dibatalkan
-                {% elif doc.status == 'draft' %}Draft — Belum Dikirim
-                {% else %}Menunggu Tanda Tangan{% endif %}
+                {% if doc.status == 'completed' %}Document Fully Signed
+                {% elif doc.status == 'rejected' %}Document Rejected
+                {% elif doc.status == 'cancelled' %}Document Cancelled
+                {% elif doc.status == 'draft' %}Draft — Not Sent Yet
+                {% else %}Awaiting Signatures{% endif %}
             </p>
-            {% if doc.due_at %}<p class="text-sm text-slate-500">Batas waktu: {{ doc.due_at|date:"d M Y H:i" }}</p>{% endif %}
+            {% if doc.due_at %}<p class="text-sm text-slate-500">Due: {{ doc.due_at|date:"d M Y H:i" }}</p>{% endif %}
         </div>
-        <!-- Actions -->
         <div class="ml-auto flex gap-2">
             {% if doc.status == 'draft' %}
-            <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Konfigurasi</a>
+            <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
             {% endif %}
             {% if doc.status in 'rejected,pending' %}
             <form method="post" action="{% url 'esign:document_reopen' pk=doc.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline"
-                        onclick="return confirm('Buka kembali dan kirim ulang dokumen ini?')">
-                    🔄 Buka Kembali
+                        onclick="return confirm('Reopen and resend this document to all signers?')">
+                    🔄 Reopen
                 </button>
             </form>
             {% endif %}
@@ -62,8 +61,8 @@
             <form method="post" action="{% url 'esign:document_cancel' pk=doc.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="jk-btn jk-btn-sm jk-btn-danger"
-                        onclick="return confirm('Batalkan dokumen ini?')">
-                    Batalkan
+                        onclick="return confirm('Cancel this document?')">
+                    Cancel
                 </button>
             </form>
             {% endif %}
@@ -76,7 +75,7 @@
     <!-- Signers -->
     <div class="lg:col-span-2">
         <div class="jk-card">
-            <h2 class="font-bold text-base mb-4">Daftar Penanda Tangan</h2>
+            <h2 class="font-bold text-base mb-4">Signers</h2>
             <div class="space-y-3">
             {% for signer in signers %}
                 <div class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl">
@@ -90,29 +89,29 @@
                         <p class="text-xs text-slate-400">{{ signer.acted_at|date:"d M Y H:i" }}</p>
                         {% endif %}
                         {% if signer.notes %}
-                        <p class="text-xs text-red-500 mt-0.5">Catatan: {{ signer.notes }}</p>
+                        <p class="text-xs text-red-500 mt-0.5">Note: {{ signer.notes }}</p>
                         {% endif %}
                     </div>
                     <div>
                         {% if signer.status == 'signed' %}
-                            <span class="jk-badge jk-badge-green">✅ Ditandatangani</span>
+                            <span class="jk-badge jk-badge-green">✅ Signed</span>
                         {% elif signer.status == 'rejected' %}
-                            <span class="jk-badge jk-badge-red">❌ Ditolak</span>
+                            <span class="jk-badge jk-badge-red">❌ Rejected</span>
                         {% elif signer.status == 'pending' %}
-                            <span class="jk-badge jk-badge-yellow">⏳ Menunggu</span>
+                            <span class="jk-badge jk-badge-yellow">⏳ Pending</span>
                         {% else %}
-                            <span class="jk-badge jk-badge-gray">Antre</span>
+                            <span class="jk-badge jk-badge-gray">Waiting</span>
                         {% endif %}
                     </div>
                     {% if signer.status == 'pending' %}
                     <form method="post" action="{% url 'esign:signer_remind' pk=doc.pk signer_pk=signer.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline text-xs">Kirim Pengingat</button>
+                        <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline text-xs">Send Reminder</button>
                     </form>
                     {% endif %}
                 </div>
             {% empty %}
-                <p class="text-sm text-slate-400">Belum ada penanda tangan.</p>
+                <p class="text-sm text-slate-400">No signers added.</p>
             {% endfor %}
             </div>
         </div>
@@ -121,7 +120,7 @@
     <!-- Audit log -->
     <div class="lg:col-span-1">
         <div class="jk-card">
-            <h2 class="font-bold text-base mb-4">Riwayat Aktivitas</h2>
+            <h2 class="font-bold text-base mb-4">Activity Log</h2>
             <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
             {% for ev in events %}
                 <div class="flex gap-2 text-sm">
@@ -136,7 +135,7 @@
                     </div>
                 </div>
             {% empty %}
-                <p class="text-xs text-slate-400">Belum ada aktivitas.</p>
+                <p class="text-xs text-slate-400">No activity yet.</p>
             {% endfor %}
             </div>
         </div>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Konfigurasi Penanda Tangan — {{ doc.title }}{% endblock %}
+{% block title %}Configure Signers — {{ doc.title }}{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
 {% block extra_head %}
@@ -36,14 +36,12 @@
 </style>
 
 <script>
-/* Django-rendered constants — available globally for the Alpine component */
-const PDF_URL           = "{{ doc.original_pdf.url }}";
-const SAVE_URL          = "{% url 'esign:save_configuration' pk=doc.pk %}";
+const PDF_URL            = "{{ doc.original_pdf.url }}";
+const SAVE_URL           = "{% url 'esign:save_configuration' pk=doc.pk %}";
 const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
-const USER_SEARCH_URL   = "{% url 'esign:user_search' %}";
-const DOC_PAGE_COUNT    = {{ doc.page_count }};
+const USER_SEARCH_URL    = "{% url 'esign:user_search' %}";
+const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
-/* Register the Alpine component before Alpine processes the DOM */
 document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
         signers: [],
@@ -124,8 +122,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         removePlacement(idx) { this.placements.splice(idx, 1); },
-
-        selectSigner(idx) { this.selectedSigner = idx; },
+        selectSigner(idx)    { this.selectedSigner = idx; },
 
         removeSigner(idx) {
             this.placements = this.placements
@@ -154,7 +151,7 @@ document.addEventListener('alpine:init', () => {
 
         confirmAddSigner() {
             if (!this.newSigner.name || !this.newSigner.email) {
-                alert('Nama dan email wajib diisi.');
+                alert('Name and email are required.');
                 return;
             }
             this.signers.push({
@@ -185,7 +182,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveAndSend() {
-            if (this.signers.length === 0) { alert('Tambahkan minimal satu penanda tangan.'); return; }
+            if (this.signers.length === 0) { alert('Please add at least one signer.'); return; }
             this.saving = true;
             const payload = {
                 routing_mode: this.routingMode,
@@ -213,7 +210,7 @@ document.addEventListener('alpine:init', () => {
             if (data.ok) {
                 document.getElementById('send-form').submit();
             } else {
-                alert(data.error || 'Terjadi kesalahan saat menyimpan.');
+                alert(data.error || 'An error occurred while saving.');
             }
         },
     }));
@@ -227,9 +224,9 @@ document.addEventListener('alpine:init', () => {
 <div class="jk-page-header">
     <div>
         <h1 class="jk-page-title">{{ doc.title }}</h1>
-        <p class="jk-page-subtitle">Langkah 2 dari 3 — Tambah penanda tangan dan tentukan posisi tanda tangan.</p>
+        <p class="jk-page-subtitle">Step 2 of 3 — Add signers and place signature boxes on the document.</p>
     </div>
-    <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Kembali</a>
+    <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Back</a>
 </div>
 
 {% if messages %}
@@ -243,34 +240,31 @@ document.addEventListener('alpine:init', () => {
     <!-- Left Panel: Signers -->
     <div class="lg:col-span-1 space-y-4">
 
-        <!-- Flow Template Preset -->
         {% if flow_templates %}
         <div class="jk-card">
-            <h3 class="font-semibold text-sm text-slate-700 mb-3">Preset Alur</h3>
+            <h3 class="font-semibold text-sm text-slate-700 mb-3">Flow Preset</h3>
             <select id="flow-template-select" class="jk-select text-sm mb-2">
-                <option value="">— Pilih preset —</option>
+                <option value="">— Select a preset —</option>
                 {% for ft in flow_templates %}
                 <option value="{{ ft.pk }}">{{ ft.name }} ({{ ft.get_routing_mode_display }})</option>
                 {% endfor %}
             </select>
-            <button @click="applyTemplate()" class="jk-btn jk-btn-sm jk-btn-outline w-full">Terapkan Preset</button>
+            <button @click="applyTemplate()" class="jk-btn jk-btn-sm jk-btn-outline w-full">Apply Preset</button>
         </div>
         {% endif %}
 
-        <!-- Routing mode -->
         <div class="jk-card">
-            <h3 class="font-semibold text-sm text-slate-700 mb-3">Mode Penandatanganan</h3>
+            <h3 class="font-semibold text-sm text-slate-700 mb-3">Routing Mode</h3>
             <select x-model="routingMode" class="jk-select text-sm">
-                <option value="sequential">Berurutan (satu per satu)</option>
-                <option value="parallel">Bersamaan (semua sekaligus)</option>
+                <option value="sequential">Sequential (one by one)</option>
+                <option value="parallel">Parallel (all at once)</option>
             </select>
         </div>
 
-        <!-- Signer list -->
         <div class="jk-card">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold text-sm text-slate-700">Penanda Tangan</h3>
-                <button @click="addSignerModal = true" class="jk-btn jk-btn-sm jk-btn-primary">+ Tambah</button>
+                <h3 class="font-semibold text-sm text-slate-700">Signers</h3>
+                <button @click="addSignerModal = true" class="jk-btn jk-btn-sm jk-btn-primary">+ Add</button>
             </div>
 
             <div class="space-y-2">
@@ -285,24 +279,23 @@ document.addEventListener('alpine:init', () => {
                         <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" x-text="s.role"></span>
                         <button @click="selectSigner(idx)"
                                 :class="selectedSigner === idx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'"
-                                class="text-xs px-2 py-1 rounded-md">Pilih</button>
+                                class="text-xs px-2 py-1 rounded-md">Select</button>
                         <button @click="removeSigner(idx)" class="text-red-400 hover:text-red-600 text-sm">✕</button>
                     </div>
                 </template>
                 <p x-show="signers.length === 0" class="text-xs text-slate-400 text-center py-3">
-                    Belum ada penanda tangan.
+                    No signers added yet.
                 </p>
             </div>
         </div>
 
-        <!-- Add placement -->
         <div class="jk-card" x-show="selectedSigner !== null">
             <h3 class="font-semibold text-sm text-slate-700 mb-3">
-                Kotak TTD untuk: <span class="text-indigo-600" x-text="signers[selectedSigner]?.name ?? ''"></span>
+                Signature box for: <span class="text-indigo-600" x-text="signers[selectedSigner]?.name ?? ''"></span>
             </h3>
-            <p class="text-xs text-slate-500 mb-2">Pilih halaman lalu klik pada PDF untuk menempatkan kotak tanda tangan.</p>
+            <p class="text-xs text-slate-500 mb-2">Select a page then click on the PDF to place a signature box.</p>
             <div class="flex gap-2 items-center mb-2">
-                <label class="text-xs text-slate-600">Halaman:</label>
+                <label class="text-xs text-slate-600">Page:</label>
                 <input type="number" x-model.number="currentPage" min="1" max="{{ doc.page_count }}"
                        class="jk-input text-sm w-20" @change="renderPage(currentPage)">
                 <span class="text-xs text-slate-400">/ {{ doc.page_count }}</span>
@@ -310,16 +303,15 @@ document.addEventListener('alpine:init', () => {
             <button @click="placingMode = !placingMode"
                     :class="placingMode ? 'jk-btn-primary' : 'jk-btn-outline'"
                     class="jk-btn jk-btn-sm w-full">
-                <span x-text="placingMode ? '✅ Klik PDF untuk menempatkan kotak' : '🖊 Mode Penempatan'"></span>
+                <span x-text="placingMode ? '✅ Click on PDF to place box' : '🖊 Placement Mode'"></span>
             </button>
         </div>
 
-        <!-- Send button -->
         <div class="jk-card">
             <button @click="saveAndSend()" class="jk-btn jk-btn-primary w-full" :disabled="saving">
-                <span x-text="saving ? 'Menyimpan...' : 'Simpan & Kirim ke Penanda Tangan →'"></span>
+                <span x-text="saving ? 'Saving...' : 'Save & Send to Signers →'"></span>
             </button>
-            <p class="text-xs text-slate-400 mt-2 text-center">Konfigurasi akan disimpan lalu dokumen dikirim.</p>
+            <p class="text-xs text-slate-400 mt-2 text-center">Configuration will be saved and the document sent.</p>
         </div>
     </div>
 
@@ -331,12 +323,12 @@ document.addEventListener('alpine:init', () => {
                     <button @click="changePage(-1)" :disabled="currentPage <= 1"
                             class="jk-btn jk-btn-sm jk-btn-outline">‹</button>
                     <span class="text-sm text-slate-600">
-                        Halaman <span x-text="currentPage"></span> / {{ doc.page_count }}
+                        Page <span x-text="currentPage"></span> / {{ doc.page_count }}
                     </span>
                     <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
                             class="jk-btn jk-btn-sm jk-btn-outline">›</button>
                 </div>
-                <span class="text-xs text-slate-400" x-show="placingMode">Klik untuk menempatkan tanda tangan</span>
+                <span class="text-xs text-slate-400" x-show="placingMode">Click on the PDF to place a signature box</span>
             </div>
 
             <div id="pdf-viewer-wrap" @click="onCanvasClick($event)"
@@ -358,22 +350,22 @@ document.addEventListener('alpine:init', () => {
 <div x-show="addSignerModal" x-cloak
      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.stop>
-        <h3 class="font-bold text-lg mb-4">Tambah Penanda Tangan</h3>
+        <h3 class="font-bold text-lg mb-4">Add Signer</h3>
 
         <div class="flex gap-2 mb-4">
             <button @click="newSignerType='user'"
                     :class="newSignerType==='user' ? 'jk-btn-primary' : 'jk-btn-outline'"
-                    class="jk-btn jk-btn-sm flex-1">User Sistem</button>
+                    class="jk-btn jk-btn-sm flex-1">System User</button>
             <button @click="newSignerType='external'"
                     :class="newSignerType==='external' ? 'jk-btn-primary' : 'jk-btn-outline'"
-                    class="jk-btn jk-btn-sm flex-1">Eksternal (Email)</button>
+                    class="jk-btn jk-btn-sm flex-1">External (Email)</button>
         </div>
 
         <div x-show="newSignerType === 'user'" class="space-y-3">
             <div>
-                <label class="jk-label">Cari User</label>
+                <label class="jk-label">Search User</label>
                 <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
-                       class="jk-input" placeholder="Nama atau email...">
+                       class="jk-input" placeholder="Name or email...">
                 <div x-show="userResults.length > 0"
                      class="mt-1 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                     <template x-for="u in userResults" :key="u.id">
@@ -386,14 +378,14 @@ document.addEventListener('alpine:init', () => {
                 </div>
             </div>
             <div x-show="newSigner.name" class="text-sm bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
-                Dipilih: <strong x-text="newSigner.name"></strong>
+                Selected: <strong x-text="newSigner.name"></strong>
             </div>
         </div>
 
         <div x-show="newSignerType === 'external'" class="space-y-3">
             <div>
-                <label class="jk-label">Nama Lengkap <span class="text-red-500">*</span></label>
-                <input type="text" x-model="newSigner.name" class="jk-input" placeholder="Nama penanda tangan">
+                <label class="jk-label">Full Name <span class="text-red-500">*</span></label>
+                <input type="text" x-model="newSigner.name" class="jk-input" placeholder="Signer's full name">
             </div>
             <div>
                 <label class="jk-label">Email <span class="text-red-500">*</span></label>
@@ -403,29 +395,28 @@ document.addEventListener('alpine:init', () => {
 
         <div class="flex gap-3 mt-4">
             <div class="flex-1">
-                <label class="jk-label">Urutan</label>
+                <label class="jk-label">Order</label>
                 <input type="number" x-model.number="newSigner.order" min="1" class="jk-input">
             </div>
             <div class="flex-1">
-                <label class="jk-label">Peran</label>
+                <label class="jk-label">Role</label>
                 <select x-model="newSigner.role" class="jk-select">
-                    <option value="signer">Penanda Tangan</option>
+                    <option value="signer">Signer</option>
                     <option value="approver">Approver</option>
                 </select>
             </div>
         </div>
 
         <div class="flex gap-3 mt-5">
-            <button @click="confirmAddSigner()" class="jk-btn jk-btn-primary flex-1">Tambah</button>
-            <button @click="addSignerModal = false" class="jk-btn jk-btn-outline flex-1">Batal</button>
+            <button @click="confirmAddSigner()" class="jk-btn jk-btn-primary flex-1">Add</button>
+            <button @click="addSignerModal = false" class="jk-btn jk-btn-outline flex-1">Cancel</button>
         </div>
     </div>
 </div>
 
-<!-- Hidden form for final send -->
 <form id="send-form" method="post" action="{% url 'esign:document_send' pk=doc.pk %}">
     {% csrf_token %}
 </form>
 
-</div><!-- end x-data -->
+</div>
 {% endblock %}

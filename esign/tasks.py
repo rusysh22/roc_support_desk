@@ -103,26 +103,26 @@ def send_signature_request_task(self, signer_id: str) -> str:
         due_note = ""
         if document.due_at:
             from cases.utils_pdf import _format_dt_with_gmt
-            due_note = f"<p><strong>Batas waktu:</strong> {_format_dt_with_gmt(document.due_at)}</p>"
+            due_note = f"<p><strong>Due date:</strong> {_format_dt_with_gmt(document.due_at)}</p>"
 
         msg_note = f"<blockquote style='border-left:3px solid #e2e8f0;margin:12px 0;padding:8px 16px;color:#555'>{document.message}</blockquote>" if document.message else ""
 
         body = f"""
-<p>Halo <strong>{signer.display_name}</strong>,</p>
-<p>Anda diminta untuk menandatangani dokumen berikut:</p>
+<p>Hello <strong>{signer.display_name}</strong>,</p>
+<p>You have been requested to sign the following document:</p>
 <p style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px">
   <strong>{document.title}</strong>
 </p>
 {msg_note}
 {due_note}
-<p>Klik tombol di bawah untuk membuka halaman penandatanganan:</p>
-<a href="{sign_url}" class="btn">Tanda Tangan Sekarang</a>
-<p style="font-size:12px;color:#64748b">Atau salin tautan ini: <br><code>{sign_url}</code></p>
-<p>Jika Anda bukan pihak yang dituju, abaikan email ini.</p>
+<p>Click the button below to open the signing page:</p>
+<a href="{sign_url}" class="btn">Sign Document Now</a>
+<p style="font-size:12px;color:#64748b">Or copy this link: <br><code>{sign_url}</code></p>
+<p>If you are not the intended recipient, please disregard this email.</p>
 """
         html = _email_wrapper(site_name, body)
         _send(
-            subject=f"[{site_name}] Permintaan Tanda Tangan — {document.title}",
+            subject=f"[{site_name}] Signature Request — {document.title}",
             html=html,
             to_email=signer.email,
         )
@@ -161,19 +161,19 @@ def send_signature_rejected_task(self, document_id: str, signer_id: str) -> str:
         detail_url = _build_absolute_url(reverse("esign:document_detail", args=[document.pk]))
 
         body = f"""
-<p>Halo <strong>{owner.get_full_name() or owner.username}</strong>,</p>
-<p>Dokumen <strong>{document.title}</strong> telah <span style="color:#dc2626;font-weight:600">ditolak</span>
-oleh <strong>{signer.display_name}</strong>.</p>
-<p><strong>Alasan penolakan:</strong><br>
+<p>Hello <strong>{owner.get_full_name() or owner.username}</strong>,</p>
+<p>Document <strong>{document.title}</strong> has been <span style="color:#dc2626;font-weight:600">rejected</span>
+by <strong>{signer.display_name}</strong>.</p>
+<p><strong>Rejection reason:</strong><br>
 <span style="background:#fef2f2;border-left:3px solid #dc2626;display:block;padding:8px 14px;margin:8px 0;border-radius:4px">
 {signer.notes or '—'}
 </span></p>
-<p>Anda dapat membuka kembali dokumen dan mengirim ulang setelah melakukan perbaikan.</p>
-<a href="{detail_url}" class="btn">Lihat Dokumen</a>
+<p>You can reopen the document and resend it after making the necessary changes.</p>
+<a href="{detail_url}" class="btn">View Document</a>
 """
         html = _email_wrapper(site_name, body)
         _send(
-            subject=f"[{site_name}] Dokumen Ditolak — {document.title}",
+            subject=f"[{site_name}] Document Rejected — {document.title}",
             html=html,
             to_email=owner.email,
         )
@@ -223,14 +223,14 @@ def send_signature_completed_task(self, document_id: str) -> str:
                 recipients.add(signer.email)
 
         body = f"""
-<p>Dokumen <strong>{document.title}</strong> telah selesai ditandatangani oleh semua pihak.</p>
+<p>Document <strong>{document.title}</strong> has been fully signed by all parties.</p>
 <p style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;color:#166534">
-  ✅ Semua tanda tangan terkumpul — dokumen ini resmi berlaku.
+  ✅ All signatures collected — this document is now officially valid.
 </p>
-<p>Dokumen yang telah ditandatangani terlampir pada email ini.</p>
+<p>The signed document is attached to this email.</p>
 """
         html = _email_wrapper(site_name, body)
-        subject = f"[{site_name}] Dokumen Selesai Ditandatangani — {document.title}"
+        subject = f"[{site_name}] Document Signing Completed — {document.title}"
 
         for email_addr in recipients:
             try:

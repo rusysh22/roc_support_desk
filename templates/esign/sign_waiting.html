@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Belum Giliran Anda — E-Sign{% endblock %}
+{% block title %}Not Your Turn Yet — E-Sign{% endblock %}
 
 {% block layout %}
 <div class="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 max-w-md w-full p-8 text-center">
         <div class="text-5xl mb-4">⏳</div>
-        <h1 class="text-xl font-bold text-slate-700 mb-2">Belum Giliran Anda</h1>
+        <h1 class="text-xl font-bold text-slate-700 mb-2">Not Your Turn Yet</h1>
         <p class="text-slate-600 text-sm">
-            Dokumen <strong>{{ document.title }}</strong> saat ini sedang menunggu tanda tangan dari
-            penanda tangan sebelumnya. Anda akan menerima email ketika giliran Anda tiba.
+            Document <strong>{{ document.title }}</strong> is currently waiting for a signature
+            from a previous signer. You will receive an email notification when it is your turn.
         </p>
-        <p class="text-xs text-slate-400 mt-6">Anda dapat menutup halaman ini.</p>
+        <p class="text-xs text-slate-400 mt-6">You may close this page.</p>
     </div>
 </div>
 {% endblock %}

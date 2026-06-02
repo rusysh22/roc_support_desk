@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}E-Sign — Dokumen Saya{% endblock %}
+{% block title %}E-Sign — My Documents{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
 {% block content %}
 <div class="jk-page-header">
     <div>
-        <h1 class="jk-page-title">E-Sign — Dokumen Saya</h1>
-        <p class="jk-page-subtitle">Kelola dokumen yang Anda kirim untuk ditandatangani.</p>
+        <h1 class="jk-page-title">E-Sign — My Documents</h1>
+        <p class="jk-page-subtitle">Manage documents you have sent for signing.</p>
     </div>
     <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary">
-        + Upload Dokumen Baru
+        + Upload New Document
     </a>
 </div>
 
@@ -24,11 +24,11 @@
     <table class="jk-table w-full">
         <thead>
             <tr>
-                <th>Judul</th>
-                <th>Mode</th>
+                <th>Title</th>
+                <th>Routing</th>
                 <th>Status</th>
-                <th>Penanda Tangan</th>
-                <th>Dibuat</th>
+                <th>Signatures</th>
+                <th>Created</th>
                 <th></th>
             </tr>
         </thead>
@@ -38,33 +38,31 @@
                 <td class="font-medium">{{ doc.title }}</td>
                 <td>
                     {% if doc.routing_mode == 'sequential' %}
-                        <span class="jk-badge jk-badge-blue">Berurutan</span>
+                        <span class="jk-badge jk-badge-blue">Sequential</span>
                     {% else %}
-                        <span class="jk-badge jk-badge-purple">Bersamaan</span>
+                        <span class="jk-badge jk-badge-purple">Parallel</span>
                     {% endif %}
                 </td>
                 <td>
                     {% if doc.status == 'draft' %}
                         <span class="jk-badge jk-badge-gray">Draft</span>
                     {% elif doc.status == 'pending' %}
-                        <span class="jk-badge jk-badge-yellow">Menunggu TTD</span>
+                        <span class="jk-badge jk-badge-yellow">Pending Signatures</span>
                     {% elif doc.status == 'completed' %}
-                        <span class="jk-badge jk-badge-green">Selesai</span>
+                        <span class="jk-badge jk-badge-green">Completed</span>
                     {% elif doc.status == 'rejected' %}
-                        <span class="jk-badge jk-badge-red">Ditolak</span>
+                        <span class="jk-badge jk-badge-red">Rejected</span>
                     {% elif doc.status == 'cancelled' %}
-                        <span class="jk-badge jk-badge-gray">Dibatalkan</span>
+                        <span class="jk-badge jk-badge-gray">Cancelled</span>
                     {% endif %}
                 </td>
-                <td class="text-sm text-slate-600">
-                    {{ doc.signed_count }}/{{ doc.total_count }} selesai
-                </td>
+                <td class="text-sm text-slate-600">{{ doc.signed_count }}/{{ doc.total_count }}</td>
                 <td class="text-sm text-slate-500">{{ doc.created_at|date:"d M Y" }}</td>
                 <td>
                     {% if doc.status == 'draft' %}
-                        <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Konfigurasi</a>
+                        <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
                     {% else %}
-                        <a href="{% url 'esign:document_detail' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Detail</a>
+                        <a href="{% url 'esign:document_detail' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">View</a>
                     {% endif %}
                 </td>
             </tr>
@@ -75,9 +73,9 @@
 {% else %}
 <div class="jk-card text-center py-16 text-slate-400">
     <p class="text-4xl mb-3">✍️</p>
-    <p class="font-medium">Belum ada dokumen.</p>
-    <p class="text-sm mt-1">Mulai dengan mengupload PDF untuk ditandatangani.</p>
-    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary mt-4">Upload Dokumen</a>
+    <p class="font-medium">No documents yet.</p>
+    <p class="text-sm mt-1">Start by uploading a PDF for signing.</p>
+    <a href="{% url 'esign:document_create' %}" class="jk-btn jk-btn-primary mt-4">Upload Document</a>
 </div>
 {% endif %}
 {% endblock %}
