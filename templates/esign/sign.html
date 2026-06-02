@@ -93,16 +93,18 @@ document.addEventListener('alpine:init', () => {
         mobileLoading: false, mobileReady: false, mobilePollTimer: null, qrInstance: null,
 
         // Drag-and-drop placement state
+        // dragOverlays: [{id, page, nx, ny, nw, nh}] — normalized 0-1 coords per placement
         previewData: null,
         showDragOverlay: false,
-        dragX: 0, dragY: 0, dragW: 180, dragH: 60,
+        dragOverlays: [],
+        activeOverlayIdx: null,
         isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
 
         // Resize state
         isResizing: false, resizeHandle: null,
         resizeStartX: 0, resizeStartY: 0,
-        resizeStartDragX: 0, resizeStartDragY: 0,
-        resizeStartW: 0, resizeStartH: 0,
+        resizeStartNX: 0, resizeStartNY: 0,
+        resizeStartNW: 0, resizeStartNH: 0,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -210,20 +212,36 @@ document.addEventListener('alpine:init', () => {
             return null;
         },
 
-        // ── Drag & Drop ──────────────────────────────────────────────────────
+        // ── Drag & Drop (multi-placement) ───────────────────────────────────
 
-        _snapToPlacement() {
-            const pls = this.currentPagePlacements();
-            if (pls.length) {
-                this.dragX = pls[0].xPx;
-                this.dragY = pls[0].yPx;
-                this.dragW = pls[0].wPx;
-                this.dragH = pls[0].hPx;
+        // Returns overlays for the current page with pixel coords computed from canvas size.
+        currentPageOverlays() {
+            if (!this.showDragOverlay) return [];
+            return this.dragOverlays
+                .map((o, i) => ({
+                    ...o, _idx: i,
+                    xPx: o.nx * this.canvasW,
+                    yPx: o.ny * this.canvasH,
+                    wPx: o.nw * this.canvasW,
+                    hPx: o.nh * this.canvasH,
+                }))
+                .filter(o => o.page === this.currentPage);
+        },
+
+        // All unique pages that have a placement overlay — for navigation hints.
+        placementPages() {
+            return [...new Set(this.dragOverlays.map(o => o.page))].sort((a, b) => a - b);
+        },
+
+        _initOverlays() {
+            if (PLACEMENTS.length > 0) {
+                this.dragOverlays = PLACEMENTS.map((p, i) => ({
+                    id: i, page: p.page,
+                    nx: p.x, ny: p.y, nw: p.w, nh: p.h,
+                }));
             } else {
-                this.dragW = Math.max(140, this.canvasW * 0.32);
-                this.dragH = Math.max(56,  this.canvasH * 0.09);
-                this.dragX = (this.canvasW - this.dragW) / 2;
-                this.dragY = (this.canvasH - this.dragH) / 2;
+                // No predefined placements — one default overlay at bottom of page 1.
+                this.dragOverlays = [{ id: 0, page: 1, nx: 0.1, ny: 0.75, nw: 0.35, nh: 0.08 }];
             }
         },
 
@@ -241,13 +259,18 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
             this.previewData = data;
-            this._snapToPlacement();
+            this._initOverlays();
             this.showDragOverlay = true;
+            // Navigate to the first placement page if not already there.
+            if (this.dragOverlays.length && this.dragOverlays[0].page !== this.currentPage) {
+                this.renderPage(this.dragOverlays[0].page);
+            }
         },
 
-        startDrag(e) {
+        startDrag(e, idx) {
             if (this.isResizing) return;
             this.isDragging = true;
+            this.activeOverlayIdx = idx;
             const rect = e.currentTarget.getBoundingClientRect();
             this.dragOffsetX = e.clientX - rect.left;
             this.dragOffsetY = e.clientY - rect.top;
@@ -256,73 +279,71 @@ document.addEventListener('alpine:init', () => {
 
         moveDrag(e) {
             if (!this.isDragging || this.isResizing) return;
+            const o = this.dragOverlays[this.activeOverlayIdx];
+            if (!o) return;
+            const wPx = o.nw * this.canvasW, hPx = o.nh * this.canvasH;
             const wrapRect = this.wrapEl.getBoundingClientRect();
-            this.dragX = Math.max(0, Math.min(e.clientX - wrapRect.left - this.dragOffsetX, this.canvasW - this.dragW));
-            this.dragY = Math.max(0, Math.min(e.clientY - wrapRect.top  - this.dragOffsetY, this.canvasH - this.dragH));
+            o.nx = Math.max(0, Math.min((e.clientX - wrapRect.left - this.dragOffsetX) / this.canvasW, 1 - o.nw));
+            o.ny = Math.max(0, Math.min((e.clientY - wrapRect.top  - this.dragOffsetY) / this.canvasH, 1 - o.nh));
         },
 
         endDrag() { this.isDragging = false; },
 
-        startResize(e, handle) {
+        startResize(e, handle, idx) {
             this.isResizing = true;
             this.resizeHandle = handle;
+            this.activeOverlayIdx = idx;
             this.resizeStartX = e.clientX;
             this.resizeStartY = e.clientY;
-            this.resizeStartDragX = this.dragX;
-            this.resizeStartDragY = this.dragY;
-            this.resizeStartW = this.dragW;
-            this.resizeStartH = this.dragH;
+            const o = this.dragOverlays[idx];
+            this.resizeStartNX = o.nx; this.resizeStartNY = o.ny;
+            this.resizeStartNW = o.nw; this.resizeStartNH = o.nh;
             e.currentTarget.setPointerCapture(e.pointerId);
         },
 
         moveResize(e) {
             if (!this.isResizing) return;
+            const o = this.dragOverlays[this.activeOverlayIdx];
+            if (!o) return;
+            // Work in pixels for easier min-size clamping, then normalize.
             const dx = e.clientX - this.resizeStartX;
             const dy = e.clientY - this.resizeStartY;
-            const minW = 60, minH = 28;
-            let x = this.resizeStartDragX, y = this.resizeStartDragY;
-            let w = this.resizeStartW,     h = this.resizeStartH;
+            const minW = 60 / this.canvasW, minH = 28 / this.canvasH;
+            let nx = this.resizeStartNX, ny = this.resizeStartNY;
+            let nw = this.resizeStartNW, nh = this.resizeStartNH;
 
-            if (this.resizeHandle.includes('e')) w = Math.max(minW, w + dx);
-            if (this.resizeHandle.includes('s')) h = Math.max(minH, h + dy);
+            if (this.resizeHandle.includes('e')) nw = Math.max(minW, nw + dx / this.canvasW);
+            if (this.resizeHandle.includes('s')) nh = Math.max(minH, nh + dy / this.canvasH);
             if (this.resizeHandle.includes('w')) {
-                const nw = Math.max(minW, w - dx);
-                x = x + (w - nw);
-                w = nw;
+                const newNW = Math.max(minW, nw - dx / this.canvasW);
+                nx = nx + (nw - newNW); nw = newNW;
             }
             if (this.resizeHandle.includes('n')) {
-                const nh = Math.max(minH, h - dy);
-                y = y + (h - nh);
-                h = nh;
+                const newNH = Math.max(minH, nh - dy / this.canvasH);
+                ny = ny + (nh - newNH); nh = newNH;
             }
-
-            // Clamp to PDF canvas bounds
-            x = Math.max(0, Math.min(x, this.canvasW - w));
-            y = Math.max(0, Math.min(y, this.canvasH - h));
-            this.dragX = x; this.dragY = y;
-            this.dragW = w; this.dragH = h;
+            o.nx = Math.max(0, Math.min(nx, 1 - nw));
+            o.ny = Math.max(0, Math.min(ny, 1 - nh));
+            o.nw = nw; o.nh = nh;
         },
 
-        endResize() {
-            this.isResizing = false;
-            this.resizeHandle = null;
-        },
+        endResize() { this.isResizing = false; this.resizeHandle = null; },
 
         cancelPlacement() {
             this.showDragOverlay = false;
             this.previewData = null;
+            this.dragOverlays = [];
         },
 
         submitFinal() {
             if (!this.previewData) { this.placeOnDocument(); return; }
-            document.getElementById('action-input').value        = 'sign';
-            document.getElementById('signature-data-input').value = this.previewData;
-            document.getElementById('save-sig-input').value      = this.saveForLater ? '1' : '0';
-            document.getElementById('drop-x-input').value        = this.dragX / this.canvasW;
-            document.getElementById('drop-y-input').value        = this.dragY / this.canvasH;
-            document.getElementById('drop-w-input').value        = this.dragW / this.canvasW;
-            document.getElementById('drop-h-input').value        = this.dragH / this.canvasH;
-            document.getElementById('drop-page-input').value     = this.currentPage;
+            const placements = this.dragOverlays.map(o => ({
+                page: o.page, x: o.nx, y: o.ny, w: o.nw, h: o.nh,
+            }));
+            document.getElementById('action-input').value          = 'sign';
+            document.getElementById('signature-data-input').value  = this.previewData;
+            document.getElementById('save-sig-input').value        = this.saveForLater ? '1' : '0';
+            document.getElementById('drop-placements-input').value = JSON.stringify(placements);
             document.getElementById('sign-form').submit();
         },
 
@@ -444,42 +465,61 @@ document.addEventListener('alpine:init', () => {
                         </div>
                         <!-- Canvas -->
                         <canvas id="pdf-canvas" x-show="!pdfLoading && !pdfError"></canvas>
-                        <!-- Predefined placement boxes -->
-                        <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
-                            <div class="placement-box"
-                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
-                                ✍ Sign Here
+                        <!-- Predefined placement boxes (hidden once overlays are active) -->
+                        <template x-if="!showDragOverlay">
+                            <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
+                                <div class="placement-box"
+                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
+                                    ✍ Sign Here
+                                </div>
+                            </template>
+                        </template>
+                        <!-- Draggable + resizable signature overlays (one per placement) -->
+                        <template x-for="overlay in currentPageOverlays()" :key="overlay.id">
+                            <div class="drag-overlay"
+                                 :class="{ dragging: isDragging && activeOverlayIdx === overlay._idx }"
+                                 :style="`left:${overlay.xPx}px;top:${overlay.yPx}px;width:${overlay.wPx}px;height:${overlay.hPx}px`"
+                                 @pointerdown.stop="startDrag($event, overlay._idx)"
+                                 @pointermove.stop="moveDrag($event)"
+                                 @pointerup.stop="endDrag()"
+                                 @pointercancel="isDragging=false">
+                                <div class="drag-handle"></div>
+                                <div class="sig-inner">
+                                    <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                                </div>
+                                <!-- 8 resize handles -->
+                                <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle se" @pointerdown.stop="startResize($event,'se',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                             </div>
                         </template>
-                        <!-- Draggable + resizable signature overlay -->
-                        <div x-show="showDragOverlay && previewData"
-                             class="drag-overlay"
-                             :class="{ dragging: isDragging }"
-                             :style="`left:${dragX}px;top:${dragY}px;width:${dragW}px;height:${dragH}px`"
-                             @pointerdown.stop="startDrag($event)"
-                             @pointermove.stop="moveDrag($event)"
-                             @pointerup.stop="endDrag($event)"
-                             @pointercancel="isDragging=false">
-                            <div class="drag-handle"></div>
-                            <div class="sig-inner">
-                                <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
-                            </div>
-                            <!-- 8 resize handles -->
-                            <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle se" @pointerdown.stop="startResize($event,'se')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw')" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                            <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w')"  @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                        </div>
                     </div>
 
-                    <!-- Placement hint -->
-                    <div x-show="showDragOverlay" class="mt-2 flex items-center gap-2 text-xs text-indigo-600 flex-shrink-0">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3"/></svg>
-                        Drag your signature to reposition it, then click <strong class="ml-1">Submit Signature</strong>.
+                    <!-- Placement hint + page jump chips -->
+                    <div x-show="showDragOverlay" class="mt-3 flex-shrink-0 space-y-2">
+                        <p class="text-xs text-indigo-600 flex items-center gap-1.5">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3"/></svg>
+                            Drag &amp; resize each signature, then click <strong class="ml-0.5">Submit Signature</strong>.
+                        </p>
+                        <!-- Page chips: shown only when placements span multiple pages -->
+                        <div x-show="placementPages().length > 1" class="flex flex-wrap gap-1.5">
+                            <span class="text-xs text-slate-400 self-center">Signatures on:</span>
+                            <template x-for="pg in placementPages()" :key="pg">
+                                <button type="button"
+                                        @click="renderPage(pg)"
+                                        :class="currentPage === pg
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'"
+                                        class="px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors">
+                                    Page <span x-text="pg"></span>
+                                </button>
+                            </template>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -507,11 +547,7 @@ document.addEventListener('alpine:init', () => {
                         <input type="hidden" name="action"         id="action-input"         value="sign">
                         <input type="hidden" name="signature_data" id="signature-data-input" value="">
                         <input type="hidden" name="save_signature" id="save-sig-input"       value="0">
-                        <input type="hidden" name="drop_x"         id="drop-x-input"         value="">
-                        <input type="hidden" name="drop_y"         id="drop-y-input"         value="">
-                        <input type="hidden" name="drop_w"         id="drop-w-input"         value="">
-                        <input type="hidden" name="drop_h"         id="drop-h-input"         value="">
-                        <input type="hidden" name="drop_page"      id="drop-page-input"      value="">
+                        <input type="hidden" name="drop_placements" id="drop-placements-input" value="">
 
                         <!-- Sign view -->
                         <div x-show="activeAction === 'sign'">

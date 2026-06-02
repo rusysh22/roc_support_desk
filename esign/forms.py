@@ -102,11 +102,8 @@ class SignerSignForm(forms.Form):
             "placeholder": "Reason for rejection (required if rejecting)",
         }),
     )
-    drop_x    = forms.FloatField(required=False, widget=forms.HiddenInput())
-    drop_y    = forms.FloatField(required=False, widget=forms.HiddenInput())
-    drop_w    = forms.FloatField(required=False, widget=forms.HiddenInput())
-    drop_h    = forms.FloatField(required=False, widget=forms.HiddenInput())
-    drop_page = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    # JSON array: [{"page":1,"x":0.1,"y":0.2,"w":0.3,"h":0.1}, ...]
+    drop_placements = forms.CharField(required=False, widget=forms.HiddenInput())
 
     def clean(self):
         cleaned = super().clean()

@@ -115,25 +115,28 @@ def sign(request, token):
                     raw_bytes = base64.b64decode(sig_data)
                     img_file  = io.BytesIO(raw_bytes)
 
-                    # If the user dragged their signature to a custom position,
+                    # If the user positioned their signature(s) via drag & drop,
                     # replace existing placements with the user-chosen coordinates.
-                    drop_x = form.cleaned_data.get("drop_x")
-                    drop_y = form.cleaned_data.get("drop_y")
-                    drop_w = form.cleaned_data.get("drop_w")
-                    drop_h = form.cleaned_data.get("drop_h")
-                    drop_page = form.cleaned_data.get("drop_page") or 1
-                    if drop_x is not None and drop_y is not None:
+                    drop_placements_json = form.cleaned_data.get("drop_placements", "")
+                    if drop_placements_json:
+                        import json
                         from .models import SignaturePlacement
-                        signer.placements.all().delete()
-                        SignaturePlacement.objects.create(
-                            document=document,
-                            signer=signer,
-                            page_number=int(drop_page),
-                            x=max(0.0, min(1.0, drop_x)),
-                            y=max(0.0, min(1.0, drop_y)),
-                            width=max(0.01, min(1.0, drop_w)),
-                            height=max(0.01, min(1.0, drop_h)),
-                        )
+                        try:
+                            entries = json.loads(drop_placements_json)
+                            if isinstance(entries, list) and entries:
+                                signer.placements.all().delete()
+                                for entry in entries:
+                                    SignaturePlacement.objects.create(
+                                        document=document,
+                                        signer=signer,
+                                        page_number=int(entry.get("page", 1)),
+                                        x=max(0.0, min(1.0, float(entry.get("x", 0)))),
+                                        y=max(0.0, min(1.0, float(entry.get("y", 0)))),
+                                        width=max(0.01, min(1.0, float(entry.get("w", 0.2)))),
+                                        height=max(0.01, min(1.0, float(entry.get("h", 0.08)))),
+                                    )
+                        except (json.JSONDecodeError, ValueError, TypeError, KeyError):
+                            pass
 
                     actor_user = request.user if request.user.is_authenticated else None
                     record_signature(
