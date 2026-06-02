@@ -72,6 +72,8 @@ INSTALLED_APPS = [
     "manual.apps.ManualConfig",
     # App Portal
     "app_portal.apps.AppPortalConfig",
+    # E-Signature
+    "esign.apps.EsignConfig",
     # Field-level encryption
     "encrypted_model_fields",
 
@@ -290,6 +292,9 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
+
+# Public base URL used for building absolute links in emails (e.g. magic-link signing URLs)
+SITE_URL = env("SITE_URL", default="http://localhost:8000")
 
 # -----------------------------------------------------------------
 # Login / Auth redirects

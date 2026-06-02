@@ -55,3 +55,7 @@ google-genai>=1.0
 
 # PDF Generation (Document Template feature)
 weasyprint>=62.0
+
+# E-Signature stamping
+pypdf>=4.0
+reportlab>=4.0

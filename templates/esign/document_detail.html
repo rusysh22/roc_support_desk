@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Detail Dokumen — {{ doc.title }}{% endblock %}
+{% block nav_esign %}active{% endblock %}
+
+{% block content %}
+<div class="jk-page-header">
+    <div>
+        <h1 class="jk-page-title">{{ doc.title }}</h1>
+        <p class="jk-page-subtitle">
+            {% if doc.routing_mode == 'sequential' %}Berurutan{% else %}Bersamaan{% endif %} &middot;
+            {{ doc.signed_count }}/{{ doc.total_count }} tanda tangan terkumpul
+        </p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Kembali</a>
+        {% if doc.status == 'completed' and doc.signed_pdf %}
+        <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary" download>⬇ Unduh PDF Bertanda Tangan</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if messages %}
+    {% for msg in messages %}
+    <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+
+<!-- Status banner -->
+<div class="jk-card mb-6 {% if doc.status == 'completed' %}border-green-300 bg-green-50{% elif doc.status == 'rejected' %}border-red-300 bg-red-50{% elif doc.status == 'cancelled' %}border-slate-300 bg-slate-50{% else %}border-yellow-300 bg-yellow-50{% endif %}">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">
+            {% if doc.status == 'completed' %}✅
+            {% elif doc.status == 'rejected' %}❌
+            {% elif doc.status == 'cancelled' %}🚫
+            {% else %}⏳{% endif %}
+        </span>
+        <div>
+            <p class="font-semibold">
+                {% if doc.status == 'completed' %}Dokumen Selesai Ditandatangani
+                {% elif doc.status == 'rejected' %}Dokumen Ditolak
+                {% elif doc.status == 'cancelled' %}Dokumen Dibatalkan
+                {% elif doc.status == 'draft' %}Draft — Belum Dikirim
+                {% else %}Menunggu Tanda Tangan{% endif %}
+            </p>
+            {% if doc.due_at %}<p class="text-sm text-slate-500">Batas waktu: {{ doc.due_at|date:"d M Y H:i" }}</p>{% endif %}
+        </div>
+        <!-- Actions -->
+        <div class="ml-auto flex gap-2">
+            {% if doc.status == 'draft' %}
+            <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Konfigurasi</a>
+            {% endif %}
+            {% if doc.status in 'rejected,pending' %}
+            <form method="post" action="{% url 'esign:document_reopen' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline"
+                        onclick="return confirm('Buka kembali dan kirim ulang dokumen ini?')">
+                    🔄 Buka Kembali
+                </button>
+            </form>
+            {% endif %}
+            {% if doc.status not in 'completed,cancelled' %}
+            <form method="post" action="{% url 'esign:document_cancel' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-danger"
+                        onclick="return confirm('Batalkan dokumen ini?')">
+                    Batalkan
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Signers -->
+    <div class="lg:col-span-2">
+        <div class="jk-card">
+            <h2 class="font-bold text-base mb-4">Daftar Penanda Tangan</h2>
+            <div class="space-y-3">
+            {% for signer in signers %}
+                <div class="flex items-center gap-3 p-3 border border-slate-200 rounded-xl">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                        {{ signer.order }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm">{{ signer.display_name }}</p>
+                        <p class="text-xs text-slate-400">{{ signer.email }}</p>
+                        {% if signer.acted_at %}
+                        <p class="text-xs text-slate-400">{{ signer.acted_at|date:"d M Y H:i" }}</p>
+                        {% endif %}
+                        {% if signer.notes %}
+                        <p class="text-xs text-red-500 mt-0.5">Catatan: {{ signer.notes }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if signer.status == 'signed' %}
+                            <span class="jk-badge jk-badge-green">✅ Ditandatangani</span>
+                        {% elif signer.status == 'rejected' %}
+                            <span class="jk-badge jk-badge-red">❌ Ditolak</span>
+                        {% elif signer.status == 'pending' %}
+                            <span class="jk-badge jk-badge-yellow">⏳ Menunggu</span>
+                        {% else %}
+                            <span class="jk-badge jk-badge-gray">Antre</span>
+                        {% endif %}
+                    </div>
+                    {% if signer.status == 'pending' %}
+                    <form method="post" action="{% url 'esign:signer_remind' pk=doc.pk signer_pk=signer.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline text-xs">Kirim Pengingat</button>
+                    </form>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <p class="text-sm text-slate-400">Belum ada penanda tangan.</p>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit log -->
+    <div class="lg:col-span-1">
+        <div class="jk-card">
+            <h2 class="font-bold text-base mb-4">Riwayat Aktivitas</h2>
+            <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {% for ev in events %}
+                <div class="flex gap-2 text-sm">
+                    <div class="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 flex-shrink-0"></div>
+                    <div>
+                        <p class="font-medium">{{ ev.get_event_display }}</p>
+                        <p class="text-xs text-slate-400">
+                            {{ ev.actor_user|default:ev.actor_label|default:"System" }}
+                            &middot; {{ ev.created_at|date:"d M Y H:i" }}
+                        </p>
+                        {% if ev.detail %}<p class="text-xs text-slate-500 italic">{{ ev.detail|truncatechars:80 }}</p>{% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-xs text-slate-400">Belum ada aktivitas.</p>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

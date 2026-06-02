@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Upload Dokumen — E-Sign{% endblock %}
+{% block nav_esign %}active{% endblock %}
+
+{% block content %}
+<div class="jk-page-header">
+    <div>
+        <h1 class="jk-page-title">Upload Dokumen PDF</h1>
+        <p class="jk-page-subtitle">Langkah 1 dari 3 — Upload file dan atur preferensi pengiriman.</p>
+    </div>
+    <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Kembali</a>
+</div>
+
+<div class="jk-card max-w-2xl">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="space-y-5">
+            {% for field in form %}
+            <div>
+                <label class="jk-label" for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                    {% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                    <p class="text-xs text-slate-400 mt-1">{{ field.help_text }}</p>
+                {% endif %}
+                {% for error in field.errors %}
+                    <p class="text-xs text-red-500 mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex gap-3">
+            <button type="submit" class="jk-btn jk-btn-primary">Lanjut → Konfigurasi Penanda Tangan</button>
+            <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">Batal</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

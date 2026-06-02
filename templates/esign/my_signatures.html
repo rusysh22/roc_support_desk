@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Tanda Tangan Saya — E-Sign{% endblock %}
+{% block nav_my_signatures %}active{% endblock %}
+
+{% block content %}
+<div class="jk-page-header">
+    <div>
+        <h1 class="jk-page-title">Tanda Tangan Saya</h1>
+        <p class="jk-page-subtitle">Dokumen yang memerlukan tanda tangan Anda.</p>
+    </div>
+</div>
+
+{% if messages %}
+    {% for msg in messages %}
+    <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+
+<!-- Pending -->
+{% if pending_signers %}
+<div class="jk-card mb-6">
+    <h2 class="font-bold text-base mb-4 flex items-center gap-2">
+        ⏳ Menunggu Tanda Tangan Anda
+        <span class="jk-badge jk-badge-yellow">{{ pending_count }}</span>
+    </h2>
+    <div class="space-y-3">
+    {% for signer in pending_signers %}
+        <div class="flex items-center gap-4 p-4 border border-yellow-200 bg-yellow-50 rounded-xl">
+            <div class="flex-1 min-w-0">
+                <p class="font-semibold text-sm">{{ signer.document.title }}</p>
+                <p class="text-xs text-slate-500">
+                    Diminta oleh {{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}
+                    &middot; Dibuat {{ signer.document.created_at|date:"d M Y" }}
+                </p>
+                {% if signer.document.due_at %}
+                <p class="text-xs text-red-500">Batas: {{ signer.document.due_at|date:"d M Y H:i" }}</p>
+                {% endif %}
+                {% if signer.document.message %}
+                <p class="text-xs text-slate-600 mt-1 italic">"{{ signer.document.message|truncatechars:100 }}"</p>
+                {% endif %}
+            </div>
+            <a href="{% url 'esign_public:sign' token=signer.token %}"
+               class="jk-btn jk-btn-primary jk-btn-sm flex-shrink-0">
+                ✍ Tanda Tangan
+            </a>
+        </div>
+    {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Completed -->
+<div class="jk-card">
+    <h2 class="font-bold text-base mb-4">Riwayat</h2>
+    {% if completed_signers %}
+    <table class="jk-table w-full">
+        <thead>
+            <tr>
+                <th>Dokumen</th>
+                <th>Status</th>
+                <th>Tanggal</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for signer in completed_signers %}
+            <tr>
+                <td class="font-medium text-sm">{{ signer.document.title }}</td>
+                <td>
+                    {% if signer.status == 'signed' %}
+                        <span class="jk-badge jk-badge-green">Ditandatangani</span>
+                    {% else %}
+                        <span class="jk-badge jk-badge-red">Ditolak</span>
+                    {% endif %}
+                </td>
+                <td class="text-sm text-slate-500">{{ signer.acted_at|date:"d M Y H:i"|default:"—" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-slate-400">Belum ada riwayat penandatanganan.</p>
+    {% endif %}
+</div>
+{% endblock %}

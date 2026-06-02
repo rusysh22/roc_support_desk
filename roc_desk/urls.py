@@ -94,6 +94,10 @@ urlpatterns = [
     # App Portal
     path("apps/", include("app_portal.urls", namespace="app_portal")),
 
+    # E-Signature
+    path("esign/", include("esign.urls", namespace="esign")),
+    path("sign/", include("esign.urls_public", namespace="esign_public")),
+
     # AI Assistant API
     path("api/ai/ask/", lambda r: __import__("core.views_ai", fromlist=["ai_ask_view"]).ai_ask_view(r), name="ai_ask"),
 ]

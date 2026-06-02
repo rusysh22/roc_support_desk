@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tanda Tangan — {{ document.title }}{% endblock %}
+
+{% block extra_head %}
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- Signature Pad -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
+<style>
+#sig-canvas { border: 2px dashed #6366f1; border-radius: 8px; background: #fafafe; touch-action: none; width: 100%; }
+#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
+#pdf-canvas { display: block; max-width: 100%; }
+.placement-box {
+    position: absolute;
+    border: 2px dashed #6366f1;
+    background: rgba(99,102,241,0.08);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #4f46e5;
+    font-weight: 600;
+    pointer-events: none;
+}
+</style>
+{% endblock %}
+
+{% block layout %}
+<!-- Full-page layout — no sidebar for external signers -->
+<div class="min-h-screen bg-slate-50 py-8 px-4" x-data="signPage()" x-init="init()">
+    <div class="max-w-5xl mx-auto">
+
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800">Permintaan Tanda Tangan</h1>
+            <p class="text-slate-500 text-sm mt-1">{{ document.title }}</p>
+        </div>
+
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+            <!-- PDF viewer -->
+            <div class="lg:col-span-3">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                                class="jk-btn jk-btn-sm jk-btn-outline">‹</button>
+                        <span class="text-sm text-slate-600">
+                            Halaman <span x-text="currentPage"></span> / <span x-text="totalPages"></span>
+                        </span>
+                        <button @click="changePage(1)" :disabled="currentPage >= totalPages"
+                                class="jk-btn jk-btn-sm jk-btn-outline">›</button>
+                    </div>
+                    <div id="pdf-viewer-wrap">
+                        <canvas id="pdf-canvas"></canvas>
+                        <!-- Placement markers -->
+                        <template x-for="p in currentPagePlacements()" :key="p.page + '-' + p.x">
+                            <div class="placement-box"
+                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
+                                ✍ Tanda Tangan di Sini
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signing panel -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-5">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">Penanda Tangan</p>
+                        <p class="text-base font-bold">{{ signer.display_name }}</p>
+                        <p class="text-xs text-slate-400">{{ signer.email }}</p>
+                    </div>
+
+                    {% if document.message %}
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-sm text-slate-700">
+                        <p class="font-medium text-indigo-700 mb-1">Pesan dari pengirim:</p>
+                        {{ document.message }}
+                    </div>
+                    {% endif %}
+
+                    <form method="post" id="sign-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" id="action-input" value="sign">
+                        <input type="hidden" name="signature_data" id="signature-data-input">
+
+                        <!-- Signature canvas -->
+                        <div x-show="activeAction !== 'reject'" class="space-y-3">
+                            <p class="text-sm font-semibold text-slate-700">Gambar Tanda Tangan Anda</p>
+                            <canvas id="sig-canvas" width="400" height="140"></canvas>
+                            <div class="flex gap-2">
+                                <button type="button" @click="clearSig()" class="jk-btn jk-btn-sm jk-btn-outline flex-1">Hapus</button>
+                                <button type="button" @click="activeAction = 'reject'" class="jk-btn jk-btn-sm jk-btn-danger flex-1">Tolak</button>
+                            </div>
+                        </div>
+
+                        <!-- Reject panel -->
+                        <div x-show="activeAction === 'reject'" class="space-y-3">
+                            <p class="text-sm font-semibold text-red-600">Alasan Penolakan</p>
+                            <textarea name="notes" rows="4"
+                                      class="jk-input text-sm"
+                                      placeholder="Jelaskan alasan penolakan (wajib diisi)..."></textarea>
+                            <button type="button" @click="activeAction = 'sign'" class="jk-btn jk-btn-sm jk-btn-outline w-full">← Kembali ke Penandatanganan</button>
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="pt-2">
+                            <button type="button" @click="submitSign()"
+                                    x-show="activeAction !== 'reject'"
+                                    class="jk-btn jk-btn-primary w-full">
+                                ✅ Konfirmasi Tanda Tangan
+                            </button>
+                            <button type="button" @click="submitReject()"
+                                    x-show="activeAction === 'reject'"
+                                    class="jk-btn jk-btn-danger w-full">
+                                ❌ Konfirmasi Penolakan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-400 mt-8">
+            Dokumen ini diproses melalui sistem tanda tangan digital yang aman.
+            Tanda tangan Anda akan dicatat bersama alamat IP dan waktu akses.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PDF_URL = "{{ document.original_pdf.url }}";
+const PLACEMENTS = {{ placements_json|safe }};
+
+function signPage() {
+    return {
+        currentPage: 1,
+        totalPages: 1,
+        pdfDoc: null,
+        canvasEl: null,
+        wrapEl: null,
+        canvasW: 0,
+        canvasH: 0,
+        sigPad: null,
+        activeAction: 'sign',
+
+        async init() {
+            this.canvasEl = document.getElementById('pdf-canvas');
+            this.wrapEl   = document.getElementById('pdf-viewer-wrap');
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            this.pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+            this.totalPages = this.pdfDoc.numPages;
+            await this.renderPage(1);
+
+            const sigCanvas = document.getElementById('sig-canvas');
+            // Adjust canvas to actual display size for HDPI
+            sigCanvas.width  = sigCanvas.offsetWidth  * window.devicePixelRatio;
+            sigCanvas.height = sigCanvas.offsetHeight * window.devicePixelRatio;
+            this.sigPad = new SignaturePad(sigCanvas, { backgroundColor: 'rgba(255,255,255,0)' });
+        },
+
+        async renderPage(num) {
+            if (!this.pdfDoc) return;
+            this.currentPage = num;
+            const page = await this.pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: 1 });
+            const wrapW = this.wrapEl.clientWidth || 600;
+            const scale = wrapW / viewport.width;
+            const scaled = page.getViewport({ scale });
+            this.canvasEl.width  = scaled.width;
+            this.canvasEl.height = scaled.height;
+            this.canvasW = scaled.width;
+            this.canvasH = scaled.height;
+            await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
+        },
+
+        changePage(delta) {
+            const next = this.currentPage + delta;
+            if (next >= 1 && next <= this.totalPages) this.renderPage(next);
+        },
+
+        currentPagePlacements() {
+            return PLACEMENTS
+                .filter(p => p.page === this.currentPage)
+                .map(p => ({
+                    ...p,
+                    xPx: p.x * this.canvasW,
+                    yPx: p.y * this.canvasH,
+                    wPx: p.w * this.canvasW,
+                    hPx: p.h * this.canvasH,
+                }));
+        },
+
+        clearSig() {
+            if (this.sigPad) this.sigPad.clear();
+        },
+
+        submitSign() {
+            if (!this.sigPad || this.sigPad.isEmpty()) {
+                alert('Silakan gambar tanda tangan Anda terlebih dahulu.');
+                return;
+            }
+            document.getElementById('action-input').value = 'sign';
+            document.getElementById('signature-data-input').value = this.sigPad.toDataURL('image/png');
+            document.getElementById('sign-form').submit();
+        },
+
+        submitReject() {
+            document.getElementById('action-input').value = 'reject';
+            document.getElementById('signature-data-input').value = '';
+            document.getElementById('sign-form').submit();
+        },
+    };
+}
+</script>
+{% endblock %}

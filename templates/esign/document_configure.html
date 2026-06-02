@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Konfigurasi Penanda Tangan — {{ doc.title }}{% endblock %}
+{% block nav_esign %}active{% endblock %}
+
+{% block extra_head %}
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
+#pdf-canvas { display: block; max-width: 100%; }
+.placement-box {
+    position: absolute;
+    border: 2px dashed #6366f1;
+    background: rgba(99,102,241,0.1);
+    cursor: move;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #4f46e5;
+    font-weight: 600;
+    user-select: none;
+}
+.placement-box .remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 9999px;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="esignConfigure()" x-init="init()">
+
+<div class="jk-page-header">
+    <div>
+        <h1 class="jk-page-title">{{ doc.title }}</h1>
+        <p class="jk-page-subtitle">Langkah 2 dari 3 — Tambah penanda tangan dan tentukan posisi tanda tangan.</p>
+    </div>
+    <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">← Kembali</a>
+</div>
+
+{% if messages %}
+    {% for msg in messages %}
+    <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left Panel: Signers -->
+    <div class="lg:col-span-1 space-y-4">
+
+        <!-- Flow Template Preset -->
+        {% if flow_templates %}
+        <div class="jk-card">
+            <h3 class="font-semibold text-sm text-slate-700 mb-3">Preset Alur</h3>
+            <select id="flow-template-select" class="jk-select text-sm mb-2">
+                <option value="">— Pilih preset —</option>
+                {% for ft in flow_templates %}
+                <option value="{{ ft.pk }}">{{ ft.name }} ({{ ft.get_routing_mode_display }})</option>
+                {% endfor %}
+            </select>
+            <button @click="applyTemplate()" class="jk-btn jk-btn-sm jk-btn-outline w-full">Terapkan Preset</button>
+        </div>
+        {% endif %}
+
+        <!-- Routing mode -->
+        <div class="jk-card">
+            <h3 class="font-semibold text-sm text-slate-700 mb-3">Mode Penandatanganan</h3>
+            <select x-model="routingMode" class="jk-select text-sm">
+                <option value="sequential">Berurutan (satu per satu)</option>
+                <option value="parallel">Bersamaan (semua sekaligus)</option>
+            </select>
+        </div>
+
+        <!-- Signer list -->
+        <div class="jk-card">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-sm text-slate-700">Penanda Tangan</h3>
+                <button @click="addSignerModal = true" class="jk-btn jk-btn-sm jk-btn-primary">+ Tambah</button>
+            </div>
+
+            <div class="space-y-2" id="signer-list">
+                <template x-for="(s, idx) in signers" :key="idx">
+                    <div class="flex items-center gap-2 p-2 border border-slate-200 rounded-lg">
+                        <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
+                              x-text="s.order"></span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium truncate" x-text="s.name"></div>
+                            <div class="text-xs text-slate-400 truncate" x-text="s.email"></div>
+                        </div>
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" x-text="s.role"></span>
+                        <button @click="selectSigner(idx)"
+                                :class="selectedSigner === idx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'"
+                                class="text-xs px-2 py-1 rounded-md">Pilih</button>
+                        <button @click="removeSigner(idx)" class="text-red-400 hover:text-red-600 text-sm">✕</button>
+                    </div>
+                </template>
+                <p x-show="signers.length === 0" class="text-xs text-slate-400 text-center py-3">
+                    Belum ada penanda tangan.
+                </p>
+            </div>
+        </div>
+
+        <!-- Add placement -->
+        <div class="jk-card" x-show="selectedSigner !== null">
+            <h3 class="font-semibold text-sm text-slate-700 mb-3">
+                Tambah Kotak TTD untuk: <span class="text-indigo-600" x-text="signers[selectedSigner]?.name"></span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-2">Pilih halaman lalu klik pada PDF untuk menempatkan kotak tanda tangan.</p>
+            <div class="flex gap-2 items-center mb-2">
+                <label class="text-xs text-slate-600">Halaman:</label>
+                <input type="number" x-model.number="currentPage" min="1" max="{{ doc.page_count }}"
+                       class="jk-input text-sm w-20" @change="renderPage(currentPage)">
+                <span class="text-xs text-slate-400">/ {{ doc.page_count }}</span>
+            </div>
+            <button @click="placingMode = !placingMode"
+                    :class="placingMode ? 'jk-btn-primary' : 'jk-btn-outline'"
+                    class="jk-btn jk-btn-sm w-full">
+                <span x-text="placingMode ? '✅ Klik PDF untuk menempatkan kotak' : '🖊 Mode Penempatan'"></span>
+            </button>
+        </div>
+
+        <!-- Send button -->
+        <div class="jk-card">
+            <button @click="saveAndSend()" class="jk-btn jk-btn-primary w-full" :disabled="saving">
+                <span x-text="saving ? 'Menyimpan...' : 'Simpan & Kirim ke Penanda Tangan →'"></span>
+            </button>
+            <p class="text-xs text-slate-400 mt-2 text-center">Konfigurasi akan disimpan lalu dokumen dikirim.</p>
+        </div>
+    </div>
+
+    <!-- Right Panel: PDF viewer -->
+    <div class="lg:col-span-2">
+        <div class="jk-card p-3">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                            class="jk-btn jk-btn-sm jk-btn-outline">‹</button>
+                    <span class="text-sm text-slate-600">
+                        Halaman <span x-text="currentPage"></span> / {{ doc.page_count }}
+                    </span>
+                    <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
+                            class="jk-btn jk-btn-sm jk-btn-outline">›</button>
+                </div>
+                <span class="text-xs text-slate-400" x-show="placingMode">Klik untuk menempatkan tanda tangan</span>
+            </div>
+
+            <div id="pdf-viewer-wrap" @click="onCanvasClick($event)"
+                 :style="placingMode ? 'cursor: crosshair' : 'cursor: default'">
+                <canvas id="pdf-canvas"></canvas>
+                <!-- Placement boxes rendered here -->
+                <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
+                    <div class="placement-box"
+                         :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
+                        <span x-text="'✍ ' + (signers[p.signerIndex]?.name || '')"></span>
+                        <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Signer Modal -->
+<div x-show="addSignerModal" x-cloak
+     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.stop>
+        <h3 class="font-bold text-lg mb-4">Tambah Penanda Tangan</h3>
+
+        <div class="flex gap-2 mb-4">
+            <button @click="newSignerType='user'"
+                    :class="newSignerType==='user' ? 'jk-btn-primary' : 'jk-btn-outline'"
+                    class="jk-btn jk-btn-sm flex-1">User Sistem</button>
+            <button @click="newSignerType='external'"
+                    :class="newSignerType==='external' ? 'jk-btn-primary' : 'jk-btn-outline'"
+                    class="jk-btn jk-btn-sm flex-1">Eksternal (Email)</button>
+        </div>
+
+        <!-- System user search -->
+        <div x-show="newSignerType === 'user'" class="space-y-3">
+            <div>
+                <label class="jk-label">Cari User</label>
+                <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
+                       class="jk-input" placeholder="Nama atau email...">
+                <div x-show="userResults.length > 0"
+                     class="mt-1 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                    <template x-for="u in userResults" :key="u.id">
+                        <div @click="selectFoundUser(u)"
+                             class="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-sm border-b border-slate-100 last:border-0">
+                            <div class="font-medium" x-text="u.name"></div>
+                            <div class="text-xs text-slate-400" x-text="u.email + ' — ' + u.role"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div x-show="newSigner.name" class="text-sm bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                Dipilih: <strong x-text="newSigner.name"></strong>
+            </div>
+        </div>
+
+        <!-- External -->
+        <div x-show="newSignerType === 'external'" class="space-y-3">
+            <div>
+                <label class="jk-label">Nama Lengkap <span class="text-red-500">*</span></label>
+                <input type="text" x-model="newSigner.name" class="jk-input" placeholder="Nama penanda tangan">
+            </div>
+            <div>
+                <label class="jk-label">Email <span class="text-red-500">*</span></label>
+                <input type="email" x-model="newSigner.email" class="jk-input" placeholder="email@example.com">
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-4">
+            <div class="flex-1">
+                <label class="jk-label">Urutan</label>
+                <input type="number" x-model.number="newSigner.order" min="1" class="jk-input">
+            </div>
+            <div class="flex-1">
+                <label class="jk-label">Peran</label>
+                <select x-model="newSigner.role" class="jk-select">
+                    <option value="signer">Penanda Tangan</option>
+                    <option value="approver">Approver</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-5">
+            <button @click="confirmAddSigner()" class="jk-btn jk-btn-primary flex-1">Tambah</button>
+            <button @click="addSignerModal = false" class="jk-btn jk-btn-outline flex-1">Batal</button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for final send -->
+<form id="send-form" method="post" action="{% url 'esign:document_send' pk=doc.pk %}">
+    {% csrf_token %}
+</form>
+
+</div><!-- end x-data -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PDF_URL = "{{ doc.original_pdf.url }}";
+const SAVE_URL = "{% url 'esign:save_configuration' pk=doc.pk %}";
+const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
+const USER_SEARCH_URL = "{% url 'esign:user_search' %}";
+
+function esignConfigure() {
+    return {
+        signers: [],
+        placements: [],       // {signerIndex, page, x, y, w, h} (normalized 0-1)
+        selectedSigner: null,
+        placingMode: false,
+        routingMode: 'sequential',
+        currentPage: 1,
+        saving: false,
+        addSignerModal: false,
+        newSignerType: 'user',
+        newSigner: { name: '', email: '', userId: null, order: 1, role: 'signer' },
+        userQuery: '',
+        userResults: [],
+        pdfDoc: null,
+        canvasEl: null,
+        wrapEl: null,
+        canvasW: 0,
+        canvasH: 0,
+
+        async init() {
+            this.canvasEl = document.getElementById('pdf-canvas');
+            this.wrapEl   = document.getElementById('pdf-viewer-wrap');
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            this.pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+            await this.renderPage(1);
+        },
+
+        async renderPage(num) {
+            if (!this.pdfDoc) return;
+            this.currentPage = num;
+            const page = await this.pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: 1 });
+            const wrapW = this.wrapEl.clientWidth || 700;
+            const scale = wrapW / viewport.width;
+            const scaled = page.getViewport({ scale });
+            this.canvasEl.width  = scaled.width;
+            this.canvasEl.height = scaled.height;
+            this.canvasW = scaled.width;
+            this.canvasH = scaled.height;
+            await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
+        },
+
+        changePage(delta) {
+            const next = this.currentPage + delta;
+            if (next >= 1 && next <= {{ doc.page_count }}) this.renderPage(next);
+        },
+
+        onCanvasClick(e) {
+            if (!this.placingMode || this.selectedSigner === null) return;
+            const rect = this.wrapEl.getBoundingClientRect();
+            const xPx = e.clientX - rect.left;
+            const yPx = e.clientY - rect.top;
+            // Default box size: 22% wide × 8% tall
+            const wPx = this.canvasW * 0.22;
+            const hPx = this.canvasH * 0.08;
+            this.placements.push({
+                signerIndex: this.selectedSigner,
+                page: this.currentPage,
+                x: xPx / this.canvasW,
+                y: yPx / this.canvasH,
+                w: wPx / this.canvasW,
+                h: hPx / this.canvasH,
+            });
+            this.placingMode = false;
+        },
+
+        currentPagePlacements() {
+            return this.placements
+                .map((p, globalIdx) => ({
+                    ...p,
+                    globalIdx,
+                    xPx: p.x * this.canvasW,
+                    yPx: p.y * this.canvasH,
+                    wPx: p.w * this.canvasW,
+                    hPx: p.h * this.canvasH,
+                }))
+                .filter(p => p.page === this.currentPage);
+        },
+
+        removePlacement(idx) {
+            this.placements.splice(idx, 1);
+        },
+
+        selectSigner(idx) {
+            this.selectedSigner = idx;
+        },
+
+        removeSigner(idx) {
+            this.placements = this.placements.filter(p => p.signerIndex !== idx)
+                .map(p => ({ ...p, signerIndex: p.signerIndex > idx ? p.signerIndex - 1 : p.signerIndex }));
+            this.signers.splice(idx, 1);
+            if (this.selectedSigner >= this.signers.length) this.selectedSigner = null;
+        },
+
+        async searchUsers() {
+            if (this.userQuery.length < 2) { this.userResults = []; return; }
+            const resp = await fetch(`${USER_SEARCH_URL}?q=${encodeURIComponent(this.userQuery)}`);
+            const data = await resp.json();
+            this.userResults = data.results;
+        },
+
+        selectFoundUser(u) {
+            this.newSigner.name   = u.name;
+            this.newSigner.email  = u.email;
+            this.newSigner.userId = u.id;
+            this.userResults = [];
+            this.userQuery   = u.name;
+        },
+
+        confirmAddSigner() {
+            if (!this.newSigner.name || !this.newSigner.email) {
+                alert('Nama dan email wajib diisi.');
+                return;
+            }
+            this.signers.push({
+                type:   this.newSignerType,
+                userId: this.newSigner.userId,
+                name:   this.newSigner.name,
+                email:  this.newSigner.email,
+                order:  this.newSigner.order || (this.signers.length + 1),
+                role:   this.newSigner.role,
+            });
+            this.newSigner = { name: '', email: '', userId: null, order: this.signers.length + 1, role: 'signer' };
+            this.userQuery = '';
+            this.addSignerModal = false;
+        },
+
+        async applyTemplate() {
+            const sel = document.getElementById('flow-template-select');
+            if (!sel.value) return;
+            const fd = new FormData();
+            fd.append('template_id', sel.value);
+            fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            const resp = await fetch(APPLY_TEMPLATE_URL, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (data.ok) {
+                this.routingMode = data.routing_mode;
+                location.reload();
+            }
+        },
+
+        async saveAndSend() {
+            if (this.signers.length === 0) { alert('Tambahkan minimal satu penanda tangan.'); return; }
+            this.saving = true;
+            const payload = {
+                routing_mode: this.routingMode,
+                signers: this.signers.map((s, i) => ({
+                    type:  s.type,
+                    user_id: s.userId,
+                    name:  s.name,
+                    email: s.email,
+                    order: s.order,
+                    role:  s.role,
+                })),
+                placements: this.placements.map(p => ({
+                    signer_index: p.signerIndex,
+                    page:  p.page,
+                    x:     p.x,
+                    y:     p.y,
+                    w:     p.w,
+                    h:     p.h,
+                    field_type: 'signature',
+                })),
+            };
+            const resp = await fetch(SAVE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            this.saving = false;
+            if (data.ok) {
+                document.getElementById('send-form').submit();
+            } else {
+                alert(data.error || 'Terjadi kesalahan saat menyimpan.');
+            }
+        },
+    };
+}
+</script>
+{% endblock %}
