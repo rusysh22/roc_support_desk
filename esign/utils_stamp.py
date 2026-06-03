@@ -105,11 +105,6 @@ def _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations):
 # Stamp style: "branded" — styled stamp frame with logo, all inside the box
 # ---------------------------------------------------------------------------
 
-def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
-                   site_name="E-Sign", logo_reader=None):
-    """
-    Draw a branded stamp frame within the placement box boundaries:
-    - Dark header band at top: site logo + "Digitally Signed" label
 def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations, logo_reader, site_name=""):
     import io
     from reportlab.lib.utils import ImageReader
