@@ -42,7 +42,9 @@ def _build_annotations(signer):
     if getattr(signer, "stamp_job_role", False) and signer.stamp_job_role_text:
         parts.append(signer.stamp_job_role_text)
     if getattr(signer, "stamp_timestamp", True) and signer.acted_at:
-        parts.append(signer.acted_at.strftime("%d %b %Y %H:%M"))
+        from django.utils import timezone
+        local_time = timezone.localtime(signer.acted_at)
+        parts.append(local_time.strftime("%d %b %Y %H:%M %Z"))
     return parts
 
 
