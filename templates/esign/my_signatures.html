@@ -136,8 +136,9 @@
     {% if completed_signers %}
     <div class="space-y-2">
     {% for signer in completed_signers %}
-        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-indigo-200 hover:shadow-sm transition-all"
-             x-show="!search || '{{ signer.document.title|lower|escapejs }}'.includes(search.toLowerCase())">
+        <a href="{% url 'esign:my_signature_detail' pk=signer.pk %}"
+           class="block bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-indigo-300 hover:shadow-md transition-all group"
+           x-show="!search || '{{ signer.document.title|lower|escapejs }}'.includes(search.toLowerCase())">
             <div class="px-5 py-3.5 flex items-center gap-3">
                 <!-- Status dot -->
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0
@@ -179,16 +180,10 @@
                     <span class="text-xs text-slate-400 whitespace-nowrap hidden sm:block">{{ signer.acted_at|date:"d M Y H:i"|default:"—" }}</span>
                 </div>
 
-                <!-- Link to detail if completed -->
-                {% if signer.document.status == 'completed' %}
-                <a href="{% url 'esign:document_detail' pk=signer.document.pk %}"
-                   class="flex-shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
-                   title="Lihat dokumen">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                </a>
-                {% endif %}
+                <!-- Chevron -->
+                <svg class="h-4 w-4 text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
             </div>
             {% if signer.notes %}
             <div class="px-5 py-2 bg-red-50 border-t border-red-100">
@@ -198,7 +193,7 @@
                 </p>
             </div>
             {% endif %}
-        </div>
+        </a>
     {% endfor %}
     </div>
 

@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}{{ document.title }} — My Signatures{% endblock %}
+{% block nav_my_signatures %}active{% endblock %}
+
+{% block content %}
+<div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false">
+
+{% if document.status == 'completed' and document.signed_pdf %}
+<!-- PDF Viewer Modal -->
+<template x-teleport="body">
+    <div x-show="pdfOpen" x-cloak
+         class="fixed inset-0 z-50 flex flex-col bg-black/75"
+         @click.self="pdfOpen = false"
+         style="display:none">
+        <div class="bg-white flex items-center justify-between px-5 py-3 shadow-md flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                    <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800 text-sm">{{ document.title }}</p>
+                    <p class="text-xs text-slate-400">Dokumen Bertanda Tangan</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ document.signed_pdf.url }}" download
+                   class="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Unduh
+                </a>
+                <button @click="pdfOpen = false"
+                        class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 p-3 overflow-hidden">
+            <iframe src="{{ document.signed_pdf.url }}"
+                    class="w-full h-full rounded-xl border border-white/10"
+                    title="Signed PDF Viewer">
+            </iframe>
+        </div>
+    </div>
+</template>
+{% endif %}
+
+<!-- Page Header -->
+<div class="jk-page-header">
+    <div>
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">My Signatures</p>
+        <h1 class="jk-page-title truncate max-w-xl">{{ document.title }}</h1>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+        <a href="{% url 'esign:my_signatures' %}"
+           class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Kembali
+        </a>
+        {% if document.status == 'completed' and document.signed_pdf %}
+        <button @click="pdfOpen = true"
+                class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Lihat Dokumen
+        </button>
+        <a href="{{ document.signed_pdf.url }}" download
+           class="jk-btn jk-btn-primary inline-flex items-center gap-2">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Unduh PDF
+        </a>
+        {% elif signer.status == 'pending' %}
+        <a href="{% url 'esign_public:sign' token=signer.token %}"
+           class="jk-btn jk-btn-primary inline-flex items-center gap-2">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+            </svg>
+            Tandatangani Sekarang
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Left: Signature info + PDF preview -->
+    <div class="lg:col-span-2 space-y-5">
+
+        <!-- Document status banner -->
+        <div class="rounded-2xl border px-5 py-4 flex items-center gap-4
+            {% if document.status == 'completed' %}bg-green-50 border-green-200
+            {% elif document.status == 'rejected' %}bg-red-50 border-red-200
+            {% elif document.status == 'pending' %}bg-amber-50 border-amber-200
+            {% elif document.status == 'cancelled' %}bg-slate-50 border-slate-200
+            {% else %}bg-indigo-50 border-indigo-200{% endif %}">
+            <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center
+                {% if document.status == 'completed' %}bg-green-100 text-green-600
+                {% elif document.status == 'rejected' %}bg-red-100 text-red-500
+                {% elif document.status == 'pending' %}bg-amber-100 text-amber-600
+                {% elif document.status == 'cancelled' %}bg-slate-100 text-slate-400
+                {% else %}bg-indigo-100 text-indigo-500{% endif %}">
+                {% if document.status == 'completed' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% elif document.status == 'rejected' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% elif document.status == 'pending' %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% else %}
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636"/></svg>
+                {% endif %}
+            </div>
+            <div class="flex-1">
+                <p class="font-semibold text-slate-800">
+                    {% if document.status == 'completed' %}Dokumen Selesai Ditandatangani
+                    {% elif document.status == 'rejected' %}Dokumen Ditolak
+                    {% elif document.status == 'pending' %}Menunggu Tanda Tangan
+                    {% elif document.status == 'cancelled' %}Dokumen Dibatalkan
+                    {% else %}Draft{% endif %}
+                </p>
+                <p class="text-sm text-slate-500 mt-0.5">
+                    {{ document.signed_count }}/{{ document.total_count }} tanda tangan dikumpulkan
+                    &nbsp;·&nbsp;
+                    {% if document.routing_mode == 'sequential' %}Sequential{% else %}Parallel{% endif %}
+                </p>
+            </div>
+            {% if document.status == 'completed' and document.signed_pdf %}
+            <button @click="pdfOpen = true"
+                    class="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Preview Dokumen
+            </button>
+            {% endif %}
+        </div>
+
+        <!-- Signed PDF inline preview (collapsed by default, expandable) -->
+        {% if document.status == 'completed' and document.signed_pdf %}
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden"
+             x-data="{ expanded: false }">
+            <button @click="expanded = !expanded"
+                    class="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                        <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <div class="text-left">
+                        <p class="font-semibold text-slate-800 text-sm">Preview Dokumen Bertanda Tangan</p>
+                        <p class="text-xs text-slate-400">Klik untuk membuka/menutup preview</p>
+                    </div>
+                </div>
+                <svg class="h-5 w-5 text-slate-400 transition-transform"
+                     :class="expanded ? 'rotate-180' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div x-show="expanded" x-cloak class="border-t border-slate-100 p-3">
+                <iframe src="{{ document.signed_pdf.url }}"
+                        class="w-full rounded-xl border border-slate-100"
+                        style="height: 65vh; min-height: 400px;"
+                        title="Signed PDF Preview">
+                </iframe>
+                <div class="flex justify-end mt-2">
+                    <a href="{{ document.signed_pdf.url }}" download
+                       class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Unduh PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% elif document.status == 'pending' %}
+        <!-- Pending: show original PDF preview -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden"
+             x-data="{ expanded: false }">
+            <button @click="expanded = !expanded"
+                    class="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <svg class="h-4 w-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <div class="text-left">
+                        <p class="font-semibold text-slate-800 text-sm">Preview Dokumen Asli</p>
+                        <p class="text-xs text-slate-400">Dokumen yang perlu Anda tandatangani</p>
+                    </div>
+                </div>
+                <svg class="h-5 w-5 text-slate-400 transition-transform"
+                     :class="expanded ? 'rotate-180' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div x-show="expanded" x-cloak class="border-t border-slate-100 p-3">
+                <iframe src="{{ document.original_pdf.url }}"
+                        class="w-full rounded-xl border border-slate-100"
+                        style="height: 65vh; min-height: 400px;"
+                        title="Original PDF Preview">
+                </iframe>
+                <div class="flex justify-end mt-2">
+                    <a href="{% url 'esign_public:sign' token=signer.token %}"
+                       class="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl transition-colors">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                        Tandatangani Sekarang
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Right: Signer details -->
+    <div class="space-y-4">
+
+        <!-- My signing record -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider mb-4">Tanda Tangan Saya</h2>
+
+            <!-- Status -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center
+                    {% if signer.status == 'signed' %}bg-green-100 text-green-600
+                    {% elif signer.status == 'rejected' %}bg-red-100 text-red-500
+                    {% elif signer.status == 'pending' %}bg-amber-100 text-amber-600
+                    {% else %}bg-slate-100 text-slate-400{% endif %}">
+                    {% if signer.status == 'signed' %}
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {% elif signer.status == 'rejected' %}
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    {% elif signer.status == 'pending' %}
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    {% else %}
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800 text-sm">{{ signer.display_name }}</p>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                        {% if signer.status == 'signed' %}bg-green-100 text-green-700
+                        {% elif signer.status == 'rejected' %}bg-red-100 text-red-700
+                        {% elif signer.status == 'pending' %}bg-amber-100 text-amber-700
+                        {% else %}bg-slate-100 text-slate-500{% endif %}">
+                        {% if signer.status == 'signed' %}Ditandatangani
+                        {% elif signer.status == 'rejected' %}Ditolak
+                        {% elif signer.status == 'pending' %}Menunggu Aksi
+                        {% else %}Menunggu Giliran{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Signature image -->
+            {% if signer.signature_image %}
+            <div class="mb-4">
+                <p class="text-xs font-medium text-slate-500 mb-2">Gambar Tanda Tangan</p>
+                <div class="border border-slate-200 rounded-xl p-3 bg-slate-50 flex items-center justify-center">
+                    <img src="{{ signer.signature_image.url }}" alt="Tanda tangan"
+                         class="max-h-24 max-w-full object-contain">
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Annotation choices -->
+            {% if signer.status == 'signed' %}
+            <div class="mb-4 space-y-1.5">
+                <p class="text-xs font-medium text-slate-500 mb-2">Anotasi di PDF</p>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Nama terang</span>
+                    {% if signer.stamp_name %}
+                    <span class="text-green-600 font-semibold flex items-center gap-1"><svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Ya</span>
+                    {% else %}
+                    <span class="text-slate-400">Tidak</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Timestamp</span>
+                    {% if signer.stamp_timestamp %}
+                    <span class="text-green-600 font-semibold flex items-center gap-1"><svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Ya</span>
+                    {% else %}
+                    <span class="text-slate-400">Tidak</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Jabatan</span>
+                    {% if signer.stamp_job_role and signer.stamp_job_role_text %}
+                    <span class="text-indigo-600 font-semibold">{{ signer.stamp_job_role_text }}</span>
+                    {% else %}
+                    <span class="text-slate-400">Tidak dicantumkan</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Signing metadata -->
+            {% if signer.acted_at %}
+            <div class="space-y-2 pt-3 border-t border-slate-100">
+                <div class="flex items-start justify-between gap-2 text-xs">
+                    <span class="text-slate-400">Waktu</span>
+                    <span class="text-slate-700 font-medium text-right">{{ signer.acted_at|date:"d M Y H:i" }}</span>
+                </div>
+                {% if signer.signed_ip %}
+                <div class="flex items-start justify-between gap-2 text-xs">
+                    <span class="text-slate-400">IP</span>
+                    <span class="text-slate-700 font-mono">{{ signer.signed_ip }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if signer.notes %}
+            <div class="mt-3 bg-red-50 border border-red-200 rounded-xl p-3">
+                <p class="text-xs font-medium text-red-600 mb-1">Alasan Penolakan</p>
+                <p class="text-xs text-red-700">{{ signer.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Document info -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider mb-4">Info Dokumen</h2>
+            <div class="space-y-2.5 text-xs">
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-slate-400">Dikirim oleh</span>
+                    <span class="text-slate-700 font-medium text-right">{{ document.created_by.get_full_name|default:document.created_by.username }}</span>
+                </div>
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-slate-400">Dibuat</span>
+                    <span class="text-slate-700">{{ document.created_at|date:"d M Y H:i" }}</span>
+                </div>
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-slate-400">Metode</span>
+                    <span class="text-slate-700">{% if document.routing_mode == 'sequential' %}Sequential{% else %}Parallel{% endif %}</span>
+                </div>
+                {% if document.due_at %}
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-slate-400">Batas waktu</span>
+                    <span class="{% if document.status == 'pending' %}text-red-500 font-medium{% else %}text-slate-700{% endif %}">{{ document.due_at|date:"d M Y H:i" }}</span>
+                </div>
+                {% endif %}
+                <div class="flex items-start justify-between gap-2">
+                    <span class="text-slate-400">Urutan tanda tangan</span>
+                    <span class="text-slate-700">{{ signer.order }}</span>
+                </div>
+            </div>
+            {% if document.message %}
+            <div class="mt-3 pt-3 border-t border-slate-100">
+                <p class="text-xs font-medium text-slate-500 mb-1.5">Pesan dari pengirim</p>
+                <p class="text-xs text-slate-600 italic bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
+                    "{{ document.message }}"
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+</div>
+{% endblock %}

@@ -406,6 +406,25 @@ def my_signatures(request):
 
 
 # ---------------------------------------------------------------------------
+# My Signature Detail — signer's personal view of one signing record
+# ---------------------------------------------------------------------------
+
+@login_required
+def my_signature_detail(request, pk):
+    signer = get_object_or_404(
+        Signer.objects.select_related("document__created_by").prefetch_related("placements"),
+        pk=pk,
+        user=request.user,
+    )
+    document = signer.document
+    return render(request, "esign/my_signature_detail.html", {
+        "signer": signer,
+        "document": document,
+        "placements": signer.placements.order_by("page_number"),
+    })
+
+
+# ---------------------------------------------------------------------------
 # AJAX: search system users for the signer picker
 # ---------------------------------------------------------------------------
 
