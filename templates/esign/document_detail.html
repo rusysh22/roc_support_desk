@@ -47,46 +47,73 @@ function showToast(msg) {
 
 {% block content %}
 <div id="share-toast"></div>
-<div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false">
+<div x-data="{ pdfOpen: false, previewOpen: false }" @keydown.escape.window="pdfOpen = false; previewOpen = false">
 
 {% if doc.status == 'completed' and doc.signed_pdf %}
-<template x-teleport="body">
-    <div x-show="pdfOpen" x-cloak
-         class="fixed inset-0 z-50 flex flex-col bg-black/75"
-         @click.self="pdfOpen = false" style="display:none">
-        <div class="bg-white flex items-center justify-between px-5 py-3 shadow-md flex-shrink-0">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                    <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-800 text-sm">{{ doc.title }}</p>
-                    <p class="text-xs text-slate-400">Signed Document · {{ doc.signed_count }}/{{ doc.total_count }} signatures</p>
-                </div>
+<div x-show="pdfOpen" x-cloak
+     class="fixed inset-0 z-50 flex flex-col bg-black/75"
+     @click.self="pdfOpen = false">
+    <div class="bg-white flex items-center justify-between px-5 py-3 shadow-md flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
             </div>
-            <div class="flex items-center gap-2">
-                <a href="{{ doc.signed_pdf.url }}" download
-                   class="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    Download
-                </a>
-                <button @click="pdfOpen = false"
-                        class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
+            <div>
+                <p class="font-semibold text-slate-800 text-sm">{{ doc.title }}</p>
+                <p class="text-xs text-slate-400">Signed Document · {{ doc.signed_count }}/{{ doc.total_count }} signatures</p>
             </div>
         </div>
-        <div class="flex-1 p-3 overflow-hidden">
-            <iframe src="{{ doc.signed_pdf.url }}" class="w-full h-full rounded-xl border border-white/10" title="Signed PDF Viewer"></iframe>
+        <div class="flex items-center gap-2">
+            <a href="{{ doc.signed_pdf.url }}" download
+               class="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Download
+            </a>
+            <button @click="pdfOpen = false"
+                    class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
     </div>
-</template>
+    <div class="flex-1 p-3 overflow-hidden">
+        <iframe src="{{ doc.signed_pdf.url }}" class="w-full h-full rounded-xl border border-white/10" title="Signed PDF Viewer"></iframe>
+    </div>
+</div>
+{% endif %}
+
+{% if doc.preview_pdf %}
+<div x-show="previewOpen" x-cloak
+     class="fixed inset-0 z-50 flex flex-col bg-black/75"
+     @click.self="previewOpen = false">
+    <div class="bg-white flex items-center justify-between px-5 py-3 shadow-md flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                <svg class="h-4 w-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800 text-sm">{{ doc.title }}</p>
+                <p class="text-xs text-slate-400">In Progress · {{ doc.signed_count }}/{{ doc.total_count }} signatures collected</p>
+            </div>
+        </div>
+        <button @click="previewOpen = false"
+                class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    <div class="flex-1 p-3 overflow-hidden">
+        <iframe src="{{ doc.preview_pdf.url }}" class="w-full h-full rounded-xl border border-white/10" title="Document Preview"></iframe>
+    </div>
+</div>
 {% endif %}
 
 <!-- ── Page Header ── -->
@@ -126,6 +153,14 @@ function showToast(msg) {
             </svg>
             Download Signed PDF
         </a>
+        {% elif doc.preview_pdf %}
+        <button @click="previewOpen = true" class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Preview Document
+        </button>
         {% endif %}
     </div>
 </div>
@@ -196,6 +231,16 @@ function showToast(msg) {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                 </svg>
                 View PDF
+            </button>
+            {% elif doc.preview_pdf %}
+            <button @click="previewOpen = true"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border transition-colors"
+                    style="background:#fffbeb;border-color:#fcd34d;color:#92400e;">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Preview
             </button>
             {% endif %}
             {% if doc.status == 'draft' %}
