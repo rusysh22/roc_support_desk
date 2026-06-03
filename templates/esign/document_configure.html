@@ -70,6 +70,10 @@ document.addEventListener('alpine:init', () => {
         canvasW: 0,
         canvasH: 0,
         dragging: null,
+        viewMode: 'paged',          // 'paged' | 'scroll'
+        scrollCanvasSizes: [],       // [{width, height}] indexed by page-1
+        pages: Array.from({ length: DOC_PAGE_COUNT }, (_, i) => i + 1),
+        _scrollObserver: null,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -105,7 +109,72 @@ document.addEventListener('alpine:init', () => {
         },
 
         goToPage(num) {
-            if (num >= 1 && num <= DOC_PAGE_COUNT) this.renderPage(num);
+            if (num >= 1 && num <= DOC_PAGE_COUNT) {
+                if (this.viewMode === 'scroll') {
+                    const el = document.getElementById(`scroll-page-${num}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    this.currentPage = num;
+                } else {
+                    this.renderPage(num);
+                }
+            }
+        },
+
+        async switchViewMode(mode) {
+            if (mode === this.viewMode) return;
+            if (mode === 'paged' && this._scrollObserver) {
+                this._scrollObserver.disconnect();
+                this._scrollObserver = null;
+            }
+            this.viewMode = mode;
+            if (mode === 'scroll') {
+                await this.$nextTick();
+                await this.renderScrollPages();
+            } else {
+                await this.renderPage(this.currentPage);
+            }
+        },
+
+        async renderScrollPages() {
+            if (!_pdfConfigure.doc) return;
+            const outer = document.getElementById('pdf-scroll-outer');
+            if (!outer) return;
+            const wrapW = outer.clientWidth - 8;
+            const sizes = new Array(DOC_PAGE_COUNT).fill(null);
+            for (let i = 1; i <= DOC_PAGE_COUNT; i++) {
+                const page = await _pdfConfigure.doc.getPage(i);
+                const vp0   = page.getViewport({ scale: 1 });
+                const scale = wrapW / vp0.width;
+                const vp    = page.getViewport({ scale });
+                const canvas = document.getElementById(`scroll-canvas-${i}`);
+                if (!canvas) continue;
+                canvas.width  = vp.width;
+                canvas.height = vp.height;
+                sizes[i - 1] = { width: vp.width, height: vp.height };
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            }
+            this.scrollCanvasSizes = sizes;
+            this._setupScrollObserver();
+        },
+
+        _setupScrollObserver() {
+            if (this._scrollObserver) this._scrollObserver.disconnect();
+            const root = document.getElementById('pdf-scroll-outer');
+            if (!root) return;
+            this._scrollObserver = new IntersectionObserver(entries => {
+                let best = this.currentPage, bestRatio = 0;
+                for (const e of entries) {
+                    if (e.isIntersecting && e.intersectionRatio > bestRatio) {
+                        bestRatio = e.intersectionRatio;
+                        best = parseInt(e.target.dataset.page);
+                    }
+                }
+                if (bestRatio > 0) this.currentPage = best;
+            }, { root, threshold: [0, 0.25, 0.5, 0.75, 1.0] });
+            for (let i = 1; i <= DOC_PAGE_COUNT; i++) {
+                const el = document.getElementById(`scroll-page-${i}`);
+                if (el) this._scrollObserver.observe(el);
+            }
         },
 
         onCanvasClick(e) {
@@ -114,44 +183,63 @@ document.addEventListener('alpine:init', () => {
             const rect = this.wrapEl.getBoundingClientRect();
             const xPx = e.clientX - rect.left;
             const yPx = e.clientY - rect.top;
-            const wPx = this.canvasW * 0.22;
-            const hPx = this.canvasH * 0.08;
             this.placements.push({
                 signerIndex: this.selectedSigner,
                 page: this.currentPage,
                 x: xPx / this.canvasW,
                 y: yPx / this.canvasH,
-                w: wPx / this.canvasW,
-                h: hPx / this.canvasH,
+                w: 0.22,
+                h: 0.08,
             });
-            // Placement mode stays ON — keep clicking to add more boxes
+        },
+
+        onScrollPageClick(e, pageNum) {
+            if (this.dragging) return;
+            if (!this.placingMode || this.selectedSigner === null) return;
+            const canvas = document.getElementById(`scroll-canvas-${pageNum}`);
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const xPx = e.clientX - rect.left;
+            const yPx = e.clientY - rect.top;
+            if (xPx < 0 || yPx < 0 || xPx > rect.width || yPx > rect.height) return;
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return;
+            this.placements.push({
+                signerIndex: this.selectedSigner,
+                page: pageNum,
+                x: xPx / sizes.width,
+                y: yPx / sizes.height,
+                w: 0.22,
+                h: 0.08,
+            });
         },
 
         startDrag(e, globalIdx) {
             if (this.placingMode) return;
             e.stopPropagation();
             e.preventDefault();
-            const rect = this.wrapEl.getBoundingClientRect();
-            const p = this.placements[globalIdx];
-            this.dragging = {
-                globalIdx,
-                lastX: e.clientX - rect.left,
-                lastY: e.clientY - rect.top,
-            };
+            const placement = this.placements[globalIdx];
+            let cw, ch;
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[placement.page - 1];
+                cw = sizes?.width  || this.canvasW;
+                ch = sizes?.height || this.canvasH;
+            } else {
+                cw = this.canvasW;
+                ch = this.canvasH;
+            }
+            this.dragging = { globalIdx, lastX: e.clientX, lastY: e.clientY, canvasW: cw, canvasH: ch };
         },
 
         onCanvasMouseMove(e) {
             if (!this.dragging) return;
-            const rect = this.wrapEl.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const dx = (x - this.dragging.lastX) / this.canvasW;
-            const dy = (y - this.dragging.lastY) / this.canvasH;
+            const dx = (e.clientX - this.dragging.lastX) / this.dragging.canvasW;
+            const dy = (e.clientY - this.dragging.lastY) / this.dragging.canvasH;
             const p  = this.placements[this.dragging.globalIdx];
             p.x = Math.max(0, Math.min(1 - p.w, p.x + dx));
             p.y = Math.max(0, Math.min(1 - p.h, p.y + dy));
-            this.dragging.lastX = x;
-            this.dragging.lastY = y;
+            this.dragging.lastX = e.clientX;
+            this.dragging.lastY = e.clientY;
         },
 
         stopDrag() { this.dragging = null; },
@@ -174,6 +262,16 @@ document.addEventListener('alpine:init', () => {
                     hPx: p.h * this.canvasH,
                 }))
                 .filter(p => p.page === this.currentPage);
+        },
+
+        placementsForScrollPage(pageNum) {
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return [];
+            const { width: w, height: h } = sizes;
+            return this.placements
+                .map((p, i) => ({ ...p, globalIdx: i }))
+                .filter(p => p.page === pageNum)
+                .map(p => ({ ...p, xPx: p.x * w, yPx: p.y * h, wPx: p.w * w, hPx: p.h * h }));
         },
 
         removePlacement(idx) { this.placements.splice(idx, 1); },
@@ -275,7 +373,9 @@ document.addEventListener('alpine:init', () => {
 {% endblock %}
 
 {% block content %}
-<div x-data="esignConfigure" id="configure-content" @mouseup.window="stopDrag()">
+<div x-data="esignConfigure" id="configure-content"
+     @mouseup.window="stopDrag()"
+     @mousemove.window="onCanvasMouseMove($event)">
 
 <!-- ── Page Header ── -->
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -320,7 +420,11 @@ document.addEventListener('alpine:init', () => {
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
     <!-- ── Left Panel: Configuration ── -->
-    <div class="lg:col-span-1 space-y-4">
+    <!-- sticky + flex-col so Send button is always anchored at the bottom -->
+    <div class="lg:col-span-1 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:flex lg:flex-col lg:overflow-hidden">
+
+    <!-- Scrollable card area (everything above the Send button) -->
+    <div class="flex-1 overflow-y-auto space-y-4 pb-1 lg:pr-0.5">
 
         <!-- Flow Preset (if available) -->
         {% if flow_templates %}
@@ -400,7 +504,7 @@ document.addEventListener('alpine:init', () => {
                 </button>
             </div>
 
-            <div class="divide-y divide-slate-100">
+            <div class="divide-y divide-slate-100 max-h-56 overflow-y-auto">
                 <template x-for="(s, idx) in signers" :key="idx">
                     <div class="px-4 py-3 flex items-center gap-3"
                          :class="selectedSigner === idx ? 'bg-indigo-50/60' : 'hover:bg-slate-50'">>
@@ -463,19 +567,15 @@ document.addEventListener('alpine:init', () => {
             </div>
             <div class="px-4 py-3 space-y-3">
 
-                <!-- Page navigation row -->
-                <div class="flex items-center gap-2">
-                    <label class="text-xs font-medium text-slate-500 flex-shrink-0">Page</label>
-                    <button @click="changePage(-1)" :disabled="currentPage <= 1"
-                            class="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 text-sm font-bold flex-shrink-0">‹</button>
-                    <span class="text-sm font-bold text-slate-700 tabular-nums flex-shrink-0"
+                <!-- Current page indicator (read-only — navigate using the PDF toolbar) -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-500">Placing on page</span>
+                    <span class="font-mono text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-0.5"
                           x-text="currentPage + ' / {{ doc.page_count }}'"></span>
-                    <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
-                            class="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 text-sm font-bold flex-shrink-0">›</button>
                 </div>
 
                 <!-- Place / Stop placing button -->
-                <button @click="placingMode = !placingMode"
+                <button @click="placingMode = !placingMode; if (placingMode) $nextTick(() => document.getElementById('pdf-viewer-wrap').scrollIntoView({behavior:'smooth', block:'nearest'}))"
                         :class="placingMode
                             ? 'bg-indigo-600 text-white border-indigo-600 animate-pulse'
                             : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'"
@@ -483,14 +583,16 @@ document.addEventListener('alpine:init', () => {
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                     </svg>
-                    <span x-text="placingMode ? '● Placing — click PDF to add box' : 'Place Signature Box'"></span>
+                    <span x-text="placingMode ? '● Placing on page ' + currentPage + ' — click PDF' : 'Place Signature Box'"></span>
                 </button>
-                <p x-show="placingMode" class="text-[10px] text-indigo-500 text-center -mt-1">
-                    Click anywhere on the document. Navigate pages freely. Press again to stop.
+                <p x-show="placingMode" class="text-[10px] text-indigo-500 text-center -mt-1"
+                   x-text="viewMode === 'scroll'
+                       ? 'Scroll to the page you want, then click to place. Press again to stop.'
+                       : 'Use ‹ › above the PDF to navigate, then click to place. Press again to stop.'">
                 </p>
 
                 <!-- Placed boxes list (all pages) -->
-                <div x-show="signerPlacements().length > 0" class="space-y-1">
+                <div x-show="signerPlacements().length > 0" class="space-y-1 max-h-36 overflow-y-auto">
                     <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Placed boxes</p>
                     <template x-for="p in signerPlacements()" :key="p.globalIdx">
                         <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg"
@@ -608,8 +710,10 @@ document.addEventListener('alpine:init', () => {
             </div>
         </div>
 
-        <!-- Send button (desktop — inside left panel) -->
-        <div class="hidden lg:block">
+    </div><!-- end scrollable area -->
+
+        <!-- Send button (desktop — pinned to bottom of left panel) -->
+        <div class="hidden lg:block flex-shrink-0 pt-3 border-t border-slate-100">
             <button @click="saveAndSend()" :disabled="saving"
                     class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-2xl py-3.5 transition-colors shadow-md">
                 <svg class="h-4 w-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -624,69 +728,121 @@ document.addEventListener('alpine:init', () => {
             <p class="text-xs text-slate-400 mt-2 text-center">Configuration will be saved and the document sent to all signers.</p>
         </div>
 
-    </div>
+    </div><!-- end left panel -->
 
     <!-- ── Right Panel: PDF Viewer ── -->
     <div class="lg:col-span-2">
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <!-- Toolbar -->
             <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                <!-- Page nav (paged mode only) -->
                 <div class="flex items-center gap-2">
-                    <button @click="changePage(-1)" :disabled="currentPage <= 1"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">
-                        ‹
-                    </button>
-                    <span class="text-sm font-medium text-slate-600 tabular-nums">
-                        <span x-text="currentPage"></span>
-                        <span class="text-slate-300">/</span>
-                        {{ doc.page_count }}
-                    </span>
-                    <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">
-                        ›
-                    </button>
+                    <template x-if="viewMode === 'paged'">
+                        <div class="flex items-center gap-2">
+                            <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">‹</button>
+                            <span class="text-sm font-medium text-slate-600 tabular-nums">
+                                <span x-text="currentPage"></span><span class="text-slate-300">/</span>{{ doc.page_count }}
+                            </span>
+                            <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">›</button>
+                        </div>
+                    </template>
+                    <template x-if="viewMode === 'scroll'">
+                        <span class="text-sm font-medium text-slate-500 tabular-nums">
+                            Page <span x-text="currentPage" class="font-bold text-slate-700"></span>
+                            <span class="text-slate-300">/</span> {{ doc.page_count }}
+                        </span>
+                    </template>
                 </div>
 
-                <!-- Status indicator -->
                 <div class="flex items-center gap-2">
+                    <!-- Status indicator -->
                     <div x-show="placingMode"
                          class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-full animate-pulse">
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                         </svg>
-                        Click to place signature box
+                        <span x-text="'Page ' + currentPage"></span>
                     </div>
                     <div x-show="!placingMode && selectedSigner !== null"
                          class="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-full border border-indigo-200">
                         <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-                        Placing for: <span x-text="signers[selectedSigner]?.name ?? ''"></span>
+                        <span x-text="signers[selectedSigner]?.name ?? ''"></span>
                     </div>
-                    <div x-show="selectedSigner === null"
-                         class="text-xs text-slate-400">
-                        Select a signer to place boxes
+                    <div x-show="selectedSigner === null" class="text-xs text-slate-400">Select a signer to place boxes</div>
+
+                    <!-- View mode toggle -->
+                    <div class="flex rounded-lg overflow-hidden border border-slate-200 ml-2">
+                        <button @click="switchViewMode('paged')"
+                                title="Page-by-page"
+                                :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                class="w-8 h-8 flex items-center justify-center transition-colors">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+                            </svg>
+                        </button>
+                        <button @click="switchViewMode('scroll')"
+                                title="Continuous scroll"
+                                :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                class="w-8 h-8 flex items-center justify-center border-l border-slate-200 transition-colors">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- Canvas area -->
             <div class="p-3">
-                <div id="pdf-viewer-wrap"
-                     @click="onCanvasClick($event)"
-                     @mousemove="onCanvasMouseMove($event)"
-                     @mouseup="stopDrag()"
-                     @mouseleave="stopDrag()"
-                     :style="placingMode ? 'cursor: crosshair' : (dragging ? 'cursor: grabbing' : 'cursor: default')">
-                    <canvas id="pdf-canvas"></canvas>
-                    <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
-                        <div class="placement-box"
-                             :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;
-                                      cursor:${placingMode ? 'crosshair' : 'grab'}`"
-                             @mousedown.stop.prevent="startDrag($event, p.globalIdx)">
-                            <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
-                            <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+
+                <!-- Paged mode -->
+                <div x-show="viewMode === 'paged'">
+                    <div id="pdf-viewer-wrap"
+                         @click="onCanvasClick($event)"
+                         :style="placingMode ? 'cursor:crosshair' : (dragging ? 'cursor:grabbing' : 'cursor:default')">
+                        <canvas id="pdf-canvas"></canvas>
+                        <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
+                            <div class="placement-box"
+                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : 'grab'}`"
+                                 @mousedown.stop.prevent="startDrag($event, p.globalIdx)">
+                                <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Scroll mode -->
+                <div x-show="viewMode === 'scroll'"
+                     id="pdf-scroll-outer"
+                     style="max-height: 75vh; overflow-y: auto; scroll-behavior: smooth;">
+                    <template x-for="pageNum in pages" :key="pageNum">
+                        <div class="relative mb-3 last:mb-0"
+                             :id="'scroll-page-' + pageNum"
+                             :data-page="pageNum"
+                             @click="onScrollPageClick($event, pageNum)"
+                             :style="placingMode ? 'cursor:crosshair' : (dragging ? 'cursor:grabbing' : 'cursor:default')">
+                            <!-- Page label -->
+                            <div class="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                                <span class="text-[10px] font-bold bg-black/40 text-white rounded px-1.5 py-0.5"
+                                      x-text="'p.' + pageNum"></span>
+                            </div>
+                            <canvas :id="'scroll-canvas-' + pageNum" style="display:block; max-width:100%; border-radius:4px;"></canvas>
+                            <!-- Placement overlays for this page -->
+                            <template x-for="p in placementsForScrollPage(pageNum)" :key="p.globalIdx">
+                                <div class="placement-box"
+                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : 'grab'}`"
+                                     @mousedown.stop.prevent="startDrag($event, p.globalIdx)">
+                                    <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                    <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                </div>
+                            </template>
                         </div>
                     </template>
                 </div>
+
             </div>
         </div>
     </div>

@@ -12,6 +12,8 @@ Transitions:
   remind()  —         (re-sends email to a single PENDING signer)
   cancel()  any       → CANCELLED
 """
+import secrets
+import string
 import uuid
 from datetime import timedelta
 
@@ -39,10 +41,18 @@ def _token_expiry(days=30):
     return timezone.now() + timedelta(days=days)
 
 
+def _generate_verify_code():
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
 def _assign_token(signer):
     signer.token = uuid.uuid4()
     signer.token_expires_at = _token_expiry()
-    signer.save(update_fields=["token", "token_expires_at"])
+    # External signers get a separate verification code sent in the email.
+    # System users authenticate via login; they don't need a code.
+    signer.verify_code = _generate_verify_code() if not signer.user_id else ""
+    signer.save(update_fields=["token", "token_expires_at", "verify_code"])
 
 
 # ---------------------------------------------------------------------------

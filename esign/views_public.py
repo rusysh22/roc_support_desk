@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 from ipware import get_client_ip
@@ -21,13 +21,24 @@ from .models import MobileDrawSession, Signer, SignatureEvent, UserSavedSignatur
 from .services import record_signature, reject_signature
 
 
+def _is_identity_verified(request, signer):
+    """True if this external signer has already passed the email+code gate this session."""
+    stored = request.session.get(f"esign_verified_{signer.pk}")
+    # Store the token itself so verification is invalidated when token is regenerated (reopen).
+    return stored == str(signer.token)
+
+
+def _mark_identity_verified(request, signer):
+    request.session[f"esign_verified_{signer.pk}"] = str(signer.token)
+
+
 @require_http_methods(["GET", "POST"])
 def sign(request, token):
     """
     Magic-link signing page.
 
     Access rules:
-    - Unauthenticated: the token in the URL is the sole credential.
+    - External signer: must first verify identity with email + verification code.
     - Authenticated system user: must be the exact user assigned to this token.
     - Sequential: signer must be in PENDING status (WAITING = not their turn yet).
     - Already acted: show a read-only summary page.
@@ -44,6 +55,23 @@ def sign(request, token):
         return render(request, "esign/sign_denied.html", {
             "signer": signer, "document": document,
         }, status=403)
+
+    # External signers must verify email + code before accessing the signing page.
+    if not signer.user_id and not _is_identity_verified(request, signer):
+        error = False
+        if request.method == "POST" and request.POST.get("action") == "verify":
+            email_input = request.POST.get("verify_email", "").strip().lower()
+            code_input  = request.POST.get("verify_code", "").strip().upper()
+            if (
+                email_input == signer.external_email.lower()
+                and code_input == signer.verify_code
+            ):
+                _mark_identity_verified(request, signer)
+                return redirect(request.path)
+            error = True
+        return render(request, "esign/sign_verify.html", {
+            "signer": signer, "document": document, "error": error,
+        })
 
     if signer.status in (Signer.Status.SIGNED, Signer.Status.REJECTED):
         return render(request, "esign/sign_done.html", {

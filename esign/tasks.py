@@ -107,6 +107,17 @@ def send_signature_request_task(self, signer_id: str) -> str:
 
         msg_note = f"<blockquote style='border-left:3px solid #e2e8f0;margin:12px 0;padding:8px 16px;color:#555'>{document.message}</blockquote>" if document.message else ""
 
+        # External signers see a verification code block; system users do not.
+        verify_section = ""
+        if not signer.user_id and signer.verify_code:
+            verify_section = f"""
+<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:18px 20px;margin:20px 0;text-align:center">
+  <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#92400e">Verification Code</p>
+  <p style="margin:0;font-size:30px;font-weight:800;letter-spacing:0.2em;color:#1e3a5f;font-family:ui-monospace,monospace">{signer.verify_code}</p>
+  <p style="margin:10px 0 0;font-size:11px;color:#78350f">You will be asked to enter your email address and this code when you open the signing link.</p>
+</div>
+"""
+
         body = f"""
 <p>Hello <strong>{signer.display_name}</strong>,</p>
 <p>You have been requested to sign the following document:</p>
@@ -115,6 +126,7 @@ def send_signature_request_task(self, signer_id: str) -> str:
 </p>
 {msg_note}
 {due_note}
+{verify_section}
 <p>Click the button below to open the signing page:</p>
 <a href="{sign_url}" class="btn">Sign Document Now</a>
 <p style="font-size:12px;color:#64748b">Or copy this link: <br><code>{sign_url}</code></p>

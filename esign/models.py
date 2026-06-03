@@ -251,6 +251,13 @@ class Signer(AuditableModel):
     signed_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="Signed From IP")
     signed_user_agent = models.TextField(blank=True, verbose_name="Signed User Agent")
 
+    verify_code = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Verification Code",
+        help_text="One-time code e-mailed to external signers; required alongside their email to access the signing page.",
+    )
+
     # Stamp annotation preferences — chosen by the signer at signing time
     stamp_timestamp = models.BooleanField(default=True, verbose_name="Include Timestamp on PDF")
     stamp_name = models.BooleanField(default=True, verbose_name="Include Name on PDF")

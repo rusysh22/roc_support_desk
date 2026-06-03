@@ -9,58 +9,48 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
 #pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; min-height: 300px; }
-#pdf-canvas { display: block; width: 100%; height: auto; }
-.placement-box {
-    position: absolute; border: 2px dashed #6366f1;
-    background: rgba(99,102,241,0.08); border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; color: #4f46e5; font-weight: 600; pointer-events: none;
-}
-.sig-tab {
-    flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 600;
-    border-bottom: 2px solid transparent; color: #94a3b8;
-    cursor: pointer; text-align: center; transition: all 0.15s;
-    background: none; border-top: none; border-left: none; border-right: none;
-    white-space: nowrap;
-}
-.sig-tab.active { border-bottom-color: #4f46e5; color: #4f46e5; }
-.sig-tab:hover:not(.active) { color: #475569; }
-#draw-canvas { touch-action: none; display: block; border-radius: 6px; background: #fafafe; }
-#type-canvas { display: block; background: #fafafe; }
-.drag-overlay {
+#pdf-canvas      { display: block; width: 100%; height: auto; }
+
+/* Guided-mode: fixed placement box */
+.sign-box {
     position: absolute;
-    cursor: grab;
-    border: 2px solid #4f46e5;
     border-radius: 6px;
-    background: rgba(255,255,255,0.92);
-    box-shadow: 0 4px 16px rgba(99,102,241,0.25);
-    overflow: visible;
-    touch-action: none;
-    user-select: none;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 2px;
+    font-size: 11px; font-weight: 700;
+    transition: background 0.15s, border-color 0.15s;
+    cursor: pointer; user-select: none;
+    overflow: hidden;
 }
-.drag-overlay.dragging { cursor: grabbing; }
-.drag-overlay .sig-inner {
-    width: 100%; height: 100%;
-    overflow: hidden; border-radius: 4px;
+.sign-box.unsigned {
+    border: 2px dashed #6366f1;
+    background: rgba(99,102,241,0.07);
+    color: #4f46e5;
+    animation: pulse-border 2s infinite;
 }
-.drag-handle {
-    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
-    width: 32px; height: 4px; background: #4f46e5; border-radius: 2px; opacity: 0.4;
-    pointer-events: none;
+.sign-box.signed {
+    border: 2px solid #22c55e;
+    background: rgba(255,255,255,0.95);
 }
-.resize-handle {
-    position: absolute; width: 10px; height: 10px;
-    background: white; border: 2px solid #4f46e5; border-radius: 2px;
-    touch-action: none; z-index: 10;
+.sign-box.signed img { width:100%; height:100%; object-fit:contain; padding:4px; }
+@keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.25); }
+    50%      { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
 }
-.resize-handle.nw { top:-5px;  left:-5px;  cursor: nw-resize; }
-.resize-handle.n  { top:-5px;  left:calc(50% - 5px); cursor: n-resize; }
-.resize-handle.ne { top:-5px;  right:-5px; cursor: ne-resize; }
-.resize-handle.e  { top:calc(50% - 5px); right:-5px; cursor: e-resize; }
-.resize-handle.se { bottom:-5px; right:-5px; cursor: se-resize; }
-.resize-handle.s  { bottom:-5px; left:calc(50% - 5px); cursor: s-resize; }
-.resize-handle.sw { bottom:-5px; left:-5px; cursor: sw-resize; }
-.resize-handle.w  { top:calc(50% - 5px); left:-5px;  cursor: w-resize; }
+
+/* Free-mode: drag overlay (unchanged) */
+.sig-tab { flex:1; padding:8px 4px; font-size:11px; font-weight:600; border-bottom:2px solid transparent; color:#94a3b8; cursor:pointer; text-align:center; transition:all 0.15s; background:none; border-top:none; border-left:none; border-right:none; white-space:nowrap; }
+.sig-tab.active { border-bottom-color:#4f46e5; color:#4f46e5; }
+.sig-tab:hover:not(.active) { color:#475569; }
+#draw-canvas-modal { touch-action:none; display:block; border-radius:6px; background:#fafafe; }
+#draw-canvas       { touch-action:none; display:block; border-radius:6px; background:#fafafe; }
+#type-canvas       { display:block; background:#fafafe; }
+.drag-overlay { position:absolute; cursor:grab; border:2px solid #4f46e5; border-radius:6px; background:rgba(255,255,255,0.92); box-shadow:0 4px 16px rgba(99,102,241,0.25); overflow:visible; touch-action:none; user-select:none; }
+.drag-overlay.dragging { cursor:grabbing; }
+.drag-overlay .sig-inner { width:100%; height:100%; overflow:hidden; border-radius:4px; }
+.drag-handle { position:absolute; top:2px; left:50%; transform:translateX(-50%); width:32px; height:4px; background:#4f46e5; border-radius:2px; opacity:0.4; pointer-events:none; }
+.resize-handle { position:absolute; width:10px; height:10px; background:white; border:2px solid #4f46e5; border-radius:2px; touch-action:none; z-index:10; }
+.resize-handle.nw{top:-5px;left:-5px;cursor:nw-resize}.resize-handle.n{top:-5px;left:calc(50% - 5px);cursor:n-resize}.resize-handle.ne{top:-5px;right:-5px;cursor:ne-resize}.resize-handle.e{top:calc(50% - 5px);right:-5px;cursor:e-resize}.resize-handle.se{bottom:-5px;right:-5px;cursor:se-resize}.resize-handle.s{bottom:-5px;left:calc(50% - 5px);cursor:s-resize}.resize-handle.sw{bottom:-5px;left:-5px;cursor:sw-resize}.resize-handle.w{top:calc(50% - 5px);left:-5px;cursor:w-resize}
 </style>
 
 <script>
@@ -68,8 +58,6 @@ const PLACEMENTS                = {{ placements_json|safe }};
 const HAS_SAVED_SIG             = {{ has_saved_sig|lower }};
 const SAVED_SIG_URL             = "{% url 'esign_public:saved_signature_api' %}";
 const CREATE_MOBILE_SESSION_URL = "{% url 'esign_public:create_mobile_session' %}";
-
-// Stored outside Alpine — Alpine's Proxy breaks PDF.js private class fields (#d).
 const _pdf = { doc: null };
 
 document.addEventListener('alpine:init', () => {
@@ -78,39 +66,34 @@ document.addEventListener('alpine:init', () => {
         canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
         pdfLoading: true, pdfError: null,
 
+        // ── Mode ──────────────────────────────────────────────────────────────
+        // guided = creator pre-placed boxes; free = signer places themselves
+        guidedMode: PLACEMENTS.length > 0,
+
+        // ── Guided-mode state ─────────────────────────────────────────────────
+        signatureData: null,       // captured signature (shared across all boxes)
+        showCaptureModal: false,   // signature capture modal
+
+        // ── Signature capture ─────────────────────────────────────────────────
         activeAction: 'sign',
         activeTab: HAS_SAVED_SIG ? 'saved' : 'draw',
-
-        sigPad: null,
-        typedName: '',
-        uploadedData: null,
-        savedSigData: null,
-        mobileData: null,
+        sigPad: null, sigPadModal: null,
+        typedName: '', uploadedData: null, savedSigData: null, mobileData: null,
         saveForLater: false,
 
-        // Stamp annotation options
-        stampTimestamp: true,
-        stampName: true,
-        stampJobRole: false,
-        stampJobRoleText: '',
+        // ── Stamp options ─────────────────────────────────────────────────────
+        stampTimestamp: true, stampName: true, stampJobRole: false, stampJobRoleText: '',
 
-        // Mobile/QR state
+        // ── Mobile/QR ─────────────────────────────────────────────────────────
         mobileSessionId: null, mobileUrl: null, mobilePollUrl: null,
         mobileLoading: false, mobileReady: false, mobilePollTimer: null, qrInstance: null,
 
-        // Drag-and-drop placement state
-        // dragOverlays: [{id, page, nx, ny, nw, nh}] — normalized 0-1 coords per placement
-        previewData: null,
-        showDragOverlay: false,
-        dragOverlays: [],
-        activeOverlayIdx: null,
-        isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
-
-        // Resize state
+        // ── Free-mode state (drag/resize, unchanged) ──────────────────────────
+        previewData: null, showDragOverlay: false, dragOverlays: [],
+        activeOverlayIdx: null, isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
         isResizing: false, resizeHandle: null,
         resizeStartX: 0, resizeStartY: 0,
-        resizeStartNX: 0, resizeStartNY: 0,
-        resizeStartNW: 0, resizeStartNH: 0,
+        resizeStartNX: 0, resizeStartNY: 0, resizeStartNW: 0, resizeStartNH: 0,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -120,40 +103,51 @@ document.addEventListener('alpine:init', () => {
             try {
                 _pdf.doc = await pdfjsLib.getDocument({
                     url: "{{ pdf_url }}",
-                    disableRange: true,
-                    disableStream: true,
+                    disableRange: true, disableStream: true,
                 }).promise;
                 this.totalPages = _pdf.doc.numPages;
                 await this.renderPage(1);
             } catch (err) {
                 this.pdfError = err.message || 'Failed to load PDF.';
-                console.error('PDF.js error:', err);
             } finally {
                 this.pdfLoading = false;
             }
             this.$nextTick(() => this.initDrawCanvas());
             if (HAS_SAVED_SIG) {
-                fetch(SAVED_SIG_URL)
-                    .then(r => r.json())
+                fetch(SAVED_SIG_URL).then(r => r.json())
                     .then(d => { if (d.has_saved) this.savedSigData = d.data; })
                     .catch(() => {});
             }
         },
 
         initDrawCanvas() {
+            // Free-mode canvas
             const dc = document.getElementById('draw-canvas');
-            if (!dc || this.sigPad) return;
-            dc.width  = 400;
-            dc.height = 160;
-            this.sigPad = new SignaturePad(dc, {
-                backgroundColor: 'rgba(255,255,255,0)',
-                minWidth: 1.0, maxWidth: 2.8,
+            if (dc && !this.sigPad) {
+                dc.width = 400; dc.height = 160;
+                this.sigPad = new SignaturePad(dc, { backgroundColor:'rgba(255,255,255,0)', minWidth:1.0, maxWidth:2.8 });
+            }
+        },
+
+        initModalDrawCanvas() {
+            // Guided-mode modal canvas — initialised when modal opens
+            this.$nextTick(() => {
+                const dc = document.getElementById('draw-canvas-modal');
+                if (dc && !this.sigPadModal) {
+                    dc.width = 400; dc.height = 160;
+                    this.sigPadModal = new SignaturePad(dc, { backgroundColor:'rgba(255,255,255,0)', minWidth:1.0, maxWidth:2.8 });
+                }
             });
         },
 
         switchTab(tab) {
             this.activeTab = tab;
-            if (tab === 'draw') this.$nextTick(() => this.initDrawCanvas());
+            if (tab === 'draw') {
+                this.$nextTick(() => {
+                    if (this.guidedMode) this.initModalDrawCanvas();
+                    else this.initDrawCanvas();
+                });
+            }
         },
 
         async renderPage(num) {
@@ -169,8 +163,7 @@ document.addEventListener('alpine:init', () => {
             this.canvasW = scaled.width;
             this.canvasH = scaled.height;
             await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
-            // Reposition drag overlay if visible
-            if (this.showDragOverlay) this._snapToPlacement();
+            if (!this.guidedMode && this.showDragOverlay) this._snapToPlacement();
         },
 
         changePage(delta) {
@@ -178,75 +171,80 @@ document.addEventListener('alpine:init', () => {
             if (next >= 1 && next <= this.totalPages) this.renderPage(next);
         },
 
-        currentPagePlacements() {
-            return PLACEMENTS.filter(p => p.page === this.currentPage).map(p => ({
-                ...p,
-                xPx: p.x * this.canvasW, yPx: p.y * this.canvasH,
-                wPx: p.w * this.canvasW, hPx: p.h * this.canvasH,
-            }));
+        // ── Guided mode ───────────────────────────────────────────────────────
+
+        currentPageBoxes() {
+            return PLACEMENTS
+                .map((p, i) => ({ ...p, idx: i, xPx: p.x * this.canvasW, yPx: p.y * this.canvasH, wPx: p.w * this.canvasW, hPx: p.h * this.canvasH }))
+                .filter(p => p.page === this.currentPage);
         },
 
-        clearDraw() { if (this.sigPad) this.sigPad.clear(); },
-
-        renderTypedSig() {
-            const canvas = document.getElementById('type-canvas');
-            if (!canvas || !this.typedName.trim()) return null;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, 400, 120);
-            ctx.font = '58px "Dancing Script", cursive';
-            ctx.fillStyle = '#1e293b';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(this.typedName, 200, 65);
-            return canvas.toDataURL('image/png');
+        placementPages() {
+            return [...new Set(PLACEMENTS.map(p => p.page))].sort((a, b) => a - b);
         },
 
-        handleUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => { this.uploadedData = e.target.result; };
-            reader.readAsDataURL(file);
+        openCaptureModal() {
+            this.showCaptureModal = true;
+            if (this.activeTab === 'draw') this.initModalDrawCanvas();
         },
 
         getSignatureData() {
+            const padEl = this.guidedMode ? this.sigPadModal : this.sigPad;
             if (this.activeTab === 'saved')  return this.savedSigData || null;
-            if (this.activeTab === 'draw')   return (this.sigPad && !this.sigPad.isEmpty()) ? this.sigPad.toDataURL('image/png') : null;
+            if (this.activeTab === 'draw')   return (padEl && !padEl.isEmpty()) ? padEl.toDataURL('image/png') : null;
             if (this.activeTab === 'type')   return this.typedName.trim() ? this.renderTypedSig() : null;
             if (this.activeTab === 'upload') return this.uploadedData || null;
             if (this.activeTab === 'mobile') return this.mobileData || null;
             return null;
         },
 
-        // ── Drag & Drop (multi-placement) ───────────────────────────────────
+        applySignature() {
+            const data = this.getSignatureData();
+            if (!data) {
+                const msgs = { draw:'Please draw your signature.', type:'Please type your name.', upload:'Please upload a signature image.', mobile:'Please complete the mobile signature.', saved:'No saved signature found.' };
+                alert(msgs[this.activeTab] || 'Please provide your signature.');
+                return;
+            }
+            this.signatureData = data;
+            this.showCaptureModal = false;
+        },
 
-        // Returns overlays for the current page with pixel coords computed from canvas size.
+        clearModalDraw() { if (this.sigPadModal) this.sigPadModal.clear(); },
+
+        guidedSubmit() {
+            if (!this.signatureData) { this.openCaptureModal(); return; }
+            // Fixed positions from creator — send back as-is (no override needed)
+            document.getElementById('action-input').value              = 'sign';
+            document.getElementById('signature-data-input').value      = this.signatureData;
+            document.getElementById('save-sig-input').value            = this.saveForLater ? '1' : '0';
+            document.getElementById('drop-placements-input').value     = '';  // use server-side placements
+            document.getElementById('stamp-timestamp-input').value     = this.stampTimestamp ? 'true' : '';
+            document.getElementById('stamp-name-input').value          = this.stampName ? 'true' : '';
+            document.getElementById('stamp-job-role-input').value      = this.stampJobRole ? 'true' : '';
+            document.getElementById('stamp-job-role-text-input').value = this.stampJobRoleText.trim();
+            document.getElementById('sign-form').submit();
+        },
+
+        // ── Free mode (unchanged) ─────────────────────────────────────────────
+
+        currentPagePlacements() {
+            return PLACEMENTS.filter(p => p.page === this.currentPage).map(p => ({
+                ...p, xPx: p.x * this.canvasW, yPx: p.y * this.canvasH,
+                wPx: p.w * this.canvasW, hPx: p.h * this.canvasH,
+            }));
+        },
+
         currentPageOverlays() {
             if (!this.showDragOverlay) return [];
             return this.dragOverlays
-                .map((o, i) => ({
-                    ...o, _idx: i,
-                    xPx: o.nx * this.canvasW,
-                    yPx: o.ny * this.canvasH,
-                    wPx: o.nw * this.canvasW,
-                    hPx: o.nh * this.canvasH,
-                }))
+                .map((o, i) => ({ ...o, _idx: i, xPx: o.nx * this.canvasW, yPx: o.ny * this.canvasH, wPx: o.nw * this.canvasW, hPx: o.nh * this.canvasH }))
                 .filter(o => o.page === this.currentPage);
-        },
-
-        // All unique pages that have a placement overlay — for navigation hints.
-        placementPages() {
-            return [...new Set(this.dragOverlays.map(o => o.page))].sort((a, b) => a - b);
         },
 
         _initOverlays() {
             if (PLACEMENTS.length > 0) {
-                this.dragOverlays = PLACEMENTS.map((p, i) => ({
-                    id: i, page: p.page,
-                    nx: p.x, ny: p.y, nw: p.w, nh: p.h,
-                }));
+                this.dragOverlays = PLACEMENTS.map((p, i) => ({ id: i, page: p.page, nx: p.x, ny: p.y, nw: p.w, nh: p.h }));
             } else {
-                // No predefined placements — one default overlay at bottom of page 1.
                 this.dragOverlays = [{ id: 0, page: 1, nx: 0.1, ny: 0.75, nw: 0.35, nh: 0.08 }];
             }
         },
@@ -254,98 +252,58 @@ document.addEventListener('alpine:init', () => {
         placeOnDocument() {
             const data = this.getSignatureData();
             if (!data) {
-                const msgs = {
-                    draw:   'Please draw your signature first.',
-                    type:   'Please type your name first.',
-                    upload: 'Please upload a signature image first.',
-                    mobile: 'Please complete the mobile signature first.',
-                    saved:  'No saved signature found.',
-                };
-                alert(msgs[this.activeTab] || 'Please provide your signature.');
+                alert({ draw:'Please draw your signature.', type:'Please type your name.', upload:'Please upload a signature image.', mobile:'Please complete the mobile signature.', saved:'No saved signature found.' }[this.activeTab] || 'Please provide your signature.');
                 return;
             }
             this.previewData = data;
             this._initOverlays();
             this.showDragOverlay = true;
-            // Navigate to the first placement page if not already there.
-            if (this.dragOverlays.length && this.dragOverlays[0].page !== this.currentPage) {
+            if (this.dragOverlays.length && this.dragOverlays[0].page !== this.currentPage)
                 this.renderPage(this.dragOverlays[0].page);
-            }
         },
 
         startDrag(e, idx) {
             if (this.isResizing) return;
-            this.isDragging = true;
-            this.activeOverlayIdx = idx;
+            this.isDragging = true; this.activeOverlayIdx = idx;
             const rect = e.currentTarget.getBoundingClientRect();
-            this.dragOffsetX = e.clientX - rect.left;
-            this.dragOffsetY = e.clientY - rect.top;
+            this.dragOffsetX = e.clientX - rect.left; this.dragOffsetY = e.clientY - rect.top;
             e.currentTarget.setPointerCapture(e.pointerId);
         },
-
         moveDrag(e) {
             if (!this.isDragging || this.isResizing) return;
-            const o = this.dragOverlays[this.activeOverlayIdx];
-            if (!o) return;
-            const wPx = o.nw * this.canvasW, hPx = o.nh * this.canvasH;
+            const o = this.dragOverlays[this.activeOverlayIdx]; if (!o) return;
             const wrapRect = this.wrapEl.getBoundingClientRect();
             o.nx = Math.max(0, Math.min((e.clientX - wrapRect.left - this.dragOffsetX) / this.canvasW, 1 - o.nw));
             o.ny = Math.max(0, Math.min((e.clientY - wrapRect.top  - this.dragOffsetY) / this.canvasH, 1 - o.nh));
         },
-
         endDrag() { this.isDragging = false; },
 
         startResize(e, handle, idx) {
-            this.isResizing = true;
-            this.resizeHandle = handle;
-            this.activeOverlayIdx = idx;
-            this.resizeStartX = e.clientX;
-            this.resizeStartY = e.clientY;
+            this.isResizing = true; this.resizeHandle = handle; this.activeOverlayIdx = idx;
+            this.resizeStartX = e.clientX; this.resizeStartY = e.clientY;
             const o = this.dragOverlays[idx];
-            this.resizeStartNX = o.nx; this.resizeStartNY = o.ny;
-            this.resizeStartNW = o.nw; this.resizeStartNH = o.nh;
+            this.resizeStartNX = o.nx; this.resizeStartNY = o.ny; this.resizeStartNW = o.nw; this.resizeStartNH = o.nh;
             e.currentTarget.setPointerCapture(e.pointerId);
         },
-
         moveResize(e) {
             if (!this.isResizing) return;
-            const o = this.dragOverlays[this.activeOverlayIdx];
-            if (!o) return;
-            // Work in pixels for easier min-size clamping, then normalize.
-            const dx = e.clientX - this.resizeStartX;
-            const dy = e.clientY - this.resizeStartY;
-            const minW = 60 / this.canvasW, minH = 28 / this.canvasH;
-            let nx = this.resizeStartNX, ny = this.resizeStartNY;
-            let nw = this.resizeStartNW, nh = this.resizeStartNH;
-
-            if (this.resizeHandle.includes('e')) nw = Math.max(minW, nw + dx / this.canvasW);
-            if (this.resizeHandle.includes('s')) nh = Math.max(minH, nh + dy / this.canvasH);
-            if (this.resizeHandle.includes('w')) {
-                const newNW = Math.max(minW, nw - dx / this.canvasW);
-                nx = nx + (nw - newNW); nw = newNW;
-            }
-            if (this.resizeHandle.includes('n')) {
-                const newNH = Math.max(minH, nh - dy / this.canvasH);
-                ny = ny + (nh - newNH); nh = newNH;
-            }
-            o.nx = Math.max(0, Math.min(nx, 1 - nw));
-            o.ny = Math.max(0, Math.min(ny, 1 - nh));
-            o.nw = nw; o.nh = nh;
+            const o = this.dragOverlays[this.activeOverlayIdx]; if (!o) return;
+            const dx = e.clientX - this.resizeStartX, dy = e.clientY - this.resizeStartY;
+            const minW = 60/this.canvasW, minH = 28/this.canvasH;
+            let nx = this.resizeStartNX, ny = this.resizeStartNY, nw = this.resizeStartNW, nh = this.resizeStartNH;
+            if (this.resizeHandle.includes('e')) nw = Math.max(minW, nw + dx/this.canvasW);
+            if (this.resizeHandle.includes('s')) nh = Math.max(minH, nh + dy/this.canvasH);
+            if (this.resizeHandle.includes('w')) { const newNW = Math.max(minW,nw-dx/this.canvasW); nx+=nw-newNW; nw=newNW; }
+            if (this.resizeHandle.includes('n')) { const newNH = Math.max(minH,nh-dy/this.canvasH); ny+=nh-newNH; nh=newNH; }
+            o.nx=Math.max(0,Math.min(nx,1-nw)); o.ny=Math.max(0,Math.min(ny,1-nh)); o.nw=nw; o.nh=nh;
         },
-
         endResize() { this.isResizing = false; this.resizeHandle = null; },
 
-        cancelPlacement() {
-            this.showDragOverlay = false;
-            this.previewData = null;
-            this.dragOverlays = [];
-        },
+        cancelPlacement() { this.showDragOverlay = false; this.previewData = null; this.dragOverlays = []; },
 
         submitFinal() {
             if (!this.previewData) { this.placeOnDocument(); return; }
-            const placements = this.dragOverlays.map(o => ({
-                page: o.page, x: o.nx, y: o.ny, w: o.nw, h: o.nh,
-            }));
+            const placements = this.dragOverlays.map(o => ({ page:o.page, x:o.nx, y:o.ny, w:o.nw, h:o.nh }));
             document.getElementById('action-input').value              = 'sign';
             document.getElementById('signature-data-input').value      = this.previewData;
             document.getElementById('save-sig-input').value            = this.saveForLater ? '1' : '0';
@@ -358,38 +316,47 @@ document.addEventListener('alpine:init', () => {
         },
 
         submitReject() {
-            document.getElementById('action-input').value        = 'reject';
+            document.getElementById('action-input').value         = 'reject';
             document.getElementById('signature-data-input').value = '';
-            document.getElementById('save-sig-input').value      = '0';
+            document.getElementById('save-sig-input').value       = '0';
             document.getElementById('sign-form').submit();
         },
 
-        // ── Mobile / QR ──────────────────────────────────────────────────────
+        // ── Shared helpers ────────────────────────────────────────────────────
+
+        clearDraw() { if (this.sigPad) this.sigPad.clear(); },
+
+        renderTypedSig() {
+            const canvas = document.getElementById('type-canvas');
+            if (!canvas || !this.typedName.trim()) return null;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 120);
+            ctx.font = '58px "Dancing Script", cursive';
+            ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(this.typedName, 200, 65);
+            return canvas.toDataURL('image/png');
+        },
+
+        handleUpload(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => { this.uploadedData = e.target.result; };
+            reader.readAsDataURL(file);
+        },
 
         async startMobileSession() {
             this.mobileLoading = true;
             try {
-                const resp = await fetch(CREATE_MOBILE_SESSION_URL, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
-                });
+                const resp = await fetch(CREATE_MOBILE_SESSION_URL, { method:'POST', headers:{'X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value} });
                 const data = await resp.json();
-                this.mobileSessionId = data.session_id;
-                this.mobileUrl       = data.mobile_url;
-                this.mobilePollUrl   = data.poll_url;
+                this.mobileSessionId = data.session_id; this.mobileUrl = data.mobile_url; this.mobilePollUrl = data.poll_url;
                 this.$nextTick(() => {
                     const container = document.getElementById('qr-container');
                     container.innerHTML = '';
-                    this.qrInstance = new QRCode(container, {
-                        text: data.mobile_url,
-                        width: 200, height: 200,
-                        colorDark: '#1e293b', colorLight: '#ffffff',
-                    });
+                    this.qrInstance = new QRCode(container, { text:data.mobile_url, width:200, height:200, colorDark:'#1e293b', colorLight:'#ffffff' });
                 });
                 this.mobilePollTimer = setInterval(() => this.pollMobile(), 2500);
-            } catch(e) {
-                alert('Failed to generate QR code. Please try again.');
-            }
+            } catch(e) { alert('Failed to generate QR code.'); }
             this.mobileLoading = false;
         },
 
@@ -398,22 +365,16 @@ document.addEventListener('alpine:init', () => {
             try {
                 const resp = await fetch(this.mobilePollUrl);
                 const data = await resp.json();
-                if (data.ready) {
-                    this.mobileData  = data.data;
-                    this.mobileReady = true;
-                    clearInterval(this.mobilePollTimer);
-                } else if (data.expired) {
-                    clearInterval(this.mobilePollTimer);
-                }
+                if (data.ready) { this.mobileData = data.data; this.mobileReady = true; clearInterval(this.mobilePollTimer); }
+                else if (data.expired) { clearInterval(this.mobilePollTimer); }
             } catch(e) {}
         },
 
         cancelMobile() {
             if (this.mobilePollTimer) clearInterval(this.mobilePollTimer);
-            this.mobileSessionId = null; this.mobileUrl = null; this.mobilePollUrl = null;
-            this.mobileReady = false; this.mobileData = null;
-            const c = document.getElementById('qr-container');
-            if (c) c.innerHTML = '';
+            this.mobileSessionId=null; this.mobileUrl=null; this.mobilePollUrl=null;
+            this.mobileReady=false; this.mobileData=null;
+            const c = document.getElementById('qr-container'); if (c) c.innerHTML='';
         },
     }));
 });
@@ -421,7 +382,7 @@ document.addEventListener('alpine:init', () => {
 {% endblock %}
 
 {% block layout %}
-<div class="min-h-screen bg-slate-50 py-6 px-4" x-data="signPage">
+<div class="min-h-screen bg-slate-50 py-6 px-4" x-data="signPage" @keydown.escape.window="showCaptureModal = false">
     <div class="max-w-7xl mx-auto">
 
         <div class="text-center mb-5">
@@ -440,7 +401,8 @@ document.addEventListener('alpine:init', () => {
             <!-- ── PDF Viewer (2/3) ── -->
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 h-full flex flex-col">
-                    <!-- Navigation bar -->
+
+                    <!-- Nav bar -->
                     <div class="flex items-center justify-between mb-3 flex-shrink-0">
                         <button @click="changePage(-1)" :disabled="currentPage <= 1"
                                 class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
@@ -456,47 +418,77 @@ document.addEventListener('alpine:init', () => {
                     </div>
 
                     {% if has_prior_signatures %}
-                    <!-- Banner: document already has prior signatures visible -->
                     <div class="flex items-center gap-2 px-3 py-2 mb-3 rounded-xl bg-green-50 border border-green-200 flex-shrink-0">
                         <svg class="h-4 w-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p class="text-xs text-green-700 font-medium">
-                            Previous signers have already signed — their signatures are visible in this document preview.
-                        </p>
+                        <p class="text-xs text-green-700 font-medium">Previous signers have already signed — their signatures are visible in this document preview.</p>
                     </div>
                     {% endif %}
 
+                    <!-- Guided mode: page jump chips -->
+                    <template x-if="guidedMode && placementPages().length > 1">
+                        <div class="flex items-center gap-1.5 mb-3 flex-shrink-0 flex-wrap">
+                            <span class="text-xs text-slate-400">Sign on:</span>
+                            <template x-for="pg in placementPages()" :key="pg">
+                                <button @click="renderPage(pg)"
+                                        :class="currentPage === pg ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'"
+                                        class="px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors">
+                                    Page <span x-text="pg"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </template>
+
                     <!-- PDF canvas -->
                     <div id="pdf-viewer-wrap" class="flex-1">
-                        <!-- Loading -->
                         <div x-show="pdfLoading" class="flex items-center justify-center py-20 text-slate-400 text-sm gap-2">
-                            <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                            </svg>
+                            <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
                             Loading PDF…
                         </div>
-                        <!-- Error -->
                         <div x-show="pdfError" class="flex flex-col items-center justify-center py-16 text-red-500 text-sm gap-2 px-4 text-center">
-                            <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                            </svg>
+                            <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                             <p class="font-semibold">Failed to load PDF preview</p>
                             <p class="text-xs text-red-400" x-text="pdfError"></p>
                         </div>
-                        <!-- Canvas -->
                         <canvas id="pdf-canvas" x-show="!pdfLoading && !pdfError"></canvas>
-                        <!-- Predefined placement boxes (hidden once overlays are active) -->
-                        <template x-if="!showDragOverlay">
-                            <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
-                                <div class="placement-box"
-                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
-                                    ✍ Sign Here
+
+                        <!-- ── GUIDED MODE: fixed placement boxes ── -->
+                        <template x-if="guidedMode">
+                            <template x-for="box in currentPageBoxes()" :key="box.idx">
+                                <div class="sign-box"
+                                     :class="signatureData ? 'signed' : 'unsigned'"
+                                     :style="`left:${box.xPx}px;top:${box.yPx}px;width:${box.wPx}px;height:${box.hPx}px`"
+                                     @click="openCaptureModal()">
+                                    <template x-if="signatureData">
+                                        <img :src="signatureData" draggable="false">
+                                    </template>
+                                    <template x-if="!signatureData">
+                                        <span class="flex flex-col items-center gap-0.5 pointer-events-none">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            <span style="font-size:9px">Sign here</span>
+                                        </span>
+                                    </template>
                                 </div>
                             </template>
                         </template>
-                        <!-- Draggable + resizable signature overlays (one per placement) -->
+
+                        <!-- ── FREE MODE: predefined placeholders + drag overlays ── -->
+                        <template x-if="!guidedMode">
+                            <template x-if="!showDragOverlay">
+                                <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
+                                    <div class="sign-box unsigned"
+                                         :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
+                                        <span class="flex flex-col items-center gap-0.5 pointer-events-none">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            <span style="font-size:9px">Sign here</span>
+                                        </span>
+                                    </div>
+                                </template>
+                            </template>
+                        </template>
+
+                        <!-- Free-mode drag overlays -->
                         <template x-for="overlay in currentPageOverlays()" :key="overlay.id">
                             <div class="drag-overlay"
                                  :class="{ dragging: isDragging && activeOverlayIdx === overlay._idx }"
@@ -509,7 +501,6 @@ document.addEventListener('alpine:init', () => {
                                 <div class="sig-inner">
                                     <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
                                 </div>
-                                <!-- 8 resize handles -->
                                 <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                 <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                 <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
@@ -522,31 +513,29 @@ document.addEventListener('alpine:init', () => {
                         </template>
                     </div>
 
-                    <!-- Placement hint + page jump chips -->
-                    <div x-show="showDragOverlay" class="mt-3 flex-shrink-0 space-y-2">
-                        <p class="text-xs text-indigo-600 flex items-center gap-1.5">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3"/></svg>
-                            Drag &amp; resize each signature, then click <strong class="ml-0.5">Submit Signature</strong>.
-                        </p>
-                        <!-- Page chips: shown only when placements span multiple pages -->
-                        <div x-show="placementPages().length > 1" class="flex flex-wrap gap-1.5">
-                            <span class="text-xs text-slate-400 self-center">Signatures on:</span>
-                            <template x-for="pg in placementPages()" :key="pg">
-                                <button type="button"
-                                        @click="renderPage(pg)"
-                                        :class="currentPage === pg
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'"
-                                        class="px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors">
-                                    Page <span x-text="pg"></span>
-                                </button>
-                            </template>
+                    <!-- Free-mode: drag hint -->
+                    <template x-if="!guidedMode">
+                        <div x-show="showDragOverlay" class="mt-3 flex-shrink-0 space-y-2">
+                            <p class="text-xs text-indigo-600 flex items-center gap-1.5">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3"/></svg>
+                                Drag &amp; resize the signature box, then click <strong class="ml-0.5">Submit Signature</strong>.
+                            </p>
+                            <div x-show="placementPages().length > 1" class="flex flex-wrap gap-1.5">
+                                <span class="text-xs text-slate-400 self-center">Signatures on:</span>
+                                <template x-for="pg in placementPages()" :key="pg">
+                                    <button @click="renderPage(pg)"
+                                            :class="currentPage === pg ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'"
+                                            class="px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                                        Page <span x-text="pg"></span>
+                                    </button>
+                                </template>
+                            </div>
                         </div>
-                    </div>
+                    </template>
                 </div>
             </div>
 
-            <!-- ── Signing Panel (1/3) ── -->
+            <!-- ── Right Panel (1/3) ── -->
             <div class="lg:col-span-1 space-y-4">
 
                 <!-- Signer info -->
@@ -562,204 +551,217 @@ document.addEventListener('alpine:init', () => {
                     {% endif %}
                 </div>
 
-                <!-- Signature capture -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                    <form method="post" id="sign-form">
-                        {% csrf_token %}
-                        <input type="hidden" name="action"              id="action-input"              value="sign">
-                        <input type="hidden" name="signature_data"   id="signature-data-input"   value="">
-                        <input type="hidden" name="save_signature"   id="save-sig-input"          value="0">
-                        <input type="hidden" name="drop_placements"  id="drop-placements-input"   value="">
-                        <input type="hidden" name="stamp_timestamp"  id="stamp-timestamp-input"   value="true">
-                        <input type="hidden" name="stamp_name"       id="stamp-name-input"        value="true">
-                        <input type="hidden" name="stamp_job_role"   id="stamp-job-role-input"    value="">
-                        <input type="hidden" name="stamp_job_role_text" id="stamp-job-role-text-input" value="">
-
-                        <!-- Sign view -->
-                        <div x-show="activeAction === 'sign'">
-                            <p class="text-sm font-semibold text-slate-700 mb-3">Your Signature</p>
-
-                            <!-- Tab bar -->
-                            <div class="flex border-b border-slate-200 mb-4 gap-0">
-                                {% if has_saved_sig %}
-                                <button type="button" @click="switchTab('saved')"
-                                        :class="activeTab==='saved' ? 'active' : ''" class="sig-tab">
-                                    💾 Saved
-                                </button>
-                                {% endif %}
-                                <button type="button" @click="switchTab('draw')"
-                                        :class="activeTab==='draw' ? 'active' : ''" class="sig-tab">
-                                    ✍ Draw
-                                </button>
-                                <button type="button" @click="switchTab('type')"
-                                        :class="activeTab==='type' ? 'active' : ''" class="sig-tab">
-                                    A Type
-                                </button>
-                                <button type="button" @click="switchTab('upload')"
-                                        :class="activeTab==='upload' ? 'active' : ''" class="sig-tab">
-                                    📤 Upload
-                                </button>
-                                <button type="button" @click="switchTab('mobile')"
-                                        :class="activeTab==='mobile' ? 'active' : ''" class="sig-tab">
-                                    📱 Phone
-                                </button>
+                <!-- ══ GUIDED MODE PANEL ══ -->
+                <template x-if="guidedMode">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <!-- Header -->
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                            <div :class="signatureData ? 'bg-green-100' : 'bg-amber-100'"
+                                 class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg x-show="!signatureData" class="h-4 w-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                <svg x-show="signatureData" class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                             </div>
-
-                            <!-- Saved tab -->
-                            {% if has_saved_sig %}
-                            <div x-show="activeTab === 'saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
-                                <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50">
-                                    <img :src="savedSigData" alt="Saved signature" class="max-h-20 mx-auto">
-                                </div>
-                                <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">
-                                    Loading saved signature…
-                                </div>
-                                <p class="text-xs text-slate-400 text-center">Your signature from a previous session.</p>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800" x-text="signatureData ? 'Signature Ready' : 'Signature Required'"></p>
+                                <p class="text-xs text-slate-400" x-text="signatureData ? 'Click Submit when ready.' : 'Click a highlighted box or the button below.'"></p>
                             </div>
-                            {% endif %}
+                        </div>
 
-                            <!-- Draw tab -->
-                            <div x-show="activeTab === 'draw'" class="space-y-2">
-                                <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50">
-                                    <canvas id="draw-canvas" style="width:100%;height:160px;display:block;"></canvas>
-                                </div>
-                                <button type="button" @click="clearDraw()"
-                                        class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">
-                                    Clear
-                                </button>
-                            </div>
-
-                            <!-- Type tab -->
-                            <div x-show="activeTab === 'type'" class="space-y-3">
-                                <input type="text" x-model="typedName" @input="renderTypedSig()"
-                                       class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                       placeholder="Type your full name…">
-                                <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-                                    <canvas id="type-canvas" width="400" height="120"
-                                            style="width:100%;height:120px;display:block;"></canvas>
-                                </div>
-                                <p class="text-xs text-slate-400 text-center">Preview in script font</p>
-                            </div>
-
-                            <!-- Upload tab -->
-                            <div x-show="activeTab === 'upload'" class="space-y-3">
-                                <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-5 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
-                                    <svg class="h-7 w-7 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                                    </svg>
-                                    <span class="text-sm text-slate-500 font-medium">Upload signature image</span>
-                                    <span class="text-xs text-slate-400 mt-0.5">PNG, JPG, GIF</span>
-                                    <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
-                                </label>
-                                <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50">
-                                    <img :src="uploadedData" alt="Uploaded signature" class="max-h-20 mx-auto">
-                                </div>
-                            </div>
-
-                            <!-- Mobile / QR tab -->
-                            <div x-show="activeTab === 'mobile'" class="space-y-3">
-                                <div x-show="!mobileUrl" class="text-center space-y-3">
-                                    <p class="text-sm text-slate-500">Scan the QR code with your phone to draw on a touch screen.</p>
-                                    <button type="button" @click="startMobileSession()" :disabled="mobileLoading"
-                                            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition-colors">
-                                        <span x-text="mobileLoading ? 'Generating…' : '📱 Generate QR Code'"></span>
-                                    </button>
-                                </div>
-                                <div x-show="mobileUrl && !mobileReady" class="text-center space-y-2">
-                                    <p class="text-xs text-slate-500">Scan with your phone's camera:</p>
-                                    <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-2 bg-white"></div>
-                                    <p class="text-xs text-amber-600 flex items-center justify-center gap-1.5 font-medium">
-                                        <span class="inline-block w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                                        Waiting for mobile signature…
-                                    </p>
-                                    <button type="button" @click="cancelMobile()" class="text-xs text-slate-400 hover:text-red-500 underline">Cancel</button>
-                                </div>
-                                <div x-show="mobileReady" class="space-y-2">
-                                    <p class="text-xs text-green-600 font-semibold text-center">✅ Signature received from phone!</p>
-                                    <div class="border border-green-200 bg-green-50 rounded-xl p-2 text-center">
-                                        <img :src="mobileData" alt="Mobile signature" class="max-h-20 mx-auto">
+                        <!-- Signature boxes checklist -->
+                        <div class="px-5 py-3 border-b border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Placement{{ PLACEMENTS|length|pluralize }}</p>
+                            <div class="space-y-1.5 max-h-32 overflow-y-auto">
+                                {% for p in placements %}
+                                <div class="flex items-center gap-2 text-xs">
+                                    <div x-data
+                                         :class="signatureData ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'"
+                                         class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <svg x-show="signatureData" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        <svg x-show="!signatureData" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </div>
-                                    <button type="button" @click="cancelMobile()" class="w-full text-xs text-slate-400 hover:text-slate-600 py-1 underline">Redo on phone</button>
+                                    <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
+                                    <button type="button" x-data
+                                            @click="renderPage({{ p.page_number }})"
+                                            class="ml-auto text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold">
+                                        Go →
+                                    </button>
                                 </div>
+                                {% endfor %}
                             </div>
+                        </div>
 
-                            <!-- Save for later (system users only) -->
+                        <!-- Stamp options -->
+                        <div class="px-5 py-3 border-b border-slate-100 space-y-2">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stamp Annotations</p>
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600">
+                                <span class="text-xs text-slate-600">Date &amp; time</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600">
+                                <span class="text-xs text-slate-600">Full name</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600">
+                                <span class="text-xs text-slate-600">Job title / role</span>
+                            </label>
+                            <div x-show="stampJobRole" x-cloak class="pl-6">
+                                <input type="text" x-model="stampJobRoleText" maxlength="150"
+                                       class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                       placeholder="e.g. IT Manager">
+                            </div>
                             {% if request.user.is_authenticated and signer.user_id %}
-                            <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-                                <input type="checkbox" id="save-for-later" x-model="saveForLater"
-                                       class="w-4 h-4 rounded accent-indigo-600">
-                                <label for="save-for-later" class="text-xs text-slate-500 cursor-pointer select-none">
-                                    Save this signature for future documents
-                                </label>
-                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-slate-100">
+                                <input type="checkbox" x-model="saveForLater" class="w-4 h-4 rounded accent-indigo-600">
+                                <span class="text-xs text-slate-500">Save signature for future documents</span>
+                            </label>
                             {% endif %}
-
-                            <!-- Stamp annotation options -->
-                            <div class="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
-                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Document Annotations</p>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600">
-                                    <span class="text-xs text-slate-600">Show <strong>date &amp; time</strong> of signing</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600">
-                                    <span class="text-xs text-slate-600">Show <strong>full name</strong></span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600">
-                                    <span class="text-xs text-slate-600">Show <strong>job title / role</strong></span>
-                                </label>
-                                <div x-show="stampJobRole" x-cloak class="pl-6">
-                                    <input type="text" x-model="stampJobRoleText" maxlength="150"
-                                           class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                           placeholder="e.g. IT Manager / Finance Staff">
-                                </div>
-                            </div>
-
-                            <div class="pt-3 space-y-2">
-                                <!-- Step 1: Place on document -->
-                                <button type="button" @click="placeOnDocument()"
-                                        x-show="!showDragOverlay"
-                                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-                                    Place on Document
-                                </button>
-                                <!-- Step 2: Confirm placement + submit -->
-                                <div x-show="showDragOverlay" class="space-y-2">
-                                    <button type="button" @click="submitFinal()"
-                                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                        Submit Signature
-                                    </button>
-                                    <button type="button" @click="cancelPlacement()"
-                                            class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
-                                        ← Redo Signature
-                                    </button>
-                                </div>
-                                <button type="button" @click="activeAction='reject'"
-                                        class="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                                    Reject Document
-                                </button>
-                            </div>
                         </div>
 
-                        <!-- Reject view -->
-                        <div x-show="activeAction === 'reject'" class="space-y-3">
-                            <p class="text-sm font-semibold text-red-600">Rejection Reason</p>
+                        <!-- Actions -->
+                        <div class="px-5 py-4 space-y-2">
+                            <button type="button" @click="signatureData ? guidedSubmit() : openCaptureModal()"
+                                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                                    class="w-full text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                                <svg x-show="!signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                <svg x-show="signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span x-text="signatureData ? 'Submit Signature' : 'Sign Document'"></span>
+                            </button>
+                            <button x-show="signatureData" type="button" @click="signatureData = null"
+                                    class="w-full text-sm py-2 border border-slate-200 text-slate-400 hover:bg-slate-50 rounded-xl">
+                                ← Redo Signature
+                            </button>
+                            <button type="button" @click="activeAction = 'reject_view'"
+                                    class="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl">
+                                Reject Document
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ── Guided reject view ── -->
+                <template x-if="guidedMode && activeAction === 'reject_view'">
+                    <div class="bg-white rounded-2xl shadow-sm border border-red-200 p-5 space-y-3">
+                        <p class="text-sm font-semibold text-red-600">Rejection Reason</p>
+                        <form method="post" id="reject-form-guided">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reject">
+                            <input type="hidden" name="signature_data" value="">
+                            <input type="hidden" name="save_signature" value="0">
+                            <input type="hidden" name="drop_placements" value="">
+                            <input type="hidden" name="stamp_timestamp" value="">
+                            <input type="hidden" name="stamp_name" value="">
+                            <input type="hidden" name="stamp_job_role" value="">
+                            <input type="hidden" name="stamp_job_role_text" value="">
                             <textarea name="notes" rows="4"
-                                      class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                                      class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 mb-3"
                                       placeholder="Please explain why you are rejecting this document (required)…"></textarea>
-                            <button type="button" @click="submitReject()"
-                                    class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition-colors">
-                                Confirm Rejection
-                            </button>
-                            <button type="button" @click="activeAction='sign'"
-                                    class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">
-                                ← Back to Signing
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl mb-2">Confirm Rejection</button>
+                        </form>
+                        <button @click="activeAction = 'sign'" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Back</button>
+                    </div>
+                </template>
+
+                <!-- ══ FREE MODE PANEL (unchanged) ══ -->
+                <template x-if="!guidedMode">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <form method="post" id="sign-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="action"               id="action-input"            value="sign">
+                            <input type="hidden" name="signature_data"       id="signature-data-input"    value="">
+                            <input type="hidden" name="save_signature"       id="save-sig-input"          value="0">
+                            <input type="hidden" name="drop_placements"      id="drop-placements-input"   value="">
+                            <input type="hidden" name="stamp_timestamp"      id="stamp-timestamp-input"   value="true">
+                            <input type="hidden" name="stamp_name"           id="stamp-name-input"        value="true">
+                            <input type="hidden" name="stamp_job_role"       id="stamp-job-role-input"    value="">
+                            <input type="hidden" name="stamp_job_role_text"  id="stamp-job-role-text-input" value="">
+
+                            <div x-show="activeAction === 'sign'">
+                                <p class="text-sm font-semibold text-slate-700 mb-3">Your Signature</p>
+                                <div class="flex border-b border-slate-200 mb-4 gap-0">
+                                    {% if has_saved_sig %}<button type="button" @click="switchTab('saved')" :class="activeTab==='saved'?'active':''" class="sig-tab">💾 Saved</button>{% endif %}
+                                    <button type="button" @click="switchTab('draw')"   :class="activeTab==='draw'?'active':''"   class="sig-tab">✍ Draw</button>
+                                    <button type="button" @click="switchTab('type')"   :class="activeTab==='type'?'active':''"   class="sig-tab">A Type</button>
+                                    <button type="button" @click="switchTab('upload')" :class="activeTab==='upload'?'active':''" class="sig-tab">📤 Upload</button>
+                                    <button type="button" @click="switchTab('mobile')" :class="activeTab==='mobile'?'active':''" class="sig-tab">📱 Phone</button>
+                                </div>
+                                {% if has_saved_sig %}
+                                <div x-show="activeTab==='saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
+                                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-20 mx-auto"></div>
+                                    <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">Loading saved signature…</div>
+                                </div>
+                                {% endif %}
+                                <div x-show="activeTab==='draw'" class="space-y-2">
+                                    <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50"><canvas id="draw-canvas" style="width:100%;height:160px;display:block;"></canvas></div>
+                                    <button type="button" @click="clearDraw()" class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">Clear</button>
+                                </div>
+                                <div x-show="activeTab==='type'" class="space-y-3">
+                                    <input type="text" x-model="typedName" @input="renderTypedSig()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Type your full name…">
+                                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50"><canvas id="type-canvas" width="400" height="120" style="width:100%;height:120px;display:block;"></canvas></div>
+                                </div>
+                                <div x-show="activeTab==='upload'" class="space-y-3">
+                                    <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-5 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+                                        <svg class="h-7 w-7 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                        <span class="text-sm text-slate-500 font-medium">Upload signature image</span>
+                                        <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
+                                    </label>
+                                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto"></div>
+                                </div>
+                                <div x-show="activeTab==='mobile'" class="space-y-3">
+                                    <div x-show="!mobileUrl" class="text-center space-y-3">
+                                        <p class="text-sm text-slate-500">Scan the QR code with your phone to draw on a touch screen.</p>
+                                        <button type="button" @click="startMobileSession()" :disabled="mobileLoading" class="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl disabled:opacity-60"><span x-text="mobileLoading?'Generating…':'📱 Generate QR Code'"></span></button>
+                                    </div>
+                                    <div x-show="mobileUrl && !mobileReady" class="text-center space-y-2">
+                                        <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-2 bg-white"></div>
+                                        <p class="text-xs text-amber-600 flex items-center justify-center gap-1.5 font-medium"><span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>Waiting for mobile signature…</p>
+                                        <button type="button" @click="cancelMobile()" class="text-xs text-slate-400 underline">Cancel</button>
+                                    </div>
+                                    <div x-show="mobileReady" class="space-y-2">
+                                        <p class="text-xs text-green-600 font-semibold text-center">✅ Signature received!</p>
+                                        <div class="border border-green-200 bg-green-50 rounded-xl p-2 text-center"><img :src="mobileData" class="max-h-20 mx-auto"></div>
+                                        <button type="button" @click="cancelMobile()" class="w-full text-xs text-slate-400 underline py-1">Redo on phone</button>
+                                    </div>
+                                </div>
+                                {% if request.user.is_authenticated and signer.user_id %}
+                                <div class="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                                    <input type="checkbox" id="save-for-later" x-model="saveForLater" class="w-4 h-4 rounded accent-indigo-600">
+                                    <label for="save-for-later" class="text-xs text-slate-500 cursor-pointer">Save for future documents</label>
+                                </div>
+                                {% endif %}
+                                <div class="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
+                                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stamp Annotations</p>
+                                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Date &amp; time</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Full name</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Job title / role</span></label>
+                                    <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager"></div>
+                                </div>
+                                <div class="pt-3 space-y-2">
+                                    <button type="button" @click="placeOnDocument()" x-show="!showDragOverlay"
+                                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                        Place on Document
+                                    </button>
+                                    <div x-show="showDragOverlay" class="space-y-2">
+                                        <button type="button" @click="submitFinal()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            Submit Signature
+                                        </button>
+                                        <button type="button" @click="cancelPlacement()" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Redo Signature</button>
+                                    </div>
+                                    <button type="button" @click="activeAction='reject'" class="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl">Reject Document</button>
+                                </div>
+                            </div>
+
+                            <div x-show="activeAction === 'reject'" class="space-y-3">
+                                <p class="text-sm font-semibold text-red-600">Rejection Reason</p>
+                                <textarea name="notes" rows="4" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300" placeholder="Please explain why you are rejecting this document (required)…"></textarea>
+                                <button type="button" @click="submitReject()" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl">Confirm Rejection</button>
+                                <button type="button" @click="activeAction='sign'" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Back</button>
+                            </div>
+                        </form>
+                    </div>
+                </template>
             </div>
         </div>
 
@@ -769,4 +771,103 @@ document.addEventListener('alpine:init', () => {
         </p>
     </div>
 </div>
+
+<!-- ══ Guided-mode: Signature Capture Modal ══ -->
+<template x-if="guidedMode">
+    <div x-show="showCaptureModal" x-cloak
+         class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50"
+         @click.self="showCaptureModal = false"
+         style="display:none">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" @click.stop>
+            <!-- Modal header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-base text-slate-800">Draw Your Signature</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">This will be placed at the designated spots.</p>
+                </div>
+                <button @click="showCaptureModal = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <!-- Tab bar -->
+                <div class="flex border-b border-slate-200 gap-0">
+                    {% if has_saved_sig %}<button type="button" @click="switchTab('saved')" :class="activeTab==='saved'?'active':''" class="sig-tab">💾 Saved</button>{% endif %}
+                    <button type="button" @click="switchTab('draw')"   :class="activeTab==='draw'?'active':''"   class="sig-tab">✍ Draw</button>
+                    <button type="button" @click="switchTab('type')"   :class="activeTab==='type'?'active':''"   class="sig-tab">A Type</button>
+                    <button type="button" @click="switchTab('upload')" :class="activeTab==='upload'?'active':''" class="sig-tab">📤 Upload</button>
+                    <button type="button" @click="switchTab('mobile')" :class="activeTab==='mobile'?'active':''" class="sig-tab">📱 Phone</button>
+                </div>
+
+                {% if has_saved_sig %}
+                <div x-show="activeTab==='saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
+                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-24 mx-auto"></div>
+                    <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">Loading…</div>
+                </div>
+                {% endif %}
+                <div x-show="activeTab==='draw'" class="space-y-2">
+                    <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50">
+                        <canvas id="draw-canvas-modal" style="width:100%;height:160px;display:block;"></canvas>
+                    </div>
+                    <button type="button" @click="clearModalDraw()" class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">Clear</button>
+                </div>
+                <div x-show="activeTab==='type'" class="space-y-3">
+                    <input type="text" x-model="typedName" @input="renderTypedSig()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Type your full name…">
+                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50"><canvas id="type-canvas" width="400" height="120" style="width:100%;height:120px;display:block;"></canvas></div>
+                </div>
+                <div x-show="activeTab==='upload'" class="space-y-3">
+                    <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-4 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50">
+                        <svg class="h-6 w-6 text-slate-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        <span class="text-sm text-slate-500 font-medium">Upload signature image</span>
+                        <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
+                    </label>
+                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto"></div>
+                </div>
+                <div x-show="activeTab==='mobile'" class="space-y-3 text-center">
+                    <div x-show="!mobileUrl">
+                        <p class="text-sm text-slate-500 mb-3">Scan QR code with your phone to sign on a touch screen.</p>
+                        <button type="button" @click="startMobileSession()" :disabled="mobileLoading" class="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl disabled:opacity-60"><span x-text="mobileLoading?'Generating…':'📱 Generate QR Code'"></span></button>
+                    </div>
+                    <div x-show="mobileUrl && !mobileReady">
+                        <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-2 bg-white mb-2"></div>
+                        <p class="text-xs text-amber-600 font-medium flex items-center justify-center gap-1"><span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>Waiting…</p>
+                    </div>
+                    <div x-show="mobileReady">
+                        <p class="text-xs text-green-600 font-semibold mb-2">✅ Signature received!</p>
+                        <div class="border border-green-200 bg-green-50 rounded-xl p-2"><img :src="mobileData" class="max-h-16 mx-auto"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal footer -->
+            <div class="px-6 py-4 border-t border-slate-100 flex gap-3">
+                <button type="button" @click="applySignature()"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl py-2.5 transition-colors">
+                    Apply Signature
+                </button>
+                <button type="button" @click="showCaptureModal = false"
+                        class="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl py-2.5 transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Hidden form for guided mode submit -->
+<template x-if="guidedMode">
+    <form method="post" id="sign-form" style="display:none">
+        {% csrf_token %}
+        <input type="hidden" name="action"               id="action-input"            value="sign">
+        <input type="hidden" name="signature_data"       id="signature-data-input"    value="">
+        <input type="hidden" name="save_signature"       id="save-sig-input"          value="0">
+        <input type="hidden" name="drop_placements"      id="drop-placements-input"   value="">
+        <input type="hidden" name="stamp_timestamp"      id="stamp-timestamp-input"   value="true">
+        <input type="hidden" name="stamp_name"           id="stamp-name-input"        value="true">
+        <input type="hidden" name="stamp_job_role"       id="stamp-job-role-input"    value="">
+        <input type="hidden" name="stamp_job_role_text"  id="stamp-job-role-text-input" value="">
+    </form>
+</template>
+
 {% endblock %}
