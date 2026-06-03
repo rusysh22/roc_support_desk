@@ -7,8 +7,8 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
-#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
-#pdf-canvas { display: block; max-width: 100%; }
+#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; }
+#pdf-canvas { display: block; max-width: 100%; border-radius: 6px; }
 .placement-box {
     position: absolute;
     border: 2px dashed #6366f1;
@@ -882,18 +882,16 @@ document.addEventListener('alpine:init', () => {
                                  @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
                                 <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
                                 <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
-                                <template x-if="!placingMode">
-                                    <div>
-                                        <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
-                                        <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
-                                        <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
-                                        <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
-                                        <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
-                                        <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
-                                        <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
-                                        <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
-                                    </div>
-                                </template>
+                                <div>
+                                    <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                    <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                    <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                    <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                    <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                    <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                    <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                    <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                </div>
                             </div>
                         </template>
                     </div>
@@ -922,18 +920,16 @@ document.addEventListener('alpine:init', () => {
                                      @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
                                     <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
                                     <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
-                                    <template x-if="!placingMode">
-                                        <div>
-                                            <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
-                                            <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
-                                            <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
-                                            <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
-                                            <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
-                                            <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
-                                            <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
-                                            <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
-                                        </div>
-                                    </template>
+                                    <div>
+                                        <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                        <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                        <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                        <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                        <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                        <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                        <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                        <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                    </div>
                                 </div>
                             </template>
                         </div>
