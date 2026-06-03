@@ -279,6 +279,19 @@ def stamp_document(document) -> bytes | None:
             ).select_related("signer")
         )
 
+        logger.info(
+            "stamp_document doc=%s style=%s placements_found=%d signers_signed=%s",
+            document.pk, stamp_style, len(placements),
+            [str(p.signer_id) for p in placements],
+        )
+
+        if not placements:
+            logger.warning(
+                "stamp_document doc=%s: NO placements found for signed signers — "
+                "check that placement boxes were configured before sending.",
+                document.pk,
+            )
+
         placements_by_page: dict[int, list] = {}
         for p in placements:
             placements_by_page.setdefault(p.page_number, []).append((p, p.signer))
