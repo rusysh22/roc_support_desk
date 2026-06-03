@@ -337,11 +337,15 @@ def stamp_document(document) -> bytes | None:
                 overlay_reader = PdfReader(overlay_buf)
                 page.merge_page(overlay_reader.pages[0])
 
-            # Compress streams to prevent output PDF size bloat
-            if hasattr(page, "compress_content_streams"):
-                page.compress_content_streams()
-
             writer.add_page(page)
+
+        # Compress streams to prevent output PDF size bloat
+        for wpage in writer.pages:
+            if hasattr(wpage, "compress_content_streams"):
+                try:
+                    wpage.compress_content_streams()
+                except Exception:
+                    pass
 
         output = io.BytesIO()
         writer.write(output)
