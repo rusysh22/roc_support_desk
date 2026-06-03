@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify Identity — {{ document.title }}</title>
+  
+  <!-- Open Graph / Link Previews -->
+  <meta name="description" content="Please verify your identity to view and sign the document: {{ document.title }}.">
+  <meta property="og:title" content="Signature Request: {{ document.title }}">
+  <meta property="og:description" content="You have been requested to sign {{ document.title }}. Click here to securely review and sign.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ request.build_absolute_uri }}">
+  {% if site_config.logo %}
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ site_config.logo.url }}">
+  {% endif %}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Signature Request: {{ document.title }}">
+  <meta name="twitter:description" content="You have been requested to sign {{ document.title }}.">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-slate-50 flex items-center justify-center p-4">

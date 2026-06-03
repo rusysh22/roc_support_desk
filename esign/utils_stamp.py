@@ -45,6 +45,10 @@ def _build_annotations(signer):
         from django.utils import timezone
         local_time = timezone.localtime(signer.acted_at)
         parts.append(local_time.strftime("%d %b %Y %H:%M %Z"))
+    
+    if signer.document_id and hasattr(signer.document, 'document_code'):
+        parts.append(f"Doc Code: {signer.document.document_code}")
+        
     return parts
 
 
@@ -192,7 +196,7 @@ def _build_overlay(vis_w, vis_h, placements_for_page,
                    canvas_w=None, canvas_h=None,
                    cropbox_left=0.0, cropbox_bottom=0.0,
                    rotation=0,
-                   stamp_style="simple", site_name="E-Sign", logo_reader=None):
+                   site_name="E-Sign", logo_reader=None):
     """
     Return a BytesIO containing a single-page PDF overlay.
     """
@@ -232,7 +236,7 @@ def _build_overlay(vis_w, vis_h, placements_for_page,
 
         annotations = _build_annotations(signer)
 
-        if stamp_style == "branded":
+        if getattr(signer, "stamp_use_logo", True):
             _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
                            site_name=site_name, logo_reader=logo_reader)
         else:
@@ -260,12 +264,8 @@ def stamp_document(document) -> bytes | None:
         return None
 
     try:
-        stamp_style = getattr(document, "certificate_style", "simple") or "simple"
-
-        # Fetch branding once for all branded stamps
-        site_name, logo_reader = (
-            _fetch_site_branding() if stamp_style == "branded" else ("E-Sign", None)
-        )
+        # Always fetch branding in case any signer uses the branded stamp
+        site_name, logo_reader = _fetch_site_branding()
 
         with document.original_pdf.open('rb') as f:
             original_bytes = io.BytesIO(f.read())
@@ -325,7 +325,6 @@ def stamp_document(document) -> bytes | None:
                     cropbox_left=float(cropbox.left),
                     cropbox_bottom=float(cropbox.bottom),
                     rotation=rotation,
-                    stamp_style=stamp_style,
                     site_name=site_name,
                     logo_reader=logo_reader,
                 )

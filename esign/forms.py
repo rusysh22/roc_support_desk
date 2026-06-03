@@ -109,6 +109,7 @@ class SignerSignForm(forms.Form):
     stamp_timestamp = forms.BooleanField(required=False, initial=True, widget=forms.HiddenInput())
     stamp_name      = forms.BooleanField(required=False, initial=True, widget=forms.HiddenInput())
     stamp_job_role  = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    stamp_use_logo  = forms.BooleanField(required=False, initial=True, widget=forms.HiddenInput())
     stamp_job_role_text = forms.CharField(
         required=False,
         max_length=150,

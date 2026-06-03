@@ -44,6 +44,9 @@ def _signature_image_path(instance, filename):
 # SignatureDocument
 # ---------------------------------------------------------------------------
 
+def generate_document_code():
+    return f"ESIGN-{uuid.uuid4().hex[:8].upper()}"
+
 class SignatureDocument(AuditableModel):
     """Uploaded PDF file that will be routed through a signing workflow."""
 
@@ -58,10 +61,13 @@ class SignatureDocument(AuditableModel):
         REJECTED  = "rejected",  "Rejected"
         CANCELLED = "cancelled", "Cancelled"
 
-    class CertificateStyle(models.TextChoices):
-        SIMPLE  = "simple",  "Simple — signature with text annotation"
-        BRANDED = "branded", "Branded Stamp — signature in a logo frame"
-
+    document_code = models.CharField(
+        max_length=20,
+        unique=True,
+        default=generate_document_code,
+        verbose_name="Document Code",
+        help_text="Unique sequence/hash identifier for this document."
+    )
     title        = models.CharField(max_length=255, verbose_name="Document Title")
     original_pdf = models.FileField(
         upload_to=_original_pdf_path,
@@ -109,13 +115,7 @@ class SignatureDocument(AuditableModel):
         verbose_name="Document SHA-256",
         help_text="SHA-256 hash of the original PDF bytes for tamper-evidence.",
     )
-    certificate_style = models.CharField(
-        max_length=20,
-        choices=CertificateStyle.choices,
-        default=CertificateStyle.SIMPLE,
-        verbose_name="Stamp Style",
-        help_text="Visual style for the signature stamp placed on the document.",
-    )
+
 
     class Meta:
         verbose_name = "Signature Document"
@@ -268,6 +268,7 @@ class Signer(AuditableModel):
         verbose_name="Job Role Text",
         help_text="The job role/title the signer chose to include on the PDF.",
     )
+    stamp_use_logo = models.BooleanField(default=True, verbose_name="Use Company Logo")
 
     class Meta:
         verbose_name = "Signer"

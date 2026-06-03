@@ -147,9 +147,10 @@ def sign(request, token):
                     signer.stamp_timestamp    = bool(form.cleaned_data.get("stamp_timestamp", True))
                     signer.stamp_name         = bool(form.cleaned_data.get("stamp_name", True))
                     signer.stamp_job_role     = bool(form.cleaned_data.get("stamp_job_role", False))
+                    signer.stamp_use_logo     = bool(form.cleaned_data.get("stamp_use_logo", True))
                     signer.stamp_job_role_text = (form.cleaned_data.get("stamp_job_role_text") or "").strip()
                     signer.save(update_fields=[
-                        "stamp_timestamp", "stamp_name", "stamp_job_role", "stamp_job_role_text"
+                        "stamp_timestamp", "stamp_name", "stamp_job_role", "stamp_use_logo", "stamp_job_role_text"
                     ])
 
                     # If the user positioned their signature(s) via drag & drop,

@@ -97,7 +97,12 @@ function showToast(msg) {
             &middot; {{ doc.signed_count }}/{{ doc.total_count }} signatures collected
             {% if doc.page_count %}&middot; {{ doc.page_count }} pages{% endif %}
         </p>
-        <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
+            <span class="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200" title="Document Code">
+                {{ doc.document_code }}
+            </span>
+        </div>
     </div>
     <div class="flex gap-2 flex-wrap flex-shrink-0">
         <a href="{% url 'esign:document_list' %}"

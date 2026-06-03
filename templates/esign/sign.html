@@ -2,6 +2,19 @@
 {% load static %}
 {% block title %}Sign Document — {{ document.title }}{% endblock %}
 
+{% block meta %}
+<meta name="description" content="Please review and sign this document: {{ document.title }}.">
+<meta property="og:title" content="Signature Request: {{ document.title }}">
+<meta property="og:description" content="You have been requested to sign {{ document.title }}. Click here to securely review and sign.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ request.build_absolute_uri }}">
+{% if site_config.logo %}
+<meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ site_config.logo.url }}">
+{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Signature Request: {{ document.title }}">
+<meta name="twitter:description" content="You have been requested to sign {{ document.title }}.">
+{% endblock %}
 {% block extra_head %}
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -89,7 +102,7 @@ document.addEventListener('alpine:init', () => {
         saveForLater: false,
 
         // ── Stamp options ─────────────────────────────────────────────────────
-        stampTimestamp: true, stampName: true, stampJobRole: false, stampJobRoleText: '',
+        stampTimestamp: true, stampName: true, stampJobRole: false, stampJobRoleText: '', stampUseLogo: true,
 
         // ── Mobile/QR ─────────────────────────────────────────────────────────
         mobileSessionId: null, mobileUrl: null, mobilePollUrl: null,
@@ -358,7 +371,8 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('stamp-timestamp-input').value     = this.stampTimestamp ? 'true' : '';
             document.getElementById('stamp-name-input').value          = this.stampName ? 'true' : '';
             document.getElementById('stamp-job-role-input').value      = this.stampJobRole ? 'true' : '';
-            document.getElementById('stamp-job-role-text-input').value = this.stampJobRoleText.trim();
+            document.getElementById('stamp-job-role-text-input').value = this.stampJobRole ? this.stampJobRoleText : '';
+            document.getElementById('stamp-use-logo-input').value      = this.stampUseLogo ? 'true' : '';
             document.getElementById('sign-form').submit();
         },
 
@@ -469,7 +483,8 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('stamp-timestamp-input').value     = this.stampTimestamp ? 'true' : '';
             document.getElementById('stamp-name-input').value          = this.stampName ? 'true' : '';
             document.getElementById('stamp-job-role-input').value      = this.stampJobRole ? 'true' : '';
-            document.getElementById('stamp-job-role-text-input').value = this.stampJobRoleText.trim();
+            document.getElementById('stamp-job-role-text-input').value = this.stampJobRole ? this.stampJobRoleText : '';
+            document.getElementById('stamp-use-logo-input').value      = this.stampUseLogo ? 'true' : '';
             document.getElementById('sign-form').submit();
         },
 
@@ -863,11 +878,15 @@ document.addEventListener('alpine:init', () => {
                                 <input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600">
                                 <span class="text-xs text-slate-600">Job title / role</span>
                             </label>
-                            <div x-show="stampJobRole" x-cloak class="pl-6">
+                            <div x-show="stampJobRole" x-cloak class="pl-6 mb-2">
                                 <input type="text" x-model="stampJobRoleText" maxlength="150"
                                        class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
                                        placeholder="e.g. IT Manager">
                             </div>
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" x-model="stampUseLogo" class="w-4 h-4 rounded accent-indigo-600">
+                                <span class="text-xs text-slate-600">Use Company Logo</span>
+                            </label>
                             {% if request.user.is_authenticated and signer.user_id %}
                             <label class="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-slate-100">
                                 <input type="checkbox" x-model="saveForLater" class="w-4 h-4 rounded accent-indigo-600">
@@ -911,6 +930,7 @@ document.addEventListener('alpine:init', () => {
                             <input type="hidden" name="stamp_name" value="">
                             <input type="hidden" name="stamp_job_role" value="">
                             <input type="hidden" name="stamp_job_role_text" value="">
+                            <input type="hidden" name="stamp_use_logo" value="">
                             <textarea name="notes" rows="4"
                                       class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 mb-3"
                                       placeholder="Please explain why you are rejecting this document (required)…"></textarea>
@@ -933,6 +953,7 @@ document.addEventListener('alpine:init', () => {
                             <input type="hidden" name="stamp_name"           id="stamp-name-input"        value="true">
                             <input type="hidden" name="stamp_job_role"       id="stamp-job-role-input"    value="">
                             <input type="hidden" name="stamp_job_role_text"  id="stamp-job-role-text-input" value="">
+                            <input type="hidden" name="stamp_use_logo"       id="stamp-use-logo-input"    value="true">
 
                             <div x-show="activeAction === 'sign'">
                                 <p class="text-sm font-semibold text-slate-700 mb-3">Your Signature</p>
@@ -993,6 +1014,7 @@ document.addEventListener('alpine:init', () => {
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Full name</span></label>
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Job title / role</span></label>
                                     <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager"></div>
+                                    <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampUseLogo" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Use Company Logo</span></label>
                                 </div>
                                 <!-- Action buttons hidden on mobile — sticky bottom bar handles them -->
                                 <div class="pt-3 space-y-2 hidden lg:block">
@@ -1156,6 +1178,7 @@ document.addEventListener('alpine:init', () => {
         <input type="hidden" name="stamp_name"           id="stamp-name-input"        value="true">
         <input type="hidden" name="stamp_job_role"       id="stamp-job-role-input"    value="">
         <input type="hidden" name="stamp_job_role_text"  id="stamp-job-role-text-input" value="">
+        <input type="hidden" name="stamp_use_logo"       id="stamp-use-logo-input"    value="true">
     </form>
 </template>
 
