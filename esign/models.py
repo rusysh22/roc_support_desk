@@ -55,10 +55,8 @@ class SignatureDocument(AuditableModel):
         CANCELLED = "cancelled", "Cancelled"
 
     class CertificateStyle(models.TextChoices):
-        NONE       = "none",       "None (no certificate)"
-        PAGE       = "page",       "Full Certificate Page"
-        COMPACT    = "compact",    "Compact Summary"
-        LOGO_STAMP = "logo_stamp", "Logo Stamp"
+        SIMPLE  = "simple",  "Simple — signature with text annotation"
+        BRANDED = "branded", "Branded Stamp — signature in a logo frame"
 
     title        = models.CharField(max_length=255, verbose_name="Document Title")
     original_pdf = models.FileField(
@@ -102,9 +100,9 @@ class SignatureDocument(AuditableModel):
     certificate_style = models.CharField(
         max_length=20,
         choices=CertificateStyle.choices,
-        default=CertificateStyle.NONE,
-        verbose_name="Certificate Style",
-        help_text="Choose whether and how to append a signing certificate to the final PDF.",
+        default=CertificateStyle.SIMPLE,
+        verbose_name="Stamp Style",
+        help_text="Visual style for the signature stamp placed on the document.",
     )
 
     class Meta:

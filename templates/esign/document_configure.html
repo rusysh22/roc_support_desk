@@ -48,7 +48,7 @@ const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
 const _pdfConfigure = { doc: null };
 
-const INITIAL_CERT_STYLE = "{{ doc.certificate_style|default:'none' }}";
+const INITIAL_CERT_STYLE = "{{ doc.certificate_style|default:'simple' }}";
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
@@ -443,92 +443,90 @@ document.addEventListener('alpine:init', () => {
             </div>
         </div>
 
-        <!-- Certificate Style -->
+        <!-- Stamp Style -->
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                    </svg>
-                    <h3 class="font-semibold text-sm text-slate-700">Audit Certificate</h3>
-                </div>
-                <span class="text-xs text-slate-400">Optional</span>
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                <h3 class="font-semibold text-sm text-slate-700">Signature Stamp Style</h3>
             </div>
-            <div class="px-4 py-3">
-                <!-- 2×2 grid for the 4 options -->
-                <div class="grid grid-cols-2 gap-2">
-                    <!-- None -->
-                    <label @click="certificateStyle = 'none'"
-                           :class="certificateStyle === 'none'
-                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
-                               : 'border-slate-200 bg-white hover:border-slate-300'"
-                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
-                        <div class="flex items-center gap-2">
-                            <div :class="certificateStyle === 'none' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
-                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
-                                <div x-show="certificateStyle === 'none'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                            </div>
-                            <span class="text-xs font-bold text-slate-700">None</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 leading-snug">Clean document, no certificate appended.</p>
-                    </label>
+            <div class="px-4 py-3 space-y-2.5">
+                <p class="text-xs text-slate-400 leading-relaxed -mt-1">
+                    Choose how the signature stamp looks when placed on the document.
+                </p>
 
-                    <!-- Compact -->
-                    <label @click="certificateStyle = 'compact'"
-                           :class="certificateStyle === 'compact'
-                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
-                               : 'border-slate-200 bg-white hover:border-slate-300'"
-                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
-                        <div class="flex items-center gap-2">
-                            <div :class="certificateStyle === 'compact' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
-                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
-                                <div x-show="certificateStyle === 'compact'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                            </div>
-                            <span class="text-xs font-bold text-slate-700">Compact</span>
+                <!-- Simple -->
+                <label @click="certificateStyle = 'simple'"
+                       :class="certificateStyle === 'simple'
+                           ? 'border-indigo-400 ring-1 ring-indigo-300'
+                           : 'border-slate-200 hover:border-slate-300'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-white">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'simple' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                             class="w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'simple'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 leading-snug">Minimal summary box with names &amp; hash.</p>
-                    </label>
-
-                    <!-- Full Page -->
-                    <label @click="certificateStyle = 'page'"
-                           :class="certificateStyle === 'page'
-                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
-                               : 'border-slate-200 bg-white hover:border-slate-300'"
-                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
-                        <div class="flex items-center gap-2">
-                            <div :class="certificateStyle === 'page' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
-                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
-                                <div x-show="certificateStyle === 'page'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-slate-700 mb-1.5">Simple</p>
+                        <!-- Visual preview -->
+                        <div class="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                            <div class="bg-slate-50 h-10 flex items-center justify-center">
+                                <svg class="h-5 w-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
                             </div>
-                            <span class="text-xs font-bold text-slate-700">Full Page</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 leading-snug">Full audit page with IPs &amp; timestamps.</p>
-                    </label>
-
-                    <!-- Logo Stamp -->
-                    <label @click="certificateStyle = 'logo_stamp'"
-                           :class="certificateStyle === 'logo_stamp'
-                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
-                               : 'border-slate-200 bg-white hover:border-slate-300'"
-                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
-                        <div class="flex items-center gap-2">
-                            <div :class="certificateStyle === 'logo_stamp' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
-                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
-                                <div x-show="certificateStyle === 'logo_stamp'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                            <div class="border-t border-slate-100 px-2 py-1.5 space-y-0.5">
+                                <div class="h-1.5 w-20 bg-slate-200 rounded-full"></div>
+                                <div class="h-1.5 w-16 bg-slate-100 rounded-full"></div>
                             </div>
-                            <span class="text-xs font-bold text-slate-700">Logo Stamp</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 leading-snug">Branded page with company logo.</p>
-                    </label>
-                </div>
+                        <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">Signature image with name, date, and job role stamped below it.</p>
+                    </div>
+                </label>
 
-                <div class="mt-3 flex items-center gap-1.5 text-xs text-indigo-600"
-                     x-show="certificateStyle !== 'none'">
-                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Certificate will be appended on completion.
-                </div>
+                <!-- Branded -->
+                <label @click="certificateStyle = 'branded'"
+                       :class="certificateStyle === 'branded'
+                           ? 'border-indigo-400 ring-1 ring-indigo-300'
+                           : 'border-slate-200 hover:border-slate-300'"
+                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-white">
+                    <div class="mt-0.5 flex-shrink-0">
+                        <div :class="certificateStyle === 'branded' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                             class="w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors">
+                            <div x-show="certificateStyle === 'branded'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <p class="text-sm font-semibold text-slate-700">Branded Stamp</p>
+                            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">With Logo</span>
+                        </div>
+                        <!-- Visual preview -->
+                        <div class="border border-indigo-300 rounded-lg overflow-hidden">
+                            <div class="bg-indigo-600 px-2 py-1 flex items-center justify-between">
+                                <div class="flex items-center gap-1">
+                                    <div class="w-3 h-3 rounded-sm bg-white/20"></div>
+                                    <span class="text-[8px] font-bold text-white">Digitally Signed</span>
+                                </div>
+                                <svg class="h-2.5 w-2.5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <div class="bg-white h-8 flex items-center justify-center">
+                                <svg class="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </div>
+                            <div class="bg-slate-50 border-t border-slate-100 px-2 py-1 flex items-center justify-between">
+                                <div class="h-1.5 w-14 bg-slate-200 rounded-full"></div>
+                                <div class="h-1.5 w-10 bg-slate-100 rounded-full"></div>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">Signature inside a framed stamp with company logo, name, and date — all within the placement box.</p>
+                    </div>
+                </label>
             </div>
         </div>
 
