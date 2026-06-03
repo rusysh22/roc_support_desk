@@ -198,9 +198,8 @@ def sign(request, token):
                 except (ValueError, Exception) as exc:
                     messages.error(request, f"Failed to save signature: {exc}")
 
-    # Show partial signed PDF if previous signers have already completed
     pdf_url = (
-        document.preview_pdf.url
+        f"{document.preview_pdf.url}?v={int(document.updated_at.timestamp())}"
         if document.preview_pdf
         else document.original_pdf.url
     )
