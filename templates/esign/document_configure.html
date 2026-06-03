@@ -33,6 +33,23 @@
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; line-height: 1;
 }
+.resize-handle {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: white;
+    border: 2px solid #6366f1;
+    border-radius: 2px;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.resize-handle.nw { top:-5px;  left:-5px;            cursor:nw-resize }
+.resize-handle.n  { top:-5px;  left:calc(50% - 5px); cursor:n-resize  }
+.resize-handle.ne { top:-5px;  right:-5px;            cursor:ne-resize }
+.resize-handle.e  { top:calc(50% - 5px); right:-5px;  cursor:e-resize  }
+.resize-handle.se { bottom:-5px; right:-5px;           cursor:se-resize }
+.resize-handle.s  { bottom:-5px; left:calc(50% - 5px);cursor:s-resize  }
+.resize-handle.sw { bottom:-5px; left:-5px;            cursor:sw-resize }
+.resize-handle.w  { top:calc(50% - 5px); left:-5px;   cursor:w-resize  }
 /* Push content above the sticky send bar on mobile */
 @media (max-width: 1024px) {
     #configure-content { padding-bottom: 80px; }
@@ -70,6 +87,7 @@ document.addEventListener('alpine:init', () => {
         canvasW: 0,
         canvasH: 0,
         dragging: null,
+        resizing: null,
         viewMode: 'paged',          // 'paged' | 'scroll'
         scrollCanvasSizes: [],       // [{width, height}] indexed by page-1
         pages: Array.from({ length: DOC_PAGE_COUNT }, (_, i) => i + 1),
@@ -232,6 +250,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         onCanvasMouseMove(e) {
+            if (this.resizing) { this._moveResize(e); return; }
             if (!this.dragging) return;
             const dx = (e.clientX - this.dragging.lastX) / this.dragging.canvasW;
             const dy = (e.clientY - this.dragging.lastY) / this.dragging.canvasH;
@@ -242,7 +261,46 @@ document.addEventListener('alpine:init', () => {
             this.dragging.lastY = e.clientY;
         },
 
-        stopDrag() { this.dragging = null; },
+        stopDrag() { this.dragging = null; this.resizing = null; },
+
+        startResize(e, handle, globalIdx) {
+            if (this.placingMode) return;
+            e.stopPropagation();
+            e.preventDefault();
+            const p = this.placements[globalIdx];
+            let cw, ch;
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[p.page - 1];
+                cw = sizes?.width  || this.canvasW;
+                ch = sizes?.height || this.canvasH;
+            } else {
+                cw = this.canvasW;
+                ch = this.canvasH;
+            }
+            this.resizing = {
+                globalIdx, handle,
+                startX: e.clientX, startY: e.clientY,
+                startNX: p.x, startNY: p.y, startNW: p.w, startNH: p.h,
+                canvasW: cw, canvasH: ch,
+            };
+        },
+
+        _moveResize(e) {
+            const r = this.resizing;
+            const p = this.placements[r.globalIdx];
+            if (!p) return;
+            const dx = (e.clientX - r.startX) / r.canvasW;
+            const dy = (e.clientY - r.startY) / r.canvasH;
+            const minW = 40 / r.canvasW, minH = 18 / r.canvasH;
+            let nx = r.startNX, ny = r.startNY, nw = r.startNW, nh = r.startNH;
+            if (r.handle.includes('e')) nw = Math.max(minW, nw + dx);
+            if (r.handle.includes('s')) nh = Math.max(minH, nh + dy);
+            if (r.handle.includes('w')) { const newW = Math.max(minW, nw - dx); nx += nw - newW; nw = newW; }
+            if (r.handle.includes('n')) { const newH = Math.max(minH, nh - dy); ny += nh - newH; nh = newH; }
+            p.x = Math.max(0, Math.min(1 - nw, nx));
+            p.y = Math.max(0, Math.min(1 - nh, ny));
+            p.w = nw; p.h = nh;
+        },
 
         signerPlacements() {
             if (this.selectedSigner === null) return [];
@@ -820,10 +878,22 @@ document.addEventListener('alpine:init', () => {
                         <canvas id="pdf-canvas"></canvas>
                         <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
                             <div class="placement-box"
-                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : 'grab'}`"
-                                 @mousedown.stop.prevent="startDrag($event, p.globalIdx)">
+                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
+                                 @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
                                 <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
                                 <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                <template x-if="!placingMode">
+                                    <div>
+                                        <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                        <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                        <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                        <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                        <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                        <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                        <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                        <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                    </div>
+                                </template>
                             </div>
                         </template>
                     </div>
@@ -848,10 +918,22 @@ document.addEventListener('alpine:init', () => {
                             <!-- Placement overlays for this page -->
                             <template x-for="p in placementsForScrollPage(pageNum)" :key="p.globalIdx">
                                 <div class="placement-box"
-                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : 'grab'}`"
-                                     @mousedown.stop.prevent="startDrag($event, p.globalIdx)">
+                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
+                                     @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
                                     <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
                                     <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                    <template x-if="!placingMode">
+                                        <div>
+                                            <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                            <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                            <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                            <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                            <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                            <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                            <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                            <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                         </div>
