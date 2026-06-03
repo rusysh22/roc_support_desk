@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Configure Signers — {{ doc.title }}{% endblock %}
+{% block title %}Configure — {{ doc.title }}{% endblock %}
 {% block nav_esign %}active{% endblock %}
+{% block page_title %}Configure — {{ doc.title }}{% endblock %}
 
 {% block extra_head %}
-<!-- PDF.js via jsdelivr (CSP-compliant) -->
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
 #pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
@@ -33,6 +33,10 @@
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; line-height: 1;
 }
+/* Push content above the sticky send bar on mobile */
+@media (max-width: 1024px) {
+    #configure-content { padding-bottom: 80px; }
+}
 </style>
 
 <script>
@@ -42,8 +46,6 @@ const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
 const USER_SEARCH_URL    = "{% url 'esign:user_search' %}";
 const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
-// Stored outside Alpine so it is never wrapped in a reactive Proxy.
-// Alpine's Proxy breaks PDF.js private class fields (#d, etc.).
 const _pdfConfigure = { doc: null };
 
 const INITIAL_CERT_STYLE = "{{ doc.certificate_style|default:'none' }}";
@@ -230,40 +232,40 @@ document.addEventListener('alpine:init', () => {
 {% endblock %}
 
 {% block content %}
-<div x-data="esignConfigure">
+<div x-data="esignConfigure" id="configure-content">
 
-<!-- Back -->
-<div class="mb-4">
-    <a href="{% url 'esign:document_list' %}"
-       class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-        </svg>
-        Back to My Documents
-    </a>
-</div>
-
-<!-- Step indicator -->
-<div class="flex items-center mb-6">
-    <div class="flex items-center gap-2 flex-shrink-0">
-        <div class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold">✓</div>
-        <span class="text-sm font-medium text-green-600 hidden sm:inline">Upload &amp; Settings</span>
+<!-- ── Page Header ── -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div class="min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+            <a href="{% url 'esign:document_list' %}"
+               class="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                My Documents
+            </a>
+        </div>
+        <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Add signers and place signature boxes on the document.</p>
     </div>
-    <div class="flex-1 h-0.5 bg-indigo-300 mx-3"></div>
+    <!-- Step chips -->
     <div class="flex items-center gap-2 flex-shrink-0">
-        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">2</div>
-        <span class="text-sm font-semibold text-indigo-600 hidden sm:inline">Signers &amp; Placement</span>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            Upload
+        </span>
+        <svg class="h-3 w-3 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-600 text-white">
+            <span class="w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center text-[9px] font-bold">2</span>
+            Configure
+        </span>
+        <svg class="h-3 w-3 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">
+            <span class="w-3.5 h-3.5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold">3</span>
+            Send
+        </span>
     </div>
-    <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
-    <div class="flex items-center gap-2 flex-shrink-0">
-        <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-sm font-bold">3</div>
-        <span class="text-sm text-slate-400 hidden sm:inline">Sign &amp; Complete</span>
-    </div>
-</div>
-
-<div class="mb-4">
-    <h1 class="text-xl font-bold text-slate-900">{{ doc.title }}</h1>
-    <p class="text-sm text-slate-500 mt-0.5">Add signers and place signature boxes on the document.</p>
 </div>
 
 {% if messages %}
@@ -272,295 +274,452 @@ document.addEventListener('alpine:init', () => {
     {% endfor %}
 {% endif %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-    <!-- Left Panel: Signers -->
+    <!-- ── Left Panel: Configuration ── -->
     <div class="lg:col-span-1 space-y-4">
 
+        <!-- Flow Preset (if available) -->
         {% if flow_templates %}
-        <div class="jk-card">
-            <h3 class="font-semibold text-sm text-slate-700 mb-3">Flow Preset</h3>
-            <select id="flow-template-select" class="jk-select text-sm mb-2">
-                <option value="">— Select a preset —</option>
-                {% for ft in flow_templates %}
-                <option value="{{ ft.pk }}">{{ ft.name }} ({{ ft.get_routing_mode_display }})</option>
-                {% endfor %}
-            </select>
-            <button @click="applyTemplate()" class="jk-btn jk-btn-sm jk-btn-outline w-full">Apply Preset</button>
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                <h3 class="font-semibold text-sm text-slate-700">Flow Preset</h3>
+            </div>
+            <div class="px-4 py-3 flex gap-2">
+                <select id="flow-template-select" class="jk-select text-sm flex-1">
+                    <option value="">— Select a preset —</option>
+                    {% for ft in flow_templates %}
+                    <option value="{{ ft.pk }}">{{ ft.name }} ({{ ft.get_routing_mode_display }})</option>
+                    {% endfor %}
+                </select>
+                <button @click="applyTemplate()" class="jk-btn jk-btn-sm jk-btn-outline flex-shrink-0">Apply</button>
+            </div>
         </div>
         {% endif %}
 
-        <div class="jk-card">
-            <h3 class="font-semibold text-sm text-slate-700 mb-3">Routing Mode</h3>
-            <select x-model="routingMode" class="jk-select text-sm">
-                <option value="sequential">Sequential (one by one)</option>
-                <option value="parallel">Parallel (all at once)</option>
-            </select>
-        </div>
-
-        <div class="jk-card">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold text-sm text-slate-700">Signers</h3>
-                <button @click="addSignerModal = true" class="jk-btn jk-btn-sm jk-btn-primary">+ Add</button>
+        <!-- Routing Mode -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                </svg>
+                <h3 class="font-semibold text-sm text-slate-700">Routing Mode</h3>
             </div>
-
-            <div class="space-y-2">
-                <template x-for="(s, idx) in signers" :key="idx">
-                    <div class="flex items-center gap-2 p-2 border border-slate-200 rounded-lg">
-                        <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
-                              x-text="s.order"></span>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-medium truncate" x-text="s.name"></div>
-                            <div class="text-xs text-slate-400 truncate" x-text="s.email"></div>
-                        </div>
-                        <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" x-text="s.role"></span>
-                        <button @click="selectSigner(idx)"
-                                :class="selectedSigner === idx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'"
-                                class="text-xs px-2 py-1 rounded-md">Select</button>
-                        <button @click="removeSigner(idx)" class="text-red-400 hover:text-red-600 text-sm">✕</button>
-                    </div>
-                </template>
-                <p x-show="signers.length === 0" class="text-xs text-slate-400 text-center py-3">
-                    No signers added yet.
+            <div class="px-4 py-3">
+                <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                    <button @click="routingMode='sequential'"
+                            :class="routingMode==='sequential'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-white text-slate-500 hover:bg-slate-50'"
+                            class="flex-1 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                        </svg>
+                        Sequential
+                    </button>
+                    <button @click="routingMode='parallel'"
+                            :class="routingMode==='parallel'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-white text-slate-500 hover:bg-slate-50'"
+                            class="flex-1 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 border-l border-slate-200">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                        </svg>
+                        Parallel
+                    </button>
+                </div>
+                <p class="text-xs text-slate-400 mt-2"
+                   x-text="routingMode === 'sequential' ? 'Signers are notified one by one in order.' : 'All signers are notified simultaneously.'">
                 </p>
             </div>
         </div>
 
-        <div class="jk-card" x-show="selectedSigner !== null">
-            <h3 class="font-semibold text-sm text-slate-700 mb-3">
-                Signature box for: <span class="text-indigo-600" x-text="signers[selectedSigner]?.name ?? ''"></span>
-            </h3>
-            <p class="text-xs text-slate-500 mb-2">Select a page then click on the PDF to place a signature box.</p>
-            <div class="flex gap-2 items-center mb-2">
-                <label class="text-xs text-slate-600">Page:</label>
-                <input type="number" x-model.number="currentPage" min="1" max="{{ doc.page_count }}"
-                       class="jk-input text-sm w-20" @change="renderPage(currentPage)">
-                <span class="text-xs text-slate-400">/ {{ doc.page_count }}</span>
-            </div>
-            <button @click="placingMode = !placingMode"
-                    :class="placingMode ? 'jk-btn-primary' : 'jk-btn-outline'"
-                    class="jk-btn jk-btn-sm w-full">
-                <span x-text="placingMode ? '✅ Click on PDF to place box' : '🖊 Placement Mode'"></span>
-            </button>
-        </div>
-
-        <!-- Certificate Style Picker -->
-        <div class="jk-card">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="font-semibold text-sm text-slate-700">Certificate</h3>
-                <span class="text-xs text-slate-400">Optional</span>
-            </div>
-            <p class="text-xs text-slate-500 mb-3 leading-relaxed">
-                Choose whether to append a signing certificate to the final signed PDF.
-            </p>
-
-            <div class="space-y-2">
-                <!-- None -->
-                <label @click="certificateStyle = 'none'"
-                       :class="certificateStyle === 'none'
-                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
-                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
-                    <div class="mt-0.5 flex-shrink-0">
-                        <div :class="certificateStyle === 'none' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
-                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
-                            <div x-show="certificateStyle === 'none'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-slate-700">None</span>
-                            <span class="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Default</span>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-0.5">No certificate appended. Clean document only.</p>
-                    </div>
-                </label>
-
-                <!-- Compact -->
-                <label @click="certificateStyle = 'compact'"
-                       :class="certificateStyle === 'compact'
-                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
-                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
-                    <div class="mt-0.5 flex-shrink-0">
-                        <div :class="certificateStyle === 'compact' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
-                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
-                            <div x-show="certificateStyle === 'compact'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-slate-700">Compact Summary</span>
-                            <span class="text-xs bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full">Simple</span>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-0.5">Minimal bordered box with signer names, dates, and document hash.</p>
-                        <!-- Mini preview -->
-                        <div class="mt-2 border border-slate-200 rounded-lg p-2 bg-slate-50 text-[10px] text-slate-500 font-mono leading-tight">
-                            <div class="font-semibold text-slate-600 border-b border-slate-200 pb-1 mb-1">Digital Signing Certificate  <span class="text-green-600">✓ Verified</span></div>
-                            <div>DOCUMENT  <span class="text-slate-700">Contract.pdf</span></div>
-                            <div>COMPLETED  <span class="text-slate-700">01 Jun 2025 14:30</span></div>
-                            <div class="mt-1">✓ Alice · 01 Jun · alice@mail.com</div>
-                            <div>✓ Bob &nbsp;&nbsp;· 01 Jun · bob@mail.com</div>
-                        </div>
-                    </div>
-                </label>
-
-                <!-- Full Page -->
-                <label @click="certificateStyle = 'page'"
-                       :class="certificateStyle === 'page'
-                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
-                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
-                    <div class="mt-0.5 flex-shrink-0">
-                        <div :class="certificateStyle === 'page' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
-                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
-                            <div x-show="certificateStyle === 'page'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-slate-700">Full Certificate Page</span>
-                            <span class="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">Detailed</span>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-0.5">Complete audit page — title, hash, completion time, all signer details &amp; IPs.</p>
-                    </div>
-                </label>
-
-                <!-- Logo Stamp -->
-                <label @click="certificateStyle = 'logo_stamp'"
-                       :class="certificateStyle === 'logo_stamp'
-                           ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400'
-                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
-                       class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all">
-                    <div class="mt-0.5 flex-shrink-0">
-                        <div :class="certificateStyle === 'logo_stamp' ? 'bg-indigo-600' : 'bg-white border-2 border-slate-300'"
-                             class="w-4 h-4 rounded-full flex items-center justify-center transition-colors">
-                            <div x-show="certificateStyle === 'logo_stamp'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-slate-700">Logo Stamp</span>
-                            <span class="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Branded</span>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-0.5">Formal page with company logo, header band, and color-coded signer table.</p>
-                    </div>
-                </label>
-            </div>
-
-            <!-- Active style indicator -->
-            <div class="mt-3 flex items-center gap-1.5 text-xs text-indigo-600"
-                 x-show="certificateStyle !== 'none'">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span>Certificate will be appended when all signers complete.</span>
-            </div>
-        </div>
-
-        <div class="jk-card">
-            <button @click="saveAndSend()" class="jk-btn jk-btn-primary w-full" :disabled="saving">
-                <span x-text="saving ? 'Saving...' : 'Save & Send to Signers →'"></span>
-            </button>
-            <p class="text-xs text-slate-400 mt-2 text-center">Configuration will be saved and the document sent.</p>
-        </div>
-    </div>
-
-    <!-- Right Panel: PDF viewer -->
-    <div class="lg:col-span-2">
-        <div class="jk-card p-3">
-            <div class="flex items-center justify-between mb-3">
+        <!-- Signers -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <button @click="changePage(-1)" :disabled="currentPage <= 1"
-                            class="jk-btn jk-btn-sm jk-btn-outline">‹</button>
-                    <span class="text-sm text-slate-600">
-                        Page <span x-text="currentPage"></span> / {{ doc.page_count }}
-                    </span>
-                    <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
-                            class="jk-btn jk-btn-sm jk-btn-outline">›</button>
+                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <h3 class="font-semibold text-sm text-slate-700">Signers</h3>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700"
+                          x-text="signers.length" x-show="signers.length > 0"></span>
                 </div>
-                <span class="text-xs text-slate-400" x-show="placingMode">Click on the PDF to place a signature box</span>
+                <button @click="addSignerModal = true"
+                        class="inline-flex items-center gap-1 jk-btn jk-btn-sm jk-btn-primary">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add
+                </button>
             </div>
 
-            <div id="pdf-viewer-wrap" @click="onCanvasClick($event)"
-                 :style="placingMode ? 'cursor: crosshair' : 'cursor: default'">
-                <canvas id="pdf-canvas"></canvas>
-                <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
-                    <div class="placement-box"
-                         :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
-                        <span x-text="'✍ ' + (signers[p.signerIndex]?.name || '')"></span>
-                        <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+            <div class="divide-y divide-slate-100">
+                <template x-for="(s, idx) in signers" :key="idx">
+                    <div class="px-4 py-3 flex items-center gap-3"
+                         :class="selectedSigner === idx ? 'bg-indigo-50/60' : 'hover:bg-slate-50'">>
+                        <!-- Order badge -->
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                             :class="selectedSigner === idx
+                                 ? 'bg-indigo-600 text-white'
+                                 : 'bg-indigo-100 text-indigo-700'"
+                             x-text="s.order"></div>
+                        <!-- Info -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-slate-800 truncate" x-text="s.name"></p>
+                            <p class="text-xs text-slate-400 truncate" x-text="s.email"></p>
+                        </div>
+                        <!-- Role badge -->
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                              :class="s.role === 'approver' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'"
+                              x-text="s.role"></span>
+                        <!-- Select / Remove -->
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button @click="selectSigner(idx); placingMode = false"
+                                    :class="selectedSigner === idx
+                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'"
+                                    class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors">
+                                <span x-text="selectedSigner === idx ? '✓ Active' : 'Select'"></span>
+                            </button>
+                            <button @click="removeSigner(idx)"
+                                    class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </template>
+                <div x-show="signers.length === 0"
+                     class="px-4 py-8 text-center">
+                    <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium">No signers added yet</p>
+                    <p class="text-xs text-slate-300 mt-0.5">Click Add to get started</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Placement (only shown when a signer is selected) -->
+        <div x-show="selectedSigner !== null"
+             class="bg-white border border-indigo-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-indigo-100 bg-indigo-50/40 flex items-center gap-2">
+                <svg class="h-4 w-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                <h3 class="font-semibold text-sm text-indigo-700">
+                    Placing box for: <span class="text-indigo-600 font-bold" x-text="signers[selectedSigner]?.name ?? ''"></span>
+                </h3>
+            </div>
+            <div class="px-4 py-3 space-y-3">
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-medium text-slate-600 flex-shrink-0">Page:</label>
+                    <input type="number" x-model.number="currentPage" min="1" max="{{ doc.page_count }}"
+                           class="jk-input text-sm w-20 py-2" @change="renderPage(currentPage)">
+                    <span class="text-xs text-slate-400">/ {{ doc.page_count }}</span>
+                </div>
+                <button @click="placingMode = !placingMode"
+                        :class="placingMode
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'"
+                        class="w-full flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-semibold transition-all">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    <span x-text="placingMode ? 'Click on PDF to place box…' : 'Enter Placement Mode'"></span>
+                </button>
+                <div x-show="placements.filter(p => p.signerIndex === selectedSigner).length > 0"
+                     class="text-xs text-green-600 flex items-center gap-1.5">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span x-text="placements.filter(p => p.signerIndex === selectedSigner).length + ' box(es) placed'"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Certificate Style -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <h3 class="font-semibold text-sm text-slate-700">Audit Certificate</h3>
+                </div>
+                <span class="text-xs text-slate-400">Optional</span>
+            </div>
+            <div class="px-4 py-3">
+                <!-- 2×2 grid for the 4 options -->
+                <div class="grid grid-cols-2 gap-2">
+                    <!-- None -->
+                    <label @click="certificateStyle = 'none'"
+                           :class="certificateStyle === 'none'
+                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
+                               : 'border-slate-200 bg-white hover:border-slate-300'"
+                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
+                        <div class="flex items-center gap-2">
+                            <div :class="certificateStyle === 'none' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
+                                <div x-show="certificateStyle === 'none'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                            </div>
+                            <span class="text-xs font-bold text-slate-700">None</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-snug">Clean document, no certificate appended.</p>
+                    </label>
+
+                    <!-- Compact -->
+                    <label @click="certificateStyle = 'compact'"
+                           :class="certificateStyle === 'compact'
+                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
+                               : 'border-slate-200 bg-white hover:border-slate-300'"
+                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
+                        <div class="flex items-center gap-2">
+                            <div :class="certificateStyle === 'compact' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
+                                <div x-show="certificateStyle === 'compact'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                            </div>
+                            <span class="text-xs font-bold text-slate-700">Compact</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-snug">Minimal summary box with names &amp; hash.</p>
+                    </label>
+
+                    <!-- Full Page -->
+                    <label @click="certificateStyle = 'page'"
+                           :class="certificateStyle === 'page'
+                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
+                               : 'border-slate-200 bg-white hover:border-slate-300'"
+                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
+                        <div class="flex items-center gap-2">
+                            <div :class="certificateStyle === 'page' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
+                                <div x-show="certificateStyle === 'page'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                            </div>
+                            <span class="text-xs font-bold text-slate-700">Full Page</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-snug">Full audit page with IPs &amp; timestamps.</p>
+                    </label>
+
+                    <!-- Logo Stamp -->
+                    <label @click="certificateStyle = 'logo_stamp'"
+                           :class="certificateStyle === 'logo_stamp'
+                               ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
+                               : 'border-slate-200 bg-white hover:border-slate-300'"
+                           class="flex flex-col gap-1.5 p-3 rounded-xl border cursor-pointer transition-all">
+                        <div class="flex items-center gap-2">
+                            <div :class="certificateStyle === 'logo_stamp' ? 'bg-indigo-600' : 'border-2 border-slate-300 bg-white'"
+                                 class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center">
+                                <div x-show="certificateStyle === 'logo_stamp'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                            </div>
+                            <span class="text-xs font-bold text-slate-700">Logo Stamp</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-snug">Branded page with company logo.</p>
+                    </label>
+                </div>
+
+                <div class="mt-3 flex items-center gap-1.5 text-xs text-indigo-600"
+                     x-show="certificateStyle !== 'none'">
+                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Certificate will be appended on completion.
+                </div>
+            </div>
+        </div>
+
+        <!-- Send button (desktop — inside left panel) -->
+        <div class="hidden lg:block">
+            <button @click="saveAndSend()" :disabled="saving"
+                    class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-2xl py-3.5 transition-colors shadow-md">
+                <svg class="h-4 w-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                <svg class="h-4 w-4 animate-spin" x-show="saving" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span x-text="saving ? 'Saving…' : 'Save & Send to Signers'"></span>
+            </button>
+            <p class="text-xs text-slate-400 mt-2 text-center">Configuration will be saved and the document sent to all signers.</p>
+        </div>
+
+    </div>
+
+    <!-- ── Right Panel: PDF Viewer ── -->
+    <div class="lg:col-span-2">
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <!-- Toolbar -->
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">
+                        ‹
+                    </button>
+                    <span class="text-sm font-medium text-slate-600 tabular-nums">
+                        <span x-text="currentPage"></span>
+                        <span class="text-slate-300">/</span>
+                        {{ doc.page_count }}
+                    </span>
+                    <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">
+                        ›
+                    </button>
+                </div>
+
+                <!-- Status indicator -->
+                <div class="flex items-center gap-2">
+                    <div x-show="placingMode"
+                         class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-full animate-pulse">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                        Click to place signature box
+                    </div>
+                    <div x-show="!placingMode && selectedSigner !== null"
+                         class="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-full border border-indigo-200">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                        Placing for: <span x-text="signers[selectedSigner]?.name ?? ''"></span>
+                    </div>
+                    <div x-show="selectedSigner === null"
+                         class="text-xs text-slate-400">
+                        Select a signer to place boxes
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas area -->
+            <div class="p-3">
+                <div id="pdf-viewer-wrap" @click="onCanvasClick($event)"
+                     :style="placingMode ? 'cursor: crosshair' : 'cursor: default'">
+                    <canvas id="pdf-canvas"></canvas>
+                    <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
+                        <div class="placement-box"
+                             :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px`">
+                            <span x-text="'✍ ' + (signers[p.signerIndex]?.name || '')"></span>
+                            <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                        </div>
+                    </template>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Add Signer Modal -->
-<div x-show="addSignerModal" x-cloak
-     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.stop>
-        <h3 class="font-bold text-lg mb-4">Add Signer</h3>
+<!-- ── Sticky Send Bar (mobile/tablet only) ── -->
+<div class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3 shadow-lg z-40">
+    <button @click="saveAndSend()" :disabled="saving"
+            class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl py-3 transition-colors">
+        <svg class="h-4 w-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        <svg class="h-4 w-4 animate-spin" x-show="saving" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span x-text="saving ? 'Saving…' : 'Save & Send to Signers'"></span>
+    </button>
+</div>
 
-        <div class="flex gap-2 mb-4">
-            <button @click="newSignerType='user'"
-                    :class="newSignerType==='user' ? 'jk-btn-primary' : 'jk-btn-outline'"
-                    class="jk-btn jk-btn-sm flex-1">System User</button>
-            <button @click="newSignerType='external'"
-                    :class="newSignerType==='external' ? 'jk-btn-primary' : 'jk-btn-outline'"
-                    class="jk-btn jk-btn-sm flex-1">External (Email)</button>
+<!-- ── Add Signer Modal ── -->
+<div x-show="addSignerModal" x-cloak
+     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+     @keydown.escape.window="addSignerModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" @click.stop>
+        <!-- Modal header -->
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-base text-slate-800">Add Signer</h3>
+            <button @click="addSignerModal = false"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
 
-        <div x-show="newSignerType === 'user'" class="space-y-3">
-            <div>
-                <label class="jk-label">Search User</label>
-                <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
-                       class="jk-input" placeholder="Name or email...">
-                <div x-show="userResults.length > 0"
-                     class="mt-1 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                    <template x-for="u in userResults" :key="u.id">
-                        <div @click="selectFoundUser(u)"
-                             class="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-sm border-b border-slate-100 last:border-0">
-                            <div class="font-medium" x-text="u.name"></div>
-                            <div class="text-xs text-slate-400" x-text="u.email + ' — ' + u.role"></div>
-                        </div>
-                    </template>
+        <div class="p-6 space-y-4">
+            <!-- Type toggle -->
+            <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                <button @click="newSignerType='user'"
+                        :class="newSignerType==='user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                        class="flex-1 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    System User
+                </button>
+                <button @click="newSignerType='external'"
+                        :class="newSignerType==='external' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                        class="flex-1 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2 border-l border-slate-200">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    External Email
+                </button>
+            </div>
+
+            <!-- System user search -->
+            <div x-show="newSignerType === 'user'" class="space-y-3">
+                <div>
+                    <label class="jk-label">Search User</label>
+                    <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
+                           class="jk-input" placeholder="Name or email…">
+                    <div x-show="userResults.length > 0"
+                         class="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <template x-for="u in userResults" :key="u.id">
+                            <div @click="selectFoundUser(u)"
+                                 class="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 transition-colors">
+                                <div class="font-semibold text-slate-800" x-text="u.name"></div>
+                                <div class="text-xs text-slate-400 mt-0.5" x-text="u.email + ' — ' + u.role"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="newSigner.name"
+                     class="flex items-center gap-2 text-sm bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5">
+                    <svg class="h-4 w-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Selected: <strong x-text="newSigner.name"></strong>
                 </div>
             </div>
-            <div x-show="newSigner.name" class="text-sm bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
-                Selected: <strong x-text="newSigner.name"></strong>
+
+            <!-- External user fields -->
+            <div x-show="newSignerType === 'external'" class="space-y-3">
+                <div>
+                    <label class="jk-label">Full Name <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="newSigner.name" class="jk-input" placeholder="Signer's full name">
+                </div>
+                <div>
+                    <label class="jk-label">Email <span class="text-red-500">*</span></label>
+                    <input type="email" x-model="newSigner.email" class="jk-input" placeholder="email@example.com">
+                </div>
+            </div>
+
+            <!-- Order + Role -->
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    <label class="jk-label">Order</label>
+                    <input type="number" x-model.number="newSigner.order" min="1" class="jk-input">
+                </div>
+                <div class="flex-1">
+                    <label class="jk-label">Role</label>
+                    <select x-model="newSigner.role" class="jk-select">
+                        <option value="signer">Signer</option>
+                        <option value="approver">Approver</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <div x-show="newSignerType === 'external'" class="space-y-3">
-            <div>
-                <label class="jk-label">Full Name <span class="text-red-500">*</span></label>
-                <input type="text" x-model="newSigner.name" class="jk-input" placeholder="Signer's full name">
-            </div>
-            <div>
-                <label class="jk-label">Email <span class="text-red-500">*</span></label>
-                <input type="email" x-model="newSigner.email" class="jk-input" placeholder="email@example.com">
-            </div>
-        </div>
-
-        <div class="flex gap-3 mt-4">
-            <div class="flex-1">
-                <label class="jk-label">Order</label>
-                <input type="number" x-model.number="newSigner.order" min="1" class="jk-input">
-            </div>
-            <div class="flex-1">
-                <label class="jk-label">Role</label>
-                <select x-model="newSigner.role" class="jk-select">
-                    <option value="signer">Signer</option>
-                    <option value="approver">Approver</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="flex gap-3 mt-5">
-            <button @click="confirmAddSigner()" class="jk-btn jk-btn-primary flex-1">Add</button>
-            <button @click="addSignerModal = false" class="jk-btn jk-btn-outline flex-1">Cancel</button>
+        <!-- Modal footer -->
+        <div class="px-6 py-4 border-t border-slate-100 flex gap-3">
+            <button @click="confirmAddSigner()"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl py-2.5 transition-colors">
+                Add Signer
+            </button>
+            <button @click="addSignerModal = false"
+                    class="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl py-2.5 transition-colors">
+                Cancel
+            </button>
         </div>
     </div>
 </div>
