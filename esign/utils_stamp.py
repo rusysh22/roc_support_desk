@@ -212,25 +212,36 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
 # Overlay builder — dispatches to the correct stamp style
 # ---------------------------------------------------------------------------
 
-def _build_overlay(page_width, page_height, placements_for_page,
+def _build_overlay(vis_w, vis_h, placements_for_page,
+                   canvas_w=None, canvas_h=None,
+                   origin_x=0.0, origin_y=0.0,
                    stamp_style="simple", site_name="E-Sign", logo_reader=None):
     """
-    Return a BytesIO containing a single-page PDF overlay with all signature
-    images stamped at their specified positions using the given style.
+    Return a BytesIO containing a single-page PDF overlay.
+
+    vis_w/vis_h   — visible (CropBox) dimensions; placement fractions are
+                    relative to this space.
+    canvas_w/h    — full page (MediaBox) canvas size for the overlay PDF;
+                    must match the destination page so merge_page aligns.
+    origin_x/y    — CropBox lower-left corner in MediaBox coordinates
+                    (0, 0 for most PDFs where CropBox == MediaBox).
     """
-    from reportlab.pdfgen import canvas
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    cw = canvas_w if canvas_w is not None else vis_w
+    ch = canvas_h if canvas_h is not None else vis_h
 
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=(page_width, page_height))
+    c = rl_canvas.Canvas(buf, pagesize=(cw, ch))
 
     for placement, signer in placements_for_page:
-        abs_x = placement.x * page_width
-        abs_w = placement.width * page_width
-        abs_h = placement.height * page_height
+        abs_w = placement.width  * vis_w
+        abs_h = placement.height * vis_h
 
-        # Flip y: PDF origin is bottom-left; stored y is from top-left
-        abs_y_top = placement.y * page_height
-        abs_y_pdf = page_height - abs_y_top - abs_h
+        # Coordinates in the full MediaBox coordinate system
+        abs_x = origin_x + placement.x * vis_w
+        # PDF y-axis is bottom-left; stored y is fraction from top of CropBox
+        abs_y_pdf = origin_y + vis_h - placement.y * vis_h - abs_h
 
         annotations = _build_annotations(signer)
 
@@ -299,19 +310,36 @@ def stamp_document(document) -> bytes | None:
         for page_index, page in enumerate(reader.pages):
             page_num = page_index + 1
             mediabox = page.mediabox
-            pw = float(mediabox.width)
-            ph = float(mediabox.height)
+            cropbox = page.cropbox if page.cropbox else mediabox
+
+            # Canvas uses full mediabox size so merge_page aligns exactly
+            cw = float(mediabox.width)
+            ch = float(mediabox.height)
+
+            # Vis (rendering space) uses cropbox size, as PDF.js does
+            vis_w = float(cropbox.width)
+            vis_h = float(cropbox.height)
+
+            # The cropbox origin might be offset relative to the mediabox origin
+            origin_x = float(cropbox.left - mediabox.left)
+            origin_y = float(cropbox.bottom - mediabox.bottom)
 
             page_placements = placements_by_page.get(page_num, [])
             if page_placements:
                 overlay_buf = _build_overlay(
-                    pw, ph, page_placements,
+                    vis_w, vis_h, page_placements,
+                    canvas_w=cw, canvas_h=ch,
+                    origin_x=origin_x, origin_y=origin_y,
                     stamp_style=stamp_style,
                     site_name=site_name,
                     logo_reader=logo_reader,
                 )
                 overlay_reader = PdfReader(overlay_buf)
                 page.merge_page(overlay_reader.pages[0])
+
+            # Compress streams to prevent output PDF size bloat
+            if hasattr(page, "compress_content_streams"):
+                page.compress_content_streams()
 
             writer.add_page(page)
 
