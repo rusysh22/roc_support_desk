@@ -268,8 +268,9 @@ def stamp_document(document) -> bytes | None:
             _fetch_site_branding() if stamp_style == "branded" else ("E-Sign", None)
         )
 
-        document.original_pdf.seek(0)
-        reader = PdfReader(document.original_pdf)
+        with document.original_pdf.open('rb') as f:
+            original_bytes = io.BytesIO(f.read())
+        reader = PdfReader(original_bytes)
         writer = PdfWriter()
 
         placements = list(

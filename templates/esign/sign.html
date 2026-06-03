@@ -454,7 +454,7 @@ document.addEventListener('alpine:init', () => {
         cancelPlacement() { this.showDragOverlay = false; this.previewData = null; this.dragOverlays = []; },
 
         submitFinal() {
-            if (!this.previewData) { this.placeOnDocument(); return; }
+            if (!this.previewData || !this.showDragOverlay) { this.placeOnDocument(); return; }
             const placements = this.dragOverlays.map(o => ({ page:o.page, x:o.nx, y:o.ny, w:o.nw, h:o.nh }));
             document.getElementById('action-input').value              = 'sign';
             document.getElementById('signature-data-input').value      = this.previewData;

@@ -65,15 +65,18 @@ const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
 const _pdfConfigure = { doc: null };
 
-const INITIAL_CERT_STYLE = "{{ doc.certificate_style|default:'simple' }}";
+const INITIAL_CERT_STYLE   = "{{ doc.certificate_style|default:'simple' }}";
+const INITIAL_ROUTING_MODE = "{{ doc.routing_mode|default:'sequential' }}";
+const INITIAL_SIGNERS      = {{ initial_signers_json|safe }};
+const INITIAL_PLACEMENTS   = {{ initial_placements_json|safe }};
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
-        signers: [],
-        placements: [],
-        selectedSigner: null,
+        signers: [...INITIAL_SIGNERS],
+        placements: INITIAL_PLACEMENTS.map(p => ({ ...p })),
+        selectedSigner: INITIAL_SIGNERS.length > 0 ? 0 : null,
         placingMode: false,
-        routingMode: 'sequential',
+        routingMode: INITIAL_ROUTING_MODE,
         certificateStyle: INITIAL_CERT_STYLE,
         currentPage: 1,
         saving: false,

@@ -166,11 +166,13 @@ def _update_preview_pdf(document):
     safe_title = document.title.replace(" ", "_")[:50]
     if document.preview_pdf:
         document.preview_pdf.delete(save=False)
+    # save=False then explicit update_fields avoids overwriting other fields
     document.preview_pdf.save(
         f"{safe_title}_preview.pdf",
         ContentFile(pdf_bytes),
-        save=True,
+        save=False,
     )
+    document.save(update_fields=["preview_pdf"])
 
 
 def _advance_or_finalize(document):

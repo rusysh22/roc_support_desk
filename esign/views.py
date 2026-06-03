@@ -166,6 +166,8 @@ def document_replace_pdf(request, pk):
 
 @_staff_required
 def document_configure(request, pk):
+    import json as _json
+
     doc = get_object_or_404(SignatureDocument, pk=pk)
 
     if doc.created_by != request.user:
@@ -176,13 +178,39 @@ def document_configure(request, pk):
         return redirect("esign:document_detail", pk=doc.pk)
 
     flow_templates = SignatureFlowTemplate.objects.filter(is_active=True)
-    # Users available as signers (exclude PortalUser, exclude self is optional)
     available_users = User.objects.filter(
         is_active=True,
     ).exclude(role_access="PortalUser").order_by("first_name", "last_name")
 
-    signers = doc.signers.order_by("order").select_related("user")
-    placements = doc.placements.order_by("page_number", "signer__order").select_related("signer")
+    signers = list(doc.signers.order_by("order").select_related("user"))
+    placements = list(doc.placements.order_by("page_number", "signer__order").select_related("signer"))
+
+    # Build signer-ID → index map for placement pre-load
+    signer_id_to_idx = {str(s.id): i for i, s in enumerate(signers)}
+
+    initial_signers = [
+        {
+            "type": "user" if s.user_id else "external",
+            "userId": str(s.user_id) if s.user_id else None,
+            "name": s.display_name,
+            "email": s.email,
+            "order": s.order,
+            "role": s.role,
+        }
+        for s in signers
+    ]
+
+    initial_placements = [
+        {
+            "signerIndex": signer_id_to_idx.get(str(p.signer_id), 0),
+            "page": p.page_number,
+            "x": p.x,
+            "y": p.y,
+            "w": p.width,
+            "h": p.height,
+        }
+        for p in placements
+    ]
 
     return render(request, "esign/document_configure.html", {
         "doc": doc,
@@ -191,6 +219,8 @@ def document_configure(request, pk):
         "flow_templates": flow_templates,
         "available_users": available_users,
         "page_range": range(1, doc.page_count + 1),
+        "initial_signers_json": _json.dumps(initial_signers),
+        "initial_placements_json": _json.dumps(initial_placements),
     })
 
 
