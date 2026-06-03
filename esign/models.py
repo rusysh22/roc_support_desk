@@ -32,6 +32,10 @@ def _signed_pdf_path(instance, filename):
     return f"esign/signed/{instance.id}/{filename}"
 
 
+def _preview_pdf_path(instance, filename):
+    return f"esign/preview/{instance.id}/{filename}"
+
+
 def _signature_image_path(instance, filename):
     return f"esign/signatures/{instance.document_id}/{instance.id}/{filename}"
 
@@ -70,6 +74,14 @@ class SignatureDocument(AuditableModel):
         blank=True,
         null=True,
         verbose_name="Signed PDF",
+    )
+    preview_pdf = models.FileField(
+        upload_to=_preview_pdf_path,
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Preview PDF",
+        help_text="Intermediate signed PDF generated after each signature for in-progress viewing.",
     )
     message = models.TextField(
         blank=True,

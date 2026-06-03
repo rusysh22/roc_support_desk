@@ -170,6 +170,13 @@ def sign(request, token):
                 except (ValueError, Exception) as exc:
                     messages.error(request, f"Failed to save signature: {exc}")
 
+    # Show partial signed PDF if previous signers have already completed
+    pdf_url = (
+        document.preview_pdf.url
+        if document.preview_pdf
+        else document.original_pdf.url
+    )
+
     return render(request, "esign/sign.html", {
         "signer": signer,
         "document": document,
@@ -177,6 +184,8 @@ def sign(request, token):
         "placements_json": _placements_json(placements),
         "form": form,
         "has_saved_sig": has_saved_sig,
+        "pdf_url": pdf_url,
+        "has_prior_signatures": bool(document.preview_pdf),
     })
 
 

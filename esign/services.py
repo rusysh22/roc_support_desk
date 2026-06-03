@@ -145,6 +145,24 @@ def record_signature(signer, signature_image_file, ip=None, user_agent="", actor
     _advance_or_finalize(document)
 
 
+def _update_preview_pdf(document):
+    """Generate and save an intermediate PDF with all completed signatures so far."""
+    from .utils_stamp import stamp_document
+    from django.core.files.base import ContentFile
+
+    pdf_bytes = stamp_document(document)
+    if not pdf_bytes:
+        return
+    safe_title = document.title.replace(" ", "_")[:50]
+    if document.preview_pdf:
+        document.preview_pdf.delete(save=False)
+    document.preview_pdf.save(
+        f"{safe_title}_preview.pdf",
+        ContentFile(pdf_bytes),
+        save=True,
+    )
+
+
 def _advance_or_finalize(document):
     """After a signing action, move the workflow forward or complete it."""
     from .tasks import send_signature_request_task, send_signature_completed_task
@@ -156,6 +174,8 @@ def _advance_or_finalize(document):
         ).order_by("order").first()
 
         if next_signer:
+            # Generate preview so the next signer sees all previous signatures
+            _update_preview_pdf(document)
             _assign_token(next_signer)
             next_signer.status = Signer.Status.PENDING
             next_signer.save(update_fields=["status"])
@@ -169,6 +189,9 @@ def _advance_or_finalize(document):
 
     if remaining == 0:
         _finalize(document)
+    else:
+        # Parallel: some signed, others still pending — update preview for them
+        _update_preview_pdf(document)
 
 
 def _finalize(document):
@@ -257,8 +280,11 @@ def reopen_document(document, actor_user=None, ip=None):
         _assign_token(signer)
         signer.save(update_fields=["status", "notes", "acted_at", "token", "token_expires_at"])
 
+    if document.preview_pdf:
+        document.preview_pdf.delete(save=False)
+        document.preview_pdf = None
     document.status = SignatureDocument.Status.PENDING
-    document.save(update_fields=["status"])
+    document.save(update_fields=["status", "preview_pdf"])
 
     _log(document, SignatureEvent.Event.REOPENED, actor_user=actor_user, ip=ip)
 
