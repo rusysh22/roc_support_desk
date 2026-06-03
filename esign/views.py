@@ -104,6 +104,63 @@ def document_create(request):
 
 
 # ---------------------------------------------------------------------------
+# Replace PDF (DRAFT only) — creator can swap the file before sending
+# ---------------------------------------------------------------------------
+
+@require_POST
+@_staff_required
+def document_replace_pdf(request, pk):
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+    if doc.status != SignatureDocument.Status.DRAFT:
+        messages.error(request, "The PDF can only be replaced while the document is still a draft.")
+        return redirect("esign:document_configure", pk=pk)
+
+    new_pdf = request.FILES.get("original_pdf")
+    if not new_pdf:
+        messages.error(request, "No file selected.")
+        return redirect("esign:document_configure", pk=pk)
+
+    # Validate MIME type
+    try:
+        import magic as _magic
+        mime = _magic.from_buffer(new_pdf.read(2048), mime=True)
+        new_pdf.seek(0)
+        if mime != "application/pdf":
+            messages.error(request, "Only PDF files are accepted.")
+            return redirect("esign:document_configure", pk=pk)
+    except Exception:
+        pass  # python-magic unavailable — skip mime check, trust extension
+
+    # Delete old file and save new one
+    if doc.original_pdf:
+        doc.original_pdf.delete(save=False)
+    doc.original_pdf = new_pdf
+
+    # Recount pages
+    try:
+        from pypdf import PdfReader
+        new_pdf.seek(0)
+        reader = PdfReader(new_pdf)
+        doc.page_count = len(reader.pages)
+        new_pdf.seek(0)
+    except Exception:
+        doc.page_count = 1
+
+    doc.save(update_fields=["original_pdf", "page_count"])
+
+    try:
+        doc.compute_hash()
+        doc.save(update_fields=["document_hash"])
+    except Exception:
+        pass
+
+    messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
+    return redirect("esign:document_configure", pk=pk)
+
+
+# ---------------------------------------------------------------------------
 # Document configure (step 2) — add signers + place signature boxes
 # ---------------------------------------------------------------------------
 

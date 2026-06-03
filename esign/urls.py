@@ -11,6 +11,7 @@ urlpatterns = [
     path("<uuid:pk>/configure/",views.document_configure,name="document_configure"),
     path("<uuid:pk>/configure/apply-template/", views.apply_flow_template, name="apply_flow_template"),
     path("<uuid:pk>/configure/save/",           views.save_configuration,  name="save_configuration"),
+    path("<uuid:pk>/replace-pdf/", views.document_replace_pdf, name="document_replace_pdf"),
     path("<uuid:pk>/send/",     views.document_send,    name="document_send"),
     path("<uuid:pk>/",          views.document_detail,  name="document_detail"),
     path("<uuid:pk>/reopen/",   views.document_reopen,  name="document_reopen"),

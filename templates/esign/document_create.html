@@ -44,7 +44,7 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="space-y-5">
+        <form method="post" enctype="multipart/form-data" class="space-y-5" id="create-form">
             {% csrf_token %}
 
             {% for field in form %}
@@ -73,4 +73,27 @@
     </div>
 
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const fileInput  = document.querySelector('#create-form input[type="file"]');
+    const titleInput = document.querySelector('#create-form input[name="title"]');
+    if (!fileInput || !titleInput) return;
+
+    fileInput.addEventListener('change', function () {
+        if (!this.files.length) return;
+        // Only auto-fill if user hasn't typed anything yet
+        if (titleInput.value.trim()) return;
+
+        const raw = this.files[0].name.replace(/\.[^/.]+$/, ''); // strip extension
+        const cleaned = raw
+            .replace(/[_\-]+/g, ' ')            // underscores & hyphens → space
+            .replace(/\s+/g, ' ')               // collapse multiple spaces
+            .trim()
+            .replace(/\b\w/g, l => l.toUpperCase()); // Title Case
+        titleInput.value = cleaned;
+        titleInput.focus();
+    });
+});
+</script>
 {% endblock %}
