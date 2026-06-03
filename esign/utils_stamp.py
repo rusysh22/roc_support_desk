@@ -214,17 +214,11 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
 
 def _build_overlay(vis_w, vis_h, placements_for_page,
                    canvas_w=None, canvas_h=None,
-                   origin_x=0.0, origin_y=0.0,
+                   cropbox_left=0.0, cropbox_bottom=0.0,
+                   rotation=0,
                    stamp_style="simple", site_name="E-Sign", logo_reader=None):
     """
     Return a BytesIO containing a single-page PDF overlay.
-
-    vis_w/vis_h   — visible (CropBox) dimensions; placement fractions are
-                    relative to this space.
-    canvas_w/h    — full page (MediaBox) canvas size for the overlay PDF;
-                    must match the destination page so merge_page aligns.
-    origin_x/y    — CropBox lower-left corner in MediaBox coordinates
-                    (0, 0 for most PDFs where CropBox == MediaBox).
     """
     from reportlab.pdfgen import canvas as rl_canvas
 
@@ -234,14 +228,31 @@ def _build_overlay(vis_w, vis_h, placements_for_page,
     buf = io.BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=(cw, ch))
 
+    # Apply transformation to match PDF.js visual coordinate space exactly
+    c.saveState()
+    
+    # 1. Move origin to cropbox bottom-left
+    c.translate(cropbox_left, cropbox_bottom)
+    
+    # 2. Apply rotation to match the visual rendering
+    if rotation == 90:
+        c.translate(vis_h, 0)
+        c.rotate(90)
+    elif rotation == 180:
+        c.translate(vis_w, vis_h)
+        c.rotate(180)
+    elif rotation == 270:
+        c.translate(0, vis_w)
+        c.rotate(270)
+
     for placement, signer in placements_for_page:
         abs_w = placement.width  * vis_w
         abs_h = placement.height * vis_h
 
-        # Coordinates in the full MediaBox coordinate system
-        abs_x = origin_x + placement.x * vis_w
-        # PDF y-axis is bottom-left; stored y is fraction from top of CropBox
-        abs_y_pdf = origin_y + vis_h - placement.y * vis_h - abs_h
+        # In this transformed space, X goes right, Y goes up.
+        # placement.y is from the top, so we invert it for Y.
+        abs_x = placement.x * vis_w
+        abs_y_pdf = vis_h - (placement.y * vis_h) - abs_h
 
         annotations = _build_annotations(signer)
 
@@ -251,6 +262,7 @@ def _build_overlay(vis_w, vis_h, placements_for_page,
         else:
             _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations)
 
+    c.restoreState()
     c.save()
     buf.seek(0)
     return buf
@@ -312,30 +324,41 @@ def stamp_document(document) -> bytes | None:
             mediabox = page.mediabox
             cropbox = page.cropbox if page.cropbox else mediabox
 
-            # Canvas uses full mediabox size so merge_page aligns exactly
-            cw = float(mediabox.width)
-            ch = float(mediabox.height)
+            try:
+                rotation = int(getattr(page, "rotation", page.get('/Rotate', 0))) % 360
+            except Exception:
+                rotation = 0
 
-            # Vis (rendering space) uses cropbox size, as PDF.js does
-            vis_w = float(cropbox.width)
-            vis_h = float(cropbox.height)
+            # Vis (rendering space) dimensions depend on rotation
+            if rotation in (90, 270):
+                vis_w = float(cropbox.height)
+                vis_h = float(cropbox.width)
+            else:
+                vis_w = float(cropbox.width)
+                vis_h = float(cropbox.height)
 
-            # The cropbox origin might be offset relative to the mediabox origin
-            origin_x = float(cropbox.left - mediabox.left)
-            origin_y = float(cropbox.bottom - mediabox.bottom)
+            # We use max bounds to ensure canvas encompasses everything
+            cw = max(float(mediabox.right), float(mediabox.width))
+            ch = max(float(mediabox.top), float(mediabox.height))
 
             page_placements = placements_by_page.get(page_num, [])
             if page_placements:
                 overlay_buf = _build_overlay(
                     vis_w, vis_h, page_placements,
                     canvas_w=cw, canvas_h=ch,
-                    origin_x=origin_x, origin_y=origin_y,
+                    cropbox_left=float(cropbox.left),
+                    cropbox_bottom=float(cropbox.bottom),
+                    rotation=rotation,
                     stamp_style=stamp_style,
                     site_name=site_name,
                     logo_reader=logo_reader,
                 )
                 overlay_reader = PdfReader(overlay_buf)
-                page.merge_page(overlay_reader.pages[0])
+                overlay_page = overlay_reader.pages[0]
+                
+                # Match mediaboxes before merging so they align perfectly
+                overlay_page.mediabox = page.mediabox
+                page.merge_page(overlay_page)
 
             writer.add_page(page)
 
