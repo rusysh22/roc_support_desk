@@ -519,12 +519,12 @@ document.addEventListener('alpine:init', () => {
 {% endblock %}
 
 {% block layout %}
-<div class="min-h-screen bg-slate-50 py-6 px-4" x-data="signPage" @keydown.escape.window="showCaptureModal = false">
+<div class="min-h-screen bg-slate-50 py-4 px-3 sm:py-6 sm:px-4 pb-24 lg:pb-6" x-data="signPage" @keydown.escape.window="showCaptureModal = false">
     <div class="max-w-7xl mx-auto">
 
-        <div class="text-center mb-5">
-            <h1 class="text-2xl font-bold text-slate-800">Signature Request</h1>
-            <p class="text-slate-500 text-sm mt-1">{{ document.title }}</p>
+        <div class="text-center mb-4 sm:mb-5">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Signature Request</h1>
+            <p class="text-slate-500 text-xs sm:text-sm mt-1">{{ document.title }}</p>
         </div>
 
         {% if messages %}
@@ -542,15 +542,15 @@ document.addEventListener('alpine:init', () => {
                     <!-- Nav bar -->
                     <div class="flex items-center justify-between mb-3 flex-shrink-0 gap-2">
                         <button @click="changePage(-1)" :disabled="currentPage <= 1 || viewMode === 'scroll'"
-                                class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                                class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                            Prev
+                            <span class="hidden sm:inline">Prev</span>
                         </button>
-                        <span class="text-sm text-slate-600 font-medium">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
+                        <span class="text-xs sm:text-sm text-slate-600 font-medium whitespace-nowrap">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
                         <div class="flex items-center gap-1">
                             <button @click="changePage(1)" :disabled="currentPage >= totalPages || viewMode === 'scroll'"
-                                    class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
-                                Next
+                                    class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                                <span class="hidden sm:inline">Next</span>
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </button>
                             <!-- View mode toggle -->
@@ -770,7 +770,7 @@ document.addEventListener('alpine:init', () => {
             </div>
 
             <!-- ── Right Panel (1/3) ── -->
-            <div class="lg:col-span-1 space-y-4">
+            <div class="lg:col-span-1 space-y-4 lg:sticky lg:top-4 lg:self-start">
 
                 <!-- Signer info -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -912,7 +912,7 @@ document.addEventListener('alpine:init', () => {
 
                             <div x-show="activeAction === 'sign'">
                                 <p class="text-sm font-semibold text-slate-700 mb-3">Your Signature</p>
-                                <div class="flex border-b border-slate-200 mb-4 gap-0">
+                                <div class="flex border-b border-slate-200 mb-4 gap-0 overflow-x-auto">
                                     {% if has_saved_sig %}<button type="button" @click="switchTab('saved')" :class="activeTab==='saved'?'active':''" class="sig-tab">💾 Saved</button>{% endif %}
                                     <button type="button" @click="switchTab('draw')"   :class="activeTab==='draw'?'active':''"   class="sig-tab">✍ Draw</button>
                                     <button type="button" @click="switchTab('type')"   :class="activeTab==='type'?'active':''"   class="sig-tab">A Type</button>
@@ -999,10 +999,42 @@ document.addEventListener('alpine:init', () => {
             </div>
         </div>
 
-        <p class="text-center text-xs text-slate-400 mt-6">
+        <p class="text-center text-xs text-slate-400 mt-6 pb-2">
             This document is processed through a secure digital signing system.
             Your signature will be recorded along with your IP address and timestamp.
         </p>
+    </div>
+
+    <!-- ── Mobile sticky action bar (hidden on lg+) ── -->
+    <div class="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-4 py-3 lg:hidden">
+        <!-- Guided mode -->
+        <div x-show="guidedMode && activeAction !== 'reject_view'" class="flex gap-2">
+            <button type="button" @click="signatureData ? guidedSubmit() : openCaptureModal()"
+                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                    class="flex-1 text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
+                <svg x-show="!signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                <svg x-show="signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span x-text="signatureData ? 'Submit Signature' : 'Sign Document'"></span>
+            </button>
+            <button type="button" @click="activeAction = 'reject_view'"
+                    class="px-5 py-3 border border-red-200 text-red-500 rounded-xl text-sm font-semibold hover:bg-red-50 whitespace-nowrap">
+                Reject
+            </button>
+        </div>
+        <!-- Free mode -->
+        <div x-show="!guidedMode && activeAction !== 'reject'" class="flex gap-2">
+            <button type="button" @click="showDragOverlay ? submitFinal() : placeOnDocument()"
+                    :class="showDragOverlay ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                    class="flex-1 text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
+                <svg x-show="!showDragOverlay" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                <svg x-show="showDragOverlay" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span x-text="showDragOverlay ? 'Submit Signature' : 'Place on Document'"></span>
+            </button>
+            <button type="button" @click="activeAction = 'reject'"
+                    class="px-5 py-3 border border-red-200 text-red-500 rounded-xl text-sm font-semibold hover:bg-red-50 whitespace-nowrap">
+                Reject
+            </button>
+        </div>
     </div>
 
 <!-- ══ Guided-mode: Signature Capture Modal ══ -->
@@ -1024,7 +1056,7 @@ document.addEventListener('alpine:init', () => {
 
             <div class="p-6 space-y-4">
                 <!-- Tab bar -->
-                <div class="flex border-b border-slate-200 gap-0">
+                <div class="flex border-b border-slate-200 gap-0 overflow-x-auto">
                     {% if has_saved_sig %}<button type="button" @click="switchTab('saved')" :class="activeTab==='saved'?'active':''" class="sig-tab">💾 Saved</button>{% endif %}
                     <button type="button" @click="switchTab('draw')"   :class="activeTab==='draw'?'active':''"   class="sig-tab">✍ Draw</button>
                     <button type="button" @click="switchTab('type')"   :class="activeTab==='type'?'active':''"   class="sig-tab">A Type</button>
