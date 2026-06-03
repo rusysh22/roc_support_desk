@@ -67,7 +67,8 @@ document.addEventListener('alpine:init', () => {
         pdfLoading: true, pdfError: null,
 
         // ── Mode ──────────────────────────────────────────────────────────────
-        // guided = creator pre-placed boxes; free = signer places themselves
+        // guidedMode is user-selectable; defaults to guided when creator placed boxes
+        hasCreatorPlacements: PLACEMENTS.length > 0,
         guidedMode: PLACEMENTS.length > 0,
 
         // ── Guided-mode state ─────────────────────────────────────────────────
@@ -591,15 +592,29 @@ document.addEventListener('alpine:init', () => {
                         </div>
                     </template>
 
-                    <!-- Mode indicator badge -->
-                    <div class="flex items-center gap-2 mb-3 flex-shrink-0">
-                        <template x-if="guidedMode">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                                Guided Mode — klik kotak yang berkedip untuk tanda tangan
-                            </span>
+                    <!-- Mode selector (toggle only when creator placed boxes) -->
+                    <div class="mb-3 flex-shrink-0">
+                        <template x-if="hasCreatorPlacements">
+                            <!-- Toggle between guided and free -->
+                            <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
+                                <button type="button"
+                                        @click="guidedMode = true"
+                                        :class="guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                        class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors">
+                                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                    Placement dari Creator
+                                </button>
+                                <button type="button"
+                                        @click="guidedMode = false"
+                                        :class="!guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                        class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors border-l border-slate-200">
+                                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                                    Letakkan Sendiri
+                                </button>
+                            </div>
                         </template>
-                        <template x-if="!guidedMode">
+                        <template x-if="!hasCreatorPlacements">
+                            <!-- Free mode only — no creator placements -->
                             <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
                                 Free Mode — gambar tanda tangan lalu letakkan di halaman yang diinginkan
