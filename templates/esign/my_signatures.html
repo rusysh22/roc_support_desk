@@ -1,28 +1,22 @@
 {% extends "base.html" %}
 {% block title %}My Signatures — E-Sign{% endblock %}
 {% block nav_my_signatures %}active{% endblock %}
+{% block page_title %}My Signatures{% endblock %}
 
 {% block content %}
 <div x-data="{ search: '' }">
-
-<!-- Page Header -->
-<div class="jk-page-header">
-    <div>
-        <h1 class="jk-page-title">My Signatures</h1>
-        <p class="jk-page-subtitle">Dokumen yang menunggu atau sudah Anda tandatangani.</p>
-    </div>
-    {% if pending_count > 0 %}
-    <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5">
-        <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-        <span class="text-sm font-semibold text-amber-700">{{ pending_count }} dokumen menunggu tanda tangan Anda</span>
-    </div>
-    {% endif %}
-</div>
 
 {% if messages %}
     {% for msg in messages %}
     <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
     {% endfor %}
+{% endif %}
+
+{% if pending_count > 0 %}
+<div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 mb-5">
+    <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+    <span class="text-sm font-semibold text-amber-700">{{ pending_count }} document{{ pending_count|pluralize }} awaiting your signature</span>
+</div>
 {% endif %}
 
 <!-- ── Pending: Action Required ── -->
@@ -32,7 +26,7 @@
         <svg class="h-3.5 w-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Menunggu Tanda Tangan Anda
+        Awaiting Your Signature
         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">{{ pending_count }}</span>
     </h2>
     <div class="space-y-3">
@@ -49,7 +43,7 @@
                 <div class="flex-1 min-w-0">
                     <p class="font-semibold text-slate-800 truncate">{{ signer.document.title }}</p>
                     <p class="text-xs text-slate-500 mt-0.5">
-                        Dikirim oleh <span class="font-medium text-slate-700">{{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}</span>
+                        Sent by <span class="font-medium text-slate-700">{{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}</span>
                         &nbsp;·&nbsp; {{ signer.document.created_at|date:"d M Y" }}
                     </p>
                     {% if signer.document.due_at %}
@@ -57,7 +51,7 @@
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
-                        Batas waktu: {{ signer.document.due_at|date:"d M Y H:i" }}
+                        Due: {{ signer.document.due_at|date:"d M Y H:i" }}
                     </p>
                     {% endif %}
                     {% if signer.document.message %}
@@ -82,14 +76,14 @@
                     Parallel
                     {% endif %}
                     &nbsp;·&nbsp;
-                    {{ signer.document.signed_count }}/{{ signer.document.total_count }} tanda tangan dikumpulkan
+                    {{ signer.document.signed_count }}/{{ signer.document.total_count }} signatures collected
                 </div>
                 <a href="{% url 'esign_public:sign' token=signer.token %}"
                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl transition-colors">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                     </svg>
-                    Tandatangani Sekarang
+                    Sign Now
                 </a>
             </div>
         </div>
@@ -105,8 +99,8 @@
             </svg>
         </div>
         <div>
-            <p class="font-semibold text-slate-700 text-sm">Tidak ada tanda tangan yang menunggu</p>
-            <p class="text-xs text-slate-400 mt-0.5">Semua dokumen sudah diproses.</p>
+            <p class="font-semibold text-slate-700 text-sm">No pending signatures</p>
+            <p class="text-xs text-slate-400 mt-0.5">All documents have been processed.</p>
         </div>
     </div>
 </section>
@@ -119,7 +113,7 @@
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            Riwayat Tanda Tangan
+            Signature History
         </h2>
         <!-- Search history -->
         {% if completed_signers %}
@@ -127,7 +121,7 @@
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
-            <input type="text" x-model="search" placeholder="Cari riwayat…"
+            <input type="text" x-model="search" placeholder="Search history…"
                    class="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-slate-50 w-52">
         </div>
         {% endif %}
@@ -158,7 +152,7 @@
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-semibold text-slate-800 truncate">{{ signer.document.title }}</p>
                     <p class="text-xs text-slate-400 mt-0.5">
-                        Dikirim oleh {{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}
+                        Sent by {{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}
                         &nbsp;·&nbsp;
                         {% if signer.document.routing_mode == 'sequential' %}Sequential{% else %}Parallel{% endif %}
                     </p>
@@ -169,12 +163,12 @@
                     {% if signer.status == 'signed' %}
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                        Ditandatangani
+                        Signed
                     </span>
                     {% else %}
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                        Ditolak
+                        Rejected
                     </span>
                     {% endif %}
                     <span class="text-xs text-slate-400 whitespace-nowrap hidden sm:block">{{ signer.acted_at|date:"d M Y H:i"|default:"—" }}</span>
@@ -201,7 +195,7 @@
     <div x-show="search && !{{ completed_signers|length }} === 0"
          class="bg-white border border-slate-200 rounded-2xl text-center py-10 text-slate-400 hidden"
          :class="{ 'hidden': !search }">
-        <p class="text-sm">Tidak ada hasil untuk "<span x-text="search"></span>"</p>
+        <p class="text-sm">No results for "<span x-text="search"></span>"</p>
     </div>
 
     {% else %}
@@ -211,8 +205,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
         </div>
-        <p class="font-semibold text-slate-600 text-sm">Belum ada riwayat tanda tangan</p>
-        <p class="text-xs text-slate-400 mt-1">Riwayat akan muncul setelah Anda menandatangani dokumen.</p>
+        <p class="font-semibold text-slate-600 text-sm">No signature history yet</p>
+        <p class="text-xs text-slate-400 mt-1">History will appear here after you sign a document.</p>
     </div>
     {% endif %}
 </section>
