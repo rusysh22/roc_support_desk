@@ -271,7 +271,7 @@ def save_configuration(request, pk):
       "routing_mode": "sequential" | "parallel",
       "signers": [
         {"type": "user", "user_id": "<uuid>", "order": 1, "role": "signer"},
-        {"type": "external", "name": "Budi", "email": "budi@x.com", "order": 2, "role": "approver"}
+        {"type": "external", "name": "John", "email": "john@example.com", "order": 2, "role": "approver"}
       ],
       "placements": [
         {

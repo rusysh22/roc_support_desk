@@ -279,8 +279,8 @@ def stamp_document(document) -> bytes | None:
         )
 
         logger.info(
-            "stamp_document doc=%s style=%s placements_found=%d signers_signed=%s",
-            document.pk, stamp_style, len(placements),
+            "stamp_document doc=%s placements_found=%d signers_signed=%s",
+            document.pk, len(placements),
             [str(p.signer_id) for p in placements],
         )
 
