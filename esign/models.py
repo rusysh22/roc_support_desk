@@ -63,7 +63,8 @@ class SignatureDocument(AuditableModel):
 
     document_code = models.CharField(
         max_length=20,
-        unique=True,
+        null=True,
+        blank=True,
         default=generate_document_code,
         verbose_name="Document Code",
         help_text="Unique sequence/hash identifier for this document."
