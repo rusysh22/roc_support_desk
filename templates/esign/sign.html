@@ -88,12 +88,20 @@ document.addEventListener('alpine:init', () => {
         mobileSessionId: null, mobileUrl: null, mobilePollUrl: null,
         mobileLoading: false, mobileReady: false, mobilePollTimer: null, qrInstance: null,
 
+        // ── Scroll mode ───────────────────────────────────────────────────────
+        viewMode: 'paged',          // 'paged' | 'scroll'
+        scrollCanvasSizes: [],       // [{width, height}] indexed by page-1
+        _scrollObserver: null,
+        pages: [],
+
         // ── Free-mode state (drag/resize, unchanged) ──────────────────────────
         previewData: null, showDragOverlay: false, dragOverlays: [],
-        activeOverlayIdx: null, isDragging: false, dragOffsetX: 0, dragOffsetY: 0,
+        activeOverlayIdx: null, isDragging: false,
+        _dragLastX: 0, _dragLastY: 0, _dragCanvasW: 1, _dragCanvasH: 1,
         isResizing: false, resizeHandle: null,
         resizeStartX: 0, resizeStartY: 0,
         resizeStartNX: 0, resizeStartNY: 0, resizeStartNW: 0, resizeStartNH: 0,
+        _resizeCanvasW: 1, _resizeCanvasH: 1,
 
         async init() {
             this.canvasEl = document.getElementById('pdf-canvas');
@@ -106,6 +114,7 @@ document.addEventListener('alpine:init', () => {
                     disableRange: true, disableStream: true,
                 }).promise;
                 this.totalPages = _pdf.doc.numPages;
+                this.pages = Array.from({ length: this.totalPages }, (_, i) => i + 1);
                 await this.renderPage(1);
             } catch (err) {
                 this.pdfError = err.message || 'Failed to load PDF.';
@@ -163,12 +172,118 @@ document.addEventListener('alpine:init', () => {
             this.canvasW = scaled.width;
             this.canvasH = scaled.height;
             await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
-            if (!this.guidedMode && this.showDragOverlay) this._snapToPlacement();
+            // Free mode with no pre-configured placements: overlay follows current page
+            if (!this.guidedMode && this.showDragOverlay && PLACEMENTS.length === 0) {
+                this.dragOverlays.forEach(o => { o.page = num; });
+            }
         },
 
         changePage(delta) {
             const next = this.currentPage + delta;
             if (next >= 1 && next <= this.totalPages) this.renderPage(next);
+        },
+
+        goToPage(num) {
+            if (num >= 1 && num <= this.totalPages) {
+                if (this.viewMode === 'scroll') {
+                    const el = document.getElementById(`scroll-page-${num}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    this.currentPage = num;
+                } else {
+                    this.renderPage(num);
+                }
+            }
+        },
+
+        async switchViewMode(mode) {
+            if (mode === this.viewMode) return;
+            if (mode === 'paged' && this._scrollObserver) {
+                this._scrollObserver.disconnect();
+                this._scrollObserver = null;
+            }
+            this.viewMode = mode;
+            if (mode === 'scroll') {
+                await this.$nextTick();
+                await this.renderScrollPages();
+            } else {
+                await this.renderPage(this.currentPage);
+            }
+        },
+
+        async renderScrollPages() {
+            if (!_pdf.doc) return;
+            const outer = document.getElementById('pdf-scroll-outer');
+            if (!outer) return;
+            const wrapW = outer.clientWidth - 8;
+            const sizes = new Array(this.totalPages).fill(null);
+            for (let i = 1; i <= this.totalPages; i++) {
+                const page = await _pdf.doc.getPage(i);
+                const vp0   = page.getViewport({ scale: 1 });
+                const scale = wrapW / vp0.width;
+                const vp    = page.getViewport({ scale });
+                const canvas = document.getElementById(`scroll-canvas-${i}`);
+                if (!canvas) continue;
+                canvas.width  = vp.width;
+                canvas.height = vp.height;
+                sizes[i - 1] = { width: vp.width, height: vp.height };
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            }
+            this.scrollCanvasSizes = sizes;
+            this._setupScrollObserver();
+        },
+
+        _setupScrollObserver() {
+            if (this._scrollObserver) this._scrollObserver.disconnect();
+            const root = document.getElementById('pdf-scroll-outer');
+            if (!root) return;
+            this._scrollObserver = new IntersectionObserver(entries => {
+                let best = this.currentPage, bestRatio = 0;
+                for (const e of entries) {
+                    if (e.isIntersecting && e.intersectionRatio > bestRatio) {
+                        bestRatio = e.intersectionRatio;
+                        best = parseInt(e.target.dataset.page);
+                    }
+                }
+                if (bestRatio > 0) {
+                    this.currentPage = best;
+                    if (!this.guidedMode && this.showDragOverlay && PLACEMENTS.length === 0) {
+                        this.dragOverlays.forEach(o => { o.page = best; });
+                    }
+                }
+            }, { root, threshold: [0, 0.25, 0.5, 0.75, 1.0] });
+            for (let i = 1; i <= this.totalPages; i++) {
+                const el = document.getElementById(`scroll-page-${i}`);
+                if (el) this._scrollObserver.observe(el);
+            }
+        },
+
+        scrollBoxesForPage(pageNum) {
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return [];
+            return PLACEMENTS
+                .map((p, i) => ({
+                    ...p, idx: i,
+                    xPx: p.x * sizes.width,
+                    yPx: p.y * sizes.height,
+                    wPx: p.w * sizes.width,
+                    hPx: p.h * sizes.height,
+                }))
+                .filter(p => p.page === pageNum);
+        },
+
+        scrollOverlaysForPage(pageNum) {
+            if (!this.showDragOverlay) return [];
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return [];
+            return this.dragOverlays
+                .map((o, i) => ({
+                    ...o, _idx: i,
+                    xPx: o.nx * sizes.width,
+                    yPx: o.ny * sizes.height,
+                    wPx: o.nw * sizes.width,
+                    hPx: o.nh * sizes.height,
+                }))
+                .filter(o => o.page === pageNum);
         },
 
         // ── Guided mode ───────────────────────────────────────────────────────
@@ -265,16 +380,28 @@ document.addEventListener('alpine:init', () => {
         startDrag(e, idx) {
             if (this.isResizing) return;
             this.isDragging = true; this.activeOverlayIdx = idx;
-            const rect = e.currentTarget.getBoundingClientRect();
-            this.dragOffsetX = e.clientX - rect.left; this.dragOffsetY = e.clientY - rect.top;
+            const o = this.dragOverlays[idx];
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[o.page - 1];
+                this._dragCanvasW = sizes?.width  || this.canvasW;
+                this._dragCanvasH = sizes?.height || this.canvasH;
+            } else {
+                this._dragCanvasW = this.canvasW;
+                this._dragCanvasH = this.canvasH;
+            }
+            this._dragLastX = e.clientX;
+            this._dragLastY = e.clientY;
             e.currentTarget.setPointerCapture(e.pointerId);
         },
         moveDrag(e) {
             if (!this.isDragging || this.isResizing) return;
             const o = this.dragOverlays[this.activeOverlayIdx]; if (!o) return;
-            const wrapRect = this.wrapEl.getBoundingClientRect();
-            o.nx = Math.max(0, Math.min((e.clientX - wrapRect.left - this.dragOffsetX) / this.canvasW, 1 - o.nw));
-            o.ny = Math.max(0, Math.min((e.clientY - wrapRect.top  - this.dragOffsetY) / this.canvasH, 1 - o.nh));
+            const dx = (e.clientX - this._dragLastX) / this._dragCanvasW;
+            const dy = (e.clientY - this._dragLastY) / this._dragCanvasH;
+            o.nx = Math.max(0, Math.min(o.nx + dx, 1 - o.nw));
+            o.ny = Math.max(0, Math.min(o.ny + dy, 1 - o.nh));
+            this._dragLastX = e.clientX;
+            this._dragLastY = e.clientY;
         },
         endDrag() { this.isDragging = false; },
 
@@ -283,18 +410,27 @@ document.addEventListener('alpine:init', () => {
             this.resizeStartX = e.clientX; this.resizeStartY = e.clientY;
             const o = this.dragOverlays[idx];
             this.resizeStartNX = o.nx; this.resizeStartNY = o.ny; this.resizeStartNW = o.nw; this.resizeStartNH = o.nh;
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[o.page - 1];
+                this._resizeCanvasW = sizes?.width  || this.canvasW;
+                this._resizeCanvasH = sizes?.height || this.canvasH;
+            } else {
+                this._resizeCanvasW = this.canvasW;
+                this._resizeCanvasH = this.canvasH;
+            }
             e.currentTarget.setPointerCapture(e.pointerId);
         },
         moveResize(e) {
             if (!this.isResizing) return;
             const o = this.dragOverlays[this.activeOverlayIdx]; if (!o) return;
             const dx = e.clientX - this.resizeStartX, dy = e.clientY - this.resizeStartY;
-            const minW = 60/this.canvasW, minH = 28/this.canvasH;
+            const cw = this._resizeCanvasW, ch = this._resizeCanvasH;
+            const minW = 60/cw, minH = 28/ch;
             let nx = this.resizeStartNX, ny = this.resizeStartNY, nw = this.resizeStartNW, nh = this.resizeStartNH;
-            if (this.resizeHandle.includes('e')) nw = Math.max(minW, nw + dx/this.canvasW);
-            if (this.resizeHandle.includes('s')) nh = Math.max(minH, nh + dy/this.canvasH);
-            if (this.resizeHandle.includes('w')) { const newNW = Math.max(minW,nw-dx/this.canvasW); nx+=nw-newNW; nw=newNW; }
-            if (this.resizeHandle.includes('n')) { const newNH = Math.max(minH,nh-dy/this.canvasH); ny+=nh-newNH; nh=newNH; }
+            if (this.resizeHandle.includes('e')) nw = Math.max(minW, nw + dx/cw);
+            if (this.resizeHandle.includes('s')) nh = Math.max(minH, nh + dy/ch);
+            if (this.resizeHandle.includes('w')) { const newNW = Math.max(minW,nw-dx/cw); nx+=nw-newNW; nw=newNW; }
+            if (this.resizeHandle.includes('n')) { const newNH = Math.max(minH,nh-dy/ch); ny+=nh-newNH; nh=newNH; }
             o.nx=Math.max(0,Math.min(nx,1-nw)); o.ny=Math.max(0,Math.min(ny,1-nh)); o.nw=nw; o.nh=nh;
         },
         endResize() { this.isResizing = false; this.resizeHandle = null; },
@@ -403,18 +539,33 @@ document.addEventListener('alpine:init', () => {
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 h-full flex flex-col">
 
                     <!-- Nav bar -->
-                    <div class="flex items-center justify-between mb-3 flex-shrink-0">
-                        <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                    <div class="flex items-center justify-between mb-3 flex-shrink-0 gap-2">
+                        <button @click="changePage(-1)" :disabled="currentPage <= 1 || viewMode === 'scroll'"
                                 class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                             Prev
                         </button>
                         <span class="text-sm text-slate-600 font-medium">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
-                        <button @click="changePage(1)" :disabled="currentPage >= totalPages"
-                                class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
-                            Next
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <button @click="changePage(1)" :disabled="currentPage >= totalPages || viewMode === 'scroll'"
+                                    class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                                Next
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </button>
+                            <!-- View mode toggle -->
+                            <div class="flex border border-slate-200 rounded-lg overflow-hidden ml-1">
+                                <button @click="switchViewMode('paged')"
+                                        :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'"
+                                        class="px-2 py-1.5 transition-colors" title="Halaman per halaman">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                </button>
+                                <button @click="switchViewMode('scroll')"
+                                        :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'"
+                                        class="px-2 py-1.5 transition-colors border-l border-slate-200" title="Scroll semua halaman">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     {% if has_prior_signatures %}
@@ -431,7 +582,7 @@ document.addEventListener('alpine:init', () => {
                         <div class="flex items-center gap-1.5 mb-3 flex-shrink-0 flex-wrap">
                             <span class="text-xs text-slate-400">Sign on:</span>
                             <template x-for="pg in placementPages()" :key="pg">
-                                <button @click="renderPage(pg)"
+                                <button @click="goToPage(pg)"
                                         :class="currentPage === pg ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'"
                                         class="px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors">
                                     Page <span x-text="pg"></span>
@@ -440,8 +591,24 @@ document.addEventListener('alpine:init', () => {
                         </div>
                     </template>
 
-                    <!-- PDF canvas -->
-                    <div id="pdf-viewer-wrap" class="flex-1">
+                    <!-- Mode indicator badge -->
+                    <div class="flex items-center gap-2 mb-3 flex-shrink-0">
+                        <template x-if="guidedMode">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                Guided Mode — klik kotak yang berkedip untuk tanda tangan
+                            </span>
+                        </template>
+                        <template x-if="!guidedMode">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                                Free Mode — gambar tanda tangan lalu letakkan di halaman yang diinginkan
+                            </span>
+                        </template>
+                    </div>
+
+                    <!-- PDF canvas (paged mode) -->
+                    <div id="pdf-viewer-wrap" class="flex-1" x-show="viewMode === 'paged'">
                         <div x-show="pdfLoading" class="flex items-center justify-center py-20 text-slate-400 text-sm gap-2">
                             <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
                             Loading PDF…
@@ -453,8 +620,8 @@ document.addEventListener('alpine:init', () => {
                         </div>
                         <canvas id="pdf-canvas" x-show="!pdfLoading && !pdfError"></canvas>
 
-                        <!-- ── GUIDED MODE: fixed placement boxes ── -->
-                        <template x-if="guidedMode">
+                        <!-- ── GUIDED MODE: fixed placement boxes (paged) ── -->
+                        <template x-if="guidedMode && viewMode === 'paged'">
                             <template x-for="box in currentPageBoxes()" :key="box.idx">
                                 <div class="sign-box"
                                      :class="signatureData ? 'signed' : 'unsigned'"
@@ -473,8 +640,8 @@ document.addEventListener('alpine:init', () => {
                             </template>
                         </template>
 
-                        <!-- ── FREE MODE: predefined placeholders + drag overlays ── -->
-                        <template x-if="!guidedMode">
+                        <!-- ── FREE MODE: predefined placeholders + drag overlays (paged) ── -->
+                        <template x-if="!guidedMode && viewMode === 'paged'">
                             <template x-if="!showDragOverlay">
                                 <template x-for="(p, idx) in currentPagePlacements()" :key="idx">
                                     <div class="sign-box unsigned"
@@ -488,27 +655,79 @@ document.addEventListener('alpine:init', () => {
                             </template>
                         </template>
 
-                        <!-- Free-mode drag overlays -->
-                        <template x-for="overlay in currentPageOverlays()" :key="overlay.id">
-                            <div class="drag-overlay"
-                                 :class="{ dragging: isDragging && activeOverlayIdx === overlay._idx }"
-                                 :style="`left:${overlay.xPx}px;top:${overlay.yPx}px;width:${overlay.wPx}px;height:${overlay.hPx}px`"
-                                 @pointerdown.stop="startDrag($event, overlay._idx)"
-                                 @pointermove.stop="moveDrag($event)"
-                                 @pointerup.stop="endDrag()"
-                                 @pointercancel="isDragging=false">
-                                <div class="drag-handle"></div>
-                                <div class="sig-inner">
-                                    <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                        <!-- Free-mode drag overlays (paged) -->
+                        <template x-if="viewMode === 'paged'">
+                            <template x-for="overlay in currentPageOverlays()" :key="overlay.id">
+                                <div class="drag-overlay"
+                                     :class="{ dragging: isDragging && activeOverlayIdx === overlay._idx }"
+                                     :style="`left:${overlay.xPx}px;top:${overlay.yPx}px;width:${overlay.wPx}px;height:${overlay.hPx}px`"
+                                     @pointerdown.stop="startDrag($event, overlay._idx)"
+                                     @pointermove.stop="moveDrag($event)"
+                                     @pointerup.stop="endDrag()"
+                                     @pointercancel="isDragging=false">
+                                    <div class="drag-handle"></div>
+                                    <div class="sig-inner">
+                                        <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                                    </div>
+                                    <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle se" @pointerdown.stop="startResize($event,'se',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                 </div>
-                                <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle se" @pointerdown.stop="startResize($event,'se',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
-                                <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                            </template>
+                        </template>
+                    </div>
+
+                    <!-- ── SCROLL MODE: all pages stacked ── -->
+                    <div x-show="viewMode === 'scroll'" id="pdf-scroll-outer"
+                         style="max-height: 75vh; overflow-y: auto; background: #e5e7eb; border-radius: 8px; padding: 4px;">
+                        <template x-for="pg in pages" :key="pg">
+                            <div :id="`scroll-page-${pg}`" :data-page="pg" class="relative mb-3">
+                                <canvas :id="`scroll-canvas-${pg}`" style="display:block;width:100%;"></canvas>
+
+                                <!-- Guided boxes in scroll -->
+                                <template x-if="guidedMode">
+                                    <template x-for="box in scrollBoxesForPage(pg)" :key="box.idx">
+                                        <div class="sign-box"
+                                             :class="signatureData ? 'signed' : 'unsigned'"
+                                             :style="`left:${box.xPx}px;top:${box.yPx}px;width:${box.wPx}px;height:${box.hPx}px`"
+                                             @click="openCaptureModal()">
+                                            <template x-if="signatureData"><img :src="signatureData" draggable="false"></template>
+                                            <template x-if="!signatureData">
+                                                <span class="flex flex-col items-center gap-0.5 pointer-events-none">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                    <span style="font-size:9px">Sign here</span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </template>
+
+                                <!-- Free mode drag overlays in scroll -->
+                                <template x-for="overlay in scrollOverlaysForPage(pg)" :key="overlay.id">
+                                    <div class="drag-overlay"
+                                         :class="{ dragging: isDragging && activeOverlayIdx === overlay._idx }"
+                                         :style="`left:${overlay.xPx}px;top:${overlay.yPx}px;width:${overlay.wPx}px;height:${overlay.hPx}px`"
+                                         @pointerdown.stop="startDrag($event, overlay._idx)"
+                                         @pointermove.stop="moveDrag($event)"
+                                         @pointerup.stop="endDrag()"
+                                         @pointercancel="isDragging=false">
+                                        <div class="drag-handle"></div>
+                                        <div class="sig-inner"><img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false"></div>
+                                        <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle e"  @pointerdown.stop="startResize($event,'e', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle se" @pointerdown.stop="startResize($event,'se',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle s"  @pointerdown.stop="startResize($event,'s', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle sw" @pointerdown.stop="startResize($event,'sw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                        <div class="resize-handle w"  @pointerdown.stop="startResize($event,'w', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
+                                    </div>
+                                </template>
                             </div>
                         </template>
                     </div>
@@ -523,7 +742,7 @@ document.addEventListener('alpine:init', () => {
                             <div x-show="placementPages().length > 1" class="flex flex-wrap gap-1.5">
                                 <span class="text-xs text-slate-400 self-center">Signatures on:</span>
                                 <template x-for="pg in placementPages()" :key="pg">
-                                    <button @click="renderPage(pg)"
+                                    <button @click="goToPage(pg)"
                                             :class="currentPage === pg ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'"
                                             class="px-2.5 py-0.5 rounded-full text-xs font-semibold">
                                         Page <span x-text="pg"></span>
@@ -581,7 +800,7 @@ document.addEventListener('alpine:init', () => {
                                     </div>
                                     <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
                                     <button type="button" x-data
-                                            @click="renderPage({{ p.page_number }})"
+                                            @click="goToPage({{ p.page_number }})"
                                             class="ml-auto text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold">
                                         Go →
                                     </button>
