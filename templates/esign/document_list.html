@@ -130,7 +130,7 @@
             <div class="flex-1 min-w-0">
                 <p class="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors truncate">{{ doc.title }}</p>
                 <div class="flex items-center gap-3 mt-0.5 flex-wrap">
-                    <span class="text-xs text-slate-400">{{ doc.created_at|date:"d M Y" }}</span>
+                    <span class="text-xs text-slate-400">{{ doc.created_at|date:"d M Y T" }}</span>
                     <span class="text-xs text-slate-300">·</span>
                     {% if doc.routing_mode == 'sequential' %}
                     <span class="text-xs text-slate-400 flex items-center gap-1">
@@ -147,7 +147,7 @@
                     <span class="text-xs text-slate-300">·</span>
                     <span class="text-xs {% if doc.status == 'pending' %}text-red-400{% else %}text-slate-400{% endif %} flex items-center gap-1">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        {{ doc.due_at|date:"d M Y" }}
+                        {{ doc.due_at|date:"d M Y T" }}
                     </span>
                     {% endif %}
                 </div>

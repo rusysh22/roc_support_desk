@@ -51,7 +51,7 @@
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
-                        Due: {{ signer.document.due_at|date:"d M Y H:i" }}
+                        Due: {{ signer.document.due_at|date:"d M Y H:i T" }}
                     </p>
                     {% endif %}
                     {% if signer.document.message %}
@@ -171,7 +171,7 @@
                         Rejected
                     </span>
                     {% endif %}
-                    <span class="text-xs text-slate-400 whitespace-nowrap hidden sm:block">{{ signer.acted_at|date:"d M Y H:i"|default:"—" }}</span>
+                    <span class="text-xs text-slate-400 whitespace-nowrap hidden sm:block">{{ signer.acted_at|date:"d M Y H:i T"|default:"—" }}</span>
                 </div>
 
                 <!-- Chevron -->

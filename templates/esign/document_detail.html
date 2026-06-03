@@ -171,7 +171,7 @@ function showToast(msg) {
                 {% if doc.due_at %}
                 <span class="text-xs flex items-center gap-1 {% if doc.status == 'pending' %}text-red-500 font-medium{% else %}text-slate-500{% endif %}">
                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Due: {{ doc.due_at|date:"d M Y H:i" }}
+                    Due: {{ doc.due_at|date:"d M Y H:i T" }}
                 </span>
                 {% endif %}
                 <span class="text-xs text-slate-400">
@@ -320,7 +320,7 @@ function showToast(msg) {
                             {% if signer.acted_at %}
                             <p class="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                {{ signer.acted_at|date:"d M Y H:i" }}
+                                {{ signer.acted_at|date:"d M Y H:i T" }}
                             </p>
                             {% endif %}
 
@@ -451,7 +451,7 @@ function showToast(msg) {
                                 {% elif ev.actor_label %}{{ ev.actor_label }}
                                 {% else %}System{% endif %}
                             </p>
-                            <p class="text-[11px] text-slate-300 mt-0.5">{{ ev.created_at|date:"d M Y · H:i" }}</p>
+                            <p class="text-[11px] text-slate-300 mt-0.5">{{ ev.created_at|date:"d M Y · H:i T" }}</p>
                             {% if ev.detail %}
                             <p class="text-xs text-slate-500 italic mt-1 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-100">
                                 {{ ev.detail|truncatechars:90 }}
@@ -505,7 +505,7 @@ function showToast(msg) {
                 {% if doc.due_at %}
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-slate-400">Due date</span>
-                    <span class="font-medium {% if doc.status == 'pending' %}text-red-500{% else %}text-slate-700{% endif %}">{{ doc.due_at|date:"d M Y H:i" }}</span>
+                    <span class="font-medium {% if doc.status == 'pending' %}text-red-500{% else %}text-slate-700{% endif %}">{{ doc.due_at|date:"d M Y H:i T" }}</span>
                 </div>
                 {% endif %}
                 {% if doc.document_hash %}
