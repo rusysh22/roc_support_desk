@@ -193,6 +193,7 @@ def sign(request, token):
                             defaults={"signature_data": full_sig_data},
                         )
 
+                    document.refresh_from_db()
                     return render(request, "esign/sign_done.html", {
                         "signer": signer, "document": document, "just_signed": True,
                     })
