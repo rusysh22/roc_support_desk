@@ -191,7 +191,18 @@ document.addEventListener('alpine:init', () => {
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     this.currentPage = num;
                 } else {
-                    this.renderPage(num);
+                    this.renderPage(num).then(() => {
+                        // Scroll the viewport to show the sign box after page renders
+                        setTimeout(() => {
+                            const box = document.querySelector('.sign-box.unsigned');
+                            if (box) {
+                                box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } else {
+                                const viewer = document.getElementById('pdf-viewer-wrap') || document.getElementById('pdf-scroll-outer');
+                                if (viewer) viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }, 250);
+                    });
                 }
             }
         },
@@ -300,6 +311,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         openCaptureModal() {
+            // Auto-navigate to the first placement page so the box is visible
+            if (PLACEMENTS.length > 0 && this.currentPage !== PLACEMENTS[0].page) {
+                this.goToPage(PLACEMENTS[0].page);
+            }
             this.showCaptureModal = true;
             if (this.activeTab === 'draw') this.initModalDrawCanvas();
         },
@@ -816,8 +831,11 @@ document.addEventListener('alpine:init', () => {
                                     <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
                                     <button type="button" x-data
                                             @click="goToPage({{ p.page_number }})"
-                                            class="ml-auto text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold">
-                                        Go →
+                                            class="ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors">
+                                        <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                        </svg>
+                                        Go to Sign
                                     </button>
                                 </div>
                                 {% endfor %}

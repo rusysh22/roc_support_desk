@@ -24,7 +24,10 @@ Coordinate system note:
     placing images onto the reportlab canvas (bottom-left origin).
 """
 import io
+import logging
 from cases.utils_pdf import _format_dt_with_gmt
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +77,9 @@ def _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations):
         return
 
     try:
-        signer.signature_image.seek(0)
-        img_reader = ImageReader(signer.signature_image)
+        with signer.signature_image.open('rb') as f:
+            img_bytes = io.BytesIO(f.read())
+        img_reader = ImageReader(img_bytes)
         c.drawImage(
             img_reader,
             abs_x, abs_y_pdf, abs_w, abs_h,
@@ -165,8 +169,9 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
 
     if signer.signature_image:
         try:
-            signer.signature_image.seek(0)
-            img_reader = ImageReader(signer.signature_image)
+            with signer.signature_image.open('rb') as f:
+                img_bytes = io.BytesIO(f.read())
+            img_reader = ImageReader(img_bytes)
             pad = max(2, abs_w * 0.02)
             c.drawImage(
                 img_reader,
@@ -301,5 +306,6 @@ def stamp_document(document) -> bytes | None:
         output.seek(0)
         return output.read()
 
-    except Exception:
+    except Exception as exc:
+        logger.exception("stamp_document failed for document %s: %s", document.pk, exc)
         return None
