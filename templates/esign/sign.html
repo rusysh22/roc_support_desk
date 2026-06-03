@@ -602,14 +602,14 @@ document.addEventListener('alpine:init', () => {
                                         :class="guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
                                         class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors">
                                     <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                                    Placement dari Creator
+                                    Guided Placement
                                 </button>
                                 <button type="button"
                                         @click="guidedMode = false"
                                         :class="!guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
                                         class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors border-l border-slate-200">
                                     <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                                    Letakkan Sendiri
+                                    Free Placement
                                 </button>
                             </div>
                         </template>
@@ -617,7 +617,7 @@ document.addEventListener('alpine:init', () => {
                             <!-- Free mode only — no creator placements -->
                             <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-                                Free Mode — gambar tanda tangan lalu letakkan di halaman yang diinginkan
+                                Free Placement — draw your signature and place it anywhere on the document
                             </span>
                         </template>
                     </div>
@@ -1007,10 +1007,9 @@ document.addEventListener('alpine:init', () => {
 
 <!-- ══ Guided-mode: Signature Capture Modal ══ -->
 <template x-if="guidedMode">
-    <div x-show="showCaptureModal" x-cloak
+    <div x-show="showCaptureModal"
          class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50"
-         @click.self="showCaptureModal = false"
-         style="display:none">
+         @click.self="showCaptureModal = false">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" @click.stop>
             <!-- Modal header -->
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
