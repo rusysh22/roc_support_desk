@@ -110,102 +110,71 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations,
     """
     Draw a branded stamp frame within the placement box boundaries:
     - Dark header band at top: site logo + "Digitally Signed" label
-    - Signature image in the middle (white background)
-    - Light footer strip at bottom: signer name + date
-    """
-    from reportlab.lib import colors as rl_colors
+def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations, logo_reader, site_name=""):
+    import io
     from reportlab.lib.utils import ImageReader
+    from reportlab.lib import colors as rl_colors
 
-    radius = min(3, abs_h * 0.05)
-    indigo  = rl_colors.HexColor("#4338ca")
-    white   = rl_colors.white
-    surface = rl_colors.HexColor("#f8fafc")
-    text_dk = rl_colors.HexColor("#1e293b")
-    text_md = rl_colors.HexColor("#475569")
+    text_color = rl_colors.HexColor("#1e293b")
+    pad = min(abs_w, abs_h) * 0.05
 
-    # Proportional heights
-    header_h = max(10, abs_h * 0.20)
-    footer_h = max(9,  abs_h * 0.21) if annotations else 0
-    sig_h    = abs_h - header_h - footer_h
+    # ── Top-left label ────────────────────────────────────────────────────────
+    label_fs = max(5, min(abs_h * 0.1, 8))
+    c.setFont("Helvetica", label_fs)
+    c.setFillColor(text_color)
+    c.drawString(abs_x + pad, abs_y_pdf + abs_h - pad - label_fs, "Digital Signed")
 
-    header_y = abs_y_pdf + abs_h - header_h
-    sig_y    = abs_y_pdf + footer_h
-
-    # ── Outer border ──────────────────────────────────────────────────────
-    c.setStrokeColor(indigo)
-    c.setLineWidth(0.7)
-    c.roundRect(abs_x, abs_y_pdf, abs_w, abs_h, radius, stroke=1, fill=0)
-
-    # ── Header band (dark indigo) ─────────────────────────────────────────
-    c.setFillColor(indigo)
-    c.roundRect(abs_x, header_y, abs_w, header_h, radius, stroke=0, fill=1)
-    # Cover bottom corners of the rounded rect so they don't bleed into sig area
-    c.rect(abs_x, header_y, abs_w, header_h * 0.5, stroke=0, fill=1)
-
-    # Logo in header (left side)
-    logo_w = header_h * 0.75
-    text_x = abs_x + 4
+    # ── Bottom-right logo ─────────────────────────────────────────────────────
     if logo_reader:
         try:
+            img_w, img_h = logo_reader.getSize()
+            aspect = img_w / float(img_h)
+            max_logo_w = abs_w * 0.4
+            max_logo_h = abs_h * 0.3
+            
+            draw_h = min(max_logo_h, max_logo_w / aspect)
+            draw_w = draw_h * aspect
+            
             c.drawImage(
                 logo_reader,
-                abs_x + 2, header_y + header_h * 0.1,
-                width=logo_w, height=header_h * 0.8,
-                mask="auto", preserveAspectRatio=True,
+                abs_x + abs_w - draw_w - pad, abs_y_pdf + pad,
+                width=draw_w, height=draw_h,
+                mask="auto", preserveAspectRatio=True
             )
-            text_x = abs_x + logo_w + 5
         except Exception:
             pass
 
-    # "Digitally Signed" label
-    label_fs = max(5, min(header_h * 0.42, 7.5))
-    c.setFont("Helvetica-Bold", label_fs)
-    c.setFillColor(white)
-    c.drawString(text_x, header_y + (header_h - label_fs) * 0.38, "Digitally Signed")
+    # ── Bottom-left annotations ───────────────────────────────────────────────
+    if annotations:
+        ann_fs = max(4.5, min(abs_h * 0.09, 7.5))
+        c.setFillColor(text_color)
+        y_ann = abs_y_pdf + pad + (len(annotations) - 1) * (ann_fs + 3)
+        for i, text in enumerate(annotations):
+            if i == 0:
+                c.setFont("Helvetica-Bold", ann_fs + 0.5)
+            else:
+                c.setFont("Helvetica", ann_fs)
+            c.drawString(abs_x + pad, y_ann, text)
+            y_ann -= (ann_fs + 3)
 
-    # ── Signature image area (white background) ───────────────────────────
-    c.setFillColor(white)
-    c.rect(abs_x, sig_y, abs_w, sig_h, stroke=0, fill=1)
-
+    # ── Signature in the center ───────────────────────────────────────────────
     if signer.signature_image:
         try:
             with signer.signature_image.open('rb') as f:
                 img_bytes = io.BytesIO(f.read())
-            img_reader = ImageReader(img_bytes)
-            pad = max(2, abs_w * 0.02)
+            sig_reader = ImageReader(img_bytes)
+            
+            sig_y = abs_y_pdf + abs_h * 0.25
+            sig_h = abs_h * 0.6
+            
             c.drawImage(
-                img_reader,
-                abs_x + pad, sig_y + pad,
-                abs_w - 2 * pad, sig_h - 2 * pad,
-                mask="auto", preserveAspectRatio=True,
+                sig_reader,
+                abs_x + pad, sig_y,
+                abs_w - 2 * pad, sig_h,
+                mask="auto", preserveAspectRatio=True
             )
         except Exception:
             pass
-
-    # ── Footer strip (light gray with annotation text) ────────────────────
-    if annotations and footer_h > 0:
-        c.setFillColor(surface)
-        c.rect(abs_x, abs_y_pdf, abs_w, footer_h, stroke=0, fill=1)
-        # Cover top corners so they don't protrude into sig area
-        c.roundRect(abs_x, abs_y_pdf, abs_w, footer_h * 1.4, radius, stroke=0, fill=1)
-        c.rect(abs_x, abs_y_pdf + footer_h * 0.7, abs_w, footer_h * 0.3, stroke=0, fill=1)
-
-        # Thin separator line between sig area and footer
-        c.setStrokeColor(rl_colors.HexColor("#e2e8f0"))
-        c.setLineWidth(0.4)
-        c.line(abs_x, abs_y_pdf + footer_h, abs_x + abs_w, abs_y_pdf + footer_h)
-
-        ann_fs = max(5, min(footer_h / max(len(annotations), 1) * 0.72, 7))
-        c.setFont("Helvetica", ann_fs)
-        c.setFillColor(text_md)
-        # Stack annotations in footer; last item right-aligned if it looks like a date
-        y_ann = abs_y_pdf + footer_h - ann_fs - 1.5
-        for i, text in enumerate(annotations):
-            if i == len(annotations) - 1 and len(text) <= 20:
-                c.drawRightString(abs_x + abs_w - 2, y_ann, text[:35])
-            else:
-                c.drawString(abs_x + 2, y_ann, text[:40])
-            y_ann -= ann_fs + 1.5
 
 
 # ---------------------------------------------------------------------------
