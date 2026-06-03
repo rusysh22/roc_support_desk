@@ -43,7 +43,7 @@ def _token_expiry(days=30):
 
 def _generate_verify_code():
     alphabet = string.ascii_uppercase + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(8))
+    return "".join(secrets.choice(alphabet) for _ in range(4))
 
 
 def _assign_token(signer):
