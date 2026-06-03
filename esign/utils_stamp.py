@@ -69,33 +69,43 @@ def _fetch_site_branding():
 # ---------------------------------------------------------------------------
 
 def _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations):
-    """Draw signature image then optional annotation text beneath the box."""
+    """Draw signature image then optional annotation text beneath it, ALL strictly inside the box."""
+    import io
     from reportlab.lib.utils import ImageReader
     from reportlab.lib import colors as rl_colors
 
-    if not signer.signature_image:
-        return
+    text_h = 0
+    if annotations:
+        text_h = len(annotations) * 8 + 4
 
-    try:
-        with signer.signature_image.open('rb') as f:
-            img_bytes = io.BytesIO(f.read())
-        img_reader = ImageReader(img_bytes)
-        c.drawImage(
-            img_reader,
-            abs_x, abs_y_pdf, abs_w, abs_h,
-            mask="auto",
-            preserveAspectRatio=True,
-        )
-    except Exception:
-        return
+    if signer.signature_image:
+        try:
+            with signer.signature_image.open('rb') as f:
+                img_bytes = io.BytesIO(f.read())
+            img_reader = ImageReader(img_bytes)
+            
+            sig_h = max(5, abs_h - text_h)
+            c.drawImage(
+                img_reader,
+                abs_x, abs_y_pdf + text_h, abs_w, sig_h,
+                mask="auto",
+                preserveAspectRatio=True,
+            )
+        except Exception:
+            pass
 
     if annotations:
         c.setLineWidth(0.4)
         c.setStrokeColor(rl_colors.HexColor("#94a3b8"))
-        c.line(abs_x, abs_y_pdf, abs_x + abs_w, abs_y_pdf)
+        # Line separating signature and text
+        line_y = abs_y_pdf + text_h
+        c.line(abs_x, line_y, abs_x + abs_w, line_y)
+        
         c.setFont("Helvetica", 6.5)
         c.setFillColor(rl_colors.HexColor("#374151"))
-        ann_y = abs_y_pdf - 9
+        
+        # Draw from top of text area downwards
+        ann_y = line_y - 8
         for text in annotations:
             c.drawString(abs_x + 2, ann_y, text[:70])
             ann_y -= 8
