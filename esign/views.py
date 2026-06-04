@@ -539,3 +539,33 @@ def user_search(request):
         for u in users
     ]
     return JsonResponse({"results": results})
+
+
+@_staff_required
+def employee_search(request):
+    from django.db.models import Q
+    from core.models import Employee
+
+    q = request.GET.get("q", "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    employees = (
+        Employee.objects
+        .filter(
+            Q(full_name__icontains=q) |
+            Q(email__icontains=q)
+        )
+        .values("id", "full_name", "email", "unit__code", "job_role")[:20]
+    )
+    results = [
+        {
+            "id": str(e["id"]),
+            "name": e["full_name"],
+            "email": e["email"] or "",
+            "unit": e["unit__code"] or "",
+            "job_role": e["job_role"] or "",
+        }
+        for e in employees
+    ]
+    return JsonResponse({"results": results})

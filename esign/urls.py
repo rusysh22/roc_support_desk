@@ -20,4 +20,5 @@ urlpatterns = [
     path("my-signatures/",           views.my_signatures,         name="my_signatures"),
     path("my-signatures/<uuid:pk>/", views.my_signature_detail,    name="my_signature_detail"),
     path("api/users/",               views.user_search,            name="user_search"),
+    path("api/employees/",           views.employee_search,        name="employee_search"),
 ]
