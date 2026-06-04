@@ -41,7 +41,10 @@
                 </div>
                 <!-- Info -->
                 <div class="flex-1 min-w-0">
-                    <p class="font-semibold text-slate-800 truncate">{{ signer.document.title }}</p>
+                    <div>
+                        <p class="font-mono text-xs font-bold text-indigo-700 mb-0.5">{{ signer.document.document_code }}</p>
+                        <p class="font-semibold text-slate-800">{{ signer.document.title }}</p>
+                    </div>
                     <p class="text-xs text-slate-500 mt-0.5">
                         Sent by <span class="font-medium text-slate-700">{{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}</span>
                         &nbsp;·&nbsp; {{ signer.document.created_at|date:"d M Y" }}
@@ -132,7 +135,7 @@
     {% for signer in completed_signers %}
         <a href="{% url 'esign:my_signature_detail' pk=signer.pk %}"
            class="block bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-indigo-300 hover:shadow-md transition-all group"
-           x-show="!search || '{{ signer.document.title|lower|escapejs }}'.includes(search.toLowerCase())">
+           x-show="!search || '{{ signer.document.title|lower|escapejs }}'.includes(search.toLowerCase()) || '{{ signer.document.document_code|lower|escapejs }}'.includes(search.toLowerCase())">
             <div class="px-5 py-3.5 flex items-center gap-3">
                 <!-- Status dot -->
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0
@@ -150,7 +153,10 @@
 
                 <!-- Info -->
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-slate-800 truncate">{{ signer.document.title }}</p>
+                    <div>
+                        <p class="font-mono text-xs font-bold text-indigo-700 mb-0.5">{{ signer.document.document_code }}</p>
+                        <p class="text-sm font-semibold text-slate-800 truncate">{{ signer.document.title }}</p>
+                    </div>
                     <p class="text-xs text-slate-400 mt-0.5">
                         Sent by {{ signer.document.created_by.get_full_name|default:signer.document.created_by.username }}
                         &nbsp;·&nbsp;

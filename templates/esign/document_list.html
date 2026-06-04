@@ -102,7 +102,7 @@
        class="block bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-indigo-300 hover:shadow-md transition-all group"
        x-show="
            (activeFilter === 'all' || activeFilter === '{{ doc.status }}') &&
-           (!search || '{{ doc.title|lower|escapejs }}'.includes(search.toLowerCase()))
+           (!search || '{{ doc.title|lower|escapejs }}'.includes(search.toLowerCase()) || '{{ doc.document_code|lower|escapejs }}'.includes(search.toLowerCase()))
        ">
         <div class="flex items-center gap-4">
 
@@ -128,9 +128,9 @@
 
             <!-- Title + meta -->
             <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-0.5">
-                    <p class="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors truncate">{{ doc.title }}</p>
-                    <span class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-400 group-hover:border-indigo-100 group-hover:text-indigo-500 transition-colors">{{ doc.document_code }}</span>
+                <div class="flex flex-col mb-1">
+                    <p class="font-mono text-base font-bold text-indigo-700 group-hover:text-indigo-800 transition-colors mb-0.5">{{ doc.document_code }}</p>
+                    <p class="font-medium text-sm text-slate-500 group-hover:text-slate-700 transition-colors truncate">{{ doc.title }}</p>
                 </div>
                 <div class="flex items-center gap-3 mt-0.5 flex-wrap">
                     <span class="text-xs text-slate-400">{{ doc.created_at|date:"d M Y T" }}</span>
