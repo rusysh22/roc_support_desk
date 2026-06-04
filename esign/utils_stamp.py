@@ -37,9 +37,15 @@ logger = logging.getLogger(__name__)
 def _build_annotations(signer):
     """Return annotation strings to stamp on the signature."""
     parts = []
-    # User requested not to display name, timestamp, and doc code on the document
+    if getattr(signer, "stamp_name", False) and getattr(signer, "display_name", ""):
+        parts.append(signer.display_name)
+        
     if getattr(signer, "stamp_job_role", False) and signer.stamp_job_role_text:
         parts.append(signer.stamp_job_role_text)
+        
+    if getattr(signer, "stamp_timestamp", False) and signer.acted_at:
+        parts.append(_format_dt_with_gmt(signer.acted_at))
+        
     return parts
 
 
