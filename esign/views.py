@@ -228,8 +228,25 @@ def document_replace_pdf(request, pk):
         pass
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
-    return redirect("esign:document_configure", pk=pk)
+    return redirect("esign:document_list")
 
+
+@_staff_required
+@require_POST
+def document_force_complete(request, pk):
+    from .services import force_complete_document
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    ip, _ = get_client_ip(request)
+    try:
+        force_complete_document(doc, actor_user=request.user, ip=ip)
+        messages.success(request, f"Document '{doc.title}' has been forcefully completed.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("esign:document_detail", pk=doc.pk)
 
 # ---------------------------------------------------------------------------
 # Document configure (step 2) — add signers + place signature boxes

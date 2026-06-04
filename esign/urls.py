@@ -18,6 +18,7 @@ urlpatterns = [
     path("<uuid:pk>/reopen/",   views.document_reopen,  name="document_reopen"),
     path("<uuid:pk>/revert-to-draft/", views.document_revert_to_draft, name="document_revert_to_draft"),
     path("<uuid:pk>/cancel/",   views.document_cancel,  name="document_cancel"),
+    path("<uuid:pk>/force-complete/", views.document_force_complete, name="document_force_complete"),
     path("<uuid:pk>/signers/<uuid:signer_pk>/remind/", views.signer_remind, name="signer_remind"),
     path("<uuid:pk>/signers/<uuid:signer_pk>/reopen/", views.signer_reopen, name="signer_reopen"),
     path("<uuid:pk>/signers/<uuid:signer_pk>/reassign/", views.signer_reassign, name="signer_reassign"),

@@ -245,6 +245,17 @@ function showToast(msg) {
                 </button>
             </form>
             {% endif %}
+            
+            {% if doc.status == 'pending' %}
+            <form method="post" action="{% url 'esign:document_force_complete' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline inline-flex items-center gap-1.5"
+                        onclick="return confirm('Force complete this document? All remaining signers will be skipped and the document will be finalized.')">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Force Complete
+                </button>
+            </form>
+            {% endif %}
             {% if doc.status != 'completed' and doc.status != 'cancelled' %}
             <form method="post" action="{% url 'esign:document_cancel' pk=doc.pk %}">
                 {% csrf_token %}

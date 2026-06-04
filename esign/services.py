@@ -227,6 +227,22 @@ def _finalize(document):
     _log(document, SignatureEvent.Event.COMPLETED)
     send_signature_completed_task.delay(str(document.id))
 
+def force_complete_document(document, actor_user=None, ip=None):
+    """
+    Force complete a pending document, skipping any remaining signatures.
+    """
+    if document.status != SignatureDocument.Status.PENDING:
+        raise ValueError("Only in-progress documents can be force completed.")
+        
+    # Clear tokens for remaining signers so they can't access it anymore
+    for signer in document.signers.filter(status__in=[Signer.Status.WAITING, Signer.Status.PENDING]):
+        signer.token = None
+        signer.save(update_fields=['token'])
+        
+    _log(document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+         detail="Document force completed by requestor. Remaining signatures skipped.")
+         
+    _finalize(document)
 
 # ---------------------------------------------------------------------------
 # reject — Signer PENDING → REJECTED
