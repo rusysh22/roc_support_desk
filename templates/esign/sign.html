@@ -850,13 +850,20 @@ document.addEventListener('alpine:init', () => {
                                         <svg x-show="!signatureData" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </div>
                                     <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
-                                    <button type="button" x-data
+                                    <button type="button" x-data="{ showTooltip: {% if forloop.first %}true{% else %}false{% endif %} }"
+                                            x-init="if(showTooltip) setTimeout(() => showTooltip = false, 10000)"
                                             @click="goToPage({{ p.page_number }})"
-                                            class="ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors">
+                                            class="relative ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors">
                                         <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                         Go to Sign
+                                        
+                                        <!-- Tooltip / Chat Bubble -->
+                                        <div x-show="showTooltip" x-transition.opacity.duration.500ms x-cloak
+                                             class="absolute right-0 bottom-full mb-2 w-max px-3 py-1.5 bg-slate-800 text-white text-[11px] font-medium rounded-lg shadow-lg animate-bounce pointer-events-none z-50 before:content-[''] before:absolute before:top-full before:right-6 before:border-[5px] before:border-transparent before:border-t-slate-800">
+                                            Click here to sign!
+                                        </div>
                                     </button>
                                 </div>
                                 {% endfor %}
