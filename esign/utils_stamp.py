@@ -37,18 +37,9 @@ logger = logging.getLogger(__name__)
 def _build_annotations(signer):
     """Return annotation strings to stamp on the signature."""
     parts = []
-    if getattr(signer, "stamp_name", True):
-        parts.append(signer.display_name)
+    # User requested not to display name, timestamp, and doc code on the document
     if getattr(signer, "stamp_job_role", False) and signer.stamp_job_role_text:
         parts.append(signer.stamp_job_role_text)
-    if getattr(signer, "stamp_timestamp", True) and signer.acted_at:
-        from django.utils import timezone
-        local_time = timezone.localtime(signer.acted_at)
-        parts.append(local_time.strftime("%d %b %Y %H:%M %Z"))
-    
-    if signer.document_id and hasattr(signer.document, 'document_code'):
-        parts.append(f"Doc Code: {signer.document.document_code}")
-        
     return parts
 
 
@@ -82,7 +73,7 @@ def _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations):
 
     text_h = 0
     if annotations:
-        text_h = len(annotations) * 8 + 4
+        text_h = len(annotations) * 7 + 4
 
     if signer.signature_image:
         try:
@@ -107,14 +98,14 @@ def _stamp_simple(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations):
         line_y = abs_y_pdf + text_h
         c.line(abs_x, line_y, abs_x + abs_w, line_y)
         
-        c.setFont("Helvetica", 6.5)
+        c.setFont("Helvetica", 5.0)
         c.setFillColor(rl_colors.HexColor("#374151"))
         
         # Draw from top of text area downwards
-        ann_y = line_y - 8
+        ann_y = line_y - 7
         for text in annotations:
             c.drawString(abs_x + 2, ann_y, text[:70])
-            ann_y -= 8
+            ann_y -= 7
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +121,7 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations, logo_
     pad = min(abs_w, abs_h) * 0.05
 
     # ── Top-left label ────────────────────────────────────────────────────────
-    label_fs = max(5, min(abs_h * 0.1, 8))
+    label_fs = max(3.5, min(abs_h * 0.08, 5.5))
     c.setFont("Helvetica", label_fs)
     c.setFillColor(text_color)
     c.drawString(abs_x + pad, abs_y_pdf + abs_h - pad - label_fs, "Digital Signed")
