@@ -269,6 +269,40 @@ def reject_signature(signer, notes, ip=None, actor_user=None):
 # reopen — REJECTED / PENDING → PENDING (reset and re-send)
 # ---------------------------------------------------------------------------
 
+def reopen_signer(signer, actor_user=None, ip=None):
+    """
+    Reopen a specific signer. Resets their status and regenerates their token.
+    If the document was already completed, it is moved back to PENDING.
+    The document's signed_pdf is deleted so it can be regenerated with the remaining signatures.
+    """
+    document = signer.document
+    if signer.status not in (Signer.Status.SIGNED, Signer.Status.REJECTED):
+        raise ValueError("Only SIGNED or REJECTED signers can be reopened.")
+    
+    # Reset signer
+    signer.status = Signer.Status.WAITING
+    signer.notes = ""
+    signer.acted_at = None
+    if signer.signature_image:
+        signer.signature_image.delete(save=False)
+    signer.signature_image = None
+    _assign_token(signer)
+    signer.save(update_fields=["status", "notes", "acted_at", "token", "token_expires_at", "signature_image"])
+
+    # If document was completed, reset it
+    if document.status == SignatureDocument.Status.COMPLETED:
+        document.status = SignatureDocument.Status.PENDING
+    if document.signed_pdf:
+        document.signed_pdf.delete(save=False)
+        document.signed_pdf = None
+    document.save(update_fields=["status", "signed_pdf"])
+    
+    # Recalculate routing state and regenerate preview pdf (stamped with remaining signatures)
+    _advance_or_finalize(document)
+    
+    _log(document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+         detail=f"Reopened signer: {signer.display_name}")
+
 def reopen_document(document, actor_user=None, ip=None):
     """
     Reset all signers and re-send the document for signing.
