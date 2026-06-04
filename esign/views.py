@@ -416,6 +416,25 @@ def signer_remind(request, pk, signer_pk):
     return redirect("esign:document_detail", pk=doc.pk)
 
 
+@_staff_required
+@require_POST
+def signer_reopen(request, pk, signer_pk):
+    from .services import reopen_signer
+    doc    = get_object_or_404(SignatureDocument, pk=pk)
+    signer = get_object_or_404(Signer, pk=signer_pk, document=doc)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    ip, _ = get_client_ip(request)
+    try:
+        reopen_signer(signer, actor_user=request.user, ip=ip)
+        messages.success(request, f"Signer {signer.display_name} has been reopened.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("esign:document_detail", pk=doc.pk)
+
+
 # ---------------------------------------------------------------------------
 # Reopen
 # ---------------------------------------------------------------------------
