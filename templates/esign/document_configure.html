@@ -400,6 +400,10 @@ document.addEventListener('alpine:init', () => {
             this.newSigner = { name: '', email: '', userId: null, order: this.signers.length + 1, role: 'signer' };
             this.userQuery = '';
             this.addSignerModal = false;
+            
+            // Auto-select the newly added signer and activate placing mode
+            this.selectSigner(this.signers.length - 1);
+            this.placingMode = true;
         },
 
         async applyTemplate() {
