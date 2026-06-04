@@ -49,24 +49,26 @@ function showToast(msg) {
 <div id="share-toast"></div>
 <div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false">
 
-{% if doc.status == 'completed' and doc.signed_pdf %}
+{% if doc.signed_pdf or doc.preview_pdf or doc.original_pdf %}
 <template x-teleport="body">
     <div x-show="pdfOpen" x-cloak
          class="fixed inset-0 z-50 flex flex-col bg-black/75"
          @click.self="pdfOpen = false" style="display:none">
         <div class="bg-white flex items-center justify-between px-5 py-3 shadow-md flex-shrink-0">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                    <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                     </svg>
                 </div>
                 <div>
                     <p class="font-semibold text-slate-800 text-sm">{{ doc.title }}</p>
-                    <p class="text-xs text-slate-400">Signed Document · {{ doc.signed_count }}/{{ doc.total_count }} signatures</p>
+                    <p class="text-xs text-slate-400">Preview &middot; {{ doc.signed_count }}/{{ doc.total_count }} signatures</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                {% if doc.status == 'completed' and doc.signed_pdf %}
                 <a href="{{ doc.signed_pdf.url }}" download
                    class="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,6 +76,7 @@ function showToast(msg) {
                     </svg>
                     Download
                 </a>
+                {% endif %}
                 <button @click="pdfOpen = false"
                         class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +86,7 @@ function showToast(msg) {
             </div>
         </div>
         <div class="flex-1 p-3 overflow-hidden">
-            <iframe src="{{ doc.signed_pdf.url }}" class="w-full h-full rounded-xl border border-white/10" title="Signed PDF Viewer"></iframe>
+            <iframe src="{% if doc.signed_pdf %}{{ doc.signed_pdf.url }}{% elif doc.preview_pdf %}{{ doc.preview_pdf.url }}{% else %}{{ doc.original_pdf.url }}{% endif %}" class="w-full h-full rounded-xl border border-white/10" title="PDF Viewer"></iframe>
         </div>
     </div>
 </template>
@@ -112,14 +115,16 @@ function showToast(msg) {
             </svg>
             Back
         </a>
-        {% if doc.status == 'completed' and doc.signed_pdf %}
+        {% if doc.signed_pdf or doc.preview_pdf or doc.original_pdf %}
         <button @click="pdfOpen = true" class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
             </svg>
-            View Document
+            Preview Document
         </button>
+        {% endif %}
+        {% if doc.status == 'completed' and doc.signed_pdf %}
         <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary inline-flex items-center gap-2" download>
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -187,25 +192,26 @@ function showToast(msg) {
 
         <!-- Action buttons -->
         <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-            {% if doc.status == 'completed' and doc.signed_pdf %}
-            <button @click="pdfOpen = true"
-                    class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border transition-colors"
-                    style="background:#f0fdf4;border-color:#86efac;color:#15803d;">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
-                View PDF
-            </button>
-            {% endif %}
             {% if doc.status == 'draft' %}
             <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
             {% endif %}
+            
+            {% if doc.status == 'pending' and doc.signed_count == 0 %}
+            <form method="post" action="{% url 'esign:document_revert_to_draft' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline inline-flex items-center gap-1.5"
+                        onclick="return confirm('Return to Configure mode? This will allow you to edit signers.')">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    Edit Configure
+                </button>
+            </form>
+            {% endif %}
+
             {% if doc.status == 'rejected' or doc.status == 'pending' %}
             <form method="post" action="{% url 'esign:document_reopen' pk=doc.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline inline-flex items-center gap-1.5"
-                        onclick="return confirm('Reopen and resend this document to all signers?')">
+                        onclick="return confirm('Reopen and resend this document to all signers? All signatures will be cleared.')">
                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Reopen
                 </button>

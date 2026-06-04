@@ -437,6 +437,23 @@ def document_reopen(request, pk):
     return redirect("esign:document_detail", pk=doc.pk)
 
 
+@_staff_required
+@require_POST
+def document_revert_to_draft(request, pk):
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+    
+    if doc.status == SignatureDocument.Status.PENDING and doc.signed_count == 0:
+        doc.status = SignatureDocument.Status.DRAFT
+        doc.save(update_fields=["status"])
+        messages.success(request, "Document reverted to Draft. You can now edit its configuration.")
+        return redirect("esign:document_configure", pk=doc.pk)
+    
+    messages.error(request, "Cannot edit configuration unless document is pending and has 0 signatures.")
+    return redirect("esign:document_detail", pk=doc.pk)
+
+
 # ---------------------------------------------------------------------------
 # Cancel
 # ---------------------------------------------------------------------------
