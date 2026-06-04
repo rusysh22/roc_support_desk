@@ -841,7 +841,7 @@ document.addEventListener('alpine:init', () => {
                         </div>
 
                         <!-- Signature boxes checklist -->
-                        <div class="px-5 py-3 border-b border-slate-100 relative" x-data="{ showTooltip: true }" x-init="setTimeout(() => showTooltip = false, 10000)">
+                        <div class="px-5 py-3 border-b border-slate-100">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Placement{{ PLACEMENTS|length|pluralize }}</p>
                             <div class="space-y-1.5 max-h-32 overflow-y-auto">
                                 {% for p in placements %}
@@ -853,21 +853,33 @@ document.addEventListener('alpine:init', () => {
                                         <svg x-show="!signatureData" class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </div>
                                     <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
-                                    <button type="button" @click="goToPage({{ p.page_number }})"
+                                    <button type="button" 
+                                            x-data="{ showTooltip: {% if forloop.first %}true{% else %}false{% endif %}, btnRect: {} }"
+                                            x-init="setTimeout(() => { btnRect = $el.getBoundingClientRect() }, 50); setTimeout(() => showTooltip = false, 10000)"
+                                            @scroll.window.debounce.10ms="btnRect = $el.getBoundingClientRect()"
+                                            @resize.window.debounce.10ms="btnRect = $el.getBoundingClientRect()"
+                                            @click="goToPage({{ p.page_number }})"
                                             class="ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors shadow-sm">
                                         <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
                                         Go to Sign
+                                        
+                                        <!-- Tooltip / Chat Bubble (Fixed Position) -->
+                                        <template x-if="showTooltip">
+                                            <div class="fixed z-[9999] pointer-events-none"
+                                                 :style="`top: ${btnRect.bottom + 8}px; left: ${btnRect.right - 100}px; width: 100px;`">
+                                                <div class="animate-bounce flex flex-col items-end">
+                                                    <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[6px] border-b-slate-800 mr-4"></div>
+                                                    <div class="bg-slate-800 text-white text-[10px] font-medium px-2 py-1.5 rounded shadow-xl w-full text-center">
+                                                        Click here to sign!
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
                                     </button>
                                 </div>
                                 {% endfor %}
-                            </div>
-                            
-                            <!-- Tooltip / Chat Bubble -->
-                            <div x-show="showTooltip" x-transition.opacity.duration.500ms x-cloak
-                                 class="absolute right-5 top-[60px] w-max px-3 py-1.5 bg-slate-800 text-white text-[11px] font-medium rounded-lg shadow-xl animate-bounce pointer-events-none z-[100] before:content-[''] before:absolute before:bottom-full before:right-6 before:border-[5px] before:border-transparent before:border-b-slate-800">
-                                Click here to sign!
                             </div>
                         </div>
 
