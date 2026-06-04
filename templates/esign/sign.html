@@ -863,34 +863,12 @@ document.addEventListener('alpine:init', () => {
                             </div>
                         </div>
 
-                        <!-- Stamp options -->
+                        <!-- Stamp options (hidden per user request) -->
                         <div class="px-5 py-3 border-b border-slate-100 space-y-2">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stamp Annotations</p>
-                            <label class="flex items-center gap-2 cursor-pointer select-none">
-                                <input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600">
-                                <span class="text-xs text-slate-600">Date &amp; time</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer select-none">
-                                <input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600">
-                                <span class="text-xs text-slate-600">Full name</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer select-none">
-                                <input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600">
-                                <span class="text-xs text-slate-600">Job title / role</span>
-                            </label>
-                            <div x-show="stampJobRole" x-cloak class="pl-6 mb-2">
-                                <input type="text" x-model="stampJobRoleText" maxlength="150"
-                                       class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                       placeholder="e.g. IT Manager">
-                            </div>
-                            <label class="flex items-center gap-2 cursor-pointer select-none">
-                                <input type="checkbox" x-model="stampUseLogo" class="w-4 h-4 rounded accent-indigo-600">
-                                <span class="text-xs text-slate-600">Use Company Logo</span>
-                            </label>
                             {% if request.user.is_authenticated and signer.user_id %}
-                            <label class="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-slate-100">
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
                                 <input type="checkbox" x-model="saveForLater" class="w-4 h-4 rounded accent-indigo-600">
-                                <span class="text-xs text-slate-500">Save signature for future documents</span>
+                                <span class="text-xs text-slate-600 font-medium">Save signature for future documents</span>
                             </label>
                             {% endif %}
                         </div>
