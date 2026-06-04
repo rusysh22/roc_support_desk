@@ -851,7 +851,7 @@ document.addEventListener('alpine:init', () => {
                                     </div>
                                     <span class="text-slate-600 font-medium">Page {{ p.page_number }}</span>
                                     <button type="button" x-data="{ showTooltip: {% if forloop.first %}true{% else %}false{% endif %} }"
-                                            x-init="if(showTooltip) setTimeout(() => showTooltip = false, 5000)"
+                                            x-init="if(showTooltip) setTimeout(() => showTooltip = false, 10000)"
                                             @click="goToPage({{ p.page_number }})"
                                             class="relative ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors">
                                         <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
