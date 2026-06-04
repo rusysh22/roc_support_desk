@@ -369,6 +369,36 @@ def remind_signer(signer, actor_user=None):
 
 
 # ---------------------------------------------------------------------------
+# reassign — change signer info and resend
+# ---------------------------------------------------------------------------
+
+def reassign_signer(signer, new_name, new_email, new_job_title="", new_company="", actor_user=None, ip=None):
+    if signer.status not in (Signer.Status.WAITING, Signer.Status.PENDING):
+        raise ValueError("Only WAITING or PENDING signers can be reassigned.")
+    
+    old_email = signer.email
+    
+    # Update signer details
+    signer.user = None
+    signer.external_name = new_name
+    signer.external_email = new_email
+    signer.job_title = new_job_title
+    signer.company = new_company
+    
+    # Regenerate token so the old link is invalidated
+    _assign_token(signer)
+    
+    signer.save(update_fields=["user", "external_name", "external_email", "job_title", "company", "token", "token_expires_at"])
+    
+    _log(signer.document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+         detail=f"Reassigned signer from {old_email} to {new_email} ({new_name})")
+         
+    # If the signer was PENDING (it's their turn), notify the new person immediately.
+    if signer.status == Signer.Status.PENDING:
+        from .tasks import send_signature_request_task
+        send_signature_request_task.delay(str(signer.id))
+
+# ---------------------------------------------------------------------------
 # cancel
 # ---------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ urlpatterns = [
     path("<uuid:pk>/cancel/",   views.document_cancel,  name="document_cancel"),
     path("<uuid:pk>/signers/<uuid:signer_pk>/remind/", views.signer_remind, name="signer_remind"),
     path("<uuid:pk>/signers/<uuid:signer_pk>/reopen/", views.signer_reopen, name="signer_reopen"),
+    path("<uuid:pk>/signers/<uuid:signer_pk>/reassign/", views.signer_reassign, name="signer_reassign"),
     path("my-signatures/",           views.my_signatures,         name="my_signatures"),
     path("my-signatures/<uuid:pk>/", views.my_signature_detail,    name="my_signature_detail"),
     path("api/users/",               views.user_search,            name="user_search"),

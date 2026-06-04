@@ -505,6 +505,40 @@ def signer_reopen(request, pk, signer_pk):
 
     return redirect("esign:document_detail", pk=doc.pk)
 
+@_staff_required
+@require_POST
+def signer_reassign(request, pk, signer_pk):
+    from .services import reassign_signer
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    signer = get_object_or_404(Signer, pk=signer_pk, document=doc)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    new_name = request.POST.get("name", "").strip()
+    new_email = request.POST.get("email", "").strip()
+    new_job_title = request.POST.get("job_title", "").strip()
+    new_company = request.POST.get("company", "").strip()
+
+    if not new_name or not new_email:
+        messages.error(request, "Name and Email are required to reassign a signer.")
+        return redirect("esign:document_detail", pk=doc.pk)
+
+    ip, _ = get_client_ip(request)
+    try:
+        reassign_signer(
+            signer, 
+            new_name=new_name, 
+            new_email=new_email, 
+            new_job_title=new_job_title, 
+            new_company=new_company, 
+            actor_user=request.user, 
+            ip=ip
+        )
+        messages.success(request, f"Signer reassigned to {new_name} ({new_email}).")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("esign:document_detail", pk=doc.pk)
 
 # ---------------------------------------------------------------------------
 # Reopen
