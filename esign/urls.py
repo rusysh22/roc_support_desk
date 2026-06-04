@@ -8,6 +8,7 @@ app_name = "esign"
 urlpatterns = [
     path("",                    views.document_list,    name="document_list"),
     path("new/",                views.document_create,  name="document_create"),
+    path("<uuid:pk>/duplicate/",views.document_duplicate,name="document_duplicate"),
     path("<uuid:pk>/configure/",views.document_configure,name="document_configure"),
     path("<uuid:pk>/configure/apply-template/", views.apply_flow_template, name="apply_flow_template"),
     path("<uuid:pk>/configure/save/",           views.save_configuration,  name="save_configuration"),
