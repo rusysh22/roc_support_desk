@@ -137,8 +137,8 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations, logo_
         try:
             img_w, img_h = logo_reader.getSize()
             aspect = img_w / float(img_h)
-            max_logo_w = abs_w * 0.4
-            max_logo_h = abs_h * 0.3
+            max_logo_w = abs_w * 0.25
+            max_logo_h = abs_h * 0.15
             
             draw_h = min(max_logo_h, max_logo_w / aspect)
             draw_w = draw_h * aspect
@@ -154,16 +154,16 @@ def _stamp_branded(c, abs_x, abs_y_pdf, abs_w, abs_h, signer, annotations, logo_
 
     # ── Bottom-left annotations ───────────────────────────────────────────────
     if annotations:
-        ann_fs = max(4.5, min(abs_h * 0.09, 7.5))
+        ann_fs = max(3.5, min(abs_h * 0.05, 5.0))
         c.setFillColor(text_color)
-        y_ann = abs_y_pdf + pad + (len(annotations) - 1) * (ann_fs + 3)
+        y_ann = abs_y_pdf + pad + (len(annotations) - 1) * (ann_fs + 1.5)
         for i, text in enumerate(annotations):
             if i == 0:
                 c.setFont("Helvetica-Bold", ann_fs + 0.5)
             else:
                 c.setFont("Helvetica", ann_fs)
             c.drawString(abs_x + pad, y_ann, text)
-            y_ann -= (ann_fs + 3)
+            y_ann -= (ann_fs + 1.5)
 
     # ── Signature in the center ───────────────────────────────────────────────
     if signer.signature_image:
