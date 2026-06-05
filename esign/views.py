@@ -102,6 +102,77 @@ def document_create(request):
 
     return render(request, "esign/document_create.html", {"form": form})
 
+@_staff_required
+def document_duplicate(request, pk):
+    original_doc = get_object_or_404(SignatureDocument, pk=pk)
+    if not _can_manage(request.user, original_doc):
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        form = DocumentUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            doc = form.save(commit=False)
+            doc.created_by = request.user
+            doc.updated_by = request.user
+            doc.routing_mode = original_doc.routing_mode
+            doc.stamp_show_datetime = original_doc.stamp_show_datetime
+            doc.stamp_show_name = original_doc.stamp_show_name
+            doc.stamp_show_job_title = original_doc.stamp_show_job_title
+            doc.stamp_show_company_logo = original_doc.stamp_show_company_logo
+
+            # Count pages and compute hash via pypdf
+            try:
+                from pypdf import PdfReader
+                pdf_file = form.cleaned_data["original_pdf"]
+                pdf_file.seek(0)
+                reader = PdfReader(pdf_file)
+                doc.page_count = len(reader.pages)
+                pdf_file.seek(0)
+            except Exception:
+                doc.page_count = 1
+
+            doc.save()
+            
+            try:
+                doc.compute_hash()
+                doc.save(update_fields=["document_hash"])
+            except Exception:
+                pass
+
+            # Copy signers and placements
+            for orig_signer in original_doc.signers.all():
+                new_signer = Signer.objects.create(
+                    document=doc,
+                    user=orig_signer.user,
+                    name=orig_signer.name,
+                    email=orig_signer.email,
+                    signer_type=orig_signer.signer_type,
+                    job_title=orig_signer.job_title,
+                    company=orig_signer.company,
+                    order=orig_signer.order,
+                    notes="",
+                    status=Signer.Status.WAITING,
+                )
+                for orig_placement in orig_signer.placements.all():
+                    SignaturePlacement.objects.create(
+                        document=doc,
+                        signer=new_signer,
+                        field_type=orig_placement.field_type,
+                        page_number=orig_placement.page_number,
+                        x=orig_placement.x,
+                        y=orig_placement.y,
+                        width=orig_placement.width,
+                        height=orig_placement.height,
+                        required=orig_placement.required,
+                    )
+
+            return redirect("esign:document_configure", pk=doc.pk)
+    else:
+        form = DocumentUploadForm(initial={'title': f"Copy of {original_doc.title}"})
+
+    return render(request, "esign/document_duplicate.html", {"form": form, "original_doc": original_doc})
+
+
 
 # ---------------------------------------------------------------------------
 # Replace PDF (DRAFT only) — creator can swap the file before sending
@@ -157,8 +228,25 @@ def document_replace_pdf(request, pk):
         pass
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
-    return redirect("esign:document_configure", pk=pk)
+    return redirect("esign:document_list")
 
+
+@_staff_required
+@require_POST
+def document_force_complete(request, pk):
+    from .services import force_complete_document
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    ip, _ = get_client_ip(request)
+    try:
+        force_complete_document(doc, actor_user=request.user, ip=ip)
+        messages.success(request, f"Document '{doc.title}' has been forcefully completed.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("esign:document_detail", pk=doc.pk)
 
 # ---------------------------------------------------------------------------
 # Document configure (step 2) — add signers + place signature boxes
@@ -434,6 +522,40 @@ def signer_reopen(request, pk, signer_pk):
 
     return redirect("esign:document_detail", pk=doc.pk)
 
+@_staff_required
+@require_POST
+def signer_reassign(request, pk, signer_pk):
+    from .services import reassign_signer
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    signer = get_object_or_404(Signer, pk=signer_pk, document=doc)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    new_name = request.POST.get("name", "").strip()
+    new_email = request.POST.get("email", "").strip()
+    new_job_title = request.POST.get("job_title", "").strip()
+    new_company = request.POST.get("company", "").strip()
+
+    if not new_name or not new_email:
+        messages.error(request, "Name and Email are required to reassign a signer.")
+        return redirect("esign:document_detail", pk=doc.pk)
+
+    ip, _ = get_client_ip(request)
+    try:
+        reassign_signer(
+            signer, 
+            new_name=new_name, 
+            new_email=new_email, 
+            new_job_title=new_job_title, 
+            new_company=new_company, 
+            actor_user=request.user, 
+            ip=ip
+        )
+        messages.success(request, f"Signer reassigned to {new_name} ({new_email}).")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("esign:document_detail", pk=doc.pk)
 
 # ---------------------------------------------------------------------------
 # Reopen

@@ -53,7 +53,24 @@ function showToast(msg) {
 
 {% block content %}
 <div id="share-toast"></div>
-<div x-data="{ pdfOpen: false, previewOpen: false }" @keydown.escape.window="pdfOpen = false; previewOpen = false">
+<div x-data="{
+    pdfOpen: false,
+    previewOpen: false,
+    reassignModal: false,
+    reassignUrl: '',
+    reassignName: '',
+    reassignEmail: '',
+    reassignJobTitle: '',
+    reassignCompany: '',
+    openReassign(url, name, email, job, company) {
+        this.reassignUrl = url;
+        this.reassignName = name;
+        this.reassignEmail = email;
+        this.reassignJobTitle = job;
+        this.reassignCompany = company;
+        this.reassignModal = true;
+    }
+}" @keydown.escape.window="pdfOpen = false; previewOpen = false; reassignModal = false">
 
 {% if doc.signed_pdf or doc.preview_pdf or doc.original_pdf %}
 <template x-teleport="body">
@@ -149,6 +166,12 @@ function showToast(msg) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
             </svg>
             Back
+        </a>
+        <a href="{% url 'esign:document_duplicate' doc.pk %}"
+           class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline"
+           title="Duplicate Document">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Duplicate
         </a>
         {% if doc.signed_pdf or doc.preview_pdf or doc.original_pdf %}
         <button @click="pdfOpen = true" class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
@@ -257,6 +280,17 @@ function showToast(msg) {
                         onclick="return confirm('Reopen and resend this document to all signers? All signatures will be cleared.')">
                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Reopen
+                </button>
+            </form>
+            {% endif %}
+            
+            {% if doc.status == 'pending' %}
+            <form method="post" action="{% url 'esign:document_force_complete' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-outline inline-flex items-center gap-1.5"
+                        onclick="return confirm('Force complete this document? All remaining signers will be skipped and the document will be finalized.')">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Force Complete
                 </button>
             </form>
             {% endif %}
@@ -424,6 +458,12 @@ function showToast(msg) {
                             </form>
                             {% endif %}
                             {% if signer.status == 'pending' or signer.status == 'waiting' %}
+                            <button type="button" 
+                                    @click="openReassign('{% url 'esign:signer_reassign' pk=doc.pk signer_pk=signer.pk %}', '{{ signer.display_name|escapejs }}', '{{ signer.email|escapejs }}', '{{ signer.job_title|escapejs }}', '{{ signer.company|escapejs }}')"
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-colors whitespace-nowrap">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                Reassign
+                            </button>
                             {% if not signer.user_id %}
                             <button type="button"
                                     onclick="shareSigningLink('{{ request.scheme }}://{{ request.get_host }}{% url 'esign_public:sign' token=signer.token %}', '{{ signer.display_name|escapejs }}', '{{ doc.title|escapejs }}', '{{ doc.document_code|escapejs }}', '{{ signer.email|escapejs }}', '{{ signer.verify_code }}')"
@@ -591,4 +631,45 @@ function showToast(msg) {
 </div>
 
 </div>
+
+<template x-teleport="body">
+    <div x-show="reassignModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+         @click.self="reassignModal = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800">Reassign Signer</h3>
+                <button @click="reassignModal = false" class="text-slate-400 hover:text-slate-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form :action="reassignUrl" method="post" class="p-5 space-y-4">
+                {% csrf_token %}
+                <div class="jk-form-group">
+                    <label class="jk-label">Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" x-model="reassignName" required class="jk-input w-full">
+                </div>
+                <div class="jk-form-group">
+                    <label class="jk-label">Email <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" x-model="reassignEmail" required class="jk-input w-full">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="jk-form-group">
+                        <label class="jk-label">Job Title</label>
+                        <input type="text" name="job_title" x-model="reassignJobTitle" class="jk-input w-full text-sm" placeholder="Optional">
+                    </div>
+                    <div class="jk-form-group">
+                        <label class="jk-label">Company</label>
+                        <input type="text" name="company" x-model="reassignCompany" class="jk-input w-full text-sm" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" @click="reassignModal = false" class="jk-btn jk-btn-outline">Cancel</button>
+                    <button type="submit" class="jk-btn jk-btn-primary">Reassign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</template>
+
 {% endblock %}
