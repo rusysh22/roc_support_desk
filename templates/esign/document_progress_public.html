@@ -41,14 +41,33 @@
         </div>
     </div>
 
+    <!-- Custom Styles for Height Management -->
+    <style>
+        @media (min-width: 1024px) {
+            .desktop-grid-height {
+                height: calc(100vh - 160px);
+                min-height: 600px;
+            }
+        }
+        @media (max-width: 1023px) {
+            .mobile-preview-height {
+                height: 70vh;
+                min-height: 500px;
+            }
+            .mobile-signers-max-height {
+                max-height: 400px;
+            }
+        }
+    </style>
+
     <!-- Main Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 desktop-grid-height">
 
         <!-- Left Column: Signers List -->
-        <div class="lg:col-span-1 space-y-4">
+        <div class="lg:col-span-1 flex flex-col gap-4 h-full">
             
             <!-- Document Info Card -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 flex-shrink-0">
                 <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider mb-3">Overview</h2>
                 <div class="space-y-2 text-sm">
                     <div class="flex justify-between">
@@ -67,8 +86,8 @@
             </div>
 
             <!-- Signers Card -->
-            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
                     <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
                         <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -76,7 +95,7 @@
                         Signers
                     </h2>
                 </div>
-                <div class="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                <div class="divide-y divide-slate-100 overflow-y-auto flex-1 mobile-signers-max-height">
                 {% for signer in signers %}
                     <div class="p-4
                         {% if signer.status == 'signed' %}bg-green-50/30
@@ -129,13 +148,7 @@
                                     {{ signer.notes }}
                                 </div>
                                 {% endif %}
-                                
-                                <!-- Signature Img preview if signed -->
-                                {% if signer.status == 'signed' and signer.signature_image %}
-                                <div class="mt-2 bg-white border border-slate-200 rounded p-1 flex items-center justify-center h-12 w-24">
-                                    <img src="{{ signer.signature_image.url }}" class="max-h-full max-w-full object-contain">
-                                </div>
-                                {% endif %}
+                                <!-- Removed signature image display -->
                             </div>
                         </div>
                     </div>
@@ -145,8 +158,8 @@
         </div>
 
         <!-- Right Column: Document Preview -->
-        <div class="lg:col-span-2">
-            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[700px] flex flex-col">
+        <div class="lg:col-span-2 flex flex-col h-full mobile-preview-height">
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex-1 flex flex-col min-h-0">
                 <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
@@ -170,10 +183,11 @@
                     {% endif %}
                 </div>
                 
-                <div class="flex-1 bg-slate-100 p-2 md:p-4 overflow-hidden relative">
+                <div class="flex-1 bg-slate-100 p-2 md:p-4 relative">
                     {% if pdf_url %}
                     <iframe src="{{ pdf_url }}"
-                            class="w-full h-full rounded-xl border border-slate-200 bg-white"
+                            class="absolute inset-2 md:inset-4 rounded-xl border border-slate-200 bg-white"
+                            style="width: calc(100% - 16px); height: calc(100% - 16px);"
                             title="Document Preview">
                     </iframe>
                     {% else %}
