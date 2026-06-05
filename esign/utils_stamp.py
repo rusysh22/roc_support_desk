@@ -330,7 +330,17 @@ def stamp_document(document) -> bytes | None:
                 
                 # Match mediaboxes before merging so they align perfectly
                 overlay_page.mediabox = page.mediabox
-                page.merge_page(overlay_page)
+                
+                try:
+                    from pypdf import PageObject
+                    # Isolate graphics state by merging onto a blank page
+                    safe_page = PageObject.create_blank_page(width=cw, height=ch)
+                    safe_page.mediabox = page.mediabox
+                    safe_page.merge_page(page)
+                    safe_page.merge_page(overlay_page)
+                    page = safe_page
+                except Exception:
+                    page.merge_page(overlay_page)
 
             writer.add_page(page)
 
