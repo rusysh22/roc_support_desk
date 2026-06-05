@@ -17,7 +17,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from ipware import get_client_ip
 
 from .forms import SignerSignForm
-from .models import MobileDrawSession, Signer, SignatureEvent, UserSavedSignature
+from .models import MobileDrawSession, Signer, SignatureEvent, UserSavedSignature, SignatureDocument
 from .services import record_signature, reject_signature
 
 
@@ -292,3 +292,25 @@ def _placements_json(placements):
         for p in placements
     ]
     return json.dumps(data)
+
+def document_progress_public(request, pk):
+    """
+    Publicly accessible page to view the progress of a signature document.
+    Does not require login. Displays signers status and the latest PDF.
+    """
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    signers = doc.signers.order_by("order")
+    
+    pdf_url = None
+    if doc.status == 'completed' and doc.signed_pdf:
+        pdf_url = doc.signed_pdf.url
+    elif doc.preview_pdf:
+        pdf_url = f"{doc.preview_pdf.url}?v={int(doc.updated_at.timestamp())}"
+    elif doc.original_pdf:
+        pdf_url = doc.original_pdf.url
+        
+    return render(request, "esign/document_progress_public.html", {
+        "doc": doc,
+        "signers": signers,
+        "pdf_url": pdf_url,
+    })

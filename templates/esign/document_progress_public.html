@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Progress — {{ doc.title }}{% endblock %}
+
+{% block content %}
+<div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false" class="min-h-screen pb-24 lg:pb-6">
+
+    <!-- Header -->
+    <div class="mb-6 text-center lg:text-left flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center justify-center lg:justify-start gap-2 mb-1">
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-800">Document Progress</h1>
+                <span class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wider">{{ doc.document_code }}</span>
+            </div>
+            <p class="text-slate-500 text-sm mt-1">{{ doc.title }}</p>
+        </div>
+        
+        <!-- Status Badge -->
+        <div class="flex-shrink-0 flex items-center justify-center lg:justify-end gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold
+                {% if doc.status == 'completed' %}bg-green-100 text-green-700
+                {% elif doc.status == 'rejected' %}bg-red-100 text-red-700
+                {% elif doc.status == 'pending' %}bg-amber-100 text-amber-700
+                {% elif doc.status == 'cancelled' %}bg-slate-100 text-slate-500
+                {% else %}bg-indigo-100 text-indigo-700{% endif %}">
+                {% if doc.status == 'completed' %}
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Completed
+                {% elif doc.status == 'rejected' %}
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                Rejected
+                {% elif doc.status == 'pending' %}
+                <svg class="h-4 w-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg>
+                In Progress
+                {% elif doc.status == 'cancelled' %}
+                Cancelled
+                {% else %}
+                Draft
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        <!-- Left Column: Signers List -->
+        <div class="lg:col-span-1 space-y-4">
+            
+            <!-- Document Info Card -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5">
+                <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider mb-3">Overview</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Collected</span>
+                        <span class="font-medium text-slate-800">{{ doc.signed_count }} / {{ doc.total_count }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Routing</span>
+                        <span class="font-medium text-slate-800">{% if doc.routing_mode == 'sequential' %}Sequential{% else %}Parallel{% endif %}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Created At</span>
+                        <span class="font-medium text-slate-800">{{ doc.created_at|date:"d M Y" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signers Card -->
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        Signers
+                    </h2>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                {% for signer in signers %}
+                    <div class="p-4
+                        {% if signer.status == 'signed' %}bg-green-50/30
+                        {% elif signer.status == 'rejected' %}bg-red-50/30
+                        {% elif signer.status == 'pending' %}bg-amber-50/30
+                        {% else %}bg-white{% endif %}">
+                        <div class="flex items-start gap-3">
+                            <!-- Order badge -->
+                            <div class="w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5
+                                {% if signer.status == 'signed' %}bg-green-200 text-green-700
+                                {% elif signer.status == 'rejected' %}bg-red-200 text-red-700
+                                {% elif signer.status == 'pending' %}bg-amber-200 text-amber-700
+                                {% else %}bg-slate-200 text-slate-500{% endif %}">
+                                {{ signer.order }}
+                            </div>
+                            
+                            <!-- Signer Details -->
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-slate-800 text-sm truncate" title="{{ signer.display_name }}">{{ signer.display_name }}</p>
+                                
+                                <div class="mt-1 flex flex-wrap items-center gap-2">
+                                    <!-- Status -->
+                                    {% if signer.status == 'signed' %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700">
+                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Signed
+                                    </span>
+                                    {% elif signer.status == 'rejected' %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700">
+                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Rejected
+                                    </span>
+                                    {% elif signer.status == 'pending' %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                                        <svg class="h-3 w-3 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg> Pending
+                                    </span>
+                                    {% else %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                                        Waiting
+                                    </span>
+                                    {% endif %}
+                                    
+                                    <!-- Timestamp -->
+                                    {% if signer.acted_at %}
+                                    <span class="text-[11px] text-slate-400">&bull; {{ signer.acted_at|date:"d M, H:i" }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Reject notes -->
+                                {% if signer.notes and signer.status == 'rejected' %}
+                                <div class="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                                    {{ signer.notes }}
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Signature Img preview if signed -->
+                                {% if signer.status == 'signed' and signer.signature_image %}
+                                <div class="mt-2 bg-white border border-slate-200 rounded p-1 flex items-center justify-center h-12 w-24">
+                                    <img src="{{ signer.signature_image.url }}" class="max-h-full max-w-full object-contain">
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Document Preview -->
+        <div class="lg:col-span-2">
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[700px] flex flex-col">
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <p class="font-semibold text-slate-800 text-sm">Document Preview</p>
+                            <p class="text-xs text-slate-400">View current progress with signatures</p>
+                        </div>
+                    </div>
+                    {% if doc.status == 'completed' and doc.signed_pdf %}
+                    <a href="{{ doc.signed_pdf.url }}" download
+                       class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Download PDF
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="flex-1 bg-slate-100 p-2 md:p-4 overflow-hidden relative">
+                    {% if pdf_url %}
+                    <iframe src="{{ pdf_url }}"
+                            class="w-full h-full rounded-xl border border-slate-200 bg-white"
+                            title="Document Preview">
+                    </iframe>
+                    {% else %}
+                    <div class="flex items-center justify-center h-full text-slate-400 text-sm">
+                        No document preview available.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
