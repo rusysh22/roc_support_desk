@@ -105,7 +105,7 @@ def document_create(request):
 @_staff_required
 def document_duplicate(request, pk):
     original_doc = get_object_or_404(SignatureDocument, pk=pk)
-    if not _can_manage(request.user, original_doc):
+    if original_doc.created_by != request.user:
         return HttpResponseForbidden()
 
     if request.method == "POST":
