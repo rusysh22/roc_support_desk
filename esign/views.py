@@ -144,12 +144,12 @@ def document_duplicate(request, pk):
                 new_signer = Signer.objects.create(
                     document=doc,
                     user=orig_signer.user,
-                    name=orig_signer.name,
-                    email=orig_signer.email,
-                    signer_type=orig_signer.signer_type,
+                    external_name=orig_signer.external_name,
+                    external_email=orig_signer.external_email,
                     job_title=orig_signer.job_title,
                     company=orig_signer.company,
                     order=orig_signer.order,
+                    role=orig_signer.role,
                     notes="",
                     status=Signer.Status.WAITING,
                 )

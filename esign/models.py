@@ -206,6 +206,18 @@ class Signer(AuditableModel):
         verbose_name="External Email",
         help_text="Email address for signers who do not have a system account.",
     )
+    job_title = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name="Job Title",
+        help_text="Job title or role of the signer.",
+    )
+    company = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name="Company",
+        help_text="Company or organization of the signer.",
+    )
     order = models.PositiveIntegerField(
         default=1,
         verbose_name="Signing Order",
