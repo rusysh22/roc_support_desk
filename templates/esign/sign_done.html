@@ -49,7 +49,7 @@
                 </div>
                 {% with first_p=signer.placements.first %}
                 {% if first_p %}
-                <button type="button" onclick="document.getElementById('pdf-iframe-completed').src = '{{ document.signed_pdf.url|escapejs }}#page={{ first_p.page_number }}'" class="text-xs bg-white border border-green-200 text-green-700 hover:bg-green-100 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+                <button type="button" onclick="goToPdfPage('pdf-iframe-completed', '{{ document.signed_pdf.url|escapejs }}#page={{ first_p.page_number }}')" class="text-xs bg-white border border-green-200 text-green-700 hover:bg-green-100 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                     Go to My Signature
                 </button>
@@ -127,7 +127,7 @@
                 <div class="flex items-center gap-2">
                     {% with first_p=signer.placements.first %}
                     {% if first_p %}
-                    <button type="button" onclick="document.getElementById('pdf-iframe-preview').src = '{{ document.preview_pdf.url|escapejs }}#page={{ first_p.page_number }}'" class="text-xs bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+                    <button type="button" onclick="goToPdfPage('pdf-iframe-preview', '{{ document.preview_pdf.url|escapejs }}#page={{ first_p.page_number }}')" class="text-xs bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                         Go to My Signature
                     </button>
@@ -217,4 +217,15 @@
     {% endif %}
 
 </div>
+
+<script>
+    function goToPdfPage(iframeId, url) {
+        var iframe = document.getElementById(iframeId);
+        if (iframe) {
+            var clone = iframe.cloneNode(true);
+            clone.setAttribute('src', url);
+            iframe.parentNode.replaceChild(clone, iframe);
+        }
+    }
+</script>
 {% endblock %}

@@ -144,12 +144,12 @@ def document_duplicate(request, pk):
                 new_signer = Signer.objects.create(
                     document=doc,
                     user=orig_signer.user,
-                    name=orig_signer.name,
-                    email=orig_signer.email,
-                    signer_type=orig_signer.signer_type,
+                    external_name=orig_signer.external_name,
+                    external_email=orig_signer.external_email,
                     job_title=orig_signer.job_title,
                     company=orig_signer.company,
                     order=orig_signer.order,
+                    role=orig_signer.role,
                     notes="",
                     status=Signer.Status.WAITING,
                 )
@@ -184,8 +184,10 @@ def document_replace_pdf(request, pk):
     doc = get_object_or_404(SignatureDocument, pk=pk)
     if doc.created_by != request.user:
         return HttpResponseForbidden()
-    if doc.status != SignatureDocument.Status.DRAFT:
-        messages.error(request, "The PDF can only be replaced while the document is still a draft.")
+    if doc.status not in [SignatureDocument.Status.DRAFT, SignatureDocument.Status.PENDING]:
+        messages.error(request, "The PDF can only be replaced while the document is a draft or pending.")
+        if doc.status == SignatureDocument.Status.PENDING:
+            return redirect("esign:document_detail", pk=pk)
         return redirect("esign:document_configure", pk=pk)
 
     new_pdf = request.FILES.get("original_pdf")
@@ -226,6 +228,24 @@ def document_replace_pdf(request, pk):
         doc.save(update_fields=["document_hash"])
     except Exception:
         pass
+
+    if doc.status == SignatureDocument.Status.PENDING:
+        from .services import _update_preview_pdf, _log
+        from .models import SignatureEvent
+        
+        # Regenerate preview with existing signatures
+        _update_preview_pdf(doc)
+        
+        # Log the amendment
+        ip, _ = get_client_ip(request)
+        _log(
+            doc, SignatureEvent.EventGroup.WORKFLOW,
+            actor_user=request.user, ip=ip,
+            detail="Document amended (PDF replaced)"
+        )
+        
+        messages.success(request, f"Document amended successfully ({doc.page_count} page(s) detected). Existing signatures have been restamped.")
+        return redirect("esign:document_detail", pk=doc.pk)
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
     return redirect("esign:document_list")
