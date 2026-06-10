@@ -55,6 +55,7 @@ function showToast(msg) {
 <div id="share-toast"></div>
 <div x-data="{ 
     pdfOpen: false, 
+    amendModal: false,
     reassignModal: false, 
     reassignUrl: '', 
     reassignName: '', 
@@ -69,7 +70,7 @@ function showToast(msg) {
         this.reassignCompany = company;
         this.reassignModal = true;
     }
-}" @keydown.escape.window="pdfOpen = false; reassignModal = false">
+}" @keydown.escape.window="pdfOpen = false; reassignModal = false; amendModal = false">
 
 {% if doc.signed_pdf or doc.preview_pdf or doc.original_pdf %}
 <template x-teleport="body">
@@ -243,6 +244,14 @@ function showToast(msg) {
                     Reopen
                 </button>
             </form>
+            {% endif %}
+
+            {% if doc.status == 'pending' %}
+            <button type="button" class="jk-btn jk-btn-sm jk-btn-outline inline-flex items-center gap-1.5"
+                    @click="amendModal = true">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                Amend Document
+            </button>
             {% endif %}
             
             {% if doc.status == 'pending' %}
@@ -627,6 +636,45 @@ function showToast(msg) {
                     <button type="submit" class="jk-btn jk-btn-primary">Reassign</button>
                 </div>
             </form>
+        </div>
+    </div>
+</template>
+
+<!-- ── Amend Document Modal ── -->
+<template x-teleport="body">
+    <div x-show="amendModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="amendModal = false" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800">Amend Document (Replace PDF)</h3>
+                <button @click="amendModal = false" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-5">
+                <div class="jk-alert jk-alert-warning mb-4 flex items-start gap-2">
+                    <svg class="h-5 w-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-xs">
+                        <strong class="block mb-1">Attention: Layout Shift Risk</strong>
+                        Existing signatures will be re-stamped automatically on the new PDF using their original coordinates. Please ensure the layout of the new PDF is structurally identical to the old one so signature boxes do not overlap with new text.
+                    </div>
+                </div>
+                <form method="post" action="{% url 'esign:document_replace_pdf' pk=doc.pk %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="jk-form-group mb-5">
+                        <label class="jk-label font-semibold text-sm">Upload New PDF</label>
+                        <input type="file" name="original_pdf" accept="application/pdf" required class="block w-full text-sm text-slate-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-indigo-50 file:text-indigo-700
+                            hover:file:bg-indigo-100 transition-all cursor-pointer">
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-2">
+                        <button type="button" @click="amendModal = false" class="jk-btn jk-btn-outline">Cancel</button>
+                        <button type="submit" class="jk-btn jk-btn-primary" onclick="return confirm('Are you sure you want to amend this document with a new PDF?')">Upload & Restamp</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </template>

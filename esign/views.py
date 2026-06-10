@@ -184,8 +184,10 @@ def document_replace_pdf(request, pk):
     doc = get_object_or_404(SignatureDocument, pk=pk)
     if doc.created_by != request.user:
         return HttpResponseForbidden()
-    if doc.status != SignatureDocument.Status.DRAFT:
-        messages.error(request, "The PDF can only be replaced while the document is still a draft.")
+    if doc.status not in [SignatureDocument.Status.DRAFT, SignatureDocument.Status.PENDING]:
+        messages.error(request, "The PDF can only be replaced while the document is a draft or pending.")
+        if doc.status == SignatureDocument.Status.PENDING:
+            return redirect("esign:document_detail", pk=pk)
         return redirect("esign:document_configure", pk=pk)
 
     new_pdf = request.FILES.get("original_pdf")
@@ -226,6 +228,24 @@ def document_replace_pdf(request, pk):
         doc.save(update_fields=["document_hash"])
     except Exception:
         pass
+
+    if doc.status == SignatureDocument.Status.PENDING:
+        from .services import _update_preview_pdf, _log
+        from .models import SignatureEvent
+        
+        # Regenerate preview with existing signatures
+        _update_preview_pdf(doc)
+        
+        # Log the amendment
+        ip, _ = get_client_ip(request)
+        _log(
+            doc, SignatureEvent.EventGroup.WORKFLOW,
+            actor_user=request.user, ip=ip,
+            detail="Document amended (PDF replaced)"
+        )
+        
+        messages.success(request, f"Document amended successfully ({doc.page_count} page(s) detected). Existing signatures have been restamped.")
+        return redirect("esign:document_detail", pk=doc.pk)
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
     return redirect("esign:document_list")
