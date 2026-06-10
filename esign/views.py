@@ -191,18 +191,23 @@ def document_replace_pdf(request, pk):
         return redirect("esign:document_configure", pk=pk)
 
     new_pdf = request.FILES.get("original_pdf")
+    def redirect_back():
+        if doc.status == SignatureDocument.Status.PENDING:
+            return redirect("esign:document_detail", pk=pk)
+        return redirect("esign:document_configure", pk=pk)
+
     if not new_pdf:
         messages.error(request, "No file selected.")
-        return redirect("esign:document_configure", pk=pk)
+        return redirect_back()
 
     # Validate MIME type
     try:
         import magic as _magic
         mime = _magic.from_buffer(new_pdf.read(2048), mime=True)
         new_pdf.seek(0)
-        if mime != "application/pdf":
-            messages.error(request, "Only PDF files are accepted.")
-            return redirect("esign:document_configure", pk=pk)
+        if mime != "application/pdf" and not new_pdf.name.lower().endswith(".pdf"):
+            messages.error(request, f"Only PDF files are accepted. (Detected: {mime})")
+            return redirect_back()
     except Exception:
         pass  # python-magic unavailable — skip mime check, trust extension
 
@@ -239,7 +244,7 @@ def document_replace_pdf(request, pk):
         # Log the amendment
         ip, _ = get_client_ip(request)
         _log(
-            doc, SignatureEvent.EventGroup.WORKFLOW,
+            doc, SignatureEvent.Event.AMENDED,
             actor_user=request.user, ip=ip,
             detail="Document amended (PDF replaced)"
         )

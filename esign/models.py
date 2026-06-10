@@ -475,6 +475,9 @@ class SignatureEvent(models.Model):
         COMPLETED = "completed", "Completed"
         REOPENED  = "reopened",  "Reopened"
         CANCELLED = "cancelled", "Cancelled"
+        AMENDED   = "amended",   "Amended"
+        REASSIGNED= "reassigned","Reassigned"
+        FORCE_COMPLETED = "force_completed", "Force Completed"
 
     document    = models.ForeignKey(
         SignatureDocument,
