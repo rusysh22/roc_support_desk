@@ -346,7 +346,7 @@ function showToast(msg) {
                 </h2>
                 <span class="text-xs font-semibold text-slate-400">{{ doc.total_count }} signer{{ doc.total_count|pluralize }}</span>
             </div>
-            <div class="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
+            <div class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 350px;">
             {% for signer in signers %}
                 <div class="p-5
                     {% if signer.status == 'signed' %}bg-green-50/60
@@ -547,7 +547,7 @@ function showToast(msg) {
                 </h2>
                 <span class="text-xs text-slate-400">{{ events|length }} events</span>
             </div>
-            <div class="px-4 py-4 max-h-[400px] overflow-y-auto">
+            <div class="px-4 py-4 overflow-y-auto" style="max-height: 400px;">
                 {% if events %}
                 <div class="space-y-0">
                 {% for ev in events %}
