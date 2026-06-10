@@ -239,7 +239,7 @@ def force_complete_document(document, actor_user=None, ip=None):
         signer.token = None
         signer.save(update_fields=['token'])
         
-    _log(document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+    _log(document, SignatureEvent.Event.FORCE_COMPLETED, actor_user=actor_user, ip=ip,
          detail="Document force completed by requestor. Remaining signatures skipped.")
          
     _finalize(document)
@@ -316,7 +316,7 @@ def reopen_signer(signer, actor_user=None, ip=None):
     # Recalculate routing state and regenerate preview pdf (stamped with remaining signatures)
     _advance_or_finalize(document)
     
-    _log(document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+    _log(document, SignatureEvent.Event.REOPENED, actor_user=actor_user, ip=ip,
          detail=f"Reopened signer: {signer.display_name}")
 
 def reopen_document(document, actor_user=None, ip=None):
@@ -406,7 +406,7 @@ def reassign_signer(signer, new_name, new_email, new_job_title="", new_company="
     
     signer.save(update_fields=["user", "external_name", "external_email", "job_title", "company", "token", "token_expires_at"])
     
-    _log(signer.document, SignatureEvent.EventGroup.WORKFLOW, actor_user=actor_user, ip=ip,
+    _log(signer.document, SignatureEvent.Event.REASSIGNED, actor_user=actor_user, ip=ip,
          detail=f"Reassigned signer from {old_email} to {new_email} ({new_name})")
          
     # If the signer was PENDING (it's their turn), notify the new person immediately.
