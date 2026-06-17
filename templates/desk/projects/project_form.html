@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit Project{% else %}New Project{% endif %} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block page_title %}{% if is_edit %}Edit Project{% else %}New Project{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6" x-data="{
+    tab: 'overview',
+    showPhaseModal: false,
+    showUpdateModal: false,
+    activePhaseId: null
+}">
+
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'projects_desk:project_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors" title="Back to Projects">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </a>
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}{{ project_obj.name }}{% else %}Create New Project{% endif %}</h2>
+                <p class="text-sm text-slate-600 mt-0.5">{% if is_edit %}{{ project_obj.client_name }}{% else %}Fill in project details below.{% endif %}</p>
+            </div>
+        </div>
+        {% if is_edit %}
+        <a href="{% url 'projects_public:public_timeline' project_obj.pk %}" target="_blank" class="jk-btn bg-white border border-slate-200 text-indigo-600 hover:bg-indigo-50 py-2 px-3 text-sm shadow-sm">
+            <svg class="h-4 w-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+            Preview Public
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Tabs Container -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        
+        {% if is_edit %}
+        <div class="flex border-b border-slate-200 px-6 pt-4 gap-6 overflow-x-auto">
+            <button @click="tab = 'overview'"
+                    :class="tab === 'overview' ? 'border-b-2 border-indigo-600 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-700'"
+                    class="pb-3 text-sm transition-colors whitespace-nowrap">Overview & Details</button>
+            <button @click="tab = 'phases'"
+                    :class="tab === 'phases' ? 'border-b-2 border-indigo-600 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-700'"
+                    class="pb-3 text-sm transition-colors whitespace-nowrap">Phases & Updates</button>
+        </div>
+        {% endif %}
+
+        <div class="p-6 sm:p-8">
+            
+            <!-- TAB: OVERVIEW (or New form) -->
+            <div x-show="tab === 'overview'">
+                <form method="post" class="space-y-6">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="edit_project">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Project Name <span class="text-red-700">*</span></label>
+                            {{ form.name }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Client / Entity</label>
+                            {{ form.client_name }}
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Description</label>
+                            {{ form.description }}
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 mb-3">Project Status</h3>
+                                {{ form.status }}
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 mb-3">Specific Editors / Followers</h3>
+                                {{ form.followers }}
+                                <p class="text-[10px] text-slate-500 mt-1">Select staff members who can edit this project. Hold Ctrl/Cmd to select multiple.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800 mb-3">Visibility & Access</h3>
+                            <div class="flex items-start gap-3 mt-2 mb-4">
+                                <div class="mt-0.5">{{ form.is_public }}</div>
+                                <div>
+                                    <span class="block text-sm font-semibold text-slate-800">Public Tracker</span>
+                                    <span class="block text-xs text-slate-500">Allow client access via public URL.</span>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 mt-2">
+                                <div class="mt-0.5">{{ form.allow_public_crud }}</div>
+                                <div>
+                                    <span class="block text-sm font-semibold text-slate-800">Allow Public Edits</span>
+                                    <span class="block text-xs text-slate-500">If checked, ANYONE with the link can edit phases and add updates. Use with extreme caution.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 border-t border-slate-100 flex justify-end gap-3">
+                        <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm">
+                            {% if is_edit %}Save Changes{% else %}Create Project{% endif %}
+                        </button>
+                    </div>
+                </form>
+
+                {% if is_edit %}
+                <!-- Public Link Box -->
+                <div class="mt-6 bg-indigo-50 border border-indigo-100 rounded-xl p-5 text-sm text-indigo-800">
+                    <p class="font-semibold mb-1">Public Tracker Link:</p>
+                    <div class="flex items-center gap-2 mt-2">
+                        <input type="text" readonly value="{{ request.scheme }}://{{ request.get_host }}{% url 'projects_public:public_timeline' project_obj.pk %}" 
+                               class="w-full bg-white border border-indigo-200 rounded-md px-3 py-2 text-xs text-slate-600 font-mono" id="publicTrackerInput">
+                        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('publicTrackerInput').value); alert('Copied!');" 
+                                class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors" title="Copy">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- TAB: PHASES (Only if editing) -->
+            {% if is_edit %}
+            <div x-show="tab === 'phases'" x-cloak class="space-y-8">
+                
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-slate-800">Project Phases</h3>
+                    <button @click="showPhaseModal = true" class="jk-btn jk-btn-primary text-xs py-1.5 px-3">
+                        + Add Phase
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    {% for phase in phases %}
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        
+                        <!-- Phase Header -->
+                        <div class="bg-slate-50 border-b border-slate-200 px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-mono bg-slate-200 text-slate-700 px-1.5 rounded">{{ phase.order }}</span>
+                                    <h4 class="font-bold text-slate-900">{{ phase.name }}</h4>
+                                    <span class="text-xs px-2 py-0.5 rounded-full border bg-white text-slate-600">{{ phase.get_status_display }}</span>
+                                </div>
+                                {% if phase.start_date or phase.end_date %}
+                                <p class="text-xs text-slate-500 mt-1">
+                                    {{ phase.start_date|default:"TBD" }} — {{ phase.end_date|default:"TBD" }}
+                                </p>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button @click="activePhaseId = '{{ phase.pk }}'; showUpdateModal = true;" class="jk-btn bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs py-1 px-2.5">
+                                    + Update
+                                </button>
+                                <form method="post" action="{% url 'projects_desk:phase_delete' phase.pk %}" onsubmit="return confirm('Delete this phase? All updates in it will be lost.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded" title="Delete Phase">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Phase Updates -->
+                        <div class="p-5 bg-white space-y-3">
+                            {% for update in phase.updates.all %}
+                            <div class="flex items-start justify-between group p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50">
+                                <div>
+                                    <p class="font-semibold text-sm text-slate-800">{{ update.title }}</p>
+                                    <p class="text-xs text-slate-500 mb-1">{{ update.created_at|date:"d M Y, H:i" }} by {{ update.created_by.username }}</p>
+                                    {% if update.content %}<p class="text-sm text-slate-600 mt-1">{{ update.content|truncatewords:20 }}</p>{% endif %}
+                                    {% if update.shared_doc %}
+                                        <div class="mt-2 text-xs font-medium text-indigo-600 flex items-center gap-1">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            Linked: {{ update.shared_doc.title }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <form method="post" action="{% url 'projects_desk:update_delete' update.pk %}" onsubmit="return confirm('Delete this update?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-slate-400 hover:text-red-600 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                            {% empty %}
+                            <p class="text-sm text-slate-400 italic text-center py-2">No updates for this phase yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-10 bg-slate-50 border border-slate-200 rounded-xl border-dashed">
+                        <p class="text-slate-500 text-sm">No phases exist. Create a phase to start adding timeline updates.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+    
+    <!-- ── Modals ── -->
+    {% if is_edit %}
+    
+    <!-- Add Phase Modal -->
+    <div x-show="showPhaseModal" x-cloak
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.outside="showPhaseModal = false">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 class="font-bold text-slate-800">Add New Phase</h3>
+                <button @click="showPhaseModal = false" class="text-slate-400 hover:text-slate-600 p-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form method="post" action="{% url 'projects_desk:phase_create' project_obj.pk %}" class="p-6 space-y-4">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2"><label class="block text-xs font-bold text-slate-700 mb-1">Phase Name *</label>{{ phase_form.name }}</div>
+                    <div class="col-span-2"><label class="block text-xs font-bold text-slate-700 mb-1">Description</label>{{ phase_form.description }}</div>
+                    <div><label class="block text-xs font-bold text-slate-700 mb-1">Order (Number) *</label>{{ phase_form.order }}</div>
+                    <div><label class="block text-xs font-bold text-slate-700 mb-1">Status *</label>{{ phase_form.status }}</div>
+                    <div><label class="block text-xs font-bold text-slate-700 mb-1">Start Date</label>{{ phase_form.start_date }}</div>
+                    <div><label class="block text-xs font-bold text-slate-700 mb-1">End Date</label>{{ phase_form.end_date }}</div>
+                </div>
+                <div class="pt-4 flex justify-end gap-2">
+                    <button type="button" @click="showPhaseModal = false" class="jk-btn jk-btn-secondary text-sm">Cancel</button>
+                    <button type="submit" class="jk-btn jk-btn-primary text-sm">Save Phase</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Update Modal -->
+    <div x-show="showUpdateModal" x-cloak
+         class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         x-transition>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg" @click.outside="showUpdateModal = false">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 class="font-bold text-slate-800">Add Timeline Update</h3>
+                <button @click="showUpdateModal = false" class="text-slate-400 hover:text-slate-600 p-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <!-- Alpine magic to dynamically set the action URL based on selected phase -->
+            <form method="post" :action="'/desk/projects/phase/' + activePhaseId + '/update/new/'" enctype="multipart/form-data" class="p-6 space-y-4">
+                {% csrf_token %}
+                <div><label class="block text-xs font-bold text-slate-700 mb-1">Title *</label>{{ update_form.title }}</div>
+                <div><label class="block text-xs font-bold text-slate-700 mb-1">Content</label>{{ update_form.content }}</div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Link Shared Document</label>
+                    {{ update_form.shared_doc }}
+                    <p class="text-[10px] text-slate-500 mt-1">Optional. Will show as a 'View Document' button.</p>
+                </div>
+                <div><label class="block text-xs font-bold text-slate-700 mb-1">File Attachment</label>{{ update_form.attachment }}</div>
+                
+                <div class="pt-4 flex justify-end gap-2">
+                    <button type="button" @click="showUpdateModal = false" class="jk-btn jk-btn-secondary text-sm">Cancel</button>
+                    <button type="submit" class="jk-btn jk-btn-primary text-sm">Post Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    {% endif %}
+
+</div>
+{% endblock %}
