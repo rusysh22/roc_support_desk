@@ -74,6 +74,10 @@ INSTALLED_APPS = [
     "app_portal.apps.AppPortalConfig",
     # E-Signature
     "esign.apps.EsignConfig",
+    # Projects
+    "projects.apps.ProjectsConfig",
+    # Shared Docs
+    "shared_docs.apps.SharedDocsConfig",
     # Field-level encryption
     "encrypted_model_fields",
 
@@ -319,6 +323,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.rusydani.my.id',
     'https://pajak-santika.my.id',
     'https://*.pajak-santika.my.id',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 

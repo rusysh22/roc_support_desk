@@ -1,0 +1,1184 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name }} | {{ site_config.site_name|default:"Project Tracker" }}</title>
+    <meta name="description" content="Track the progress of {{ project.name }}{% if project.client_name %} for {{ project.client_name }}{% endif %}. Powered by {{ site_config.site_name|default:'RoC Desk' }}.">
+    <meta property="og:title" content="{{ project.name }} — {{ site_config.site_name|default:'Project Tracker' }}">
+    <meta property="og:description" content="View real-time project progress, phases, and updates.">
+    <meta property="og:type" content="website">
+    {% if site_config.logo %}
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ site_config.logo.url }}">
+    {% endif %}
+
+    {% if site_config.favicon %}
+    <link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}">
+    {% else %}
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    {% endif %}
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{% static 'css/tailwind.css' %}?v=1">
+
+    <style>
+        :root {
+            --color-brand: #6366f1;
+            --color-brand-light: #818cf8;
+            --color-brand-dark: #4f46e5;
+        }
+        * { -webkit-font-smoothing: antialiased; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; }
+
+        /* ── Navbar glass ── */
+        .glass-nav {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        /* ── Hero gradient ── */
+        .hero-gradient {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-gradient::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 20%, rgba(167,139,250,0.2) 0%, transparent 50%);
+        }
+        .hero-gradient > * { position: relative; }
+
+        /* ── Phase pill progress ── */
+        .phase-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1.5px solid transparent;
+            transition: transform 0.15s ease;
+            cursor: default;
+        }
+        .phase-pill:hover { transform: translateY(-1px); }
+        .phase-pill.PLANNING    { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .phase-pill.IN_PROGRESS { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+        .phase-pill.REVIEW      { background: #fefce8; color: #a16207; border-color: #fde68a; }
+        .phase-pill.COMPLETED   { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .phase-pill.SKIPPED     { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
+
+        /* ── Modals ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 100;
+            display: none; align-items: center; justify-content: center; padding: 1rem; opacity: 0; transition: opacity 0.2s ease;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-content {
+            background: white; border-radius: 16px; width: 100%; max-width: 500px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transform: scale(0.95) translateY(10px); transition: all 0.2s ease; max-height: 90vh; overflow-y: auto;
+        }
+        .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
+
+        /* ── Lightbox ── */
+        .lightbox-overlay {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); z-index: 9999;
+            display: none; align-items: center; justify-content: center; padding: 2rem; opacity: 0; transition: opacity 0.2s ease; cursor: zoom-out;
+        }
+        .lightbox-overlay.active { display: flex; opacity: 1; }
+        .lightbox-overlay img {
+            max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;
+            transform: scale(0.95); transition: transform 0.2s ease;
+        }
+        .lightbox-overlay.active img { transform: scale(1); }
+
+        /* ── Calendar ── */
+        .cal-container {
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px; padding: 0.75rem; color: white;
+            max-width: 260px; margin-left: auto;
+        }
+        .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .cal-day-name { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+        .cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; border-radius: 6px; transition: all 0.2s; position: relative; }
+        .cal-cell:hover { background: rgba(255,255,255,0.1); cursor: pointer; }
+        .cal-cell.holiday { color: #fca5a5; }
+        .cal-cell.has-event { background: rgba(99, 102, 241, 0.4); border: 1px solid rgba(255,255,255,0.3); }
+        .cal-cell.today { border: 2px solid white; font-weight: 800; }
+        .cal-cell.empty { pointer-events: none; }
+        .cal-tooltip { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10; margin-bottom: 4px; }
+        .cal-cell:hover .cal-tooltip { opacity: 1; }
+        
+        .btn-action { padding: 4px 8px; font-size: 0.75rem; border-radius: 6px; font-weight: 600; transition: all 0.15s; }
+        .btn-edit { background: #f1f5f9; color: #475569; }
+        .btn-edit:hover { background: #e2e8f0; color: #1e293b; }
+        .btn-add { background: #e0e7ff; color: #4f46e5; }
+        .btn-add:hover { background: #c7d2fe; color: #3730a3; }
+        .btn-delete { background: #fee2e2; color: #dc2626; }
+        .btn-delete:hover { background: #fecaca; color: #991b1b; }
+
+        /* ── Timeline ── */
+        .timeline-track {
+            position: relative;
+        }
+        .timeline-track::before {
+            content: '';
+            position: absolute;
+            left: 19px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #c7d2fe, #e2e8f0 80%, transparent);
+            z-index: 0;
+        }
+        .phase-node {
+            position: relative;
+            padding-left: 52px;
+            margin-bottom: 24px;
+        }
+        .phase-dot {
+            position: absolute;
+            left: 0;
+            top: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            z-index: 1;
+            transition: transform 0.2s ease;
+        }
+        .phase-card:hover .phase-dot { transform: scale(1.1); }
+
+        /* Phase dot colors */
+        .dot-pending     { background: #e2e8f0; }
+        .dot-planning    { background: #93c5fd; }
+        .dot-progress    { background: #6366f1; animation: dot-pulse 2s ease-in-out infinite; }
+        .dot-review      { background: #f59e0b; }
+        .dot-completed   { background: #22c55e; }
+        .dot-skipped     { background: #cbd5e1; }
+
+        @keyframes dot-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4), 0 2px 8px rgba(0,0,0,0.12); }
+            50% { box-shadow: 0 0 0 8px rgba(99,102,241,0), 0 2px 8px rgba(0,0,0,0.12); }
+        }
+
+        /* ── Phase card ── */
+        .phase-card {
+            background: white;
+            border-radius: 16px;
+            border: 1.5px solid #e2e8f0;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+        .phase-card:hover {
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
+        }
+        .phase-card.is-active {
+            border-color: #a5b4fc;
+            box-shadow: 0 4px 24px rgba(99,102,241,0.12);
+        }
+        .phase-card.is-completed { border-color: #bbf7d0; }
+
+        /* ── Update item ── */
+        .update-item {
+            display: flex;
+            gap: 12px;
+            padding: 14px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .update-item:last-child { border-bottom: none; }
+
+        /* ── Status badge ── */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        /* ── Comment ── */
+        .comment-bubble {
+            background: #f8fafc;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            padding: 12px 14px;
+            transition: background 0.15s;
+        }
+        .comment-bubble:hover { background: #f1f5f9; }
+        
+        /* Auto-hyperlink styles */
+        .urlized-text a {
+            color: #4f46e5;
+            text-decoration: underline;
+            text-decoration-color: #c7d2fe;
+            text-underline-offset: 2px;
+            transition: all 0.15s;
+        }
+        .urlized-text a:hover {
+            color: #3730a3;
+            text-decoration-color: #4f46e5;
+        }
+
+        /* ── Comment form ── */
+        .comment-input {
+            width: 100%;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.875rem;
+            font-family: inherit;
+            resize: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            outline: none;
+            background: white;
+        }
+        .comment-input:focus {
+            border-color: #818cf8;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+        }
+
+        /* ── Progress bar ── */
+        .progress-bar {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ── Scroll fade-in ── */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ── Flash messages ── */
+        .flash-success { background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #15803d; }
+        .flash-error   { background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .phase-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+        }
+
+        /* ── Page Layout ── */
+        .page-wrapper {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+            box-sizing: border-box;
+        }
+        .page-cols {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+        .col-main {
+            flex: 1 1 0;
+            min-width: 0;  /* prevents flex children from overflowing */
+        }
+        .col-sidebar {
+            flex: 0 0 400px;
+            width: 400px;
+            min-width: 0;
+            position: sticky;
+            top: 1.5rem;
+            max-height: calc(100vh - 3rem);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        /* Overflow protection for cards with lots of data */
+        .sidebar-card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        .sidebar-comments-list {
+            max-height: 360px;
+            overflow-y: auto;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        /* Scrollbar styling */
+        .sidebar-comments-list::-webkit-scrollbar,
+        .col-sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar-comments-list::-webkit-scrollbar-track,
+        .col-sidebar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .sidebar-comments-list::-webkit-scrollbar-thumb,
+        .col-sidebar::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     STICKY NAVBAR
+══════════════════════════════════════ -->
+<header class="glass-nav sticky top-0 z-40 border-b border-slate-200/80 no-print">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+        <!-- Brand -->
+        {% if site_config.logo %}
+        <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}"
+             class="h-8 w-8 object-contain rounded-lg flex-shrink-0">
+        {% else %}
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+            <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+        </div>
+        {% endif %}
+
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-slate-900 leading-tight truncate">{{ project.name }}</p>
+            {% if project.client_name %}
+            <p class="text-[11px] text-slate-400 truncate">{{ project.client_name }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Status badge -->
+        <span class="flex-shrink-0 status-badge
+            {% if project.status == 'PLANNING' %}bg-blue-100 text-blue-700
+            {% elif project.status == 'ACTIVE' %}bg-indigo-100 text-indigo-700
+            {% elif project.status == 'ON_HOLD' %}bg-amber-100 text-amber-700
+            {% elif project.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700
+            {% elif project.status == 'CANCELLED' %}bg-red-100 text-red-600
+            {% else %}bg-slate-100 text-slate-500{% endif %}">
+            {% if project.status == 'ACTIVE' %}
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            {% elif project.status == 'COMPLETED' %}
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+            {% endif %}
+            {{ project.get_status_display }}
+        </span>
+    </div>
+</header>
+
+
+<!-- ══════════════════════════════════════
+     HERO SECTION
+══════════════════════════════════════ -->
+<section class="hero-gradient text-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+        <div class="flex flex-col gap-4">
+            <!-- Label -->
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Project Tracker</span>
+                {% if project.client_name %}
+                <span class="text-indigo-400">·</span>
+                <span class="text-[10px] text-indigo-300">{{ project.client_name }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Project name -->
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight">
+                    {{ project.name }}
+                </h1>
+                {% if project.description %}
+                <p class="mt-2 text-indigo-100/90 text-sm leading-relaxed max-w-xl">
+                    {{ project.description }}
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Stats row -->
+            <div class="flex flex-wrap items-center gap-4 pt-2">
+                <div class="flex items-center gap-1.5 text-indigo-200 text-sm">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 6h16M4 10h16M4 14h16M4 18h7"/>
+                    </svg>
+                    {{ phases|length }} phase{{ phases|length|pluralize }}
+                </div>
+                <div class="flex items-center gap-1.5 text-indigo-200 text-sm">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Updated {{ project.updated_at|date:"d M Y" }}
+                </div>
+            </div>
+
+            <!-- Phase progress pills -->
+            {% if phases %}
+            <div class="flex flex-wrap gap-2">
+                {% for phase in phases %}
+                <span class="phase-pill {{ phase.status }}">
+                    {% if phase.status == 'COMPLETED' %}
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    {% elif phase.status == 'IN_PROGRESS' %}
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                    {% else %}
+                    <span class="w-2 h-2 rounded-full bg-current opacity-50"></span>
+                    {% endif %}
+                    {{ phase.name }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if can_edit %}
+            <div class="mt-4">
+                <button onclick="openModal('modal-add-phase')" class="btn-action btn-add px-4 py-2 text-sm flex items-center gap-2 inline-flex bg-white/20 text-white hover:bg-white/30 border border-white/30 backdrop-blur">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add Phase
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Calendar Column -->
+        <div class="md:pl-8 lg:pl-16">
+            <div id="project-calendar" class="cal-container" data-date="{{ latest_date|date:'Y-m-d' }}">
+                <div class="cal-header">
+                    <button id="cal-prev" class="p-1 hover:bg-white/20 rounded">&larr;</button>
+                    <h3 id="cal-month-year" class="font-bold text-sm tracking-wider uppercase">Loading...</h3>
+                    <button id="cal-next" class="p-1 hover:bg-white/20 rounded">&rarr;</button>
+                </div>
+                <div class="cal-grid mb-1">
+                    <div class="cal-day-name">Sun</div><div class="cal-day-name">Mon</div><div class="cal-day-name">Tue</div>
+                    <div class="cal-day-name">Wed</div><div class="cal-day-name">Thu</div><div class="cal-day-name">Fri</div><div class="cal-day-name">Sat</div>
+                </div>
+                <div id="cal-days" class="cal-grid"></div>
+            </div>
+        </div>
+        
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════ -->
+<main class="no-print">
+
+    <!-- Flash messages -->
+    {% if messages %}
+    <div style="max-width:1200px; margin:0 auto; padding:1rem 1.5rem 0;">
+        {% for message in messages %}
+        <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium mb-2
+            {% if message.tags == 'error' %}flash-error{% else %}flash-success{% endif %}">
+            {% if message.tags == 'error' %}
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% else %}
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            {% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="page-wrapper">
+        <div class="page-cols">
+
+            <!-- LEFT: Timeline -->
+            <div class="col-main">
+
+            {% if phases %}
+            <div class="timeline-track">
+                {% for phase in phases %}
+                <div class="phase-node fade-up" style="transition-delay: {{ forloop.counter0 }}00ms;">
+
+                    <!-- Timeline dot -->
+                    <div class="phase-dot
+                        {% if phase.status == 'IN_PROGRESS' %}dot-progress
+                        {% elif phase.status == 'COMPLETED' %}dot-completed
+                        {% elif phase.status == 'REVIEW' or phase.status == 'REVISED' %}dot-review
+                        {% elif phase.status == 'PLANNING' %}dot-planning
+                        {% elif phase.status == 'SKIPPED' %}dot-skipped
+                        {% else %}dot-pending{% endif %}">
+                        {% if phase.status == 'COMPLETED' %}
+                        <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        {% elif phase.status == 'IN_PROGRESS' %}
+                        <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+                        {% elif phase.status == 'REVIEW' or phase.status == 'REVISED' %}
+                        <svg class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4m0 4h.01"/></svg>
+                        {% elif phase.status == 'SKIPPED' %}
+                        <svg class="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                        {% else %}
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Phase card -->
+                    <div id="phase-card-{{ phase.id }}" class="phase-card cursor-pointer {% if phase.status == 'IN_PROGRESS' %}is-active{% elif phase.status == 'COMPLETED' %}is-completed{% endif %}" onclick="selectPhase('{{ phase.id }}')">
+
+                        <!-- Card header -->
+                        <div class="px-5 py-4 flex items-start gap-3
+                            {% if phase.status == 'IN_PROGRESS' %}bg-indigo-50/60
+                            {% elif phase.status == 'COMPLETED' %}bg-emerald-50/40
+                            {% else %}bg-slate-50/50{% endif %}
+                            border-b border-slate-100">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2 flex-wrap">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-xs text-slate-400 font-mono">{{ forloop.counter|stringformat:"02d" }}</span>
+                                        <h2 class="font-bold text-slate-900 text-[15px]">{{ phase.name }}</h2>
+                                    </div>
+                                    {% if can_edit %}
+                                    <div class="flex items-center gap-1">
+                                        <button onclick="openModal('modal-edit-phase-{{ phase.id }}')" class="btn-action btn-edit">Edit</button>
+                                        <button onclick="openModal('modal-add-update-{{ phase.id }}')" class="btn-action btn-add">+ Update</button>
+                                        <form method="post" action="{% url 'projects_desk:phase_delete' phase.id %}" class="inline m-0 p-0" onsubmit="return confirm('Delete phase?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.path }}">
+                                            <button type="submit" class="btn-action btn-delete">Del</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% if phase.description %}
+                                <p class="text-sm text-slate-500 mt-0.5 leading-snug">{{ phase.description }}</p>
+                                {% endif %}
+                                {% if phase.start_date or phase.end_date %}
+                                <p class="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    {{ phase.start_date|default:"TBD" }} — {{ phase.end_date|default:"TBD" }}
+                                </p>
+                                {% endif %}
+                            </div>
+                            <span class="flex-shrink-0 status-badge
+                                {% if phase.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700
+                                {% elif phase.status == 'IN_PROGRESS' %}bg-indigo-100 text-indigo-700
+                                {% elif phase.status == 'REVIEW' %}bg-amber-100 text-amber-700
+                                {% elif phase.status == 'REVISED' %}bg-orange-100 text-orange-700
+                                {% elif phase.status == 'SKIPPED' %}bg-slate-100 text-slate-400
+                                {% else %}bg-slate-100 text-slate-500{% endif %}">
+                                {{ phase.get_status_display }}
+                            </span>
+                        </div>
+
+                        <!-- Updates -->
+                        {% if phase.updates.all %}
+                        <div class="px-5 pt-4 pb-2">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Updates</p>
+                            {% for update in phase.updates.all %}
+                            <div class="update-item">
+                                <!-- Date marker -->
+                                <div class="flex-shrink-0 text-center pt-0.5">
+                                    <span class="block text-[10px] font-bold text-slate-400 uppercase leading-none">
+                                        {{ update.created_at|date:"M" }}
+                                    </span>
+                                    <span class="block text-base font-extrabold text-slate-300 leading-none">
+                                        {{ update.created_at|date:"d" }}
+                                    </span>
+                                </div>
+                                <!-- Content -->
+                                <div class="flex-1 min-w-0 relative group">
+                                    {% if can_edit %}
+                                    <div class="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white p-1 rounded-md shadow-sm border border-slate-100">
+                                        <button onclick="openModal('modal-edit-update-{{ update.id }}')" class="btn-action btn-edit text-[10px] py-1">Edit</button>
+                                        <form method="post" action="{% url 'projects_desk:update_delete' update.id %}" class="inline m-0 p-0" onsubmit="return confirm('Delete update?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.path }}">
+                                            <button type="submit" class="btn-action btn-delete text-[10px] py-1">Del</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                    <p class="font-semibold text-sm text-slate-800 leading-snug">{{ update.title }}</p>
+                                    {% if update.content %}
+                                    <p class="text-sm text-slate-500 mt-1 leading-relaxed urlized-text">{{ update.content|urlize|linebreaksbr }}</p>
+                                    {% endif %}
+                                    <div class="flex flex-wrap gap-2 mt-2">
+                                        {% if update.shared_doc %}
+                                        <a href="{% url 'projects_public:public_doc' update.shared_doc.pk %}" target="_blank"
+                                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                                  bg-indigo-600 hover:bg-indigo-700 text-white transition-all hover:shadow-md hover:shadow-indigo-200 hover:-translate-y-px">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            {{ update.shared_doc.title }}
+                                        </a>
+                                        {% endif %}
+                                        {% if update.attachment %}
+                                        {% with ext=update.attachment.url|lower %}
+                                        {% if '.jpg' in ext or '.jpeg' in ext or '.png' in ext or '.gif' in ext or '.webp' in ext %}
+                                        <div class="w-full mt-1">
+                                            <a href="#" onclick="openLightbox(event, '{{ update.attachment.url }}')" class="block max-w-[240px] rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity">
+                                                <img src="{{ update.attachment.url }}" alt="Attachment preview" class="w-full h-auto object-cover">
+                                            </a>
+                                        </div>
+                                        {% else %}
+                                        <a href="{{ update.attachment.url }}" target="_blank"
+                                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                                                  bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all hover:-translate-y-px">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                                            Attachment
+                                        </a>
+                                        {% endif %}
+                                        {% endwith %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <!-- Discussions removed from here -->
+
+                    </div><!-- end phase-card -->
+                </div><!-- end phase-node -->
+                {% empty %}
+                {% endfor %}
+            </div><!-- end timeline-track -->
+
+            {% else %}
+            <!-- Empty state -->
+            <div class="flex flex-col items-center justify-center text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                    <svg class="h-7 w-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-slate-700 mb-1">No phases yet</h3>
+                <p class="text-sm text-slate-400 max-w-xs">Phases and updates will appear here once the project team adds them.</p>
+            </div>
+            {% endif %}
+            </div><!-- end col-main -->
+
+            <!-- RIGHT: Sidebar -->
+            <div class="col-sidebar">
+        
+            <!-- Discussions Sidebar -->
+            <div class="sidebar-card">
+                <div class="px-5 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Discussion</p>
+                    <button id="clear-phase-filter" class="hidden text-[10px] text-indigo-600 font-bold uppercase hover:underline" onclick="selectPhase('all')">Show All</button>
+                </div>
+                
+                <div class="sidebar-comments-list" id="sidebar-comments">
+                    {% for phase in phases %}
+                        {% for comment in phase.comments.all %}
+                        {% if comment.is_visible %}
+                        <div class="flex gap-3 comment-item" data-phase-id="{{ phase.id }}">
+                            <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold {% if comment.user %}bg-indigo-500 text-white{% else %}bg-slate-200 text-slate-600{% endif %}">
+                                {% if comment.user %}{{ comment.user.username|slice:":1"|upper }}{% else %}{{ comment.guest_name|slice:":1"|upper|default:"?" }}{% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="comment-bubble">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wide cursor-pointer hover:underline" onclick="selectPhase('{{ phase.id }}')">Phase: {{ phase.name }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 flex-wrap mb-1.5">
+                                        <span class="text-[13px] font-semibold text-slate-800">{% if comment.user %}{{ comment.user.username }}{% else %}{{ comment.guest_name }}{% endif %}</span>
+                                        {% if comment.user %}<span class="text-[10px] font-bold uppercase tracking-wide bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded">Staff</span>{% endif %}
+                                        <span class="text-[11px] text-slate-400 ml-auto">{{ comment.created_at|date:"d M Y, H:i" }}</span>
+                                    </div>
+                                    <p class="text-sm text-slate-700 leading-relaxed urlized-text">{{ comment.comment|urlize|linebreaksbr }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+                
+                <div class="px-5 py-4 border-t border-slate-100 bg-slate-50">
+                    <form id="sidebar-comment-form" method="post" action="" onsubmit="return submitCommentForm(event)">
+                        {% csrf_token %}
+                        <div id="phase-select-wrapper" class="mb-3">
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Select Phase</label>
+                            <select id="comment-phase-select" class="comment-input py-1.5 text-xs" required onchange="updateFormAction()">
+                                <option value="" disabled selected>-- Select Phase --</option>
+                                {% for phase in phases %}
+                                <option value="{{ phase.id }}">{{ phase.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        {% if not request.user.is_authenticated %}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                            <div><input type="text" name="guest_name" required maxlength="100" class="comment-input text-xs py-1.5" placeholder="Name *"></div>
+                            <div><input type="email" name="guest_email" maxlength="254" class="comment-input text-xs py-1.5" placeholder="Email"></div>
+                        </div>
+                        {% endif %}
+                        <div class="mb-2">
+                            <textarea name="comment" rows="2" required maxlength="2000" class="comment-input text-xs py-1.5" placeholder="Share feedback or ask a question…"></textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="btn-action btn-add px-3 py-1.5 text-xs">Post</button>
+                        </div>
+                    </form>
+                </div>
+            </div><!-- end sidebar-card discussions -->
+
+            <!-- Project Info Card -->
+            <div class="sidebar-card">
+                <div class="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Project Details</p>
+                </div>
+                <div class="px-5 py-4 space-y-3">
+                    {% if project.client_name %}
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">Client</p>
+                        <p class="text-sm font-semibold text-slate-800">{{ project.client_name }}</p>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">Status</p>
+                        <span class="status-badge
+                            {% if project.status == 'ACTIVE' %}bg-indigo-100 text-indigo-700
+                            {% elif project.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700
+                            {% elif project.status == 'ON_HOLD' %}bg-amber-100 text-amber-700
+                            {% else %}bg-slate-100 text-slate-600{% endif %}">
+                            {{ project.get_status_display }}
+                        </span>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">Last Updated</p>
+                        <p class="text-sm text-slate-600">{{ project.updated_at|date:"d M Y" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Phases</p>
+                        <div class="space-y-1.5">
+                            {% for phase in phases %}
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-600 truncate flex-1">{{ phase.name }}</span>
+                                <span class="ml-2 flex-shrink-0 status-badge text-[10px]
+                                    {% if phase.status == 'COMPLETED' %}bg-emerald-100 text-emerald-700
+                                    {% elif phase.status == 'IN_PROGRESS' %}bg-indigo-100 text-indigo-700
+                                    {% elif phase.status == 'REVIEW' or phase.status == 'REVISED' %}bg-amber-100 text-amber-700
+                                    {% else %}bg-slate-100 text-slate-400{% endif %}">
+                                    {{ phase.get_status_display }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Powered by card -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white">
+                <div class="flex items-center gap-2 mb-2">
+                    {% if site_config.logo %}
+                    <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-6 w-6 rounded object-contain">
+                    {% else %}
+                    <div class="w-6 h-6 bg-indigo-500 rounded flex items-center justify-center">
+                        <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    </div>
+                    {% endif %}
+                    <span class="text-sm font-bold">{{ site_config.site_name|default:"RoC Desk" }}</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    This project tracker is shared by the team. Updates are added by staff in real-time.
+                </p>
+            </div><!-- end powered-by card -->
+
+            </div><!-- end col-sidebar -->
+        </div><!-- end page-cols -->
+    </div><!-- end page-wrapper -->
+
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-slate-200 mt-8 py-8 no-print">
+    <p class="text-center text-xs text-slate-400">
+        Powered by <strong class="text-slate-500">{{ site_config.site_name|default:"RoC Desk" }}</strong>
+        &nbsp;·&nbsp; Last updated {{ project.updated_at|date:"d M Y, H:i" }}
+    </p>
+</footer>
+
+{% if can_edit %}
+<!-- Modals -->
+<!-- Add Phase Modal -->
+<div id="modal-add-phase" class="modal-overlay">
+    <div class="modal-content">
+        <form method="post" action="{% url 'projects_desk:phase_create' project.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800">Add Phase</h3>
+                <button type="button" onclick="closeModal('modal-add-phase')" class="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Name</label>
+                    <input type="text" name="name" required class="comment-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Status</label>
+                    <select name="status" class="comment-input">
+                        <option value="PENDING">Pending</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="REVIEW">Review</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="SKIPPED">Skipped</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Description</label>
+                    <textarea name="description" rows="2" class="comment-input"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Start Date</label>
+                        <input type="date" name="start_date" class="comment-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">End Date</label>
+                        <input type="date" name="end_date" class="comment-input">
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-2xl">
+                <button type="button" onclick="closeModal('modal-add-phase')" class="btn-action btn-edit px-4 py-2">Cancel</button>
+                <button type="submit" class="btn-action btn-add px-4 py-2">Save Phase</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% for phase in phases %}
+<!-- Edit Phase Modal -->
+<div id="modal-edit-phase-{{ phase.id }}" class="modal-overlay">
+    <div class="modal-content">
+        <form method="post" action="{% url 'projects_desk:phase_edit' phase.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800">Edit Phase: {{ phase.name }}</h3>
+                <button type="button" onclick="closeModal('modal-edit-phase-{{ phase.id }}')" class="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Name</label>
+                    <input type="text" name="name" value="{{ phase.name }}" required class="comment-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Status</label>
+                    <select name="status" class="comment-input">
+                        <option value="PENDING" {% if phase.status == 'PENDING' %}selected{% endif %}>Pending</option>
+                        <option value="IN_PROGRESS" {% if phase.status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="REVIEW" {% if phase.status == 'REVIEW' %}selected{% endif %}>Review</option>
+                        <option value="COMPLETED" {% if phase.status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+                        <option value="SKIPPED" {% if phase.status == 'SKIPPED' %}selected{% endif %}>Skipped</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Description</label>
+                    <textarea name="description" rows="2" class="comment-input">{{ phase.description }}</textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Start Date</label>
+                        <input type="date" name="start_date" value="{{ phase.start_date|date:'Y-m-d' }}" class="comment-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">End Date</label>
+                        <input type="date" name="end_date" value="{{ phase.end_date|date:'Y-m-d' }}" class="comment-input">
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-2xl">
+                <button type="button" onclick="closeModal('modal-edit-phase-{{ phase.id }}')" class="btn-action btn-edit px-4 py-2">Cancel</button>
+                <button type="submit" class="btn-action btn-add px-4 py-2">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Update Modal -->
+<div id="modal-add-update-{{ phase.id }}" class="modal-overlay">
+    <div class="modal-content">
+        <form method="post" action="{% url 'projects_desk:update_create' phase.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800">Add Update to: {{ phase.name }}</h3>
+                <button type="button" onclick="closeModal('modal-add-update-{{ phase.id }}')" class="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+                    <input type="text" name="title" required class="comment-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Content</label>
+                    <textarea name="content" rows="3" class="comment-input"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Attachment (Optional)</label>
+                    <input type="file" name="attachment" class="comment-input p-2 text-sm">
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-2xl">
+                <button type="button" onclick="closeModal('modal-add-update-{{ phase.id }}')" class="btn-action btn-edit px-4 py-2">Cancel</button>
+                <button type="submit" class="btn-action btn-add px-4 py-2">Post Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% for update in phase.updates.all %}
+<!-- Edit Update Modal -->
+<div id="modal-edit-update-{{ update.id }}" class="modal-overlay">
+    <div class="modal-content">
+        <form method="post" action="{% url 'projects_desk:update_edit' update.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800">Edit Update</h3>
+                <button type="button" onclick="closeModal('modal-edit-update-{{ update.id }}')" class="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+                    <input type="text" name="title" value="{{ update.title }}" required class="comment-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Content</label>
+                    <textarea name="content" rows="3" class="comment-input">{{ update.content }}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Replace Attachment (Optional)</label>
+                    <input type="file" name="attachment" class="comment-input p-2 text-sm">
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-2xl">
+                <button type="button" onclick="closeModal('modal-edit-update-{{ update.id }}')" class="btn-action btn-edit px-4 py-2">Cancel</button>
+                <button type="submit" class="btn-action btn-add px-4 py-2">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+<!-- Lightbox -->
+<div id="image-lightbox" class="lightbox-overlay" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="Full view">
+</div>
+
+<script>
+    function openLightbox(e, url) {
+        e.preventDefault();
+        const lb = document.getElementById('image-lightbox');
+        const img = document.getElementById('lightbox-img');
+        img.src = url;
+        lb.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+        const lb = document.getElementById('image-lightbox');
+        lb.classList.remove('active');
+        document.body.style.overflow = '';
+        setTimeout(() => document.getElementById('lightbox-img').src = '', 200);
+    }
+
+    const projectPk = "{{ project.pk }}";
+    const baseCommentUrl = "{% url 'projects_public:add_comment' project.pk '00000000-0000-0000-0000-000000000000' %}";
+
+    function updateFormAction() {
+        const phaseId = document.getElementById("comment-phase-select").value;
+        const form = document.getElementById("sidebar-comment-form");
+        if (phaseId) {
+            form.action = baseCommentUrl.replace('00000000-0000-0000-0000-000000000000', phaseId);
+        }
+    }
+
+    function selectPhase(phaseId) {
+        const items = document.querySelectorAll(".comment-item");
+        const clearBtn = document.getElementById("clear-phase-filter");
+        const select = document.getElementById("comment-phase-select");
+        const selectWrapper = document.getElementById("phase-select-wrapper");
+        
+        // reset phase card styles
+        document.querySelectorAll(".phase-card").forEach(c => c.classList.remove('ring-2', 'ring-indigo-400'));
+        
+        if (phaseId === 'all') {
+            items.forEach(i => i.style.display = 'flex');
+            clearBtn.classList.add('hidden');
+            selectWrapper.style.display = 'block';
+            select.value = '';
+        } else {
+            items.forEach(i => {
+                if (i.getAttribute('data-phase-id') === phaseId) {
+                    i.style.display = 'flex';
+                } else {
+                    i.style.display = 'none';
+                }
+            });
+            clearBtn.classList.remove('hidden');
+            selectWrapper.style.display = 'none';
+            select.value = phaseId;
+            
+            // highlight card
+            const card = document.getElementById('phase-card-' + phaseId);
+            if(card) {
+                card.classList.add('ring-2', 'ring-indigo-400');
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        updateFormAction();
+    }
+
+    function submitCommentForm(e) {
+        const select = document.getElementById("comment-phase-select");
+        if (!select.value) {
+            e.preventDefault();
+            alert("Please select a phase to comment on.");
+            return false;
+        }
+        return true;
+    }
+
+    // Initialize form URL if one phase is pre-selected
+    document.addEventListener("DOMContentLoaded", function() {
+        updateFormAction();
+    });
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    // Calendar logic
+    document.addEventListener("DOMContentLoaded", async function() {
+        const calContainer = document.getElementById("project-calendar");
+        if (!calContainer) return;
+        
+        let targetDateStr = calContainer.getAttribute("data-date");
+        let currentDate = targetDateStr && targetDateStr !== "None" ? new Date(targetDateStr) : new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        
+        // Fetch holidays for current year
+        let holidays = {};
+        try {
+            const res = await fetch(`https://libur.deno.dev/api?year=${currentYear}`);
+            if (res.ok) {
+                const data = await res.json();
+                data.forEach(h => {
+                    holidays[h.date] = h.is_national_holiday ? h.name : `${h.name} (Cuti Bersama)`;
+                });
+            }
+        } catch(e) { console.error("Could not fetch holidays", e); }
+        
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+                            
+        const calMonthYear = document.getElementById("cal-month-year");
+        const calDays = document.getElementById("cal-days");
+        
+        function renderCalendar() {
+            calDays.innerHTML = "";
+            calMonthYear.innerText = `${monthNames[currentMonth]} ${currentYear}`;
+            
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            for (let i = 0; i < firstDay; i++) {
+                const emptyCell = document.createElement("div");
+                emptyCell.className = "cal-cell empty";
+                calDays.appendChild(emptyCell);
+            }
+            
+            const today = new Date();
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                const cell = document.createElement("div");
+                cell.className = "cal-cell";
+                cell.innerText = i;
+                
+                let m = (currentMonth + 1).toString().padStart(2, '0');
+                let d = i.toString().padStart(2, '0');
+                let dateStr = `${currentYear}-${m}-${d}`;
+                
+                if (today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === i) {
+                    cell.classList.add("today");
+                }
+                
+                if (holidays[dateStr]) {
+                    cell.classList.add("holiday");
+                    const tooltip = document.createElement("div");
+                    tooltip.className = "cal-tooltip";
+                    tooltip.innerText = holidays[dateStr];
+                    cell.appendChild(tooltip);
+                }
+                
+                // If it matches targetDateStr, highlight it
+                if (dateStr === targetDateStr) {
+                    cell.classList.add("has-event");
+                    const tooltip = document.createElement("div");
+                    tooltip.className = "cal-tooltip";
+                    tooltip.innerText = "Latest Activity";
+                    cell.appendChild(tooltip);
+                }
+                
+                calDays.appendChild(cell);
+            }
+        }
+        
+        document.getElementById("cal-prev").addEventListener("click", () => {
+            currentMonth--;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        });
+        
+        document.getElementById("cal-next").addEventListener("click", () => {
+            currentMonth++;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+        });
+        
+        renderCalendar();
+    });
+    // Scroll fade-in animation
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(el => {
+            if (el.isIntersecting) {
+                el.target.classList.add('visible');
+                observer.unobserve(el.target);
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

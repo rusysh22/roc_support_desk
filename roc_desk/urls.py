@@ -75,9 +75,15 @@ urlpatterns = [
     path("desk/links/", include("links.urls_desk", namespace="links_desk")),
     path("desk/kb/", include("knowledge_base.urls_desk", namespace="kb_desk")),
     path("desk/users/", include("core.urls_desk", namespace="users_desk")),
+    path("desk/projects/", include("projects.urls_desk", namespace="projects_desk")),
+    path("desk/docs/", include("shared_docs.urls_desk", namespace="shared_docs_desk")),
 
     # Short Links Public Redirect
     path("s/", include("links.urls", namespace="links")),
+    
+    # Public Projects / Shared Docs
+    path("p/", include("projects.urls_public", namespace="projects_public")),
+    path("p/doc/", include("shared_docs.urls_public", namespace="shared_docs_public")),
 
     # Evolution API webhook
     path("api/gateways/", include("gateways.urls", namespace="gateways")),

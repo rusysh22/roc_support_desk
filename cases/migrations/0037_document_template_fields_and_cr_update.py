@@ -187,9 +187,9 @@ class Migration(migrations.Migration):
                             template_id UUID NOT NULL
                                 REFERENCES cases_documenttemplate(id) ON DELETE CASCADE,
                             created_by_id INTEGER
-                                REFERENCES auth_user(id) ON DELETE SET NULL,
+                                REFERENCES core_user(id) ON DELETE SET NULL,
                             updated_by_id INTEGER
-                                REFERENCES auth_user(id) ON DELETE SET NULL
+                                REFERENCES core_user(id) ON DELETE SET NULL
                         );
                     """,
                     reverse_sql="DROP TABLE IF EXISTS cases_documenttemplatefield;",

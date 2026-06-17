@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Shared Document | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_docs %}active{% endblock %}
+{% block page_title %}{% if is_edit %}Edit{% else %}New{% endif %} Shared Document{% endblock %}
+
+{% block extra_head %}
+<!-- Quill editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<style>
+    #quill-editor { min-height: 400px; font-family: 'Inter', sans-serif; font-size: 0.9375rem; }
+    #quill-editor .ql-editor { min-height: 380px; line-height: 1.75; }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'shared_docs_desk:list' %}"
+               class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors" title="Back">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">
+                    {% if is_edit %}Edit: {{ doc_obj.title }}{% else %}Create New Shared Document{% endif %}
+                </h2>
+                <p class="text-sm text-slate-500 mt-0.5">Write content below. It will be rendered exactly on the public page.</p>
+            </div>
+        </div>
+        {% if is_edit %}
+        <a href="{% url 'shared_docs_public:doc_view' doc_obj.pk %}" target="_blank"
+           class="jk-btn bg-white border border-slate-200 text-indigo-600 hover:bg-indigo-50 py-2 px-3 text-sm shadow-sm flex-shrink-0">
+            <svg class="h-4 w-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            Preview Public
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Main form -->
+    <form id="doc-form" method="post">
+        {% csrf_token %}
+
+        <!-- Error display -->
+        {% if form.errors %}
+        <div class="p-4 rounded-xl bg-red-50 text-red-800 border border-red-200 text-sm mb-4">
+            <strong class="font-bold">Please fix the following:</strong>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <li><b>{{ field.label }}</b>: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Left: Title + Editor -->
+            <div class="lg:col-span-2 space-y-4">
+
+                <!-- Title -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">
+                        Document Title <span class="text-red-600">*</span>
+                    </label>
+                    {{ form.title }}
+                </div>
+
+                <!-- Editor Mode -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <label class="block text-sm font-semibold text-slate-700 mb-3">
+                        Editor Mode
+                    </label>
+                    <div class="flex flex-wrap gap-4" id="editor-mode-wrapper">
+                        {% for radio in form.editor_mode %}
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            {{ radio.tag }}
+                            <span class="text-sm font-medium text-slate-700">{{ radio.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Rich Text Editor -->
+                <div id="editor-rich-container" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Document Content</p>
+                    </div>
+                    <!-- Quill editor mount point -->
+                    <div id="quill-editor"></div>
+                </div>
+
+                <!-- Raw HTML Editor -->
+                <div id="editor-raw-container" class="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden hidden">
+                    <div class="px-5 py-3 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Raw HTML/CSS Code</p>
+                        <span class="text-[10px] text-amber-500 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Sandboxed in iframe</span>
+                    </div>
+                    <textarea id="raw-html-textarea" rows="20" class="w-full bg-transparent text-slate-300 font-mono text-sm p-5 border-none focus:ring-0 resize-y" placeholder="<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <h1>Custom HTML</h1>
+</body>
+</html>"></textarea>
+                </div>
+
+                <!-- Hidden input carries HTML to Django -->
+                {{ form.content }}
+
+            </div>
+
+            <!-- Right: Sidebar -->
+            <div class="space-y-4">
+
+                <!-- Status card -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">Visibility</h3>
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        {{ form.is_active }}
+                        <div>
+                            <span class="block text-sm font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">
+                                Publicly Accessible
+                            </span>
+                            <span class="block text-xs text-slate-500 mt-0.5">
+                                When checked, anyone with the link can view this document.
+                                Uncheck to immediately revoke access.
+                            </span>
+                        </div>
+                    </label>
+                </div>
+
+                {% if is_edit %}
+                <!-- Public link card -->
+                <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
+                    <h3 class="text-sm font-bold text-indigo-800 mb-2">Public Link</h3>
+                    <p class="text-xs text-indigo-600 mb-3">Share this link with clients or stakeholders.</p>
+                    <div class="flex items-center gap-2">
+                        <input type="text" readonly id="publicUrlInput"
+                               value="{{ request.scheme }}://{{ request.get_host }}{% url 'shared_docs_public:doc_view' doc_obj.pk %}"
+                               class="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2 text-xs text-slate-600 font-mono">
+                        <button type="button" title="Copy link"
+                                onclick="navigator.clipboard.writeText(document.getElementById('publicUrlInput').value).then(() => { this.textContent = '✓'; setTimeout(() => this.textContent = '⎘', 1500); })"
+                                class="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center">
+                            ⎘
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-indigo-500 mt-2">Status: 
+                        {% if doc_obj.is_active %}
+                            <span class="font-semibold text-emerald-600">Active — link works</span>
+                        {% else %}
+                            <span class="font-semibold text-red-600">Revoked — link returns 404</span>
+                        {% endif %}
+                    </p>
+                </div>
+
+                <!-- Meta card -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <h3 class="text-sm font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">Document Info</h3>
+                    <dl class="space-y-2 text-xs text-slate-600">
+                        <div class="flex justify-between">
+                            <dt class="text-slate-500">Created by</dt>
+                            <dd class="font-medium text-slate-800">{{ doc_obj.created_by.username|default:"—" }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-slate-500">Created at</dt>
+                            <dd class="font-medium text-slate-800">{{ doc_obj.created_at|date:"d M Y, H:i" }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-slate-500">Last updated by</dt>
+                            <dd class="font-medium text-slate-800">{{ doc_obj.updated_by.username|default:"—" }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-slate-500">Last updated</dt>
+                            <dd class="font-medium text-slate-800">{{ doc_obj.updated_at|date:"d M Y, H:i" }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                {% endif %}
+
+                <!-- Submit actions -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+                    <button type="submit" form="doc-form" class="jk-btn jk-btn-primary w-full justify-center py-2.5">
+                        {% if is_edit %}
+                        <svg class="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Save Changes
+                        {% else %}
+                        <svg class="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Create Document
+                        {% endif %}
+                    </button>
+                    <a href="{% url 'shared_docs_desk:list' %}"
+                       class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 w-full justify-center py-2.5">
+                        Cancel
+                    </a>
+                    {% if is_edit %}
+                    <!-- Quick toggle inline -->
+                    <form method="post" action="{% url 'shared_docs_desk:toggle_status' doc_obj.pk %}"
+                          onsubmit="return confirm('{% if doc_obj.is_active %}Revoke public access now?{% else %}Re-enable public access?{% endif %}');">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="jk-btn w-full justify-center py-2 text-xs
+                                {% if doc_obj.is_active %}bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200
+                                {% else %}bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200{% endif %}">
+                            {% if doc_obj.is_active %}
+                            <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                            Revoke Public Access
+                            {% else %}
+                            <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Re-enable Public Access
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Quill JS -->
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const hiddenInput = document.getElementById("doc_content");
+    const rawTextarea = document.getElementById("raw-html-textarea");
+    const richContainer = document.getElementById("editor-rich-container");
+    const rawContainer = document.getElementById("editor-raw-container");
+    const radios = document.querySelectorAll('input[name="editor_mode"]');
+
+    // Initialize Quill
+    const quill = new Quill("#quill-editor", {
+        theme: "snow",
+        placeholder: "Write your document content here…",
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, 3, 4, false] }],
+                [{ size: ["small", false, "large", "huge"] }],
+                ["bold", "italic", "underline", "strike"],
+                [{ color: [] }, { background: [] }],
+                ["blockquote", "code-block"],
+                [{ list: "ordered" }, { list: "bullet" }],
+                [{ indent: "-1" }, { indent: "+1" }],
+                ["link", "image", "video"],
+                ["clean"],
+            ],
+        },
+    });
+
+    // Helper to get selected mode
+    function getMode() {
+        const checked = document.querySelector('input[name="editor_mode"]:checked');
+        return checked ? checked.value : 'RICH_TEXT';
+    }
+
+    // Toggle visibility based on mode
+    function updateEditorVisibility() {
+        const mode = getMode();
+        if (mode === "RAW_HTML") {
+            richContainer.classList.add("hidden");
+            rawContainer.classList.remove("hidden");
+        } else {
+            richContainer.classList.remove("hidden");
+            rawContainer.classList.add("hidden");
+        }
+    }
+
+    // Bind events to radio buttons
+    radios.forEach(r => r.addEventListener("change", updateEditorVisibility));
+
+    // Load existing content
+    if (hiddenInput && hiddenInput.value) {
+        const mode = getMode();
+        if (mode === "RAW_HTML") {
+            rawTextarea.value = hiddenInput.value;
+        } else {
+            quill.root.innerHTML = hiddenInput.value;
+        }
+    }
+    
+    // Ensure raw text area has content if mode changes but page reloads
+    if(getMode() === 'RAW_HTML' && hiddenInput && hiddenInput.value) {
+        rawTextarea.value = hiddenInput.value;
+    }
+
+    // Initial visibility state
+    updateEditorVisibility();
+
+    // On form submit, sync the correct editor to hidden input
+    const form = document.getElementById("doc-form");
+    if (form) {
+        form.addEventListener("submit", function () {
+            if (hiddenInput) {
+                const mode = getMode();
+                if (mode === "RAW_HTML") {
+                    hiddenInput.value = rawTextarea.value;
+                } else {
+                    // Only save innerHTML if it's not totally empty (Quill leaves <p><br></p>)
+                    const qHtml = quill.root.innerHTML;
+                    hiddenInput.value = (qHtml === "<p><br></p>") ? "" : qHtml;
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
