@@ -1395,6 +1395,7 @@ def case_list(request):
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
     read_filter = request.GET.get("read_status", "")
+    unit_filter = request.GET.get("company_unit")
 
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
@@ -1429,6 +1430,8 @@ def case_list(request):
             cases = cases.filter(assigned_to_id=assigned_to_filter)
     if type_filter:
         cases = cases.filter(case_type=type_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if tags_filter:
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
@@ -1558,6 +1561,7 @@ def case_list_partial(request):
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
     read_filter = request.GET.get("read_status", "")
+    unit_filter = request.GET.get("company_unit")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -1583,6 +1587,8 @@ def case_list_partial(request):
             cases = cases.filter(assigned_to_id=assigned_to_filter)
     if type_filter:
         cases = cases.filter(case_type=type_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if tags_filter:
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
@@ -1663,6 +1669,7 @@ def case_kanban_partial(request):
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
     read_filter = request.GET.get("read_status", "")
+    unit_filter = request.GET.get("company_unit")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -1687,6 +1694,8 @@ def case_kanban_partial(request):
             cases = cases.filter(assigned_to_id=assigned_to_filter)
     if type_filter:
         cases = cases.filter(case_type=type_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if tags_filter:
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
@@ -2607,6 +2616,7 @@ def case_kanban(request):
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
     read_filter = request.GET.get("read_status", "")
+    unit_filter = request.GET.get("company_unit")
 
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
@@ -2633,6 +2643,8 @@ def case_kanban(request):
             cases = cases.filter(assigned_to_id=assigned_to_filter)
     if type_filter:
         cases = cases.filter(case_type=type_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if tags_filter:
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
@@ -2958,6 +2970,7 @@ def case_calendar(request):
     tags_filter = request.GET.get("tags", "").strip()
     followers_filter = request.GET.get("followers")
     read_filter = request.GET.get("read_status", "")
+    unit_filter = request.GET.get("company_unit")
 
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
@@ -2985,6 +2998,8 @@ def case_calendar(request):
             cases = cases.filter(assigned_to_id=assigned_to_filter)
     if type_filter:
         cases = cases.filter(case_type=type_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if tags_filter:
         cases = cases.filter(tags__icontains=tags_filter)
     if followers_filter:
@@ -3116,6 +3131,7 @@ def case_export_excel(request):
     status_filter = request.GET.get("status")
     source_filter = request.GET.get("source")
     category_filter = request.GET.get("category")
+    unit_filter = request.GET.get("company_unit")
     search_query = request.GET.get("q", "").strip()
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
@@ -3134,6 +3150,8 @@ def case_export_excel(request):
         cases = cases.filter(source=source_filter)
     if category_filter:
         cases = cases.filter(category__slug=category_filter)
+    if unit_filter:
+        cases = cases.filter(requester__unit_id=unit_filter)
     if search_query:
         cases = cases.filter(subject__icontains=search_query)
     if date_from:
