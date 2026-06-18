@@ -151,32 +151,40 @@
             <input type="hidden" name="form_type" value="wa_config">
 
             <!-- Toggles -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
-                <label class="flex items-start gap-3 cursor-pointer select-none group">
-                    <div class="relative mt-0.5">
-                        <input type="checkbox" name="wa_inbound_enabled" id="wa_inbound_enabled"
-                            class="sr-only peer" {% if site_cfg.wa_inbound_enabled %}checked{% endif %}>
-                        <div class="w-10 h-5 bg-slate-200 peer-checked:bg-green-500 rounded-full transition-colors peer-focus:ring-2 peer-focus:ring-green-300"></div>
-                        <div class="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
-                    </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <!-- Inbound Toggle -->
+                <div class="flex items-start gap-3">
+                    <button type="button" id="btn_inbound" onclick="waToggle('inbound')"
+                        class="relative inline-flex h-6 w-11 flex-shrink-0 mt-0.5 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1
+                        {% if site_cfg.wa_inbound_enabled %}bg-green-500{% else %}bg-slate-300{% endif %}"
+                        aria-pressed="{% if site_cfg.wa_inbound_enabled %}true{% else %}false{% endif %}">
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                            {% if site_cfg.wa_inbound_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
+                    </button>
+                    <input type="checkbox" name="wa_inbound_enabled" id="wa_inbound_enabled" class="sr-only"
+                        {% if site_cfg.wa_inbound_enabled %}checked{% endif %}>
                     <div>
-                        <span class="block text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Enable Inbound</span>
-                        <span class="block text-xs text-slate-500 mt-0.5">Incoming WhatsApp messages will create new tickets or thread to active ones.</span>
+                        <span class="block text-sm font-semibold text-slate-800">Enable Inbound</span>
+                        <span class="block text-xs text-slate-500 mt-0.5 leading-relaxed">Incoming WhatsApp messages will create new tickets or thread to active ones.</span>
                     </div>
-                </label>
+                </div>
 
-                <label class="flex items-start gap-3 cursor-pointer select-none group">
-                    <div class="relative mt-0.5">
-                        <input type="checkbox" name="wa_outbound_enabled" id="wa_outbound_enabled"
-                            class="sr-only peer" {% if site_cfg.wa_outbound_enabled %}checked{% endif %}>
-                        <div class="w-10 h-5 bg-slate-200 peer-checked:bg-green-500 rounded-full transition-colors peer-focus:ring-2 peer-focus:ring-green-300"></div>
-                        <div class="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
-                    </div>
+                <!-- Outbound Toggle -->
+                <div class="flex items-start gap-3">
+                    <button type="button" id="btn_outbound" onclick="waToggle('outbound')"
+                        class="relative inline-flex h-6 w-11 flex-shrink-0 mt-0.5 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1
+                        {% if site_cfg.wa_outbound_enabled %}bg-green-500{% else %}bg-slate-300{% endif %}"
+                        aria-pressed="{% if site_cfg.wa_outbound_enabled %}true{% else %}false{% endif %}">
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                            {% if site_cfg.wa_outbound_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
+                    </button>
+                    <input type="checkbox" name="wa_outbound_enabled" id="wa_outbound_enabled" class="sr-only"
+                        {% if site_cfg.wa_outbound_enabled %}checked{% endif %}>
                     <div>
-                        <span class="block text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Enable Outbound</span>
-                        <span class="block text-xs text-slate-500 mt-0.5">Allow staff to reply or escalate tickets via WhatsApp.</span>
+                        <span class="block text-sm font-semibold text-slate-800">Enable Outbound</span>
+                        <span class="block text-xs text-slate-500 mt-0.5 leading-relaxed">Allow staff to reply or escalate tickets via WhatsApp.</span>
                     </div>
-                </label>
+                </div>
             </div>
 
             <!-- Instance Names -->
@@ -575,5 +583,23 @@ document.addEventListener('DOMContentLoaded', function () {
         },
     });
 });
+
+function waToggle(key) {
+    const btn   = document.getElementById('btn_' + key);
+    const chk   = document.getElementById('wa_' + key + '_enabled');
+    const knob  = btn.querySelector('span');
+    const isOn  = chk.checked;
+
+    chk.checked = !isOn;
+    btn.setAttribute('aria-pressed', String(!isOn));
+
+    if (!isOn) {
+        btn.classList.replace('bg-slate-300', 'bg-green-500');
+        knob.classList.replace('translate-x-0', 'translate-x-5');
+    } else {
+        btn.classList.replace('bg-green-500', 'bg-slate-300');
+        knob.classList.replace('translate-x-5', 'translate-x-0');
+    }
+}
 </script>
 {% endblock %}
