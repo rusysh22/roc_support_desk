@@ -150,6 +150,35 @@
             {% csrf_token %}
             <input type="hidden" name="form_type" value="wa_config">
 
+            <!-- Toggles -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+                <label class="flex items-start gap-3 cursor-pointer select-none group">
+                    <div class="relative mt-0.5">
+                        <input type="checkbox" name="wa_inbound_enabled" id="wa_inbound_enabled"
+                            class="sr-only peer" {% if site_cfg.wa_inbound_enabled %}checked{% endif %}>
+                        <div class="w-10 h-5 bg-slate-200 peer-checked:bg-green-500 rounded-full transition-colors peer-focus:ring-2 peer-focus:ring-green-300"></div>
+                        <div class="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Enable Inbound</span>
+                        <span class="block text-xs text-slate-500 mt-0.5">Incoming WhatsApp messages will create new tickets or thread to active ones.</span>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 cursor-pointer select-none group">
+                    <div class="relative mt-0.5">
+                        <input type="checkbox" name="wa_outbound_enabled" id="wa_outbound_enabled"
+                            class="sr-only peer" {% if site_cfg.wa_outbound_enabled %}checked{% endif %}>
+                        <div class="w-10 h-5 bg-slate-200 peer-checked:bg-green-500 rounded-full transition-colors peer-focus:ring-2 peer-focus:ring-green-300"></div>
+                        <div class="absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">Enable Outbound</span>
+                        <span class="block text-xs text-slate-500 mt-0.5">Allow staff to reply or escalate tickets via WhatsApp.</span>
+                    </div>
+                </label>
+            </div>
+
             <!-- Instance Names -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

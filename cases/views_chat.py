@@ -683,11 +683,17 @@ def chat_send(request, case_uuid):
         text = (request.POST.get("body") or "").strip()
         quoted_message_id = None
 
-    if not text:
-        return JsonResponse({"error": "Message cannot be empty."}, status=400)
-
     user = request.user
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
+
+    # Check if outbound WA is enabled for staff replies
+    if is_staff and case.source == CaseRecord.Source.EVOLUTION_WA:
+        from core.models import SiteConfig
+        if not SiteConfig.get_solo().wa_outbound_enabled:
+            return JsonResponse({"error": "Outbound WhatsApp replies are currently disabled."}, status=403)
+
+    if not text:
+        return JsonResponse({"error": "Message cannot be empty."}, status=400)
 
     sender_employee = None
     sender_name = "User"

@@ -117,185 +117,255 @@
 
         <nav class="jk-sidebar-nav">
             {% block sidebar_nav %}
-            <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>Main</div>
-            <a href="{% url 'cases:dashboard' %}" class="jk-sidebar-link {% block nav_dashboard %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🎫</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Ticket Portal</span>
-            </a>
-            
-            <a href="{% url 'knowledge_base:home' %}" class="jk-sidebar-link {% block nav_kb %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📚</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Knowledge Base</span>
-            </a>
+            <div x-data="{ open: true }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>Portal</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <a href="{% url 'cases:dashboard' %}" class="jk-sidebar-link {% block nav_dashboard %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🎫</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Ticket Portal</span>
+                    </a>
+                    
+                    <a href="{% url 'knowledge_base:home' %}" class="jk-sidebar-link {% block nav_kb %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">📚</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Knowledge Base</span>
+                    </a>
 
-            {% if user.is_authenticated and user.role_access == 'PortalUser' %}
-            <a href="{% url 'chat:my_tickets' %}" class="jk-sidebar-link {% block nav_my_tickets %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🗂️</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>My Tickets</span>
-            </a>
-            {% endif %}
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'app_portal:portal' %}" class="jk-sidebar-link {% block nav_app_portal %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🚀</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>App Portal</span>
+                    </a>
+                    {% endif %}
 
-            {% if user.is_authenticated and user.role_access != 'PortalUser' %}
-            <a href="{% url 'chat:my_approvals' %}" class="jk-sidebar-link {% block nav_my_approvals %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">✅</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>My Approvals</span>
-            </a>
-            <a href="{% url 'esign:my_signatures' %}" class="jk-sidebar-link {% block nav_my_signatures %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">✍️</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>My Signatures</span>
-            </a>
-            {% endif %}
-
-            {% if user.is_authenticated %}
-            <a href="{% url 'app_portal:portal' %}" class="jk-sidebar-link {% block nav_app_portal %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🚀</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>App Portal</span>
-            </a>
-            {% endif %}
-
-            <a href="{% url 'manual:landing' %}" target="_blank" class="jk-sidebar-link">
-                <span class="jk-sidebar-link-icon">📖</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity class="flex items-center gap-1.5">
-                    User Manual
-                    <svg class="w-2.5 h-2.5 opacity-50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                </span>
-            </a>
+                    <a href="{% url 'manual:landing' %}" target="_blank" class="jk-sidebar-link">
+                        <span class="jk-sidebar-link-icon">📖</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity class="flex items-center gap-1.5">
+                            User Manual
+                            <svg class="w-2.5 h-2.5 opacity-50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                        </span>
+                    </a>
+                </div>
+            </div>
 
             {% if user.is_authenticated %}
+            <div x-data="{ open: true }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>My Workspace</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    {% if user.role_access == 'PortalUser' %}
+                    <a href="{% url 'chat:my_tickets' %}" class="jk-sidebar-link {% block nav_my_tickets %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🎟️</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>My Tickets</span>
+                    </a>
+                    {% endif %}
+
+                    {% if user.role_access != 'PortalUser' %}
+                    <a href="{% url 'chat:my_approvals' %}" class="jk-sidebar-link {% block nav_my_approvals %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">✅</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>My Approvals</span>
+                    </a>
+                    <a href="{% url 'esign:my_signatures' %}" class="jk-sidebar-link {% block nav_my_signatures %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">✍️</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>My Signatures</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
             {% if user.role_access != 'PortalUser' %}
-            <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>{{ user.get_role_access_display }}</div>
-            <a href="{% url 'desk:dashboard' %}" class="jk-sidebar-link {% block nav_dashboard_staff %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📊</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Dashboard</span>
-            </a>
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'desk:case_list' %}" class="jk-sidebar-link {% block nav_cases %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📋</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Task Management</span>
-            </a>
-            <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </a>
-            </div>
-            
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📖</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Knowledge Management</span>
-            </a>
-            <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </a>
-            </div>
-
-            {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'esign:document_list' %}" class="jk-sidebar-link {% block nav_esign %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📝</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>E-Sign</span>
-            </a>
-            </div>
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📝</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Form Creator</span>
-            </a>
-            <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </a>
-            </div>
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'projects_desk:project_list' %}" class="jk-sidebar-link {% block nav_projects %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📈</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Projects</span>
-            </a>
+            <div x-data="{ open: true }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>Workspace</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <a href="{% url 'desk:dashboard' %}" class="jk-sidebar-link {% block nav_dashboard_staff %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">📊</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Dashboard</span>
+                    </a>
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:case_list' %}" class="jk-sidebar-link {% block nav_cases %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📋</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Task Management</span>
+                        </a>
+                        <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </a>
+                    </div>
+                    
+                    {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'projects_desk:project_list' %}" class="jk-sidebar-link {% block nav_projects %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📈</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Projects</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
 
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'shared_docs_desk:list' %}" class="jk-sidebar-link {% block nav_docs %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📄</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Shared Docs</span>
-            </a>
+            <div x-data="{ open: false }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>Content & Docs</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'kb_desk:article_list' %}" class="jk-sidebar-link {% block nav_kb_mgmt %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📑</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Knowledge Management</span>
+                        </a>
+                        <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </a>
+                    </div>
+
+                    {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'esign:document_list' %}" class="jk-sidebar-link {% block nav_esign %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">✒️</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>E-Sign</span>
+                        </a>
+                    </div>
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📝</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Form Creator</span>
+                        </a>
+                        <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </a>
+                    </div>
+                    
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'shared_docs_desk:list' %}" class="jk-sidebar-link {% block nav_docs %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📂</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Shared Docs</span>
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">🔗</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Shorten Link</span>
+                        </a>
+                        <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </a>
+                    </div>
+                </div>
             </div>
             
             {% if user.role_access in 'SuperAdmin,Manager' %}
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'desk:category_list' %}" class="jk-sidebar-link {% block nav_categories %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">🗂️</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Categories</span>
-            </a>
-            </div>
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'desk:document_template_list' %}" class="jk-sidebar-link {% block nav_doc_templates %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">📄</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Document Templates</span>
-            </a>
-            </div>
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'desk:job_role_list' %}" class="jk-sidebar-link {% block nav_job_roles %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">🏷️</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Job Roles</span>
-            </a>
+            <div x-data="{ open: false }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>Configuration</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:category_list' %}" class="jk-sidebar-link {% block nav_categories %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">🗂️</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Categories</span>
+                        </a>
+                    </div>
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:document_template_list' %}" class="jk-sidebar-link {% block nav_doc_templates %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">📄</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Document Templates</span>
+                        </a>
+                    </div>
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:job_role_list' %}" class="jk-sidebar-link {% block nav_job_roles %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">🏷️</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>Job Roles</span>
+                        </a>
+                    </div>
+                </div>
             </div>
             {% endif %}
 
-            <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
-            <a href="{% url 'links_desk:list' %}" class="jk-sidebar-link {% block nav_links %}{% endblock %}" style="flex:1;">
-                <span class="jk-sidebar-link-icon">🔗</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Shorten Link</span>
-            </a>
-            <a x-show="!sidebarCollapsed" x-transition.opacity href="{% url 'docs_support' %}" target="_blank" title="Staff Guide" class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-white/25 hover:text-white/70 hover:bg-white/10 transition-all mr-1" style="text-decoration:none;">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </a>
-            </div>
-
-            {% endif %}
-
+            {% endif %}{# end role_access != PortalUser #}
             
             {% if user.role_access == 'SuperAdmin' %}
-            <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>Master Data</div>
-            <a href="{% url 'desk:apps_connection' %}" class="jk-sidebar-link {% block nav_apps_connection %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🔌</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Apps Connection</span>
-            </a>
-            <a href="{% url 'desk:company_unit_list' %}" class="jk-sidebar-link {% block nav_company_units %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🏢</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Units</span>
-            </a>
-            <a href="{% url 'users_desk:user_list' %}" class="jk-sidebar-link {% block nav_users %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">👥</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>User Management</span>
-            </a>
-            <a href="{% url 'docs_admin' %}" class="jk-sidebar-link {% block nav_admin_guide %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">📘</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Admin Guide</span>
-            </a>
+            <div x-data="{ open: false }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>Master Data</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <a href="{% url 'desk:apps_connection' %}" class="jk-sidebar-link {% block nav_apps_connection %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🔌</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Apps Connection</span>
+                    </a>
+                    <a href="{% url 'desk:company_unit_list' %}" class="jk-sidebar-link {% block nav_company_units %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🏢</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Units</span>
+                    </a>
+                    <a href="{% url 'users_desk:user_list' %}" class="jk-sidebar-link {% block nav_users %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">👥</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>User Management</span>
+                    </a>
+                    <a href="{% url 'docs_admin' %}" class="jk-sidebar-link {% block nav_admin_guide %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">📘</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Admin Guide</span>
+                    </a>
+                </div>
+            </div>
 
-            <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>License</div>
-            <a href="{% url 'licensing:status' %}" class="jk-sidebar-link {% block nav_license_status %}{% endblock %}">
-                <span class="jk-sidebar-link-icon">🪪</span>
-                <span x-show="!sidebarCollapsed" x-transition.opacity>Subscription
-                    <span class="ml-1 text-[9px] px-1 py-0.5 rounded font-bold uppercase
-                        {% if license_status == 'trial' %}bg-amber-500/20 text-amber-400
-                        {% elif license_status in 'active,grace' %}bg-emerald-500/20 text-emerald-400
-                        {% else %}bg-rose-500/20 text-rose-400{% endif %}">
-                        {{ license_status }}
-                    </span>
-                </span>
-            </a>
+            <div x-data="{ open: false }" class="flex flex-col gap-[2px]">
+                <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
+                     @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
+                    <span>License</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                         :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
+                    <a href="{% url 'licensing:status' %}" class="jk-sidebar-link {% block nav_license_status %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">🪪</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Subscription
+                            <span class="ml-1 text-[9px] px-1 py-0.5 rounded font-bold uppercase
+                                {% if license_status == 'trial' %}bg-amber-500/20 text-amber-400
+                                {% elif license_status in 'active,grace' %}bg-emerald-500/20 text-emerald-400
+                                {% else %}bg-rose-500/20 text-rose-400{% endif %}">
+                                {{ license_status }}
+                            </span>
+                        </span>
+                    </a>
+                </div>
+            </div>
             {% endif %}
 
             {% if user.is_superuser or user.role_access in 'SuperAdmin,Manager' %}
-            <a href="{% url 'admin:index' %}" class="jk-sidebar-link" target="_blank">
+            <a href="{% url 'admin:index' %}" class="jk-sidebar-link mt-1" target="_blank">
                 <span class="jk-sidebar-link-icon">⚙️</span>
                 <span x-show="!sidebarCollapsed" x-transition.opacity>Admin Master</span>
             </a>
             {% endif %}
 
-            {% endif %}{# end role_access != PortalUser #}
+            {% endif %}{# end is_authenticated #}
 
+            {% if user.is_authenticated %}
             <div class="jk-sidebar-section" x-show="!sidebarCollapsed" x-transition.opacity>Account</div>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
