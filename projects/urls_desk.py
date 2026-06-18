@@ -18,6 +18,9 @@ urlpatterns = [
     path("phase/<uuid:phase_id>/update/new/", views_desk.update_create, name="update_create"),
     path("update/<uuid:update_id>/edit/", views_desk.update_edit, name="update_edit"),
     path("update/<uuid:update_id>/delete/", views_desk.update_delete, name="update_delete"),
-    
-]
 
+    # Checklist
+    path("phase/<uuid:phase_id>/checklist/new/", views_desk.checklist_create, name="checklist_create"),
+    path("checklist/<uuid:checklist_id>/toggle/", views_desk.checklist_toggle, name="checklist_toggle"),
+    path("checklist/<uuid:checklist_id>/delete/", views_desk.checklist_delete, name="checklist_delete"),
+]
