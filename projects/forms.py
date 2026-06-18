@@ -34,10 +34,11 @@ class ProjectPhaseForm(forms.ModelForm):
 class ProjectUpdateForm(forms.ModelForm):
     class Meta:
         model = ProjectUpdate
-        fields = ["title", "content", "shared_doc", "attachment"]
+        fields = ["title", "content", "update_date", "shared_doc", "attachment"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "jk-input w-full"}),
             "content": forms.Textarea(attrs={"class": "jk-input w-full", "rows": 3}),
+            "update_date": forms.DateInput(attrs={"type": "date", "class": "jk-input w-full"}),
             "shared_doc": forms.Select(attrs={"class": "jk-input w-full"}),
             "attachment": forms.FileInput(attrs={"class": "block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-200 rounded-xl p-1"}),
         }

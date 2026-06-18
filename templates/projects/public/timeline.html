@@ -597,10 +597,10 @@
                                 <!-- Date marker -->
                                 <div class="flex-shrink-0 text-center pt-0.5">
                                     <span class="block text-[10px] font-bold text-slate-400 uppercase leading-none">
-                                        {{ update.created_at|date:"M" }}
+                                        {% if update.update_date %}{{ update.update_date|date:"M" }}{% else %}{{ update.created_at|date:"M" }}{% endif %}
                                     </span>
                                     <span class="block text-base font-extrabold text-slate-300 leading-none">
-                                        {{ update.created_at|date:"d" }}
+                                        {% if update.update_date %}{{ update.update_date|date:"d" }}{% else %}{{ update.created_at|date:"d" }}{% endif %}
                                     </span>
                                 </div>
                                 <!-- Content -->
@@ -928,9 +928,15 @@
                 <button type="button" onclick="closeModal('modal-add-update-{{ phase.id }}')" class="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
             <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
-                    <input type="text" name="title" required class="comment-input">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+                        <input type="text" name="title" required class="comment-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Update Date</label>
+                        <input type="date" name="update_date" class="comment-input">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Content</label>
@@ -961,9 +967,15 @@
                 <button type="button" onclick="closeModal('modal-edit-update-{{ update.id }}')" class="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
             <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
-                    <input type="text" name="title" value="{{ update.title }}" required class="comment-input">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+                        <input type="text" name="title" value="{{ update.title }}" required class="comment-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Update Date</label>
+                        <input type="date" name="update_date" value="{{ update.update_date|date:'Y-m-d' }}" class="comment-input">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Content</label>

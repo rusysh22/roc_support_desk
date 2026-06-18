@@ -189,6 +189,12 @@ class ProjectUpdate(AuditableModel):
         verbose_name="Attachment",
         help_text="Upload a photo, short video, or small document.",
     )
+    update_date = models.DateField(
+        null=True, 
+        blank=True,
+        verbose_name="Update Date",
+        help_text="Date of this update. Defaults to today if left blank."
+    )
 
     class Meta:
         verbose_name = "Project Update"
@@ -259,4 +265,44 @@ class ProjectComment(AuditableModel):
         if self.user:
             return self.user.username
         return self.guest_name or "Anonymous"
+
+
+# =====================================================================
+# Phase Checklist
+# =====================================================================
+
+class PhaseChecklist(AuditableModel):
+    """
+    A simple task or checklist item attached to a ProjectPhase.
+    Allows staff to check off granular tasks within a phase.
+    """
+    phase = models.ForeignKey(
+        ProjectPhase,
+        on_delete=models.CASCADE,
+        related_name="checklists",
+        verbose_name="Phase",
+    )
+    task_name = models.CharField(
+        max_length=255,
+        verbose_name="Task Name",
+        help_text="Description of the task to be completed.",
+    )
+    is_completed = models.BooleanField(
+        default=False,
+        verbose_name="Completed",
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Order",
+        help_text="Display order — lower numbers appear first.",
+    )
+
+    class Meta:
+        verbose_name = "Phase Checklist Item"
+        verbose_name_plural = "Phase Checklist Items"
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        status = "[x]" if self.is_completed else "[ ]"
+        return f"{status} {self.task_name}"
 

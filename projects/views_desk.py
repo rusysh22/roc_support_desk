@@ -6,7 +6,7 @@ from django.http import JsonResponse, HttpResponseForbidden
 from django.db.models import Q
 from django.urls import reverse
 
-from .models import Project, ProjectPhase, ProjectUpdate
+from .models import Project, ProjectPhase, ProjectUpdate, PhaseChecklist
 from .forms import ProjectForm, ProjectPhaseForm, ProjectUpdateForm
 
 
@@ -116,7 +116,7 @@ def project_edit(request, pk):
     else:
         form = ProjectForm(instance=project)
         
-    phases = project.phases.all().prefetch_related("updates")
+    phases = project.phases.all().prefetch_related("updates", "checklists")
     
     phase_form = ProjectPhaseForm()
     update_form = ProjectUpdateForm()
@@ -271,6 +271,67 @@ def update_delete(request, update_id):
         project_id = update.phase.project.pk
         update.delete()
         messages.success(request, "Update deleted.")
+        next_url = request.POST.get("next")
+        if next_url: return redirect(next_url)
+        return redirect("projects_desk:project_edit", pk=project_id)
+    return redirect("projects_desk:project_list")
+
+
+# ==============================================================================
+# CHECKLIST
+# ==============================================================================
+
+@login_required
+def checklist_create(request, phase_id):
+    phase = get_object_or_404(ProjectPhase, pk=phase_id)
+    if not can_edit_project(request.user, phase.project):
+        return HttpResponseForbidden()
+    
+    if request.method == "POST":
+        task_name = request.POST.get("task_name", "").strip()
+        if task_name:
+            PhaseChecklist.objects.create(
+                phase=phase,
+                task_name=task_name,
+                created_by=request.user,
+                updated_by=request.user
+            )
+            messages.success(request, "Checklist item added.")
+        else:
+            messages.error(request, "Task name cannot be empty.")
+        
+        next_url = request.POST.get("next")
+        if next_url: return redirect(next_url)
+    return redirect("projects_desk:project_edit", pk=phase.project.pk)
+
+
+@login_required
+def checklist_toggle(request, checklist_id):
+    checklist = get_object_or_404(PhaseChecklist, pk=checklist_id)
+    if not can_edit_project(request.user, checklist.phase.project):
+        return HttpResponseForbidden()
+    
+    if request.method == "POST":
+        checklist.is_completed = not checklist.is_completed
+        checklist.updated_by = request.user
+        checklist.save()
+        
+        next_url = request.POST.get("next")
+        if next_url: return redirect(next_url)
+        return redirect("projects_desk:project_edit", pk=checklist.phase.project.pk)
+    return redirect("projects_desk:project_list")
+
+
+@login_required
+def checklist_delete(request, checklist_id):
+    checklist = get_object_or_404(PhaseChecklist, pk=checklist_id)
+    if not can_edit_project(request.user, checklist.phase.project):
+        return HttpResponseForbidden()
+        
+    if request.method == "POST":
+        project_id = checklist.phase.project.pk
+        checklist.delete()
+        messages.success(request, "Checklist item deleted.")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
         return redirect("projects_desk:project_edit", pk=project_id)
