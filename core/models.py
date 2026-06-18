@@ -401,6 +401,16 @@ class SiteConfig(AuditableModel):
     )
 
     # --- WhatsApp Gateway Config (overrides .env values when set) ---
+    wa_inbound_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Enable Inbound (Create Ticket)",
+        help_text="If enabled, incoming WhatsApp messages will create new tickets or append to active sessions."
+    )
+    wa_outbound_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Enable Outbound (Reply/Escalate)",
+        help_text="If enabled, staff can send replies via WhatsApp and system can send outbound notifications."
+    )
     wa_main_instance = models.CharField(
         max_length=100,
         blank=True,

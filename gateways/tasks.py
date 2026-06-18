@@ -56,7 +56,14 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
         # ---------------------------------------------------------
         # 1. Parse the payload
         # ---------------------------------------------------------
+        from core.models import SiteConfig
+        site_config = SiteConfig.get_solo()
+        if not site_config.wa_inbound_enabled:
+            logger.info("Webhook ignored — Inbound WA is disabled in SiteConfig.")
+            return "ignored:inbound_disabled"
+
         from gateways.parsers import parse_evolution_webhook
+
         
         parsed_data = parse_evolution_webhook(payload)
         if not parsed_data:

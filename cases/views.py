@@ -1,4 +1,4 @@
-﻿"""
+"""
 Cases App — Views
 ==================
 Client-facing (public) and Admin/Staff (auth-required) views.
@@ -2059,6 +2059,13 @@ def case_forward_escalation(request, case_id):
         custom_message = request.POST.get("custom_message", "").strip()
         selected_message_ids = request.POST.get("selected_message_ids", "").strip()
 
+        if channel == "WHATSAPP":
+            from core.models import SiteConfig
+            if not SiteConfig.get_solo().wa_outbound_enabled:
+                from django.contrib import messages
+                messages.error(request, "Outbound WhatsApp messages are currently disabled.")
+                return redirect("desk:case_detail", case_id=case_id)
+
         if forward_to and channel in ["EMAIL", "WHATSAPP"]:
             from cases.models import Message
             # Use body prefix "*** TICKET ESCALATED VIA" to identify it as escalation later
@@ -3538,6 +3545,8 @@ def whatsapp_status_view(request):
     # Handle WA gateway config save (instance names + business hours)
     if request.method == 'POST' and request.POST.get('form_type') == 'wa_config':
         site_cfg = SiteConfig.get_solo()
+        site_cfg.wa_inbound_enabled = 'wa_inbound_enabled' in request.POST
+        site_cfg.wa_outbound_enabled = 'wa_outbound_enabled' in request.POST
         site_cfg.wa_main_instance = request.POST.get('wa_main_instance', '').strip()
         site_cfg.wa_notif_instance = request.POST.get('wa_notif_instance', '').strip()
         try:
