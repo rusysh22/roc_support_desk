@@ -1274,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const locationLine = [u.city, u.province].filter(Boolean).join(', ') || '—';
         const ticketLabel  = u.ticket_count === 1 ? '1 ticket' : u.ticket_count + ' tickets';
-        const viewUrl      = caseListBase + '?' + activeParams;
+        const viewUrl      = caseListBase + '?date_from={{ filter_date_from }}&date_to={{ filter_date_to }}&company_unit=' + encodeURIComponent(u.id);
 
         circle.bindPopup(
             '<div style="font-family:Inter,system-ui,sans-serif;min-width:200px;padding:3px 0;">' +

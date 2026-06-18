@@ -121,7 +121,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>Portal</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -155,11 +155,11 @@
             </div>
 
             {% if user.is_authenticated %}
-            <div x-data="{ open: true }" class="flex flex-col gap-[2px]">
+            <div x-data="{ open: false }" class="flex flex-col gap-[2px]">
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>My Workspace</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -188,7 +188,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>Workspace</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -221,7 +221,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>Content & Docs</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -277,7 +277,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>Configuration</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -310,7 +310,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>Master Data</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
@@ -337,7 +337,7 @@
                 <div class="jk-sidebar-section cursor-pointer hover:text-white transition-colors flex items-center justify-between group" 
                      @click="open = !open" x-show="!sidebarCollapsed" x-transition.opacity>
                     <span>License</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50 transition-all duration-200" 
+                    <svg class="w-3 h-3 opacity-40 group-hover:opacity-100 transition-all duration-200" 
                          :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="open || sidebarCollapsed" x-collapse class="flex flex-col gap-[2px]">
