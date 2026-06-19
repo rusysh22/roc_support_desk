@@ -69,6 +69,13 @@ class Project(AuditableModel):
         verbose_name="Public Editable",
         help_text="If enabled, unauthenticated visitors with the link can add phases and updates.",
     )
+    cover_image = models.ImageField(
+        upload_to="projects/covers/",
+        null=True,
+        blank=True,
+        verbose_name="Cover Image",
+        help_text="Optional banner image for the project timeline header.",
+    )
     followers = models.ManyToManyField(
         "core.User",
         blank=True,
