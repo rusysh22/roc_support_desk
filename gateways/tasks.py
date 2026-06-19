@@ -821,6 +821,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
             Message.objects.filter(case=case, is_deleted=False)
             .exclude(id=message_id)
             .select_related("sender_staff", "sender_employee")
+            .prefetch_related("attachments")
             .order_by("-sent_at")[:5]
         )
         
@@ -844,7 +845,21 @@ def send_outbound_email_task(self, message_id: str) -> str:
                     sender_name = "System"
                     
                 h_date_str = h_msg.sent_at.strftime("%Y-%m-%d %H:%M") if h_msg.sent_at else ""
-                plain_body_part = h_msg.body or "[Attachment/Media]"
+                plain_body_part = h_msg.body or ""
+                
+                atts = h_msg.attachments.all()
+                html_body_part = html_mod.escape(plain_body_part).replace(chr(10), '<br>')
+                
+                if atts:
+                    att_texts_plain = "\n".join([f"[📎 Attachment: {a.original_filename}]" for a in atts])
+                    plain_body_part = f"{plain_body_part}\n{att_texts_plain}".strip()
+                    
+                    att_texts_html = "<br>".join([f"📎 <i>{html_mod.escape(a.original_filename)}</i>" for a in atts])
+                    html_body_part += f"<div style='margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 12px; color: #64748b;'>{att_texts_html}</div>"
+                    
+                if not plain_body_part:
+                    plain_body_part = "[Empty Message]"
+                    
                 plain_history += f"On {h_date_str}, {sender_name} wrote:\n> {plain_body_part.replace(chr(10), chr(10)+'> ')}\n\n"
                 
                 html_history += f"""
@@ -853,7 +868,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
                   <strong>{html_mod.escape(sender_name)}</strong> <span style="color:#94a3b8;">on {h_date_str}</span>
                 </p>
                 <div style="color: #334155; font-size: 14px; line-height: 1.5;">
-                  {html_mod.escape(plain_body_part).replace(chr(10), '<br>')}
+                  {html_body_part}
                 </div>
               </div>
                 """
