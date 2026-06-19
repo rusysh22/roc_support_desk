@@ -816,9 +816,53 @@ def send_outbound_email_task(self, message_id: str) -> str:
         case_number = case.case_number  # e.g. CASE-2A8E62EA
         subject = f"Re: [{case_number}] {case.subject}"
 
+        # Get history messages for context thread
+        history_msgs = (
+            Message.objects.filter(case=case, is_deleted=False)
+            .exclude(id=message_id)
+            .select_related("sender_staff", "sender_employee")
+            .order_by("-sent_at")[:5]
+        )
+        
+        plain_history = ""
+        html_history = ""
+        
+        if history_msgs:
+            plain_history += "\n\n---\nPrevious Messages:\n\n"
+            html_history += """
+            <div style="margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 24px;">
+              <p style="color:#64748b;font-size:13px;font-weight:600;text-transform:uppercase;margin:0 0 16px;">Previous Messages</p>
+            """
+            for h_msg in history_msgs:
+                if h_msg.sender_staff:
+                    sender_name = h_msg.sender_staff.get_full_name() or h_msg.sender_staff.username
+                elif h_msg.sender_employee:
+                    sender_name = h_msg.sender_employee.full_name
+                elif h_msg.is_system:
+                    sender_name = "System"
+                else:
+                    sender_name = "System"
+                    
+                h_date_str = h_msg.sent_at.strftime("%Y-%m-%d %H:%M") if h_msg.sent_at else ""
+                plain_body_part = h_msg.body or "[Attachment/Media]"
+                plain_history += f"On {h_date_str}, {sender_name} wrote:\n> {plain_body_part.replace(chr(10), chr(10)+'> ')}\n\n"
+                
+                html_history += f"""
+              <div style="margin-bottom: 16px; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #cbd5e1;">
+                <p style="margin: 0 0 4px; font-size: 12px; color: #475569;">
+                  <strong>{html_mod.escape(sender_name)}</strong> <span style="color:#94a3b8;">on {h_date_str}</span>
+                </p>
+                <div style="color: #334155; font-size: 14px; line-height: 1.5;">
+                  {html_mod.escape(plain_body_part).replace(chr(10), '<br>')}
+                </div>
+              </div>
+                """
+            html_history += "</div>"
+
         # Plain text fallback
         plain_body = (
-            f"{msg.body}\n\n"
+            f"{msg.body}\n"
+            f"{plain_history}\n"
             f"---\n"
             f"{site_name} · Ticket {case_number}\n"
             f"Please reply to this email to add a comment or reopen the ticket."
@@ -857,6 +901,7 @@ def send_outbound_email_task(self, message_id: str) -> str:
             <div style="color:#334155;font-size:15px;line-height:1.7;">
               {safe_body}
             </div>
+            {html_history}
           </td>
         </tr>
 
