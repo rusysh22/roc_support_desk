@@ -180,6 +180,7 @@ def phase_create(request, project_id):
             phase.save()
             messages.success(request, "Phase added.")
         else:
+            print("phase_create errors:", form.errors)
             messages.error(request, "Error adding phase.")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
@@ -199,6 +200,7 @@ def phase_edit(request, phase_id):
             p.save()
             messages.success(request, "Phase updated.")
         else:
+            print("phase_edit errors:", form.errors)
             messages.error(request, "Error updating phase.")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
