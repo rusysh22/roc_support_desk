@@ -69,6 +69,13 @@ class Project(AuditableModel):
         verbose_name="Public Editable",
         help_text="If enabled, unauthenticated visitors with the link can add phases and updates.",
     )
+    cover_image = models.ImageField(
+        upload_to="projects/covers/",
+        null=True,
+        blank=True,
+        verbose_name="Cover Image",
+        help_text="Optional banner image for the project timeline header.",
+    )
     followers = models.ManyToManyField(
         "core.User",
         blank=True,
@@ -117,10 +124,10 @@ class ProjectPhase(AuditableModel):
         verbose_name="Phase Name",
         help_text="Phase name (e.g. Blueprint Signed, Development, UAT).",
     )
-    order = models.PositiveIntegerField(
+    order = models.IntegerField(
         default=0,
         verbose_name="Order",
-        help_text="Display order — lower numbers appear first.",
+        help_text="Display order — lower numbers appear first (can be negative).",
     )
     status = models.CharField(
         max_length=20,
@@ -291,10 +298,10 @@ class PhaseChecklist(AuditableModel):
         default=False,
         verbose_name="Completed",
     )
-    order = models.PositiveIntegerField(
+    order = models.IntegerField(
         default=0,
         verbose_name="Order",
-        help_text="Display order — lower numbers appear first.",
+        help_text="Display order — lower numbers appear first (can be negative).",
     )
 
     class Meta:

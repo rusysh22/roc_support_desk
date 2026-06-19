@@ -78,7 +78,7 @@ def project_create(request):
         return redirect("projects_desk:project_list")
         
     if request.method == "POST":
-        form = ProjectForm(request.POST)
+        form = ProjectForm(request.POST, request.FILES)
         if form.is_valid():
             project = form.save(commit=False)
             project.created_by = request.user
@@ -106,7 +106,7 @@ def project_edit(request, pk):
     if request.method == "POST":
         # Handle Project Main Form
         if "action" in request.POST and request.POST["action"] == "edit_project":
-            form = ProjectForm(request.POST, instance=project)
+            form = ProjectForm(request.POST, request.FILES, instance=project)
             if form.is_valid():
                 p = form.save(commit=False)
                 p.updated_by = request.user

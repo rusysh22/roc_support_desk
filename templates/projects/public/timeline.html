@@ -394,7 +394,7 @@
 <!-- ══════════════════════════════════════
      HERO SECTION
 ══════════════════════════════════════ -->
-<section class="hero-gradient text-white">
+<section class="hero-gradient text-white" {% if project.cover_image %}style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.85) 0%, rgba(124, 58, 237, 0.75) 50%, rgba(147, 51, 234, 0.65) 100%), url('{{ project.cover_image.url }}') center/cover no-repeat;"{% endif %}>
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
         <div class="flex flex-col gap-4">
