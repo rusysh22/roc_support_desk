@@ -90,6 +90,7 @@ class ContentSecurityPolicyMiddleware:
             "https://cdn.jsdelivr.net "
             "https://unpkg.com "
             "https://esm.sh "
+            "https://libur.deno.dev "
             "https://nominatim.openstreetmap.org; "
         "worker-src blob: https://cdn.jsdelivr.net; "
         "frame-ancestors 'none'; "

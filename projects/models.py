@@ -117,10 +117,10 @@ class ProjectPhase(AuditableModel):
         verbose_name="Phase Name",
         help_text="Phase name (e.g. Blueprint Signed, Development, UAT).",
     )
-    order = models.PositiveIntegerField(
+    order = models.IntegerField(
         default=0,
         verbose_name="Order",
-        help_text="Display order — lower numbers appear first.",
+        help_text="Display order — lower numbers appear first (can be negative).",
     )
     status = models.CharField(
         max_length=20,
@@ -291,10 +291,10 @@ class PhaseChecklist(AuditableModel):
         default=False,
         verbose_name="Completed",
     )
-    order = models.PositiveIntegerField(
+    order = models.IntegerField(
         default=0,
         verbose_name="Order",
-        help_text="Display order — lower numbers appear first.",
+        help_text="Display order — lower numbers appear first (can be negative).",
     )
 
     class Meta:
