@@ -249,8 +249,8 @@ def document_replace_pdf(request, pk):
             detail="Document amended (PDF replaced)"
         )
         
-        messages.success(request, f"Document amended successfully ({doc.page_count} page(s) detected). Existing signatures have been restamped.")
-        return redirect("esign:document_detail", pk=doc.pk)
+        messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected). Please verify and adjust signature placements if the layout has changed.")
+        return redirect("esign:document_adjust_placements", pk=doc.pk)
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
     return redirect("esign:document_list")
@@ -463,6 +463,119 @@ def save_configuration(request, pk):
         )
 
     return JsonResponse({"ok": True, "signer_count": len(created_signers)})
+
+
+# ---------------------------------------------------------------------------
+# Adjust placements (PENDING only)
+# ---------------------------------------------------------------------------
+
+@_staff_required
+def document_adjust_placements(request, pk):
+    import json as _json
+
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+
+    if doc.created_by != request.user:
+        return HttpResponseForbidden("You do not have permission to configure this document.")
+
+    if doc.status != SignatureDocument.Status.PENDING:
+        messages.error(request, "Placements can only be manually adjusted while the document is pending.")
+        return redirect("esign:document_detail", pk=doc.pk)
+
+    signers = list(doc.signers.order_by("order").select_related("user"))
+    placements = list(doc.placements.order_by("page_number", "signer__order").select_related("signer"))
+
+    # Build signer-ID → index map for placement pre-load
+    signer_id_to_idx = {str(s.id): i for i, s in enumerate(signers)}
+
+    initial_signers = [
+        {
+            "type": "user" if s.user_id else "external",
+            "userId": str(s.user_id) if s.user_id else None,
+            "name": s.display_name,
+            "email": s.email,
+            "order": s.order,
+            "role": s.role,
+        }
+        for s in signers
+    ]
+
+    initial_placements = [
+        {
+            "signerIndex": signer_id_to_idx.get(str(p.signer_id), 0),
+            "page": p.page_number,
+            "x": p.x,
+            "y": p.y,
+            "w": p.width,
+            "h": p.height,
+        }
+        for p in placements
+    ]
+
+    return render(request, "esign/document_adjust_placements.html", {
+        "doc": doc,
+        "signers": signers,
+        "placements": placements,
+        "page_range": range(1, doc.page_count + 1),
+        "initial_signers_json": _json.dumps(initial_signers),
+        "initial_placements_json": _json.dumps(initial_placements),
+    })
+
+
+@_staff_required
+@require_POST
+def save_placements(request, pk):
+    """
+    Accept JSON body with placements, replacing existing ones for PENDING document.
+    Does NOT touch signers. Re-generates preview PDF after saving.
+    """
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user or doc.status != SignatureDocument.Status.PENDING:
+        return JsonResponse({"ok": False, "error": "Forbidden"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+
+    placement_data = data.get("placements", [])
+
+    signers = list(doc.signers.order_by("order"))
+
+    # Delete only the old placements, DO NOT delete signers
+    doc.placements.all().delete()
+
+    for p in placement_data:
+        idx = int(p.get("signer_index", 0))
+        if idx >= len(signers):
+            continue
+        signer = signers[idx]
+        SignaturePlacement.objects.create(
+            document=doc,
+            signer=signer,
+            field_type=p.get("field_type", SignaturePlacement.FieldType.SIGNATURE),
+            page_number=int(p.get("page", 1)),
+            x=float(p.get("x", 0)),
+            y=float(p.get("y", 0)),
+            width=float(p.get("w", 0.2)),
+            height=float(p.get("h", 0.08)),
+            created_by=request.user,
+            updated_by=request.user,
+        )
+
+    # Re-stamp the preview PDF with the newly saved coordinates
+    from .services import _update_preview_pdf, _log
+    from .models import SignatureEvent
+    _update_preview_pdf(doc)
+
+    ip, _ = get_client_ip(request)
+    _log(
+        doc, SignatureEvent.Event.AMENDED,
+        actor_user=request.user, ip=ip,
+        detail="Signature placements manually adjusted."
+    )
+
+    return JsonResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------

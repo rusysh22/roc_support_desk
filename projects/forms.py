@@ -22,6 +22,11 @@ class ProjectPhaseForm(forms.ModelForm):
     class Meta:
         model = ProjectPhase
         fields = ["name", "description", "order", "status", "start_date", "end_date"]
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["order"].required = False
+        self.fields["order"].initial = 0
         widgets = {
             "name": forms.TextInput(attrs={"class": "jk-input w-full", "placeholder": "E.g. Planning"}),
             "description": forms.Textarea(attrs={"class": "jk-input w-full", "rows": 2}),
