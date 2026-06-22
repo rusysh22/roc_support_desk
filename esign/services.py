@@ -163,12 +163,14 @@ def _update_preview_pdf(document):
     pdf_bytes = stamp_document(document)
     if not pdf_bytes:
         return
+    import uuid
     safe_title = document.title.replace(" ", "_")[:50]
+    random_hash = uuid.uuid4().hex[:6]
     if document.preview_pdf:
         document.preview_pdf.delete(save=False)
     # save=False then explicit update_fields avoids overwriting other fields
     document.preview_pdf.save(
-        f"{safe_title}_preview.pdf",
+        f"{safe_title}_{random_hash}_preview.pdf",
         ContentFile(pdf_bytes),
         save=False,
     )
@@ -214,9 +216,11 @@ def _finalize(document):
     pdf_bytes = stamp_document(document)
     if pdf_bytes:
         from django.core.files.base import ContentFile
+        import uuid
         safe_title = document.title.replace(" ", "_")[:60]
+        random_hash = uuid.uuid4().hex[:6]
         document.signed_pdf.save(
-            f"{safe_title}_signed.pdf",
+            f"{safe_title}_{random_hash}_signed.pdf",
             ContentFile(pdf_bytes),
             save=False,
         )

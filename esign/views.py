@@ -214,6 +214,10 @@ def document_replace_pdf(request, pk):
     # Delete old file and save new one
     if doc.original_pdf:
         doc.original_pdf.delete(save=False)
+    
+    # Prepend a random string to the filename to break browser cache
+    import uuid
+    new_pdf.name = f"{uuid.uuid4().hex[:8]}_{new_pdf.name}"
     doc.original_pdf = new_pdf
 
     # Recount pages
@@ -635,11 +639,11 @@ def save_placements(request, pk):
         doc.save(update_fields=["status"])
 
     # Re-stamp the preview or final PDF
-    from .services import _update_preview_pdf, _finalize_document, _log
+    from .services import _update_preview_pdf, _finalize, _log
     from .models import SignatureEvent
     
     if doc.is_complete:
-        _finalize_document(doc)
+        _finalize(doc)
     else:
         _update_preview_pdf(doc)
 
