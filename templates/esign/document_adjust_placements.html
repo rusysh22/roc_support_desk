@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Adjust Placements — {{ doc.title }}{% endblock %}
+{% block title %}Manage Signers — {{ doc.title }}{% endblock %}
 {% block nav_esign %}active{% endblock %}
-{% block page_title %}Adjust Placements — {{ doc.title }}{% endblock %}
+{% block page_title %}Manage Signers — {{ doc.title }}{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -423,6 +423,12 @@ document.addEventListener('alpine:init', () => {
         async saveAndSend() {
             this.saving = true;
             const payload = {
+                signers: this.signers.map(s => ({
+                    id: s.id,
+                    type: s.type, userId: s.userId,
+                    name: s.name, email: s.email,
+                    order: s.order, role: s.role,
+                })),
                 placements: this.placements.map(p => ({
                     signer_index: p.signerIndex,
                     page: p.page, x: p.x, y: p.y, w: p.w, h: p.h,
@@ -468,7 +474,7 @@ document.addEventListener('alpine:init', () => {
             </a>
         </div>
         <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
-        <p class="text-sm text-slate-500 mt-0.5">Adjust signature box placements for existing signers.</p>
+        <p class="text-sm text-slate-500 mt-0.5">Manage signers and adjust signature box placements.</p>
     </div>
     <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
         <a href="{% url 'esign:document_detail' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Cancel</a>
@@ -501,6 +507,13 @@ document.addEventListener('alpine:init', () => {
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700"
                           x-text="signers.length" x-show="signers.length > 0"></span>
                 </div>
+                <button @click="addSignerModal = true"
+                        class="inline-flex items-center gap-1 jk-btn jk-btn-sm jk-btn-primary">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add
+                </button>
             </div>
 
             <div class="divide-y divide-slate-100 max-h-56 overflow-y-auto">
@@ -530,6 +543,13 @@ document.addEventListener('alpine:init', () => {
                                         : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'"
                                     class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors">
                                 <span x-text="selectedSigner === idx ? '✓ Active' : 'Select'"></span>
+                            </button>
+                            <button @click="removeSigner(idx)"
+                                    class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </template>
@@ -630,9 +650,9 @@ document.addEventListener('alpine:init', () => {
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                <span x-text="saving ? 'Saving…' : 'Save & Restamp Signatures'"></span>
+                <span x-text="saving ? 'Saving…' : 'Save Document & Restamp'"></span>
             </button>
-            <p class="text-xs text-slate-400 mt-2 text-center">Placements will be saved and the document preview restamped.</p>
+            <p class="text-xs text-slate-400 mt-2 text-center">Modifications will be saved and the document preview restamped.</p>
         </div>
 
     </div><!-- end left panel -->
@@ -793,4 +813,133 @@ document.addEventListener('alpine:init', () => {
 
 
 </div>
+
+<!-- ── Add Signer Modal ── -->
+<template x-teleport="body">
+    <div x-show="addSignerModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+         @click.self="addSignerModal = false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <h3 class="font-bold text-slate-800">Add Signer</h3>
+                <button @click="addSignerModal = false" class="text-slate-400 hover:text-slate-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="p-5 overflow-y-auto flex-1 space-y-5">
+                <!-- Type Toggle -->
+                <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                    <button @click="newSignerType = 'user'; newSigner.name = ''; newSigner.email = ''; newSigner.userId = null"
+                            :class="newSignerType === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                            class="flex-1 py-2 text-sm font-semibold transition-colors border-r border-slate-200">
+                        System User
+                    </button>
+                    <button @click="newSignerType = 'external'; newSigner.name = ''; newSigner.email = ''; newSigner.userId = null"
+                            :class="newSignerType === 'external' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                            class="flex-1 py-2 text-sm font-semibold transition-colors">
+                        External Contact
+                    </button>
+                </div>
+
+                <!-- Internal User Search -->
+                <div x-show="newSignerType === 'user'" class="space-y-4">
+                    <div class="jk-form-group relative">
+                        <label class="jk-label">Search System User</label>
+                        <div class="relative">
+                            <svg class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
+                                   placeholder="Type name or email..." class="jk-input w-full pl-9">
+                        </div>
+                        
+                        <!-- Search Results Dropdown -->
+                        <div x-show="userResults.length > 0" @click.away="userResults = []"
+                             class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            <template x-for="u in userResults" :key="u.id">
+                                <button @click="selectFoundUser(u)"
+                                        class="w-full text-left px-4 py-2 hover:bg-slate-50 flex flex-col border-b border-slate-50 last:border-0">
+                                    <span class="text-sm font-semibold text-slate-700" x-text="u.name"></span>
+                                    <span class="text-xs text-slate-400" x-text="u.email"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- External Contact Search / Manual Entry -->
+                <div x-show="newSignerType === 'external'" class="space-y-4">
+                    <!-- Directory Search -->
+                    <div class="jk-form-group relative">
+                        <label class="jk-label">Search Directory (Optional)</label>
+                        <div class="relative">
+                            <svg class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <input type="text" x-model="employeeQuery" @input.debounce.300ms="searchEmployees()"
+                                   placeholder="Search by name or department..." class="jk-input w-full pl-9">
+                        </div>
+                        
+                        <!-- Employee Search Results -->
+                        <div x-show="employeeResults.length > 0" @click.away="employeeResults = []"
+                             class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            <template x-for="e in employeeResults" :key="e.id">
+                                <button @click="selectFoundEmployee(e)"
+                                        class="w-full text-left px-4 py-2 hover:bg-slate-50 flex flex-col border-b border-slate-50 last:border-0">
+                                    <span class="text-sm font-semibold text-slate-700" x-text="e.name"></span>
+                                    <div class="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+                                        <span x-text="e.company"></span>
+                                        <span x-show="e.department" x-text="'• ' + e.department"></span>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4 py-2">
+                        <div class="h-px bg-slate-200 flex-1"></div>
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-widest">OR ENTER DETAILS</span>
+                        <div class="h-px bg-slate-200 flex-1"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="jk-form-group">
+                            <label class="jk-label">Full Name <span class="text-red-500">*</span></label>
+                            <input type="text" x-model="newSigner.name" class="jk-input w-full">
+                        </div>
+                        <div class="jk-form-group">
+                            <label class="jk-label">Email Address <span class="text-red-500">*</span></label>
+                            <input type="email" x-model="newSigner.email" class="jk-input w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shared Settings (Role & Order) -->
+                <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                    <div class="jk-form-group">
+                        <label class="jk-label">Role</label>
+                        <select x-model="newSigner.role" class="jk-select w-full">
+                            <option value="signer">Signer</option>
+                            <option value="approver">Approver</option>
+                        </select>
+                    </div>
+                    <div class="jk-form-group">
+                        <label class="jk-label">Signing Order</label>
+                        <input type="number" min="1" x-model.number="newSigner.order" class="jk-input w-full text-center">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 flex-shrink-0">
+                <button @click="addSignerModal = false" class="jk-btn jk-btn-outline">Cancel</button>
+                <button @click="confirmAddSigner()" 
+                        :disabled="!newSigner.name || !newSigner.email"
+                        class="jk-btn jk-btn-primary">Add Signer</button>
+            </div>
+        </div>
+    </div>
+</template>
+
 {% endblock %}
