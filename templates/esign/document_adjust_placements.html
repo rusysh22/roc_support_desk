@@ -1,0 +1,796 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Adjust Placements — {{ doc.title }}{% endblock %}
+{% block nav_esign %}active{% endblock %}
+{% block page_title %}Adjust Placements — {{ doc.title }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; }
+#pdf-canvas { display: block; max-width: 100%; border-radius: 6px; }
+.placement-box {
+    position: absolute;
+    border: 2px dashed #6366f1;
+    background: rgba(99,102,241,0.1);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #4f46e5;
+    font-weight: 600;
+    user-select: none;
+}
+.placement-box .remove-btn {
+    position: absolute;
+    top: -8px; right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 9999px;
+    width: 18px; height: 18px;
+    font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; line-height: 1;
+}
+.resize-handle {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: white;
+    border: 2px solid #6366f1;
+    border-radius: 2px;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.resize-handle.nw { top:-5px;  left:-5px;            cursor:nw-resize }
+.resize-handle.n  { top:-5px;  left:calc(50% - 5px); cursor:n-resize  }
+.resize-handle.ne { top:-5px;  right:-5px;            cursor:ne-resize }
+.resize-handle.e  { top:calc(50% - 5px); right:-5px;  cursor:e-resize  }
+.resize-handle.se { bottom:-5px; right:-5px;           cursor:se-resize }
+.resize-handle.s  { bottom:-5px; left:calc(50% - 5px);cursor:s-resize  }
+.resize-handle.sw { bottom:-5px; left:-5px;            cursor:sw-resize }
+.resize-handle.w  { top:calc(50% - 5px); left:-5px;   cursor:w-resize  }
+/* Push content above the sticky send bar on mobile */
+@media (max-width: 1024px) {
+    #configure-content { padding-bottom: 80px; }
+}
+</style>
+
+<script>
+const PDF_URL            = "{{ doc.original_pdf.url }}";
+const SAVE_URL           = "{% url 'esign:save_placements' pk=doc.pk %}";
+const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
+const USER_SEARCH_URL    = "{% url 'esign:user_search' %}";
+const EMPLOYEE_SEARCH_URL = "{% url 'esign:employee_search' %}";
+const DOC_PAGE_COUNT     = {{ doc.page_count }};
+
+const _pdfConfigure = { doc: null };
+
+
+const INITIAL_ROUTING_MODE = "{{ doc.routing_mode|default:'sequential' }}";
+const INITIAL_SIGNERS      = {{ initial_signers_json|safe }};
+const INITIAL_PLACEMENTS   = {{ initial_placements_json|safe }};
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('esignConfigure', () => ({
+        signers: [...INITIAL_SIGNERS],
+        placements: INITIAL_PLACEMENTS.map(p => ({ ...p })),
+        selectedSigner: INITIAL_SIGNERS.length > 0 ? 0 : null,
+        placingMode: false,
+        routingMode: INITIAL_ROUTING_MODE,
+
+        currentPage: 1,
+        saving: false,
+        addSignerModal: false,
+        newSignerType: 'user',
+        newSigner: { name: '', email: '', userId: null, order: 1, role: 'signer' },
+        userQuery: '',
+        userResults: [],
+        employeeQuery: '',
+        employeeResults: [],
+        canvasEl: null,
+        wrapEl: null,
+        canvasW: 0,
+        canvasH: 0,
+        dragging: null,
+        resizing: null,
+        viewMode: 'paged',          // 'paged' | 'scroll'
+        scrollCanvasSizes: [],       // [{width, height}] indexed by page-1
+        pages: Array.from({ length: DOC_PAGE_COUNT }, (_, i) => i + 1),
+        _scrollObserver: null,
+
+        async init() {
+            this.canvasEl = document.getElementById('pdf-canvas');
+            this.wrapEl   = document.getElementById('pdf-viewer-wrap');
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+            _pdfConfigure.doc = await pdfjsLib.getDocument({
+                url: PDF_URL,
+                disableRange: true,
+                disableStream: true,
+            }).promise;
+            await this.renderPage(1);
+        },
+
+        async renderPage(num) {
+            if (!_pdfConfigure.doc) return;
+            this.currentPage = num;
+            const page = await _pdfConfigure.doc.getPage(num);
+            const viewport = page.getViewport({ scale: 1 });
+            const wrapW = this.wrapEl.clientWidth || 700;
+            const scale = wrapW / viewport.width;
+            const scaled = page.getViewport({ scale });
+            this.canvasEl.width  = scaled.width;
+            this.canvasEl.height = scaled.height;
+            this.canvasW = scaled.width;
+            this.canvasH = scaled.height;
+            await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
+        },
+
+        changePage(delta) {
+            const next = this.currentPage + delta;
+            if (next >= 1 && next <= DOC_PAGE_COUNT) this.renderPage(next);
+        },
+
+        goToPage(num) {
+            if (num >= 1 && num <= DOC_PAGE_COUNT) {
+                if (this.viewMode === 'scroll') {
+                    const el = document.getElementById(`scroll-page-${num}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    this.currentPage = num;
+                } else {
+                    this.renderPage(num);
+                }
+            }
+        },
+
+        async switchViewMode(mode) {
+            if (mode === this.viewMode) return;
+            if (mode === 'paged' && this._scrollObserver) {
+                this._scrollObserver.disconnect();
+                this._scrollObserver = null;
+            }
+            this.viewMode = mode;
+            if (mode === 'scroll') {
+                await this.$nextTick();
+                await this.renderScrollPages();
+            } else {
+                await this.renderPage(this.currentPage);
+            }
+        },
+
+        async renderScrollPages() {
+            if (!_pdfConfigure.doc) return;
+            const outer = document.getElementById('pdf-scroll-outer');
+            if (!outer) return;
+            const wrapW = outer.clientWidth - 8;
+            const sizes = new Array(DOC_PAGE_COUNT).fill(null);
+            for (let i = 1; i <= DOC_PAGE_COUNT; i++) {
+                const page = await _pdfConfigure.doc.getPage(i);
+                const vp0   = page.getViewport({ scale: 1 });
+                const scale = wrapW / vp0.width;
+                const vp    = page.getViewport({ scale });
+                const canvas = document.getElementById(`scroll-canvas-${i}`);
+                if (!canvas) continue;
+                canvas.width  = vp.width;
+                canvas.height = vp.height;
+                sizes[i - 1] = { width: vp.width, height: vp.height };
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            }
+            this.scrollCanvasSizes = sizes;
+            this._setupScrollObserver();
+        },
+
+        _setupScrollObserver() {
+            if (this._scrollObserver) this._scrollObserver.disconnect();
+            const root = document.getElementById('pdf-scroll-outer');
+            if (!root) return;
+            this._scrollObserver = new IntersectionObserver(entries => {
+                let best = this.currentPage, bestRatio = 0;
+                for (const e of entries) {
+                    if (e.isIntersecting && e.intersectionRatio > bestRatio) {
+                        bestRatio = e.intersectionRatio;
+                        best = parseInt(e.target.dataset.page);
+                    }
+                }
+                if (bestRatio > 0) this.currentPage = best;
+            }, { root, threshold: [0, 0.25, 0.5, 0.75, 1.0] });
+            for (let i = 1; i <= DOC_PAGE_COUNT; i++) {
+                const el = document.getElementById(`scroll-page-${i}`);
+                if (el) this._scrollObserver.observe(el);
+            }
+        },
+
+        onCanvasClick(e) {
+            if (this.dragging) return;
+            if (!this.placingMode || this.selectedSigner === null) return;
+            const rect = this.wrapEl.getBoundingClientRect();
+            const xPx = e.clientX - rect.left;
+            const yPx = e.clientY - rect.top;
+            this.placements.push({
+                signerIndex: this.selectedSigner,
+                page: this.currentPage,
+                x: xPx / this.canvasW,
+                y: yPx / this.canvasH,
+                w: 0.22,
+                h: 0.08,
+            });
+            this.placingMode = false;
+        },
+
+        onScrollPageClick(e, pageNum) {
+            if (this.dragging) return;
+            if (!this.placingMode || this.selectedSigner === null) return;
+            const canvas = document.getElementById(`scroll-canvas-${pageNum}`);
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const xPx = e.clientX - rect.left;
+            const yPx = e.clientY - rect.top;
+            if (xPx < 0 || yPx < 0 || xPx > rect.width || yPx > rect.height) return;
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return;
+            this.placements.push({
+                signerIndex: this.selectedSigner,
+                page: pageNum,
+                x: xPx / sizes.width,
+                y: yPx / sizes.height,
+                w: 0.22,
+                h: 0.08,
+            });
+            this.placingMode = false;
+        },
+
+        startDrag(e, globalIdx) {
+            if (this.placingMode) return;
+            e.stopPropagation();
+            e.preventDefault();
+            const placement = this.placements[globalIdx];
+            let cw, ch;
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[placement.page - 1];
+                cw = sizes?.width  || this.canvasW;
+                ch = sizes?.height || this.canvasH;
+            } else {
+                cw = this.canvasW;
+                ch = this.canvasH;
+            }
+            this.dragging = { globalIdx, lastX: e.clientX, lastY: e.clientY, canvasW: cw, canvasH: ch };
+        },
+
+        onCanvasMouseMove(e) {
+            if (this.resizing) { this._moveResize(e); return; }
+            if (!this.dragging) return;
+            const dx = (e.clientX - this.dragging.lastX) / this.dragging.canvasW;
+            const dy = (e.clientY - this.dragging.lastY) / this.dragging.canvasH;
+            const p  = this.placements[this.dragging.globalIdx];
+            p.x = Math.max(0, Math.min(1 - p.w, p.x + dx));
+            p.y = Math.max(0, Math.min(1 - p.h, p.y + dy));
+            this.dragging.lastX = e.clientX;
+            this.dragging.lastY = e.clientY;
+        },
+
+        stopDrag() { this.dragging = null; this.resizing = null; },
+
+        startResize(e, handle, globalIdx) {
+            if (this.placingMode) return;
+            e.stopPropagation();
+            e.preventDefault();
+            const p = this.placements[globalIdx];
+            let cw, ch;
+            if (this.viewMode === 'scroll') {
+                const sizes = this.scrollCanvasSizes[p.page - 1];
+                cw = sizes?.width  || this.canvasW;
+                ch = sizes?.height || this.canvasH;
+            } else {
+                cw = this.canvasW;
+                ch = this.canvasH;
+            }
+            this.resizing = {
+                globalIdx, handle,
+                startX: e.clientX, startY: e.clientY,
+                startNX: p.x, startNY: p.y, startNW: p.w, startNH: p.h,
+                canvasW: cw, canvasH: ch,
+            };
+        },
+
+        _moveResize(e) {
+            const r = this.resizing;
+            const p = this.placements[r.globalIdx];
+            if (!p) return;
+            const dx = (e.clientX - r.startX) / r.canvasW;
+            const dy = (e.clientY - r.startY) / r.canvasH;
+            const minW = 40 / r.canvasW, minH = 18 / r.canvasH;
+            let nx = r.startNX, ny = r.startNY, nw = r.startNW, nh = r.startNH;
+            if (r.handle.includes('e')) nw = Math.max(minW, nw + dx);
+            if (r.handle.includes('s')) nh = Math.max(minH, nh + dy);
+            if (r.handle.includes('w')) { const newW = Math.max(minW, nw - dx); nx += nw - newW; nw = newW; }
+            if (r.handle.includes('n')) { const newH = Math.max(minH, nh - dy); ny += nh - newH; nh = newH; }
+            p.x = Math.max(0, Math.min(1 - nw, nx));
+            p.y = Math.max(0, Math.min(1 - nh, ny));
+            p.w = nw; p.h = nh;
+        },
+
+        signerPlacements() {
+            if (this.selectedSigner === null) return [];
+            return this.placements
+                .map((p, i) => ({ ...p, globalIdx: i }))
+                .filter(p => p.signerIndex === this.selectedSigner)
+                .sort((a, b) => a.page - b.page);
+        },
+
+        currentPagePlacements() {
+            return this.placements
+                .map((p, globalIdx) => ({
+                    ...p, globalIdx,
+                    xPx: p.x * this.canvasW,
+                    yPx: p.y * this.canvasH,
+                    wPx: p.w * this.canvasW,
+                    hPx: p.h * this.canvasH,
+                }))
+                .filter(p => p.page === this.currentPage);
+        },
+
+        placementsForScrollPage(pageNum) {
+            const sizes = this.scrollCanvasSizes[pageNum - 1];
+            if (!sizes) return [];
+            const { width: w, height: h } = sizes;
+            return this.placements
+                .map((p, i) => ({ ...p, globalIdx: i }))
+                .filter(p => p.page === pageNum)
+                .map(p => ({ ...p, xPx: p.x * w, yPx: p.y * h, wPx: p.w * w, hPx: p.h * h }));
+        },
+
+        removePlacement(idx) { this.placements.splice(idx, 1); },
+        selectSigner(idx)    { this.selectedSigner = idx; },
+
+        removeSigner(idx) {
+            this.placements = this.placements
+                .filter(p => p.signerIndex !== idx)
+                .map(p => ({ ...p, signerIndex: p.signerIndex > idx ? p.signerIndex - 1 : p.signerIndex }));
+            this.signers.splice(idx, 1);
+            if (this.selectedSigner !== null && this.selectedSigner >= this.signers.length) {
+                this.selectedSigner = null;
+            }
+        },
+
+        async searchUsers() {
+            if (this.userQuery.length < 2) { this.userResults = []; return; }
+            const resp = await fetch(`${USER_SEARCH_URL}?q=${encodeURIComponent(this.userQuery)}`);
+            const data = await resp.json();
+            this.userResults = data.results;
+        },
+
+        async searchEmployees() {
+            if (this.employeeQuery.length < 2) { this.employeeResults = []; return; }
+            const resp = await fetch(`${EMPLOYEE_SEARCH_URL}?q=${encodeURIComponent(this.employeeQuery)}`);
+            const data = await resp.json();
+            this.employeeResults = data.results;
+        },
+
+        selectFoundUser(u) {
+            this.newSigner.name   = u.name;
+            this.newSigner.email  = u.email;
+            this.newSigner.userId = u.id;
+            this.userResults = [];
+            this.userQuery   = u.name;
+        },
+
+        selectFoundEmployee(e) {
+            this.newSigner.name = e.name;
+            if (e.email) {
+                this.newSigner.email = e.email;
+            }
+            this.employeeResults = [];
+            this.employeeQuery = '';
+        },
+
+        confirmAddSigner() {
+            if (!this.newSigner.name || !this.newSigner.email) {
+                alert('Name and email are required.');
+                return;
+            }
+            this.signers.push({
+                type:   this.newSignerType,
+                userId: this.newSigner.userId,
+                name:   this.newSigner.name,
+                email:  this.newSigner.email,
+                order:  this.newSigner.order || (this.signers.length + 1),
+                role:   this.newSigner.role,
+            });
+            this.newSigner = { name: '', email: '', userId: null, order: this.signers.length + 1, role: 'signer' };
+            this.userQuery = '';
+            this.addSignerModal = false;
+            
+            // Auto-select the newly added signer and activate placing mode
+            this.selectSigner(this.signers.length - 1);
+            this.placingMode = true;
+        },
+
+        async applyTemplate() {
+            const sel = document.getElementById('flow-template-select');
+            if (!sel.value) return;
+            const fd = new FormData();
+            fd.append('template_id', sel.value);
+            fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            const resp = await fetch(APPLY_TEMPLATE_URL, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (data.ok) {
+                this.routingMode = data.routing_mode;
+                location.reload();
+            }
+        },
+
+        async saveAndSend() {
+            this.saving = true;
+            const payload = {
+                placements: this.placements.map(p => ({
+                    signer_index: p.signerIndex,
+                    page: p.page, x: p.x, y: p.y, w: p.w, h: p.h,
+                    field_type: 'signature',
+                })),
+            };
+            const resp = await fetch(SAVE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            this.saving = false;
+            if (data.ok) {
+                window.location.href = "{% url 'esign:document_detail' pk=doc.pk %}";
+            } else {
+                alert(data.error || 'An error occurred while saving.');
+            }
+        },
+    }));
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div x-data="esignConfigure" id="configure-content"
+     @mouseup.window="stopDrag()"
+     @mousemove.window="onCanvasMouseMove($event)">
+
+<!-- ── Page Header ── -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div class="min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+            <a href="{% url 'esign:document_list' %}"
+               class="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                My Documents
+            </a>
+        </div>
+        <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
+        <p class="text-sm text-slate-500 mt-0.5">Adjust signature box placements for existing signers.</p>
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+        <a href="{% url 'esign:document_detail' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Cancel</a>
+    </div>
+</div>
+
+{% if messages %}
+    {% for msg in messages %}
+    <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
+    {% endfor %}
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- ── Left Panel: Configuration ── -->
+    <!-- sticky + flex-col so Send button is always anchored at the bottom -->
+    <div class="lg:col-span-1 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:flex lg:flex-col lg:overflow-hidden">
+
+    <!-- Scrollable card area (everything above the Send button) -->
+    <div class="flex-1 overflow-y-auto space-y-4 pb-1 lg:pr-0.5">
+
+        <!-- Signers -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <h3 class="font-semibold text-sm text-slate-700">Signers</h3>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700"
+                          x-text="signers.length" x-show="signers.length > 0"></span>
+                </div>
+            </div>
+
+            <div class="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                <template x-for="(s, idx) in signers" :key="idx">
+                    <div class="px-4 py-3 flex items-center gap-3"
+                         :class="selectedSigner === idx ? 'bg-indigo-50/60' : 'hover:bg-slate-50'">>
+                        <!-- Order badge -->
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                             :class="selectedSigner === idx
+                                 ? 'bg-indigo-600 text-white'
+                                 : 'bg-indigo-100 text-indigo-700'"
+                             x-text="s.order"></div>
+                        <!-- Info -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-slate-800 truncate" x-text="s.name"></p>
+                            <p class="text-xs text-slate-400 truncate" x-text="s.email"></p>
+                        </div>
+                        <!-- Role badge -->
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                              :class="s.role === 'approver' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'"
+                              x-text="s.role"></span>
+                        <!-- Select / Remove -->
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button @click="selectSigner(idx); placingMode = false"
+                                    :class="selectedSigner === idx
+                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'"
+                                    class="text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors">
+                                <span x-text="selectedSigner === idx ? '✓ Active' : 'Select'"></span>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="signers.length === 0"
+                     class="px-4 py-8 text-center">
+                    <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                        <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium">No signers added yet</p>
+                    <p class="text-xs text-slate-300 mt-0.5">Click Add to get started</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Placement (only shown when a signer is selected) -->
+        <div x-show="selectedSigner !== null"
+             class="bg-white border border-indigo-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-indigo-100 bg-indigo-50/40 flex items-center gap-2">
+                <svg class="h-4 w-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                <h3 class="font-semibold text-sm text-indigo-700 truncate">
+                    <span x-text="signers[selectedSigner]?.name ?? ''"></span>
+                </h3>
+            </div>
+            <div class="px-4 py-3 space-y-3">
+
+                <!-- Current page indicator (read-only — navigate using the PDF toolbar) -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-500">Placing on page</span>
+                    <span class="font-mono text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-0.5"
+                          x-text="currentPage + ' / {{ doc.page_count }}'"></span>
+                </div>
+
+                <!-- Place / Stop placing button -->
+                <button @click="placingMode = !placingMode; if (placingMode) $nextTick(() => document.getElementById('pdf-viewer-wrap').scrollIntoView({behavior:'smooth', block:'nearest'}))"
+                        :class="placingMode
+                            ? 'bg-indigo-600 text-white border-indigo-600 animate-pulse'
+                            : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'"
+                        class="w-full flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-semibold transition-all">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    <span x-text="placingMode ? '● Placing on page ' + currentPage + ' — click PDF' : 'Place Signature Box'"></span>
+                </button>
+                <p x-show="placingMode" class="text-[10px] text-indigo-500 text-center -mt-1"
+                   x-text="viewMode === 'scroll'
+                       ? 'Scroll to the page you want, then click to place. Press again to stop.'
+                       : 'Use ‹ › above the PDF to navigate, then click to place. Press again to stop.'">
+                </p>
+
+                <!-- Placed boxes list (all pages) -->
+                <div x-show="signerPlacements().length > 0" class="space-y-1 max-h-36 overflow-y-auto">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Placed boxes</p>
+                    <template x-for="p in signerPlacements()" :key="p.globalIdx">
+                        <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg"
+                             :class="p.page === currentPage ? 'bg-indigo-50 border border-indigo-100' : 'bg-slate-50'">
+                            <svg class="h-3 w-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            <button @click="goToPage(p.page)"
+                                    class="flex-1 text-left text-xs font-medium"
+                                    :class="p.page === currentPage ? 'text-indigo-700' : 'text-slate-600 hover:text-indigo-600'">
+                                Page <span x-text="p.page"></span>
+                                <span x-show="p.page === currentPage" class="ml-1 text-indigo-400">(current)</span>
+                            </button>
+                            <button @click="removePlacement(p.globalIdx)"
+                                    class="w-5 h-5 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <p x-show="!placingMode && signerPlacements().length === 0"
+                   class="text-xs text-slate-400 text-center py-1">
+                    No boxes placed yet for this signer.
+                </p>
+            </div>
+        </div>
+
+
+
+    </div><!-- end scrollable area -->
+
+        <!-- Send button (desktop — pinned to bottom of left panel) -->
+        <div class="hidden lg:block flex-shrink-0 pt-3 border-t border-slate-100">
+            <button @click="saveAndSend()" :disabled="saving"
+                    class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-2xl py-3.5 transition-colors shadow-md">
+                <svg class="h-4 w-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                <svg class="h-4 w-4 animate-spin" x-show="saving" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span x-text="saving ? 'Saving…' : 'Save & Restamp Signatures'"></span>
+            </button>
+            <p class="text-xs text-slate-400 mt-2 text-center">Placements will be saved and the document preview restamped.</p>
+        </div>
+
+    </div><!-- end left panel -->
+
+    <!-- ── Right Panel: PDF Viewer ── -->
+    <div class="lg:col-span-2">
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <!-- Toolbar -->
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                <!-- Page nav (paged mode only) -->
+                <div class="flex items-center gap-2">
+                    <template x-if="viewMode === 'paged'">
+                        <div class="flex items-center gap-2">
+                            <button @click="changePage(-1)" :disabled="currentPage <= 1"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">‹</button>
+                            <span class="text-sm font-medium text-slate-600 tabular-nums">
+                                <span x-text="currentPage"></span><span class="text-slate-300">/</span>{{ doc.page_count }}
+                            </span>
+                            <button @click="changePage(1)" :disabled="currentPage >= {{ doc.page_count }}"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base font-bold">›</button>
+                        </div>
+                    </template>
+                    <template x-if="viewMode === 'scroll'">
+                        <span class="text-sm font-medium text-slate-500 tabular-nums">
+                            Page <span x-text="currentPage" class="font-bold text-slate-700"></span>
+                            <span class="text-slate-300">/</span> {{ doc.page_count }}
+                        </span>
+                    </template>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <!-- Status indicator -->
+                    <div x-show="placingMode"
+                         class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-full animate-pulse">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                        <span x-text="'Page ' + currentPage"></span>
+                    </div>
+                    <div x-show="!placingMode && selectedSigner !== null"
+                         class="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-full border border-indigo-200">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                        <span x-text="signers[selectedSigner]?.name ?? ''"></span>
+                    </div>
+                    <div x-show="selectedSigner === null" class="text-xs text-slate-400">Select a signer to place boxes</div>
+
+                    <!-- View mode toggle -->
+                    <div class="flex rounded-lg overflow-hidden border border-slate-200 ml-2">
+                        <button @click="switchViewMode('paged')"
+                                title="Page-by-page"
+                                :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                class="w-8 h-8 flex items-center justify-center transition-colors">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+                            </svg>
+                        </button>
+                        <button @click="switchViewMode('scroll')"
+                                title="Continuous scroll"
+                                :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                class="w-8 h-8 flex items-center justify-center border-l border-slate-200 transition-colors">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas area -->
+            <div class="p-3">
+
+                <!-- Paged mode -->
+                <div x-show="viewMode === 'paged'">
+                    <div id="pdf-viewer-wrap"
+                         @click="onCanvasClick($event)"
+                         :style="placingMode ? 'cursor:crosshair' : (dragging ? 'cursor:grabbing' : 'cursor:default')">
+                        <canvas id="pdf-canvas"></canvas>
+                        <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
+                            <div class="placement-box"
+                                 :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
+                                 @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
+                                <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                <div>
+                                    <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                    <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                    <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                    <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                    <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                    <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                    <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                    <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Scroll mode -->
+                <div x-show="viewMode === 'scroll'"
+                     id="pdf-scroll-outer"
+                     style="max-height: 75vh; overflow-y: auto; scroll-behavior: smooth;">
+                    <template x-for="pageNum in pages" :key="pageNum">
+                        <div class="relative mb-3 last:mb-0"
+                             :id="'scroll-page-' + pageNum"
+                             :data-page="pageNum"
+                             @click="onScrollPageClick($event, pageNum)"
+                             :style="placingMode ? 'cursor:crosshair' : (dragging ? 'cursor:grabbing' : 'cursor:default')">
+                            <!-- Page label -->
+                            <div class="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                                <span class="text-[10px] font-bold bg-black/40 text-white rounded px-1.5 py-0.5"
+                                      x-text="'p.' + pageNum"></span>
+                            </div>
+                            <canvas :id="'scroll-canvas-' + pageNum" style="display:block; max-width:100%; border-radius:4px;"></canvas>
+                            <!-- Placement overlays for this page -->
+                            <template x-for="p in placementsForScrollPage(pageNum)" :key="p.globalIdx">
+                                <div class="placement-box"
+                                     :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
+                                     @mousedown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
+                                    <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                    <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                    <div>
+                                        <div class="resize-handle nw" @mousedown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
+                                        <div class="resize-handle n"  @mousedown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
+                                        <div class="resize-handle ne" @mousedown.stop.prevent="startResize($event,'ne',p.globalIdx)"></div>
+                                        <div class="resize-handle e"  @mousedown.stop.prevent="startResize($event,'e', p.globalIdx)"></div>
+                                        <div class="resize-handle se" @mousedown.stop.prevent="startResize($event,'se',p.globalIdx)"></div>
+                                        <div class="resize-handle s"  @mousedown.stop.prevent="startResize($event,'s', p.globalIdx)"></div>
+                                        <div class="resize-handle sw" @mousedown.stop.prevent="startResize($event,'sw',p.globalIdx)"></div>
+                                        <div class="resize-handle w"  @mousedown.stop.prevent="startResize($event,'w', p.globalIdx)"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Sticky Send Bar (mobile/tablet only) ── -->
+<div class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3 shadow-lg z-40">
+    <button @click="saveAndSend()" :disabled="saving"
+            class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-xl py-3 transition-colors">
+        <svg class="h-4 w-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        <svg class="h-4 w-4 animate-spin" x-show="saving" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span x-text="saving ? 'Saving…' : 'Save & Send to Signers'"></span>
+    </button>
+</div>
+
+
+
+</div>
+{% endblock %}

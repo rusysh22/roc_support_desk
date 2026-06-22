@@ -181,7 +181,8 @@ def phase_create(request, project_id):
             messages.success(request, "Phase added.")
         else:
             print("phase_create errors:", form.errors)
-            messages.error(request, "Error adding phase.")
+            error_str = " | ".join([f"{f}: {e[0]}" for f, e in form.errors.items()])
+            messages.error(request, f"Error adding phase: {error_str}")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
     return redirect("projects_desk:project_edit", pk=project.pk)
@@ -201,7 +202,8 @@ def phase_edit(request, phase_id):
             messages.success(request, "Phase updated.")
         else:
             print("phase_edit errors:", form.errors)
-            messages.error(request, "Error updating phase.")
+            error_str = " | ".join([f"{f}: {e[0]}" for f, e in form.errors.items()])
+            messages.error(request, f"Error updating phase: {error_str}")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
     return redirect("projects_desk:project_edit", pk=phase.project.pk)
@@ -238,7 +240,9 @@ def update_create(request, phase_id):
             update.save()
             messages.success(request, "Update added.")
         else:
-            messages.error(request, "Error adding update.")
+            print("update_create errors:", form.errors)
+            error_str = " | ".join([f"{f}: {e[0]}" for f, e in form.errors.items()])
+            messages.error(request, f"Error adding update: {error_str}")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
     return redirect("projects_desk:project_edit", pk=phase.project.pk)
@@ -257,7 +261,9 @@ def update_edit(request, update_id):
             u.save()
             messages.success(request, "Update modified.")
         else:
-            messages.error(request, "Error modifying update.")
+            print("update_edit errors:", form.errors)
+            error_str = " | ".join([f"{f}: {e[0]}" for f, e in form.errors.items()])
+            messages.error(request, f"Error modifying update: {error_str}")
         next_url = request.POST.get("next")
         if next_url: return redirect(next_url)
     return redirect("projects_desk:project_edit", pk=update.phase.project.pk)
