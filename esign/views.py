@@ -184,15 +184,15 @@ def document_replace_pdf(request, pk):
     doc = get_object_or_404(SignatureDocument, pk=pk)
     if doc.created_by != request.user:
         return HttpResponseForbidden()
-    if doc.status not in [SignatureDocument.Status.DRAFT, SignatureDocument.Status.PENDING]:
-        messages.error(request, "The PDF can only be replaced while the document is a draft or pending.")
-        if doc.status == SignatureDocument.Status.PENDING:
+    if doc.status not in [SignatureDocument.Status.DRAFT, SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
+        messages.error(request, "The PDF can only be replaced while the document is a draft, pending, or completed.")
+        if doc.status in [SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
             return redirect("esign:document_detail", pk=pk)
         return redirect("esign:document_configure", pk=pk)
 
     new_pdf = request.FILES.get("original_pdf")
     def redirect_back():
-        if doc.status == SignatureDocument.Status.PENDING:
+        if doc.status in [SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
             return redirect("esign:document_detail", pk=pk)
         return redirect("esign:document_configure", pk=pk)
 
@@ -234,7 +234,7 @@ def document_replace_pdf(request, pk):
     except Exception:
         pass
 
-    if doc.status == SignatureDocument.Status.PENDING:
+    if doc.status in [SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
         from .services import _update_preview_pdf, _log
         from .models import SignatureEvent
         
@@ -249,7 +249,12 @@ def document_replace_pdf(request, pk):
             detail="Document amended (PDF replaced)"
         )
         
-        messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected). Please verify and adjust signature placements if the layout has changed.")
+        # Clear signed_pdf if it exists, since the layout changed
+        if doc.signed_pdf:
+            doc.signed_pdf.delete(save=False)
+            doc.save(update_fields=["signed_pdf"])
+        
+        messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected). Please verify and adjust assignments if the layout has changed.")
         return redirect("esign:document_adjust_placements", pk=doc.pk)
 
     messages.success(request, f"PDF replaced successfully ({doc.page_count} page(s) detected).")
@@ -478,8 +483,8 @@ def document_adjust_placements(request, pk):
     if doc.created_by != request.user:
         return HttpResponseForbidden("You do not have permission to configure this document.")
 
-    if doc.status != SignatureDocument.Status.PENDING:
-        messages.error(request, "Placements can only be manually adjusted while the document is pending.")
+    if doc.status not in [SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
+        messages.error(request, "Assignments can only be manually adjusted while the document is pending or completed.")
         return redirect("esign:document_detail", pk=doc.pk)
 
     signers = list(doc.signers.order_by("order").select_related("user"))
@@ -490,6 +495,7 @@ def document_adjust_placements(request, pk):
 
     initial_signers = [
         {
+            "id": str(s.id),
             "type": "user" if s.user_id else "external",
             "userId": str(s.user_id) if s.user_id else None,
             "name": s.display_name,
@@ -526,11 +532,11 @@ def document_adjust_placements(request, pk):
 @require_POST
 def save_placements(request, pk):
     """
-    Accept JSON body with placements, replacing existing ones for PENDING document.
-    Does NOT touch signers. Re-generates preview PDF after saving.
+    Accept JSON body with placements and signers, replacing existing ones for PENDING/COMPLETED document.
+    Re-generates preview PDF (or final PDF) after saving.
     """
     doc = get_object_or_404(SignatureDocument, pk=pk)
-    if doc.created_by != request.user or doc.status != SignatureDocument.Status.PENDING:
+    if doc.created_by != request.user or doc.status not in [SignatureDocument.Status.PENDING, SignatureDocument.Status.COMPLETED]:
         return JsonResponse({"ok": False, "error": "Forbidden"}, status=403)
 
     try:
@@ -539,17 +545,55 @@ def save_placements(request, pk):
         return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
 
     placement_data = data.get("placements", [])
+    signer_data = data.get("signers", [])
 
-    signers = list(doc.signers.order_by("order"))
+    frontend_signer_ids = [s.get("id") for s in signer_data if s.get("id")]
+    
+    # Delete signers that were removed
+    doc.signers.exclude(id__in=frontend_signer_ids).delete()
 
-    # Delete only the old placements, DO NOT delete signers
+    created_or_updated_signers = []
+    for s_data in signer_data:
+        s_id = s_data.get("id")
+        if s_id:
+            # Update existing
+            signer = Signer.objects.get(id=s_id, document=doc)
+            signer.order = int(s_data.get("order", 1))
+            signer.role = s_data.get("role", Signer.Role.SIGNER)
+            signer.save(update_fields=["order", "role"])
+        else:
+            # Create new
+            if s_data.get("type") == "user":
+                user = User.objects.get(pk=s_data["userId"])
+                signer = Signer.objects.create(
+                    document=doc,
+                    user=user,
+                    order=int(s_data.get("order", 1)),
+                    role=s_data.get("role", Signer.Role.SIGNER),
+                    status=Signer.Status.WAITING,
+                    created_by=request.user,
+                    updated_by=request.user,
+                )
+            else:
+                signer = Signer.objects.create(
+                    document=doc,
+                    external_name=s_data.get("name", "").strip(),
+                    external_email=s_data.get("email", "").strip(),
+                    order=int(s_data.get("order", 1)),
+                    role=s_data.get("role", Signer.Role.SIGNER),
+                    status=Signer.Status.WAITING,
+                    created_by=request.user,
+                    updated_by=request.user,
+                )
+        created_or_updated_signers.append(signer)
+
+    # Replace all placements
     doc.placements.all().delete()
-
     for p in placement_data:
         idx = int(p.get("signer_index", 0))
-        if idx >= len(signers):
+        if idx >= len(created_or_updated_signers):
             continue
-        signer = signers[idx]
+        signer = created_or_updated_signers[idx]
         SignaturePlacement.objects.create(
             document=doc,
             signer=signer,
@@ -563,16 +607,47 @@ def save_placements(request, pk):
             updated_by=request.user,
         )
 
-    # Re-stamp the preview PDF with the newly saved coordinates
-    from .services import _update_preview_pdf, _log
+    # Handle state transitions for new signers
+    from .services import _assign_token
+    from .tasks import send_signature_request_task
+
+    # Assign tokens to new signers (those without an expiration date)
+    for signer in doc.signers.filter(token_expires_at__isnull=True):
+        _assign_token(signer)
+
+    if doc.routing_mode == SignatureDocument.RoutingMode.PARALLEL:
+        # In parallel, all WAITING become PENDING
+        for signer in doc.signers.filter(status=Signer.Status.WAITING):
+            signer.status = Signer.Status.PENDING
+            signer.save(update_fields=["status"])
+            send_signature_request_task.delay(str(signer.id))
+    else:
+        # Sequential: Check if there's any PENDING signer. If not, advance to the first WAITING.
+        if not doc.signers.filter(status=Signer.Status.PENDING).exists():
+            next_signer = doc.signers.filter(status=Signer.Status.WAITING).order_by("order").first()
+            if next_signer:
+                next_signer.status = Signer.Status.PENDING
+                next_signer.save(update_fields=["status"])
+                send_signature_request_task.delay(str(next_signer.id))
+
+    if doc.status == SignatureDocument.Status.COMPLETED and not doc.is_complete:
+        doc.status = SignatureDocument.Status.PENDING
+        doc.save(update_fields=["status"])
+
+    # Re-stamp the preview or final PDF
+    from .services import _update_preview_pdf, _finalize_document, _log
     from .models import SignatureEvent
-    _update_preview_pdf(doc)
+    
+    if doc.is_complete:
+        _finalize_document(doc)
+    else:
+        _update_preview_pdf(doc)
 
     ip, _ = get_client_ip(request)
     _log(
         doc, SignatureEvent.Event.AMENDED,
         actor_user=request.user, ip=ip,
-        detail="Signature placements manually adjusted."
+        detail="Signers and placements manually adjusted."
     )
 
     return JsonResponse({"ok": True})
