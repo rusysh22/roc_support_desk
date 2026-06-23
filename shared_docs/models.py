@@ -8,6 +8,7 @@ class SharedDocument(AuditableModel):
     class EditorMode(models.TextChoices):
         RICH_TEXT = "RICH_TEXT", "Rich Text (Quill)"
         RAW_HTML  = "RAW_HTML",  "Raw HTML/CSS Code"
+        MARKDOWN  = "MARKDOWN",  "Markdown"
 
     title = models.CharField(
         max_length=255,
