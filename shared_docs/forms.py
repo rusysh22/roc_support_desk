@@ -12,9 +12,9 @@ class SharedDocumentForm(forms.ModelForm):
                     "placeholder": "Enter document title...",
                 }
             ),
-            "editor_mode": forms.Select(
+            "editor_mode": forms.RadioSelect(
                 attrs={
-                    "class": "w-full border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500",
+                    "class": "h-4 w-4 text-indigo-600 border-slate-300 focus:ring-indigo-500",
                 }
             ),
             "content": forms.Textarea(

@@ -180,7 +180,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.4.5</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.5.0</div>
                     </div>
                 </div>
 
@@ -284,7 +284,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.4.5
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.5.0
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -322,13 +322,28 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
+                <!-- v1.5.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.25), 0 2px 8px rgba(99,102,241,0.15);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"></div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v1.5.0</span>
+                        <span class="text-xs text-slate-600">24 Jun 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>E-Sign (Electronic Signatures)</strong> — A complete digital signature system! You can now request signatures from multiple people, adjust exactly where their signatures appear on the document via drag-and-drop, and automatically send them email requests. Completed documents are securely sealed and come with a scan-able QR code to verify authenticity.</li>
+                        <li><strong>Shared Documents</strong> — Need to share a policy or a guide with people outside the system? You can now create public documents using a simple visual editor or a Markdown editor, and instantly share them using a secure, public web link.</li>
+                        <li><strong>Project Management Module</strong> — Managing big tasks is now easier! You can create projects, organize them into different phases (like Planning, Execution, etc.), set up task checklists for your team, and track the overall timeline. You can even set custom header images and control who has permission to edit each project.</li>
+                        <li><strong>General UI Enhancements</strong> — The menu sidebar has been reorganized for better clarity, putting Categories and Document Templates under the "Master Data" section where they belong. We also fixed several visual bugs and smoothed out the Markdown editor experience.</li>
+                    </ul>
+                </div>
+
                 <!-- v1.4.5 -->
-                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.10);">
-                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.4.5</span>
                         <span class="text-xs text-slate-600">16 May 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>App Portal</strong> — A new dedicated page is now available in the sidebar for all logged-in users. It displays company applications as rich cards with name, description, accent color, logo or emoji icon, and an optional badge label (e.g. "New", "Beta"). Each card links directly to the application URL in a new tab.</li>
@@ -339,12 +354,11 @@
                 </div>
 
                 <!-- v1.4.7 -->
-                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.25), 0 2px 8px rgba(99,102,241,0.08);">
-                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-400 rounded-full"></div>
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="font-bold text-indigo-700 text-xs">v1.4.7</span>
+                        <span class="font-bold text-slate-800 text-xs">v1.4.7</span>
                         <span class="text-xs text-slate-600">24 May 2026</span>
-                        <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>Ticket Category Management</strong> — Categories and sub-categories can now be created, edited, and deleted directly from the desk UI — no need to access Django admin. Each category supports an emoji icon, name, parent, description, prefix code, and behaviour flags (Confidential, Attachment Required, Change Request).</li>

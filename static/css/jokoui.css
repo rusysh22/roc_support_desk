@@ -47,8 +47,6 @@
 
 .jk-content {
     padding: 2rem;
-    max-width: 1440px;
-    margin: 0 auto;
 }
 
 /* Auth pages (login, forgot password, etc.) — no padding, no max-width constraint */
@@ -186,7 +184,6 @@
 
 /* ----- Main Area ----- */
 .jk-main {
-    margin-left: 260px;
     min-height: 100vh;
     min-height: 100dvh;
     transition: margin-left 0.3s ease;

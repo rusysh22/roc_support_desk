@@ -7,7 +7,7 @@
 
 {% block extra_head %}
 <!-- Quill editor CSS -->
-<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
 <style>
     #quill-editor { min-height: 400px; font-family: 'Inter', sans-serif; font-size: 0.9375rem; }
     #quill-editor .ql-editor { min-height: 380px; line-height: 1.75; }
@@ -139,6 +139,20 @@
 </html>"></textarea>
                 </div>
 
+                <!-- Markdown Editor -->
+                <div id="editor-markdown-container" class="bg-slate-50 rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden">
+                    <div class="px-5 py-3 border-b border-slate-200 bg-white flex justify-between items-center">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Markdown Source Code</p>
+                        <span class="text-[10px] text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Plain Text Mode</span>
+                    </div>
+                    <textarea id="markdown-textarea" rows="20" class="w-full bg-transparent text-slate-700 font-mono text-sm p-5 border-none focus:ring-0 resize-y" placeholder="# Write your Markdown content here...
+
+## Section 1
+You can use **bold**, *italics*, and lists:
+- Item 1
+- Item 2"></textarea>
+                </div>
+
                 <!-- Hidden input carries HTML to Django -->
                 {{ form.content }}
 
@@ -254,13 +268,20 @@
 </div>
 
 <!-- Quill JS -->
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const hiddenInput = document.getElementById("doc_content");
+    const hiddenInput = document.getElementById("quill-editor-fallback");
+    // Remove the 'required' attribute to fix the "invalid form control is not focusable" browser error
+    if (hiddenInput) {
+        hiddenInput.removeAttribute("required");
+    }
+
     const rawTextarea = document.getElementById("raw-html-textarea");
+    const markdownTextarea = document.getElementById("markdown-textarea");
     const richContainer = document.getElementById("editor-rich-container");
     const rawContainer = document.getElementById("editor-raw-container");
+    const markdownContainer = document.getElementById("editor-markdown-container");
     const radios = document.querySelectorAll('input[name="editor_mode"]');
 
     // Initialize Quill
@@ -294,9 +315,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (mode === "RAW_HTML") {
             richContainer.classList.add("hidden");
             rawContainer.classList.remove("hidden");
+            markdownContainer.classList.add("hidden");
+        } else if (mode === "MARKDOWN") {
+            richContainer.classList.add("hidden");
+            rawContainer.classList.add("hidden");
+            markdownContainer.classList.remove("hidden");
         } else {
             richContainer.classList.remove("hidden");
             rawContainer.classList.add("hidden");
+            markdownContainer.classList.add("hidden");
         }
     }
 
@@ -308,6 +335,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const mode = getMode();
         if (mode === "RAW_HTML") {
             rawTextarea.value = hiddenInput.value;
+        } else if (mode === "MARKDOWN") {
+            markdownTextarea.value = hiddenInput.value;
         } else {
             quill.root.innerHTML = hiddenInput.value;
         }
@@ -316,6 +345,9 @@ document.addEventListener("DOMContentLoaded", function () {
     // Ensure raw text area has content if mode changes but page reloads
     if(getMode() === 'RAW_HTML' && hiddenInput && hiddenInput.value) {
         rawTextarea.value = hiddenInput.value;
+    }
+    if(getMode() === 'MARKDOWN' && hiddenInput && hiddenInput.value) {
+        markdownTextarea.value = hiddenInput.value;
     }
 
     // Initial visibility state
@@ -329,6 +361,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 const mode = getMode();
                 if (mode === "RAW_HTML") {
                     hiddenInput.value = rawTextarea.value;
+                } else if (mode === "MARKDOWN") {
+                    hiddenInput.value = markdownTextarea.value;
                 } else {
                     // Only save innerHTML if it's not totally empty (Quill leaves <p><br></p>)
                     const qHtml = quill.root.innerHTML;
