@@ -327,6 +327,7 @@
             border-radius: 16px;
             border: 1px solid #e2e8f0;
             overflow: hidden;
+            flex-shrink: 0;
         }
         .sidebar-comments-list {
             max-height: 360px;
@@ -338,11 +339,14 @@
         }
         /* Scrollbar styling */
         .sidebar-comments-list::-webkit-scrollbar,
-        .col-sidebar::-webkit-scrollbar { width: 4px; }
+        .col-sidebar::-webkit-scrollbar,
+        .phases-scroll-list::-webkit-scrollbar { width: 4px; }
         .sidebar-comments-list::-webkit-scrollbar-track,
-        .col-sidebar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .col-sidebar::-webkit-scrollbar-track,
+        .phases-scroll-list::-webkit-scrollbar-track { background: #f1f5f9; }
         .sidebar-comments-list::-webkit-scrollbar-thumb,
-        .col-sidebar::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+        .col-sidebar::-webkit-scrollbar-thumb,
+        .phases-scroll-list::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -541,7 +545,7 @@
                     </div>
 
                     <!-- Phase card -->
-                    <div id="phase-card-{{ phase.id }}" class="phase-card cursor-pointer {% if phase.status == 'IN_PROGRESS' %}is-active{% elif phase.status == 'COMPLETED' %}is-completed{% endif %}" onclick="selectPhase('{{ phase.id }}')">
+                    <div id="phase-card-{{ phase.id }}" class="phase-card cursor-pointer {% if phase.status == 'IN_PROGRESS' %}is-active{% elif phase.status == 'COMPLETED' %}is-completed{% endif %}" onclick="selectPhase('{{ phase.id }}')" data-start="{{ phase.start_date|date:'Y-m-d'|default:'' }}" data-end="{{ phase.end_date|date:'Y-m-d'|default:'' }}">
 
                         <!-- Card header -->
                         <div class="px-5 py-4 flex items-start gap-3
@@ -768,8 +772,8 @@
                         <p class="text-sm text-slate-600">{{ project.updated_at|date:"d M Y" }}</p>
                     </div>
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Phases</p>
-                        <div class="space-y-1.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-2">Phases</p>
+                        <div class="space-y-2 max-h-[220px] overflow-y-auto pr-2 phases-scroll-list">
                             {% for phase in phases %}
                             <div class="flex items-center justify-between text-xs">
                                 <span class="text-slate-600 truncate flex-1">{{ phase.name }}</span>
@@ -1069,6 +1073,9 @@
             if(card) {
                 card.classList.add('ring-2', 'ring-indigo-400');
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (window.highlightCalendarRange) {
+                    window.highlightCalendarRange(card.getAttribute('data-start'), card.getAttribute('data-end'));
+                }
             }
         }
         updateFormAction();
@@ -1149,6 +1156,13 @@
                 let d = i.toString().padStart(2, '0');
                 let dateStr = `${currentYear}-${m}-${d}`;
                 
+                cell.setAttribute('data-date', dateStr);
+                cell.addEventListener('click', function() {
+                    if (window.findAndSelectPhaseByDate) {
+                        window.findAndSelectPhaseByDate(dateStr);
+                    }
+                });
+                
                 if (today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === i) {
                     cell.classList.add("today");
                 }
@@ -1187,6 +1201,64 @@
         });
         
         renderCalendar();
+        
+        window.setCalendarMonth = function(dateStr) {
+            const d = new Date(dateStr);
+            if (!isNaN(d)) {
+                if (currentYear !== d.getFullYear() || currentMonth !== d.getMonth()) {
+                    currentYear = d.getFullYear();
+                    currentMonth = d.getMonth();
+                    renderCalendar();
+                }
+            }
+        };
+
+        window.highlightCalendarRange = function(startStr, endStr) {
+            if (startStr) window.setCalendarMonth(startStr);
+            
+            setTimeout(() => {
+                document.querySelectorAll('.cal-cell').forEach(cell => {
+                    cell.style.background = '';
+                    cell.style.borderColor = '';
+                    
+                    const cellDateStr = cell.getAttribute('data-date');
+                    if (!cellDateStr) return;
+                    
+                    const cellTime = new Date(cellDateStr).getTime();
+                    const startTime = startStr ? new Date(startStr).getTime() : 0;
+                    const endTime = endStr ? new Date(endStr).getTime() : startTime;
+                    
+                    if (startTime && cellTime >= startTime && cellTime <= endTime) {
+                        cell.style.background = 'rgba(99, 102, 241, 0.4)';
+                        cell.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                    }
+                });
+            }, 50);
+        };
+
+        window.findAndSelectPhaseByDate = function(targetDateStr) {
+            const targetTime = new Date(targetDateStr).getTime();
+            const phaseCards = document.querySelectorAll('.phase-card');
+            for (let card of phaseCards) {
+                const startStr = card.getAttribute('data-start');
+                const endStr = card.getAttribute('data-end');
+                if (startStr && endStr) {
+                    const startTime = new Date(startStr).getTime();
+                    const endTime = new Date(endStr).getTime();
+                    if (targetTime >= startTime && targetTime <= endTime) {
+                        const phaseId = card.id.replace('phase-card-', '');
+                        selectPhase(phaseId);
+                        return;
+                    }
+                } else if (startStr && !endStr) {
+                    if (startStr === targetDateStr) {
+                        const phaseId = card.id.replace('phase-card-', '');
+                        selectPhase(phaseId);
+                        return;
+                    }
+                }
+            }
+        };
     });
     // Scroll fade-in animation
     const observer = new IntersectionObserver((entries) => {
@@ -1198,6 +1270,49 @@
         });
     }, { threshold: 0.1 });
     document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    // Preserve scroll positions across reloads
+    document.addEventListener("DOMContentLoaded", function() {
+        const scrollPos = sessionStorage.getItem('timelineScrollPos');
+        if (scrollPos) {
+            window.scrollTo(0, parseInt(scrollPos));
+            sessionStorage.removeItem('timelineScrollPos');
+        }
+        
+        const sidebarScrollPos = sessionStorage.getItem('sidebarScrollPos');
+        const sidebar = document.querySelector('.col-sidebar');
+        if (sidebarScrollPos && sidebar) {
+            sidebar.scrollTop = parseInt(sidebarScrollPos);
+            sessionStorage.removeItem('sidebarScrollPos');
+        }
+        
+        const commentsScrollPos = sessionStorage.getItem('commentsScrollPos');
+        const commentsList = document.getElementById('sidebar-comments');
+        if (commentsScrollPos && commentsList) {
+            commentsList.scrollTop = parseInt(commentsScrollPos);
+            sessionStorage.removeItem('commentsScrollPos');
+        }
+        
+        const phasesScrollPos = sessionStorage.getItem('phasesScrollPos');
+        const phasesList = document.querySelector('.phases-scroll-list');
+        if (phasesScrollPos && phasesList) {
+            phasesList.scrollTop = parseInt(phasesScrollPos);
+            sessionStorage.removeItem('phasesScrollPos');
+        }
+    });
+
+    window.addEventListener("beforeunload", function() {
+        sessionStorage.setItem('timelineScrollPos', window.scrollY);
+        
+        const sidebar = document.querySelector('.col-sidebar');
+        if (sidebar) sessionStorage.setItem('sidebarScrollPos', sidebar.scrollTop);
+        
+        const commentsList = document.getElementById('sidebar-comments');
+        if (commentsList) sessionStorage.setItem('commentsScrollPos', commentsList.scrollTop);
+        
+        const phasesList = document.querySelector('.phases-scroll-list');
+        if (phasesList) sessionStorage.setItem('phasesScrollPos', phasesList.scrollTop);
+    });
 </script>
 
 </body>
