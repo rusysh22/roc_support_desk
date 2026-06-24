@@ -3450,6 +3450,7 @@ def whatsapp_disconnect_view(request):
     """Force-logout the WhatsApp session so the instance resets and shows a fresh QR."""
     from gateways.services import EvolutionAPIService
     from django.contrib import messages
+    import time
 
     if request.method != "POST":
         from django.http import HttpResponseNotAllowed
@@ -3459,6 +3460,12 @@ def whatsapp_disconnect_view(request):
     success = svc.logout_instance()
 
     if success:
+        # Wait up to 4 seconds for Evolution API to transition to disconnected state
+        for _ in range(4):
+            time.sleep(1)
+            state_data = svc.get_instance_state()
+            if state_data and state_data.get("instance", {}).get("state") not in ["open", "connected"]:
+                break
         messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
     else:
         messages.error(request, "Failed to disconnect WhatsApp session. Check the Evolution API logs.")

@@ -47,14 +47,14 @@ def sign(request, token):
     signer = get_object_or_404(Signer, token=token)
     document = signer.document
 
-    if (
-        request.user.is_authenticated
-        and signer.user_id
-        and request.user != signer.user
-    ):
-        return render(request, "esign/sign_denied.html", {
-            "signer": signer, "document": document,
-        }, status=403)
+    if signer.user_id:
+        if not request.user.is_authenticated:
+            from django.conf import settings
+            return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+        if request.user != signer.user:
+            return render(request, "esign/sign_denied.html", {
+                "signer": signer, "document": document,
+            }, status=403)
 
     # External signers must verify email + code before accessing the signing page.
     if not signer.user_id and not _is_identity_verified(request, signer):
