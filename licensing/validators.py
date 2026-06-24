@@ -164,9 +164,13 @@ def verify_license_online(license_obj) -> bool:
     - licensing.verify_license_periodic Celery Beat task (every VERIFY_INTERVAL_HOURS)
     """
     from .models import LicenseAuditLog
+    from core.models import SiteConfig
 
     cfg = getattr(settings, 'LICENSE_SETTINGS', {})
-    marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com')
+    try:
+        marketplace_url = SiteConfig.get_solo().marketplace_url.rstrip('/')
+    except Exception:
+        marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com').rstrip('/')
 
     # Decode the stored signed key
     try:
@@ -179,18 +183,23 @@ def verify_license_online(license_obj) -> bool:
         )
         return False
 
+    if not license_obj.activation_token:
+        # If there's no activation token yet, we can't do a fast heartbeat validation.
+        # But we still try activating or just let it fail.
+        # Returning false directly because without token it's not a complete activation
+        return False
+
     try:
-        resp = requests.get(
-            f"{marketplace_url}/api/v1/validate-token",
-            params={
-                'token':      raw_key,
+        resp = requests.post(
+            f"{marketplace_url}/v1/validate",
+            json={
+                'license_key': raw_key,
                 'fingerprint': generate_fingerprint(),
-                'product_id': cfg.get('PRODUCT_ID', 'roc-support-desk'),
+                'token': license_obj.activation_token,
             },
             timeout=10,
         )
         
-        # Check if we got a success code before trying to parse JSON
         if resp.status_code != 200:
             LicenseAuditLog.objects.create(
                 event='verification_failed',
@@ -206,18 +215,22 @@ def verify_license_online(license_obj) -> bool:
             logger.error(f"[License] Invalid JSON from marketplace ({resp.status_code}): {snippet}")
             return False
 
-        if data.get('valid'):
+        if data.get('status') == 'active' or data.get('status') == 'grace':
             # Sync marketplace data to local record
             if data.get('expires_at'):
                 license_obj.expires_at = parse_datetime(data['expires_at'])
             
+            # Save the refreshed token
+            if data.get('token'):
+                license_obj.activation_token = data['token']
+            
             # Map plan/tier from new licese_type or old plan field
-            plan = data.get('license_type') or data.get('plan')
-            if plan:
-                license_obj.plan_tier = plan
-                license_obj.features_json = data.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
-            if data.get('max_agents') is not None:
-                license_obj.max_agents = data['max_agents']
+            entitlements = data.get('entitlements', {})
+            plan = entitlements.get('plan') or 'starter'
+            license_obj.plan_tier = plan
+            license_obj.features_json = entitlements.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
+            if entitlements.get('max_agents') is not None:
+                license_obj.max_agents = entitlements['max_agents']
 
             license_obj.last_verified_at = timezone.now()
             license_obj.save()
@@ -229,7 +242,7 @@ def verify_license_online(license_obj) -> bool:
             )
             return True
         else:
-            # Marketplace says invalid
+            # Marketplace says invalid, expired, revoked, suspended, deactivated
             license_obj.status = 'suspended'
             license_obj.save()
             LicenseAuditLog.objects.create(
@@ -267,23 +280,26 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
         {'success': False, 'error': 'Reason string'}
     """
     from .models import LicenseAuditLog, LicenseRecord
+    from core.models import SiteConfig
 
     cfg = getattr(settings, 'LICENSE_SETTINGS', {})
-    marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com')
+    try:
+        marketplace_url = SiteConfig.get_solo().marketplace_url.rstrip('/')
+    except Exception:
+        marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com').rstrip('/')
     fingerprint = generate_fingerprint()
 
     try:
-        resp = requests.get(
-            f"{marketplace_url}/api/v1/validate-token",
-            params={
-                'token':      license_key_raw,
+        resp = requests.post(
+            f"{marketplace_url}/v1/activate",
+            json={
+                'license_key': license_key_raw,
                 'fingerprint': fingerprint,
-                'product_id': cfg.get('PRODUCT_ID', 'roc-support-desk'),
+                'machine_name': cfg.get('PRODUCT_ID', 'roc-support-desk'),
             },
             timeout=10,
         )
         
-        # Check HTTP status code
         if resp.status_code != 200:
             return {
                 'success': False, 
@@ -293,7 +309,6 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
         try:
             data = resp.json()
         except (json.JSONDecodeError, ValueError):
-            # Provide debug context if it's an HTML error page instead of JSON
             content_type = resp.headers.get('Content-Type', 'unknown')
             snippet = resp.text[:100] if resp.text else "Empty response"
             return {
@@ -301,8 +316,8 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
                 'error': f"Invalid response format from marketplace. Expected JSON but got {content_type}. (Preview: {snippet}...)"
             }
 
-        if not data.get('valid'):
-            reason = data.get('reason', 'invalid_key')
+        if data.get('status') not in ('active', 'grace'):
+            reason = data.get('message', 'invalid_key')
             LicenseAuditLog.objects.create(
                 event='fraud_attempt',
                 payload={'reason': reason, 'key_provided': license_key_raw[:8] + '...'},
@@ -313,19 +328,18 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
         # Key is valid — store and activate
         signed_key = signing.dumps(license_key_raw, salt='roc-license-v1')
         
-        # Mapping: API v1 uses 'license_type', legacy used 'plan'
-        plan = data.get('license_type') or data.get('plan', 'starter')
-        features = data.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
-        issued_to = data.get('user_id') or data.get('issued_to', '')
+        entitlements = data.get('entitlements', {})
+        plan = entitlements.get('plan', 'starter')
+        features = entitlements.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
 
         record = LicenseRecord.get_current()
         record.license_key          = signed_key
-        record.issued_to            = issued_to
+        record.activation_token     = data.get('token', '')
         record.plan_tier            = plan
         record.status               = 'active'
         record.expires_at           = parse_datetime(data['expires_at']) if data.get('expires_at') else None
-        record.issued_at            = parse_datetime(data['issued_at']) if data.get('issued_at') else timezone.now()
-        record.max_agents           = data.get('max_agents', 5)
+        record.issued_at            = timezone.now()
+        record.max_agents           = entitlements.get('max_agents', 5)
         record.features_json        = features
         record.install_fingerprint  = fingerprint
         record.marketplace_endpoint = marketplace_url
@@ -345,3 +359,4 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
             'success': False,
             'error': f"Could not reach marketplace: {exc}. Please try again later.",
         }
+
