@@ -339,6 +339,12 @@ class SiteConfig(AuditableModel):
         verbose_name="Site Name",
         help_text="The name of the site displayed in the navbar, tabs, and login screens."
     )
+    site_url = models.URLField(
+        blank=True,
+        default="",
+        verbose_name="Base Site URL",
+        help_text="The main public URL of this application (e.g. https://finance.santika.com). Used for generating links in emails and background tasks. Leave blank to fallback to the .env setting."
+    )
     favicon = models.ImageField(
         upload_to="site_config/",
         null=True,

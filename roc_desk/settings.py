@@ -143,6 +143,7 @@ MIDDLEWARE = [
     "core.middleware.ContentSecurityPolicyMiddleware",
     "core.middleware.PublicLoginRestrictionMiddleware",
     "core.middleware.ForcePasswordChangeMiddleware",
+    "core.middleware.SiteUrlAutoDiscoveryMiddleware",
     # License gate — routes by effective license status
     "licensing.middleware.LicenseGateMiddleware",
     # Trial timer — tracks daily usage; blocks when quota exhausted

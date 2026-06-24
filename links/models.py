@@ -50,8 +50,12 @@ class ShortLink(models.Model):
 
     def get_short_url(self):
         from django.conf import settings
-        base = getattr(settings, "SITE_URL", "")
-        return f"{base}/s/{self.slug}/"
+        try:
+            from core.models import SiteConfig
+            base = SiteConfig.get_solo().site_url or getattr(settings, "SITE_URL", "")
+        except Exception:
+            base = getattr(settings, "SITE_URL", "")
+        return f"{base.rstrip('/')}/s/{self.slug}/"
 
     def save(self, *args, **kwargs):
         generate_qr = not self.qr_code

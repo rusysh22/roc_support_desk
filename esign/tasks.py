@@ -262,8 +262,10 @@ def send_signature_completed_task(self, document_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _build_absolute_url(path: str) -> str:
-    """Build a full absolute URL using SITE_URL from settings, or a fallback."""
-    base = getattr(settings, "SITE_URL", "").rstrip("/")
+    """Build a full absolute URL using SiteConfig, falling back to SITE_URL from settings."""
+    from core.models import SiteConfig
+    cfg = SiteConfig.get_solo()
+    base = (cfg.site_url or getattr(settings, "SITE_URL", "")).rstrip("/")
     if not base:
         base = "http://localhost:8000"
     return f"{base}{path}"
