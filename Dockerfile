@@ -45,6 +45,6 @@ COPY --from=builder /install /usr/local
 # Copy project source (invalidated on code change — everything above is cached)
 COPY . /app/
 
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
