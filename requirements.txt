@@ -13,8 +13,11 @@ django-environ>=0.11
 celery>=5.4
 redis>=5.0
 
-# Media handling
+# Media handling & Cloud Storage
 Pillow>=10.4
+django-storages[azure,boto3]>=1.14
+azure-storage-blob>=12.19
+boto3>=1.34
 
 # HTTP client (Evolution API)
 requests>=2.32
