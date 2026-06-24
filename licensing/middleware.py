@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Paths that bypass all license checks
 # ---------------------------------------------------------------------------
 LICENSE_EXEMPT_PREFIXES = (
+    '/health/',       # Docker healthcheck
     '/license/',      # All license management pages
     '/auth/',         # Login, logout, password reset
     '/static/',       # Static assets

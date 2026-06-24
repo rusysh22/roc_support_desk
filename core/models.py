@@ -347,7 +347,7 @@ class SiteConfig(AuditableModel):
     )
     marketplace_url = models.URLField(
         blank=True,
-        default="https://tokowebjaya.com",
+        default="http://localhost:5000",
         verbose_name="Marketplace Server URL",
         help_text="Base URL of the Estalatree licensing server for verification."
     )

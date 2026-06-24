@@ -224,13 +224,33 @@ def verify_license_online(license_obj) -> bool:
             if data.get('token'):
                 license_obj.activation_token = data['token']
             
-            # Map plan/tier from new licese_type or old plan field
             entitlements = data.get('entitlements', {})
-            plan = entitlements.get('plan') or 'starter'
-            license_obj.plan_tier = plan
-            license_obj.features_json = entitlements.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
-            if entitlements.get('max_agents') is not None:
-                license_obj.max_agents = entitlements['max_agents']
+            
+            # Extract Plan Tier (Estalatree usually sends PLAN_TIER or plan)
+            plan_tier = entitlements.get('PLAN_TIER') or entitlements.get('plan') or 'starter'
+            license_obj.plan_tier = str(plan_tier).lower()
+            
+            # Extract Max Agents
+            max_agents_str = entitlements.get('MAX_AGENTS') or entitlements.get('max_agents')
+            if max_agents_str and str(max_agents_str).isdigit():
+                license_obj.max_agents = int(max_agents_str)
+
+            # Map remaining entitlements as features (boolean/string)
+            features = {}
+            for k, v in entitlements.items():
+                k_lower = k.lower()
+                if str(v).lower() == 'true':
+                    features[k_lower] = True
+                elif str(v).lower() == 'false':
+                    features[k_lower] = False
+                else:
+                    features[k_lower] = v
+            
+            # Fallback to defaults if no features provided
+            if not features:
+                features = TIER_DEFAULT_FEATURES.get(license_obj.plan_tier, {})
+                
+            license_obj.features_json = features
 
             license_obj.last_verified_at = timezone.now()
             license_obj.save()
@@ -329,17 +349,32 @@ def activate_license_with_marketplace(license_key_raw: str) -> dict:
         signed_key = signing.dumps(license_key_raw, salt='roc-license-v1')
         
         entitlements = data.get('entitlements', {})
-        plan = entitlements.get('plan', 'starter')
-        features = entitlements.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
+        plan_tier = entitlements.get('PLAN_TIER') or entitlements.get('plan') or 'starter'
+        
+        max_agents_str = entitlements.get('MAX_AGENTS') or entitlements.get('max_agents')
+        parsed_max_agents = int(max_agents_str) if max_agents_str and str(max_agents_str).isdigit() else 5
+        
+        features = {}
+        for k, v in entitlements.items():
+            k_lower = k.lower()
+            if str(v).lower() == 'true':
+                features[k_lower] = True
+            elif str(v).lower() == 'false':
+                features[k_lower] = False
+            else:
+                features[k_lower] = v
+                
+        if not features:
+            features = TIER_DEFAULT_FEATURES.get(str(plan_tier).lower(), {})
 
         record = LicenseRecord.get_current()
         record.license_key          = signed_key
         record.activation_token     = data.get('token', '')
-        record.plan_tier            = plan
+        record.plan_tier            = str(plan_tier).lower()
         record.status               = 'active'
         record.expires_at           = parse_datetime(data['expires_at']) if data.get('expires_at') else None
         record.issued_at            = timezone.now()
-        record.max_agents           = entitlements.get('max_agents', 5)
+        record.max_agents           = parsed_max_agents
         record.features_json        = features
         record.install_fingerprint  = fingerprint
         record.marketplace_endpoint = marketplace_url

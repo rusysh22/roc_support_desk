@@ -166,6 +166,9 @@ def _process_license_created(record, data: dict, fingerprint: str):
     plan = data.get('plan', 'starter')
     signed_key = signing.dumps(data.get('license_key', ''), salt='roc-license-v1')
 
+    from core.models import SiteConfig
+    site_config = SiteConfig.get_solo()
+    
     record.license_key          = signed_key
     record.issued_to            = data.get('issued_to', '')
     record.plan_tier            = plan
@@ -173,7 +176,7 @@ def _process_license_created(record, data: dict, fingerprint: str):
     record.max_agents           = data.get('max_agents', 5)
     record.features_json        = data.get('features', TIER_DEFAULT_FEATURES.get(plan, {}))
     record.install_fingerprint  = fingerprint
-    record.marketplace_endpoint = getattr(settings, 'LICENSE_SETTINGS', {}).get('MARKETPLACE_URL', '')
+    record.marketplace_endpoint = site_config.marketplace_url
     record.last_verified_at     = timezone.now()
 
     if data.get('issued_at'):
@@ -365,6 +368,9 @@ def license_status(request):
 
     cfg = getattr(settings, 'LICENSE_SETTINGS', {})
 
+    from core.models import SiteConfig
+    site_config = SiteConfig.get_solo()
+
     context = {
         'license':           license,
         'effective_status':  effective_status,
@@ -372,7 +378,7 @@ def license_status(request):
         'today_trial':       today_trial,
         'trial_days_used':   trial_days_used,
         'fingerprint':       generate_fingerprint(),
-        'marketplace_url':   cfg.get('MARKETPLACE_URL', ''),
+        'marketplace_url':   site_config.marketplace_url,
         'trial_max_days':    cfg.get('TRIAL_MAX_DAYS', 1),
         'trial_duration_sec': cfg.get('TRIAL_DURATION_SECONDS', 900),
     }
@@ -384,28 +390,31 @@ def license_status(request):
 # ---------------------------------------------------------------------------
 
 def license_expired(request):
+    from core.models import SiteConfig
     license = LicenseRecord.get_current()
-    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
+    site_config = SiteConfig.get_solo()
     return render(request, 'licensing/expired.html', {
         'license': license,
-        'marketplace_url': cfg.get('MARKETPLACE_URL', ''),
+        'marketplace_url': site_config.marketplace_url,
     })
 
 
 def license_suspended(request):
+    from core.models import SiteConfig
     license = LicenseRecord.get_current()
-    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
+    site_config = SiteConfig.get_solo()
     return render(request, 'licensing/suspended.html', {
         'license': license,
-        'marketplace_url': cfg.get('MARKETPLACE_URL', ''),
+        'marketplace_url': site_config.marketplace_url,
     })
 
 
 def license_upgrade(request):
+    from core.models import SiteConfig
     license = LicenseRecord.get_current()
-    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
+    site_config = SiteConfig.get_solo()
     return render(request, 'licensing/upgrade.html', {
         'license': license,
-        'marketplace_url': cfg.get('MARKETPLACE_URL', ''),
+        'marketplace_url': site_config.marketplace_url,
         'tier_features': TIER_DEFAULT_FEATURES,
     })

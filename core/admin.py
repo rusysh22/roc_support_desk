@@ -235,6 +235,15 @@ class SiteConfigAdmin(ModelAdmin):
         ("Portal Settings", {
             "fields": ("require_public_login", "max_upload_size_mb"),
         }),
+        ("System URLs", {
+            "fields": ("site_url", "marketplace_url"),
+            "description": "Critical URLs for background tasks, webhook links, and license validation.",
+        }),
+        ("WhatsApp Gateway", {
+            "fields": ("wa_inbound_enabled", "wa_outbound_enabled"),
+            "description": "Master toggles for WhatsApp message processing.",
+            "classes": ("collapse",),
+        }),
         ("Terms & Privacy", {
             "fields": ("terms_and_privacy",),
             "classes": ("collapse",),

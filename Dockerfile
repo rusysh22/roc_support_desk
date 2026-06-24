@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# Dockerfile for RoC Support Desk
 # Dockerfile for RoC Support Desk
 #
 # Fast rebuild strategy:
