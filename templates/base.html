@@ -218,18 +218,22 @@
                     </div>
                     
                     {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
+                    {% if license.features_json.form_builder or not license.features_json or license_status == 'trial' %}
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'desk:form_workflows' %}" class="jk-sidebar-link {% block nav_form_workflows %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">🔄</span>
                             <span x-show="!sidebarCollapsed" x-transition.opacity>e-Form Management</span>
                         </a>
                     </div>
+                    {% endif %}
+                    {% if license.features_json.project_management or not license.features_json or license_status == 'trial' %}
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'projects_desk:project_list' %}" class="jk-sidebar-link {% block nav_projects %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">📈</span>
                             <span x-show="!sidebarCollapsed" x-transition.opacity>Projects</span>
                         </a>
                     </div>
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -254,12 +258,14 @@
                     </div>
 
                     {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
+                    {% if license.features_json.esign or not license.features_json or license_status == 'trial' %}
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'esign:document_list' %}" class="jk-sidebar-link {% block nav_esign %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">✒️</span>
                             <span x-show="!sidebarCollapsed" x-transition.opacity>E-Sign</span>
                         </a>
                     </div>
+                    {% endif %}
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'desk:form_list' %}" class="jk-sidebar-link {% block nav_forms %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">📝</span>
@@ -270,12 +276,14 @@
                         </a>
                     </div>
                     
+                    {% if license.features_json.shared_docs or not license.features_json or license_status == 'trial' %}
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'shared_docs_desk:list' %}" class="jk-sidebar-link {% block nav_docs %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">📂</span>
                             <span x-show="!sidebarCollapsed" x-transition.opacity>Shared Docs</span>
                         </a>
                     </div>
+                    {% endif %}
                     {% endif %}
 
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">

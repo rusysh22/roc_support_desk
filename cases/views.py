@@ -232,44 +232,31 @@ def eform_detail(request, submission_id):
                         sig_doc.original_pdf.save(filename, ContentFile(pdf_bytes), save=True)
                         submission.signature_document = sig_doc
                         
-                        # --- Explicit E-Sign Signatories (Role Flag) ---
-                        signers_map = {}
-                        
                         # Loop through template fields to find explicit E-Sign Role mappings
                         for f in template.fields.all():
-                            if f.esign_role:
-                                if f.esign_role.startswith("signer_1"):
-                                    signers_map.setdefault(1, {})
-                                    if f.esign_role.endswith("_name"):
-                                        signers_map[1]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
-                                    elif f.esign_role.endswith("_email"):
-                                        signers_map[1]['email'] = submission.data_payload.get(f"field_{f.id}", "")
-                                elif f.esign_role.startswith("signer_2"):
-                                    signers_map.setdefault(2, {})
-                                    if f.esign_role.endswith("_name"):
-                                        signers_map[2]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
-                                    elif f.esign_role.endswith("_email"):
-                                        signers_map[2]['email'] = submission.data_payload.get(f"field_{f.id}", "")
-                                elif f.esign_role.startswith("signer_3"):
-                                    signers_map.setdefault(3, {})
-                                    if f.esign_role.endswith("_name"):
-                                        signers_map[3]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
-                                    elif f.esign_role.endswith("_email"):
-                                        signers_map[3]['email'] = submission.data_payload.get(f"field_{f.id}", "")
-                                        
-                        # Create Signer objects
-                        for order_num, data in signers_map.items():
-                            external_name = data.get('name', 'Unknown')
-                            external_email = data.get('email', '')
-                            
-                            if external_email:
-                                Signer.objects.create(
-                                    document=sig_doc,
-                                    order=order_num,
-                                    role='signer',
-                                    external_name=external_name,
-                                    external_email=external_email
-                                )
+                            if getattr(f, 'is_signer', False):
+                                val = str(submission.data_payload.get(f"field_{f.id}", "")).strip()
+                                if val:
+                                    # If it looks like an email, use it as email
+                                    if "@" in val and "." in val:
+                                        Signer.objects.create(
+                                            document=sig_doc,
+                                            order=f.order,
+                                            role='signer',
+                                            external_name=f.label,
+                                            external_email=val
+                                        )
+                                    else:
+                                        # Use it as a name
+                                        Signer.objects.create(
+                                            document=sig_doc,
+                                            order=f.order,
+                                            role='signer',
+                                            external_name=val,
+                                            external_email=""
+                                        )
+                        
+                        # Note: we no longer use signers_map logic since each field is a unique signer
                         
                     submission.save()
                     messages.success(request, "Form fully submitted and is pending E-Sign.")

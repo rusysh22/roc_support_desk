@@ -31,7 +31,7 @@ def license_context(request):
             license_status = license_obj.get_effective_status()
 
         from .middleware import LicenseGateMiddleware
-        is_exempt = LicenseGateMiddleware._is_exempt(request.path)
+        is_exempt = LicenseGateMiddleware._is_exempt(request)
         trial_blocked      = getattr(request, '_trial_blocked', False)
         trial_seconds_left = getattr(request, '_trial_seconds_left', None)
 

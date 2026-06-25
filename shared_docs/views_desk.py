@@ -12,7 +12,10 @@ def is_manager_or_admin(user):
 from .models import SharedDocument
 from .forms import SharedDocumentForm
 
+from licensing.decorators import feature_required
+
 @login_required
+@feature_required('shared_docs')
 def shared_doc_list(request):
     docs = SharedDocument.objects.all().order_by("-updated_at")
     
@@ -47,7 +50,7 @@ def shared_doc_create(request):
             doc.updated_by = request.user
             doc.save()
             messages.success(request, "Document created.")
-            return redirect("shared_docs_desk:list")
+            return redirect("shared_docs_desk:edit", pk=doc.pk)
     else:
         form = SharedDocumentForm(initial={"is_active": True})
         
@@ -72,7 +75,7 @@ def shared_doc_edit(request, pk):
             d.updated_by = request.user
             d.save()
             messages.success(request, "Document updated.")
-            return redirect("shared_docs_desk:list")
+            return redirect("shared_docs_desk:edit", pk=d.pk)
     else:
         form = SharedDocumentForm(instance=doc)
         

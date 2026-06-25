@@ -48,7 +48,10 @@ def can_edit_project(user, project):
 # PROJECTS
 # ==============================================================================
 
+from licensing.decorators import feature_required
+
 @login_required
+@feature_required('project_management')
 def project_list(request):
     """
     List all projects.

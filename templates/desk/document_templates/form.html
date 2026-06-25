@@ -196,15 +196,11 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-emerald-600 mb-1">E-Sign Role</label>
-                                    <select x-model="field.esign_role" class="jk-input text-sm w-full border-emerald-200 bg-emerald-50 focus:border-emerald-500 focus:ring-emerald-500">
-                                        <option value="">-- No E-Sign Mapping --</option>
-                                        <option value="signer_1_name">[E-Sign] Signer 1 - Name</option>
-                                        <option value="signer_1_email">[E-Sign] Signer 1 - Email</option>
-                                        <option value="signer_2_name">[E-Sign] Signer 2 - Name</option>
-                                        <option value="signer_2_email">[E-Sign] Signer 2 - Email</option>
-                                        <option value="signer_3_name">[E-Sign] Signer 3 - Name</option>
-                                        <option value="signer_3_email">[E-Sign] Signer 3 - Email</option>
-                                    </select>
+                                    <label class="flex items-center gap-2 cursor-pointer mt-2">
+                                        <input type="checkbox" x-model="field.is_signer"
+                                            class="w-4 h-4 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500">
+                                        <span class="text-xs font-medium text-emerald-700">Map as unique E-Signer</span>
+                                    </label>
                                 </div>
                             </div>
 

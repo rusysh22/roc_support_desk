@@ -879,21 +879,10 @@ class DocumentTemplateField(AuditableModel):
         verbose_name="Field Type"
     )
     
-    class ESignRole(models.TextChoices):
-        NONE = "", "-- No E-Sign Mapping --"
-        SIGNER_1_NAME = "signer_1_name", "[E-Sign] Signer 1 - Name"
-        SIGNER_1_EMAIL = "signer_1_email", "[E-Sign] Signer 1 - Email"
-        SIGNER_2_NAME = "signer_2_name", "[E-Sign] Signer 2 - Name"
-        SIGNER_2_EMAIL = "signer_2_email", "[E-Sign] Signer 2 - Email"
-        SIGNER_3_NAME = "signer_3_name", "[E-Sign] Signer 3 - Name"
-        SIGNER_3_EMAIL = "signer_3_email", "[E-Sign] Signer 3 - Email"
-
-    esign_role = models.CharField(
-        max_length=50,
-        choices=ESignRole.choices,
-        default=ESignRole.NONE,
-        blank=True,
-        verbose_name="E-Sign Role Mapping"
+    is_signer = models.BooleanField(
+        default=False,
+        verbose_name="Is E-Signer?",
+        help_text="Check this if the input of this field should be treated as a unique Signer (Name or Email) for the E-Sign process."
     )
     
     assigned_stage = models.CharField(

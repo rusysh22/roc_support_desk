@@ -39,6 +39,9 @@ TIER_DEFAULT_FEATURES: dict[str, dict] = {
         'sla_reports':    False,
         'audit_export':   False,
         'api_access':     False,
+        'esign':          False,
+        'shared_docs':    False,
+        'project_management': False,
     },
     'starter': {
         'whatsapp':       True,
@@ -51,6 +54,9 @@ TIER_DEFAULT_FEATURES: dict[str, dict] = {
         'sla_reports':    False,
         'audit_export':   False,
         'api_access':     False,
+        'esign':          False,
+        'shared_docs':    False,
+        'project_management': False,
     },
     'professional': {
         'whatsapp':       True,
@@ -63,6 +69,9 @@ TIER_DEFAULT_FEATURES: dict[str, dict] = {
         'sla_reports':    True,
         'audit_export':   True,
         'api_access':     False,
+        'esign':          True,
+        'shared_docs':    True,
+        'project_management': True,
     },
     'business': {
         'whatsapp':       True,
@@ -75,6 +84,9 @@ TIER_DEFAULT_FEATURES: dict[str, dict] = {
         'sla_reports':    True,
         'audit_export':   True,
         'api_access':     True,
+        'esign':          True,
+        'shared_docs':    True,
+        'project_management': True,
     },
     'enterprise': {
         'whatsapp':       True,
@@ -87,6 +99,9 @@ TIER_DEFAULT_FEATURES: dict[str, dict] = {
         'sla_reports':    True,
         'audit_export':   True,
         'api_access':     True,
+        'esign':          True,
+        'shared_docs':    True,
+        'project_management': True,
     },
 }
 

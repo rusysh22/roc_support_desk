@@ -48,7 +48,10 @@ def _staff_required(view_func):
 # Document list
 # ---------------------------------------------------------------------------
 
+from licensing.decorators import feature_required
+
 @_staff_required
+@feature_required('esign')
 def document_list(request):
     documents = (
         SignatureDocument.objects
