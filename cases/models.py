@@ -791,6 +791,28 @@ class DocumentTemplate(AuditableModel):
         verbose_name="Applicable Categories",
         help_text="Document fill-form appears on ticket submission for these categories.",
     )
+    is_standalone = models.BooleanField(
+        default=False,
+        verbose_name="Standalone Form",
+        help_text="If true, this form can be submitted independently from the e-Forms portal, without needing a Support Ticket."
+    )
+    logo = models.ImageField(
+        upload_to="document_templates/logos/",
+        null=True, blank=True,
+        verbose_name="Document Logo"
+    )
+    form_stages = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Form Stages",
+        help_text='List of stages (e.g. ["Initiator", "Vendor", "IT Ops"]). The first stage is automatically assigned to the form creator.'
+    )
+    esign_auto_mapping = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="E-Sign Auto Mapping",
+        help_text="JSON mapping to auto-create Signers. Example: [{'order': 1, 'role': 'signer', 'job_title': 'Vendor', 'name_field_id': '...', 'email_field_id': '...'}]"
+    )
 
     class Meta:
         verbose_name = "Document Template"
@@ -830,6 +852,12 @@ class DocumentTemplateField(AuditableModel):
         help_text="Display order (1 = first). Maximum 10 fields per template.",
     )
     label = models.CharField(max_length=200, verbose_name="Field Label")
+    variable_name = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Variable Name",
+        help_text="Unique identifier (e.g. 'vendor_name'). Used for PDF placeholders {{ vendor_name }} and E-Sign mapping."
+    )
     placeholder = models.CharField(
         max_length=300,
         blank=True,
@@ -843,6 +871,43 @@ class DocumentTemplateField(AuditableModel):
                   "Supports basic HTML tags. Leave blank for an empty editor.",
     )
     is_required = models.BooleanField(default=True, verbose_name="Required")
+    
+    class FieldType(models.TextChoices):
+        TEXT = "text", "Short Text"
+        RICHTEXT = "richtext", "Rich Text (HTML)"
+        DATE = "date", "Date"
+        REPEATER = "repeater", "Table / Repeater"
+        
+    field_type = models.CharField(
+        max_length=20,
+        choices=FieldType.choices,
+        default=FieldType.RICHTEXT,
+        verbose_name="Field Type"
+    )
+    
+    class ESignRole(models.TextChoices):
+        NONE = "", "-- No E-Sign Mapping --"
+        SIGNER_1_NAME = "signer_1_name", "[E-Sign] Signer 1 - Name"
+        SIGNER_1_EMAIL = "signer_1_email", "[E-Sign] Signer 1 - Email"
+        SIGNER_2_NAME = "signer_2_name", "[E-Sign] Signer 2 - Name"
+        SIGNER_2_EMAIL = "signer_2_email", "[E-Sign] Signer 2 - Email"
+        SIGNER_3_NAME = "signer_3_name", "[E-Sign] Signer 3 - Name"
+        SIGNER_3_EMAIL = "signer_3_email", "[E-Sign] Signer 3 - Email"
+
+    esign_role = models.CharField(
+        max_length=50,
+        choices=ESignRole.choices,
+        default=ESignRole.NONE,
+        blank=True,
+        verbose_name="E-Sign Role Mapping"
+    )
+    
+    assigned_stage = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Assigned Stage",
+        help_text="Which stage fills this field? (e.g. 'Vendor'). Leave blank for all stages."
+    )
 
     class Meta:
         verbose_name = "Template Field"
@@ -1005,3 +1070,81 @@ class ChangeRequestApproval(AuditableModel):
             return False
         from django.utils import timezone
         return timezone.now() > self.token_expires_at
+
+
+# =====================================================================
+# E-Form Multi-Stage Submissions (Phase 1)
+# =====================================================================
+
+def eform_pdf_path(instance, filename):
+    return f"eforms/{instance.id}/pdf/{filename}"
+
+class FormSubmission(AuditableModel):
+    """
+    Acts as the source of truth for standalone, multi-stage form data.
+    """
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        IN_PROGRESS = "in_progress", "In Progress"
+        PENDING_ESIGN = "pending_esign", "Pending E-Sign"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, verbose_name="ID")
+    template = models.ForeignKey(
+        DocumentTemplate, 
+        on_delete=models.PROTECT, 
+        related_name="form_submissions", 
+        verbose_name="Template"
+    )
+    initiator_user = models.ForeignKey(
+        "core.User", 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name="initiated_forms",
+        verbose_name="Initiator"
+    )
+    data_payload = models.JSONField(
+        default=dict, 
+        blank=True, 
+        verbose_name="Form Data Payload"
+    )
+    current_stage = models.CharField(
+        max_length=100, 
+        blank=True, 
+        verbose_name="Current Stage"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        verbose_name="Status"
+    )
+    guest_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        verbose_name="Guest Token",
+        help_text="Allows public/vendor access to fill their assigned stage."
+    )
+    generated_pdf = models.FileField(
+        upload_to=eform_pdf_path,
+        null=True, blank=True,
+        verbose_name="Generated PDF"
+    )
+    signature_document = models.ForeignKey(
+        "esign.SignatureDocument",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="source_form",
+        verbose_name="E-Sign Document"
+    )
+
+    class Meta:
+        verbose_name = "Form Submission"
+        verbose_name_plural = "Form Submissions"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.template.title} - {self.id} [{self.status}]"

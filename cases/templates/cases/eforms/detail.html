@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Form: {{ template.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="jk-card p-6">
+        <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div class="flex items-center gap-4">
+                {% if template.logo %}
+                <div class="w-12 h-12 rounded-lg bg-white p-1 flex-shrink-0">
+                    <img src="{{ template.logo.url }}" class="w-full h-full object-contain">
+                </div>
+                {% endif %}
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">{{ template.title }}</h2>
+                    <p class="text-slate-500 text-sm mt-0.5">Tracking ID: #{{ submission.id|stringformat:"05i" }}</p>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1">Current Stage</div>
+                <div
+                    class="px-3 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-600 font-bold text-sm">
+                    {{ submission.current_stage|default:"Processing..." }}
+                </div>
+            </div>
+        </div>
+
+        {% if guest_link and not is_public and submission.status != 'completed' and submission.status != 'pending_esign' %}
+        <div class="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between gap-4">
+            <div class="text-sm text-slate-500">
+                <strong>Public Link:</strong> Share this link with external parties to fill their stage.
+            </div>
+            <div class="flex gap-2">
+                <input type="text" readonly value="{{ guest_link }}"
+                    class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 w-64 outline-none">
+                <button type="button" onclick="navigator.clipboard.writeText('{{ guest_link }}'); alert('Copied!');"
+                    class="jk-btn jk-btn-sm !bg-slate-50 hover:!bg-slate-100 !text-slate-700 text-xs">Copy</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- The Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="jk-card">
+            <div class="p-6 space-y-6">
+                {% for field in fields %}
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-slate-800">
+                        {{ field.label }}
+                        {% if field.is_required %}<span class="text-rose-500 ml-0.5">*</span>{% endif %}
+                        {% if field.assigned_stage %}
+                        <span
+                            class="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-200">
+                            Stage: {{ field.assigned_stage }}
+                        </span>
+                        {% endif %}
+                    </label>
+
+                    {% if submission.status == 'completed' or submission.status == 'pending_esign' or field.assigned_stage and field.assigned_stage != submission.current_stage %}
+                    <!-- Readonly View for past/future fields -->
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-sm opacity-60">
+                        {% if field.current_value %}
+                        {{ field.current_value|safe }}
+                        {% else %}
+                        <span class='text-slate-500 italic'>Not filled yet</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <!-- Editable Input -->
+                    {% if field.field_type == 'text' %}
+                    <input type="text" name="field_{{ field.id }}" placeholder="{{ field.placeholder }}" {% if field.is_required %}required{% endif %}
+                        class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                        value="{{ field.current_value }}">
+                    {% elif field.field_type == 'date' %}
+                    <input type="date" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}
+                        class="w-full sm:w-auto bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                        value="{{ field.current_value }}">
+                    {% else %}
+                    <textarea name="field_{{ field.id }}" rows="4" placeholder="{{ field.placeholder }}" {% if field.is_required %}required{% endif %}
+                        class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none resize-y">{{ field.current_value }}</textarea>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="text-center py-8 text-slate-500">
+                    No fields are configured for this template.
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                {% if submission.status == 'pending_esign' and not is_public and submission.signature_document %}
+                <div class="text-sm text-slate-500 font-medium">This form has been converted to PDF and is pending
+                    E-Signature.</div>
+                <a href="{% url 'esign:document_detail' submission.signature_document.id %}"
+                    class="jk-btn jk-btn-primary flex items-center gap-2">
+                    View E-Sign Document
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                </a>
+                {% elif submission.status == 'completed' %}
+                <div class="text-sm text-emerald-600 font-bold flex items-center gap-2 w-full justify-center py-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    This form has been completed.
+                </div>
+                {% elif is_public and submission.status == 'pending_esign' %}
+                <div class="text-sm text-slate-500 font-medium w-full text-center py-2">
+                    Thank you! This form has been successfully submitted and is now being processed internally.
+                </div>
+                {% elif is_public and submission.status == 'completed' %}
+                <div class="text-sm text-emerald-600 font-bold w-full text-center py-2">
+                    This document has been fully processed and completed.
+                </div>
+                {% else %}
+                <button type="submit" name="action" value="save_draft"
+                    class="jk-btn !bg-slate-50 hover:!bg-slate-100 !text-slate-700">
+                    Save Draft
+                </button>
+                <button type="submit" name="action" value="submit_stage"
+                    class="jk-btn jk-btn-primary flex items-center gap-2">
+                    Submit Stage
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

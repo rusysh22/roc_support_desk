@@ -16,6 +16,9 @@ urlpatterns = [
     path("cases/", views.case_list, name="case_list"),
     path("cases/bulk-action/", views.case_bulk_action, name="case_bulk_action"),
 
+    # Enterprise E-Form Workflows List (Staff)
+    path("eforms/workflows/", views.form_workflows_list, name="form_workflows"),
+
     # Ticket Kanban board
     path("cases/kanban/", views.case_kanban, name="case_kanban"),
 

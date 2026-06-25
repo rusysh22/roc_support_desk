@@ -170,6 +170,10 @@
                         <span class="jk-sidebar-link-icon">🎟️</span>
                         <span x-show="!sidebarCollapsed" x-transition.opacity>My Tickets</span>
                     </a>
+                    <a href="{% url 'cases:my_eforms' %}" class="jk-sidebar-link {% block nav_my_eforms %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">📝</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>My e-Forms</span>
+                    </a>
                     {% endif %}
 
                     {% if user.role_access != 'PortalUser' %}
@@ -180,6 +184,10 @@
                     <a href="{% url 'esign:my_signatures' %}" class="jk-sidebar-link {% block nav_my_signatures %}{% endblock %}">
                         <span class="jk-sidebar-link-icon">✍️</span>
                         <span x-show="!sidebarCollapsed" x-transition.opacity>My Signatures</span>
+                    </a>
+                    <a href="{% url 'cases:my_eforms' %}" class="jk-sidebar-link {% block nav_my_eforms_staff %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">📝</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>My e-Forms</span>
                     </a>
                     {% endif %}
                 </div>
@@ -210,6 +218,12 @@
                     </div>
                     
                     {% if user.role_access in 'SuperAdmin,Manager,SupportDesk,Auditor' %}
+                    <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
+                        <a href="{% url 'desk:form_workflows' %}" class="jk-sidebar-link {% block nav_form_workflows %}{% endblock %}" style="flex:1;">
+                            <span class="jk-sidebar-link-icon">🔄</span>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity>e-Form Management</span>
+                        </a>
+                    </div>
                     <div class="flex items-center" :class="{ 'justify-center': sidebarCollapsed }">
                         <a href="{% url 'projects_desk:project_list' %}" class="jk-sidebar-link {% block nav_projects %}{% endblock %}" style="flex:1;">
                             <span class="jk-sidebar-link-icon">📈</span>

@@ -38,7 +38,7 @@ from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
 from .models import (
     Attachment, CaseCategory, CaseRecord, ChangeRequestApproval,
     ChangeRequestDocument, Message, CaseComment, CaseAuditLog,
-    RCATemplate, DocumentTemplate, DocumentTemplateField,
+    RCATemplate, DocumentTemplate, DocumentTemplateField, FormSubmission,
 )
 
 from licensing.decorators import feature_required
@@ -116,6 +116,280 @@ def manager_or_admin_required(view_func):
             return HttpResponseForbidden("Manager or SuperAdmin access required.")
         return view_func(request, *args, **kwargs)
     return _wrapped
+
+
+# =====================================================================
+# Enterprise E-Forms UI Views (Phase 2)
+# =====================================================================
+
+@login_required
+def my_eforms_list(request):
+    """
+    Client portal view for users to see their own initiated FormSubmissions.
+    """
+    submissions = FormSubmission.objects.filter(initiator_user=request.user).order_by('-created_at')
+    
+    from django.core.paginator import Paginator
+    paginator = Paginator(submissions, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, "cases/eforms/my_eforms.html", {
+        "submissions": page_obj
+    })
+
+@login_required
+def eform_template_list(request):
+    """
+    Shows a grid of available E-Form Templates for the user to start a new request.
+    """
+    templates = DocumentTemplate.objects.filter(is_standalone=True).order_by('title')
+    return render(request, "cases/eforms/template_list.html", {
+        "templates": templates
+    })
+
+@login_required
+def eform_initiate(request, template_id):
+    """
+    Creates a new draft FormSubmission for the selected template.
+    """
+    template = get_object_or_404(DocumentTemplate, id=template_id, is_standalone=True)
+    
+    # Determine the first stage
+    stages = template.form_stages if isinstance(template.form_stages, list) else []
+    first_stage = stages[0] if stages else ""
+
+    import secrets
+    submission = FormSubmission.objects.create(
+        template=template,
+        initiator_user=request.user,
+        status=FormSubmission.Status.DRAFT,
+        current_stage=first_stage,
+        guest_token=secrets.token_urlsafe(32),
+        data_payload={}
+    )
+    return redirect('cases:eform_detail', submission_id=submission.id)
+
+@login_required
+def eform_detail(request, submission_id):
+    """
+    The dynamic form renderer. Shows the fields to fill based on the current stage.
+    """
+    submission = get_object_or_404(FormSubmission, id=submission_id)
+    
+    # Security: Ensure user is initiator (later we will add approver logic)
+    if submission.initiator_user != request.user and not request.user.is_staff:
+        return HttpResponseForbidden("You do not have access to this form.")
+
+    template = submission.template
+    fields = template.fields.all().order_by('order')
+
+    if request.method == 'POST':
+        # Handle form save
+        payload = submission.data_payload or {}
+        for field in fields:
+            # Only save fields that belong to the current stage or have no assigned stage
+            # In a real app, we also enforce validation based on field_type.
+            if field.assigned_stage == submission.current_stage or not field.assigned_stage:
+                field_key = f"field_{field.id}"
+                if field_key in request.POST:
+                    payload[field_key] = request.POST.get(field_key)
+        
+        submission.data_payload = payload
+        submission.save()
+        
+        action = request.POST.get('action')
+        if action == 'submit_stage':
+            # Logic to move to the next stage
+            stages = template.form_stages if isinstance(template.form_stages, list) else []
+            try:
+                current_idx = stages.index(submission.current_stage)
+                if current_idx + 1 < len(stages):
+                    submission.current_stage = stages[current_idx + 1]
+                    submission.status = FormSubmission.Status.IN_PROGRESS
+                    submission.save()
+                    messages.success(request, f"Form advanced to stage: {submission.current_stage}")
+                else:
+                    submission.current_stage = ""
+                    submission.status = FormSubmission.Status.PENDING_ESIGN
+                    
+                    # Phase 3: Trigger PDF Generation
+                    from cases.utils_pdf import generate_form_submission_pdf
+                    from django.core.files.base import ContentFile
+                    pdf_bytes = generate_form_submission_pdf(submission)
+                    
+                    if pdf_bytes:
+                        filename = f"eform_{submission.id.hex[:8]}.pdf"
+                        submission.generated_pdf.save(filename, ContentFile(pdf_bytes), save=False)
+                        
+                        # Hand-off to E-Sign Engine
+                        from esign.models import SignatureDocument, Signer
+                        sig_doc = SignatureDocument.objects.create(
+                            title=f"Signature Request: {template.title}",
+                            created_by=submission.initiator_user,
+                            status='draft'
+                        )
+                        sig_doc.original_pdf.save(filename, ContentFile(pdf_bytes), save=True)
+                        submission.signature_document = sig_doc
+                        
+                        # --- Explicit E-Sign Signatories (Role Flag) ---
+                        signers_map = {}
+                        
+                        # Loop through template fields to find explicit E-Sign Role mappings
+                        for f in template.fields.all():
+                            if f.esign_role:
+                                if f.esign_role.startswith("signer_1"):
+                                    signers_map.setdefault(1, {})
+                                    if f.esign_role.endswith("_name"):
+                                        signers_map[1]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
+                                    elif f.esign_role.endswith("_email"):
+                                        signers_map[1]['email'] = submission.data_payload.get(f"field_{f.id}", "")
+                                elif f.esign_role.startswith("signer_2"):
+                                    signers_map.setdefault(2, {})
+                                    if f.esign_role.endswith("_name"):
+                                        signers_map[2]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
+                                    elif f.esign_role.endswith("_email"):
+                                        signers_map[2]['email'] = submission.data_payload.get(f"field_{f.id}", "")
+                                elif f.esign_role.startswith("signer_3"):
+                                    signers_map.setdefault(3, {})
+                                    if f.esign_role.endswith("_name"):
+                                        signers_map[3]['name'] = submission.data_payload.get(f"field_{f.id}", "Unknown")
+                                    elif f.esign_role.endswith("_email"):
+                                        signers_map[3]['email'] = submission.data_payload.get(f"field_{f.id}", "")
+                                        
+                        # Create Signer objects
+                        for order_num, data in signers_map.items():
+                            external_name = data.get('name', 'Unknown')
+                            external_email = data.get('email', '')
+                            
+                            if external_email:
+                                Signer.objects.create(
+                                    document=sig_doc,
+                                    order=order_num,
+                                    role='signer',
+                                    external_name=external_name,
+                                    external_email=external_email
+                                )
+                        
+                    submission.save()
+                    messages.success(request, "Form fully submitted and is pending E-Sign.")
+            except ValueError:
+                pass
+            
+            return redirect('cases:my_eforms')
+        
+        messages.success(request, "Draft saved successfully.")
+        return redirect('cases:eform_detail', submission_id=submission.id)
+
+    payload = submission.data_payload or {}
+    for field in fields:
+        field.current_value = payload.get(f"field_{field.id}", "")
+
+    # Provide guest link for UI
+    guest_link = request.build_absolute_uri(reverse('cases:eform_public_detail', kwargs={'token': submission.guest_token})) if submission.guest_token else None
+
+    return render(request, "cases/eforms/detail.html", {
+        "submission": submission,
+        "template": template,
+        "fields": fields,
+        "guest_link": guest_link
+    })
+
+def eform_public_detail(request, token):
+    """
+    Vendor / Public View.
+    Allows external parties to fill out the form for the stage they are currently on.
+    No login required.
+    """
+    submission = get_object_or_404(FormSubmission, guest_token=token)
+    
+    if submission.status in ['completed', 'cancelled', 'pending_esign']:
+        return HttpResponse("This form is no longer accepting input.", status=403)
+
+    template = submission.template
+    fields = template.fields.all().order_by('order')
+
+    if request.method == 'POST':
+        payload = submission.data_payload or {}
+        for field in fields:
+            # Vendor can only edit fields explicitly assigned to the current stage
+            if field.assigned_stage == submission.current_stage:
+                field_key = f"field_{field.id}"
+                if field_key in request.POST:
+                    payload[field_key] = request.POST.get(field_key)
+        
+        submission.data_payload = payload
+        submission.save()
+        
+        action = request.POST.get('action')
+        if action == 'submit_stage':
+            stages = template.form_stages if isinstance(template.form_stages, list) else []
+            try:
+                current_idx = stages.index(submission.current_stage)
+                if current_idx + 1 < len(stages):
+                    submission.current_stage = stages[current_idx + 1]
+                    submission.status = FormSubmission.Status.IN_PROGRESS
+                    submission.save()
+                else:
+                    submission.current_stage = ""
+                    submission.status = FormSubmission.Status.PENDING_ESIGN
+                    
+                    # PDF generation
+                    from cases.utils_pdf import generate_form_submission_pdf
+                    from django.core.files.base import ContentFile
+                    pdf_bytes = generate_form_submission_pdf(submission)
+                    if pdf_bytes:
+                        filename = f"eform_{submission.id.hex[:8]}.pdf"
+                        submission.generated_pdf.save(filename, ContentFile(pdf_bytes), save=False)
+                        
+                        from esign.models import SignatureDocument
+                        sig_doc = SignatureDocument.objects.create(
+                            title=f"Signature Request: {template.title}",
+                            created_by=submission.initiator_user,
+                            status='draft'
+                        )
+                        sig_doc.original_pdf.save(filename, ContentFile(pdf_bytes), save=True)
+                        submission.signature_document = sig_doc
+                    submission.save()
+                    
+                return HttpResponse("Thank you. The form has been submitted to the next stage.", status=200)
+            except ValueError:
+                pass
+        
+        messages.success(request, "Draft saved.")
+        return redirect('cases:eform_public_detail', token=token)
+
+    payload = submission.data_payload or {}
+    for field in fields:
+        field.current_value = payload.get(f"field_{field.id}", "")
+
+    return render(request, "cases/eforms/detail.html", {
+        "submission": submission,
+        "template": template,
+        "fields": fields,
+        "is_public": True
+    })
+
+@staff_required
+def form_workflows_list(request):
+    """
+    Staff dashboard to monitor all active and completed FormSubmissions across the enterprise.
+    """
+    submissions = FormSubmission.objects.all().order_by('-created_at')
+    
+    query = request.GET.get('q', '').strip()
+    if query:
+        submissions = submissions.filter(template__title__icontains=query)
+    
+    from django.core.paginator import Paginator
+    paginator = Paginator(submissions, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, "cases/eforms/form_workflows.html", {
+        "submissions": page_obj,
+        "search_query": query
+    })
 
 
 # =====================================================================
@@ -4506,6 +4780,10 @@ def _save_template_fields(request, tmpl):
             placeholder=(fdata.get("placeholder") or "").strip(),
             default_content=(fdata.get("default_content") or "").strip(),
             is_required=bool(fdata.get("is_required", True)),
+            field_type=(fdata.get("field_type") or "richtext").strip(),
+            assigned_stage=(fdata.get("assigned_stage") or "").strip(),
+            variable_name=(fdata.get("variable_name") or "").strip(),
+            esign_role=(fdata.get("esign_role") or "").strip(),
             created_by=request.user,
             updated_by=request.user,
         )
@@ -4575,7 +4853,9 @@ def document_template_edit(request, template_id):
         form = DocumentTemplateForm(instance=tmpl)
 
     existing_fields = list(
-        tmpl.fields.order_by("order").values("label", "placeholder", "default_content", "is_required")
+        tmpl.fields.order_by("order").values(
+            "label", "placeholder", "default_content", "is_required", "field_type", "assigned_stage", "variable_name", "esign_role"
+        )
     )
     return render(request, "desk/document_templates/form.html", {
         "form": form,
