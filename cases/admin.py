@@ -8,6 +8,7 @@ from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument,
     DocumentTemplate, DocumentTemplateField, Message, RCATemplate,
+    SLAPolicy,
 )
 
 
@@ -57,10 +58,10 @@ class DocumentTemplateFieldInline(TabularInline):
 @admin.register(CaseCategory)
 class CaseCategoryAdmin(ModelAdmin):
     list_display = (
-        "name", "parent", "enable_change_request", "prefix_code", "slug",
+        "name", "parent", "default_case_type", "enable_change_request", "prefix_code", "slug",
         "is_confidential", "created_at",
     )
-    list_filter = ("parent", "is_confidential", "enable_change_request")
+    list_filter = ("parent", "is_confidential", "enable_change_request", "default_case_type")
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")

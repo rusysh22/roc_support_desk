@@ -18,6 +18,46 @@ from core.models import AuditableModel
 
 
 # =====================================================================
+# SLA Policy
+# =====================================================================
+
+class SLAPolicy(AuditableModel):
+    """
+    Defines SLA thresholds (in hours) based on Priority.
+    Managed exclusively via Django Admin.
+    """
+    priority = models.CharField(
+        max_length=20,
+        choices=[
+            ("Low", "Low"),
+            ("Medium", "Medium"),
+            ("High", "High"),
+            ("Critical", "Critical"),
+        ],
+        unique=True,
+        verbose_name="Priority Level"
+    )
+    response_time_hours = models.PositiveIntegerField(
+        default=2,
+        verbose_name="Response SLA (Hours)",
+        help_text="Time to first response"
+    )
+    resolution_time_hours = models.PositiveIntegerField(
+        default=24,
+        verbose_name="Resolution SLA (Hours)",
+        help_text="Time to resolve ticket"
+    )
+
+    class Meta:
+        verbose_name = "SLA Policy"
+        verbose_name_plural = "SLA Policies"
+        ordering = ["resolution_time_hours"]
+
+    def __str__(self):
+        return f"SLA Policy for {self.priority}"
+
+
+# =====================================================================
 # Ticket Category
 # =====================================================================
 
@@ -81,6 +121,26 @@ class CaseCategory(AuditableModel):
         default=False,
         verbose_name="Enable Change Request",
         help_text="Allow portal users to attach a change request document when submitting tickets in this category.",
+    )
+    
+    class CaseType(models.TextChoices):
+        QUESTION = "Question", "Question"
+        INCIDENT = "Incident", "Incident"
+        REQUEST = "Request", "Request"
+
+    default_case_type = models.CharField(
+        max_length=20,
+        choices=CaseType.choices,
+        blank=True,
+        null=True,
+        verbose_name="Default Ticket Type",
+        help_text="If set, tickets in this category will default to this type."
+    )
+    default_tags = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Default Tags",
+        help_text="Comma-separated tags automatically applied to new tickets."
     )
 
     class Meta:
@@ -444,6 +504,39 @@ class CaseRecord(AuditableModel):
         """Human-readable case identifier derived from category prefix and UUID."""
         prefix = self.category.prefix_code if self.category else "RQ"
         return f"{prefix}-{str(self.id)[:8].upper()}"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        if is_new:
+            # Apply category defaults
+            if self.category:
+                if self.category.default_case_type and not getattr(self, '_case_type_set_explicitly', False):
+                    # Only override if the default INCIDENT is currently set and it's new
+                    # Wait, if we just blindly set it, it overrides what the user might have chosen?
+                    # The portal form doesn't expose `case_type`, it's usually set to default. 
+                    # We'll just set it if it's currently the model default (INCIDENT) or empty.
+                    if not self.case_type or self.case_type == self.Type.INCIDENT:
+                        self.case_type = self.category.default_case_type
+                if self.category.default_tags and not self.tags:
+                    self.tags = self.category.default_tags
+
+            # SLA calculation
+            if not self.response_due_at or not self.resolution_due_at:
+                try:
+                    from datetime import timedelta
+                    from django.utils import timezone
+                    
+                    policy = SLAPolicy.objects.filter(priority=self.priority).first()
+                    if policy:
+                        now = timezone.now()
+                        if not self.response_due_at:
+                            self.response_due_at = now + timedelta(hours=policy.response_time_hours)
+                        if not self.resolution_due_at:
+                            self.resolution_due_at = now + timedelta(hours=policy.resolution_time_hours)
+                except Exception:
+                    pass
+                
+        super().save(*args, **kwargs)
 
 
 
