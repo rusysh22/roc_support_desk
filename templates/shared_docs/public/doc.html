@@ -28,6 +28,9 @@
 
     <!-- Quill snow CSS — for ql-* class rendering -->
     <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+    
+    <!-- Highlight.js for Code Snippet syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
 
     <style>
         * { -webkit-font-smoothing: antialiased; }
@@ -108,8 +111,9 @@
             padding: 0.15em 0.45em;
             border-radius: 5px;
         }
+        /* Un-styled pre block before wrapping */
         .content-body pre {
-            background: #0f172a;
+            background: #1e1e1e;
             border-radius: 12px;
             padding: 1.25rem 1.5rem;
             overflow-x: auto;
@@ -119,9 +123,14 @@
         .content-body pre code {
             background: transparent;
             border: none;
-            color: #e2e8f0;
+            color: #d4d4d4;
             font-size: 0.875rem;
             padding: 0;
+        }
+        /* Override Highlight.js background so it blends with our wrapper */
+        .hljs {
+            background: transparent !important;
+            padding: 0 !important;
         }
 
         /* Images */
@@ -306,6 +315,7 @@
                 </div>
                 <script src="{% static 'vendor/marked-15.0.7.min.js' %}"></script>
                 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
                 <script>
                     document.addEventListener('DOMContentLoaded', async function() {
                         const source = document.getElementById('markdown-source').value;
@@ -325,6 +335,61 @@
                             });
                             await mermaid.run();
                         }
+                        
+                        // Add syntax highlighting and copy button for other code blocks
+                        document.querySelectorAll('#markdown-render pre').forEach(pre => {
+                            const code = pre.querySelector('code');
+                            if (!code) return;
+                            
+                            // Determine language
+                            let lang = 'text';
+                            code.classList.forEach(cls => {
+                                if (cls.startsWith('language-')) {
+                                    lang = cls.replace('language-', '');
+                                }
+                            });
+
+                            // Create wrapper
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'code-snippet-wrapper relative rounded-xl overflow-hidden my-6 bg-[#1e1e1e] border border-slate-700 shadow-xl';
+                            
+                            // Create header
+                            const header = document.createElement('div');
+                            header.className = 'flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-slate-700 text-slate-300 text-xs font-mono';
+                            
+                            const langSpan = document.createElement('span');
+                            langSpan.textContent = lang;
+                            
+                            const copyBtn = document.createElement('button');
+                            copyBtn.className = 'flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none';
+                            copyBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> <span class="copy-text">Copy</span>`;
+                            
+                            copyBtn.onclick = function() {
+                                navigator.clipboard.writeText(code.innerText).then(() => {
+                                    const txt = copyBtn.querySelector('.copy-text');
+                                    txt.textContent = 'Copied!';
+                                    setTimeout(() => { txt.textContent = 'Copy'; }, 2000);
+                                });
+                            };
+                            
+                            header.appendChild(langSpan);
+                            header.appendChild(copyBtn);
+                            
+                            pre.parentNode.insertBefore(wrapper, pre);
+                            wrapper.appendChild(header);
+                            
+                            // Adjust pre styles for wrapper
+                            pre.style.margin = '0';
+                            pre.style.borderRadius = '0';
+                            pre.style.background = 'transparent';
+                            pre.style.boxShadow = 'none';
+                            pre.className = 'p-4 overflow-x-auto text-sm';
+                            
+                            wrapper.appendChild(pre);
+                        });
+
+                        // Apply highlight.js to all code blocks
+                        hljs.highlightAll();
                     });
                 </script>
                 {% else %}

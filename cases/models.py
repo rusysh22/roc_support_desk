@@ -807,12 +807,6 @@ class DocumentTemplate(AuditableModel):
         verbose_name="Form Stages",
         help_text='List of stages (e.g. ["Initiator", "Vendor", "IT Ops"]). The first stage is automatically assigned to the form creator.'
     )
-    esign_auto_mapping = models.JSONField(
-        default=list,
-        blank=True,
-        verbose_name="E-Sign Auto Mapping",
-        help_text="JSON mapping to auto-create Signers. Example: [{'order': 1, 'role': 'signer', 'job_title': 'Vendor', 'name_field_id': '...', 'email_field_id': '...'}]"
-    )
 
     class Meta:
         verbose_name = "Document Template"
