@@ -1115,6 +1115,7 @@ def my_tickets(request):
         .select_related("category")
         .prefetch_related(
             "messages", "followers",
+            "approvals__approver",
             "change_requests",
             "change_requests__approvals__approver",
         )
@@ -1321,8 +1322,7 @@ def my_tickets(request):
 @login_required
 def my_approvals(request):
     """
-    Shows all ChangeRequestApprovals assigned to the logged-in user.
-    Pending approvals are listed first; completed ones follow.
+    Shows all ChangeRequestApprovals and TicketApprovals assigned to the logged-in user.
     """
     pending = (
         ChangeRequestApproval.objects
@@ -1339,10 +1339,36 @@ def my_approvals(request):
         .select_related("document__case__category", "document__document_template", "document__case")
         .order_by("-acted_at")[:30]
     )
+    
+    # Ticket Approvals
+    from core.models import Employee
+    employee = Employee.objects.filter(email__iexact=request.user.email).first()
+    pending_tickets = []
+    completed_tickets = []
+    if employee:
+        from cases.models import TicketApproval
+        pending_tickets = (
+            TicketApproval.objects
+            .filter(approver=employee, status=TicketApproval.Status.PENDING)
+            .select_related("case__category")
+            .order_by("created_at")
+        )
+        completed_tickets = (
+            TicketApproval.objects
+            .filter(approver=employee, status__in=[
+                TicketApproval.Status.APPROVED,
+                TicketApproval.Status.REJECTED,
+            ])
+            .select_related("case__category")
+            .order_by("-updated_at")[:30]
+        )
+        
     return render(request, "client/my_approvals.html", {
         "pending_approvals": pending,
         "completed_approvals": completed,
-        "pending_count": pending.count(),
+        "pending_tickets": pending_tickets,
+        "completed_tickets": completed_tickets,
+        "pending_count": pending.count() + (pending_tickets.count() if pending_tickets else 0),
     })
 
 

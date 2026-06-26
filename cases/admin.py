@@ -8,7 +8,7 @@ from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument,
     DocumentTemplate, DocumentTemplateField, Message, RCATemplate,
-    SLAPolicy,
+    SLAPolicy, TicketApproval,
 )
 
 
@@ -58,10 +58,10 @@ class DocumentTemplateFieldInline(TabularInline):
 @admin.register(CaseCategory)
 class CaseCategoryAdmin(ModelAdmin):
     list_display = (
-        "name", "parent", "default_case_type", "enable_change_request", "prefix_code", "slug",
+        "name", "parent", "default_case_type", "is_use_routing_approval", "is_need_admin_approval", "enable_change_request", "prefix_code", "slug",
         "is_confidential", "created_at",
     )
-    list_filter = ("parent", "is_confidential", "enable_change_request", "default_case_type")
+    list_filter = ("parent", "is_confidential", "enable_change_request", "is_use_routing_approval", "default_case_type")
     search_fields = ("name", "prefix_code", "slug")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
@@ -244,6 +244,24 @@ class ChangeRequestDocumentAdmin(ModelAdmin):
         "created_at", "updated_at", "created_by", "updated_by",
     )
     inlines = [ChangeRequestApprovalInline]
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+# =====================================================================
+# Ticket Approval
+# =====================================================================
+
+@admin.register(TicketApproval)
+class TicketApprovalAdmin(ModelAdmin):
+    list_display = ("case", "tier", "approver", "status", "actioned_at", "created_at")
+    list_filter = ("status", "tier")
+    search_fields = ("case__ticket_id", "approver__full_name", "case__subject")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):
         if not change:

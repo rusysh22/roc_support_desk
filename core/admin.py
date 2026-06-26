@@ -182,13 +182,14 @@ class EmployeeAdmin(ModelAdmin):
         "phone_number",
         "job_role",
         "unit",
+        "reports_to",
         "created_at",
     )
     list_filter = ("unit",)
     search_fields = ("full_name", "email", "phone_number")
     ordering = ("full_name",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
-    autocomplete_fields = ("unit",)
+    autocomplete_fields = ("unit", "reports_to")
 
     def save_model(self, request, obj, form, change):
         """Auto-populate audit fields on save."""

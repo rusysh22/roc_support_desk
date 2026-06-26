@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Employees | RoC Desk{% endblock %}
+
+{% block content %}
+<div class="px-6 py-8 mx-auto max-w-3xl">
+    <div class="flex items-center gap-4 mb-8">
+        <a href="{% url 'users_desk:employee_list' %}" class="flex items-center justify-center w-10 h-10 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white transition-colors">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Import Employees</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Bulk create or update employees using an Excel template.
+            </p>
+        </div>
+    </div>
+
+    <div class="p-6 mb-6 bg-blue-50 border border-blue-200 rounded-xl dark:bg-blue-900/20 dark:border-blue-800">
+        <h3 class="flex items-center gap-2 mb-3 text-lg font-semibold text-blue-900 dark:text-blue-300">
+            <i class="fas fa-info-circle"></i> Instructions
+        </h3>
+        <ul class="pl-5 space-y-2 text-sm text-blue-800 list-disc dark:text-blue-200">
+            <li>Download the template below and fill it out. Do not change the column headers.</li>
+            <li><strong>Email</strong> or <strong>Phone Number</strong> must be provided. The system uses these to identify existing employees and update them.</li>
+            <li>For the <strong>Unit Code</strong>, make sure the Unit already exists in the system (e.g., IT, FIN).</li>
+            <li>For <strong>Manager Email</strong>, this must be the email of another employee in the file or system.</li>
+        </ul>
+        <div class="mt-4">
+            <a href="{% url 'users_desk:employee_export_template' %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-gray-700">
+                <i class="mr-2 fas fa-download"></i> Download Excel Template
+            </a>
+        </div>
+    </div>
+
+    <div class="p-6 bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700">
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Upload Excel File</label>
+                <input type="file" name="excel_file" accept=".xlsx" required
+                    class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Only .xlsx files are supported.</p>
+            </div>
+
+            <div class="pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                <a href="{% url 'users_desk:employee_list' %}" class="jk-button-secondary">Cancel</a>
+                <button type="submit" class="jk-button-primary">
+                    <i class="mr-2 fas fa-upload"></i> Process Import
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

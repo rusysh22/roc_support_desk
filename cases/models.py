@@ -143,6 +143,17 @@ class CaseCategory(AuditableModel):
         help_text="Comma-separated tags automatically applied to new tickets."
     )
 
+    is_use_routing_approval = models.BooleanField(
+        default=False,
+        verbose_name="Use Routing Approval",
+        help_text="If checked, new tickets will enter 'Pending Approval' status and require the requester's direct manager to approve.",
+    )
+    is_need_admin_approval = models.BooleanField(
+        default=False,
+        verbose_name="Need Admin Approval",
+        help_text="If checked along with Routing Approval, tickets will require an additional approval step from the Support Desk Admin after manager approval.",
+    )
+
     class Meta:
         verbose_name = "Ticket Category"
         verbose_name_plural = "Ticket Categories"
@@ -507,18 +518,20 @@ class CaseRecord(AuditableModel):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
+        
+        # Pre-save modifications
         if is_new:
             # Apply category defaults
             if self.category:
                 if self.category.default_case_type and not getattr(self, '_case_type_set_explicitly', False):
-                    # Only override if the default INCIDENT is currently set and it's new
-                    # Wait, if we just blindly set it, it overrides what the user might have chosen?
-                    # The portal form doesn't expose `case_type`, it's usually set to default. 
-                    # We'll just set it if it's currently the model default (INCIDENT) or empty.
                     if not self.case_type or self.case_type == self.Type.INCIDENT:
                         self.case_type = self.category.default_case_type
                 if self.category.default_tags and not self.tags:
                     self.tags = self.category.default_tags
+
+                # Initial Status for Approval Routing
+                if self.category.is_use_routing_approval:
+                    self.status = self.Status.PENDING_APPROVAL
 
             # SLA calculation
             if not self.response_due_at or not self.resolution_due_at:
@@ -537,7 +550,99 @@ class CaseRecord(AuditableModel):
                     pass
                 
         super().save(*args, **kwargs)
+        
+        # Post-save actions (Creation of related objects)
+        if is_new and self.category and self.category.is_use_routing_approval:
+            # Create Tier 1 Manager Approval
+            has_manager = False
+            if self.requester and getattr(self.requester, 'reports_to', None):
+                TicketApproval.objects.create(
+                    case=self,
+                    tier=TicketApproval.Tier.MANAGER,
+                    approver=self.requester.reports_to,
+                    status=TicketApproval.Status.PENDING
+                )
+                has_manager = True
+                
+            # Create Tier 2 Admin Approval
+            if self.category.is_need_admin_approval:
+                TicketApproval.objects.create(
+                    case=self,
+                    tier=TicketApproval.Tier.ADMIN,
+                    approver=None, # None implies Support Desk Admins pool
+                    status=TicketApproval.Status.PENDING if has_manager else TicketApproval.Status.PENDING # Technically wait for T1, but we create it now
+                )
+            
+            # If no manager and no admin required, auto-approve
+            if not has_manager and not self.category.is_need_admin_approval:
+                self.status = self.Status.OPEN
+                self.save(update_fields=['status'])
 
+
+
+# =====================================================================
+# Ticket Approval
+# =====================================================================
+
+class TicketApproval(AuditableModel):
+    """
+    Tracks the approval routing for a specific ticket.
+    Tier 1 = Manager, Tier 2 = Admin/Support Desk
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "Pending", "Pending"
+        APPROVED = "Approved", "Approved"
+        REJECTED = "Rejected", "Rejected"
+
+    class Tier(models.IntegerChoices):
+        MANAGER = 1, "Tier 1 (Manager)"
+        ADMIN = 2, "Tier 2 (Admin)"
+
+    case = models.ForeignKey(
+        CaseRecord,
+        on_delete=models.CASCADE,
+        related_name="approvals",
+        verbose_name="Ticket",
+    )
+    tier = models.PositiveSmallIntegerField(
+        choices=Tier.choices,
+        default=Tier.MANAGER,
+        verbose_name="Approval Tier",
+    )
+    approver = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ticket_approvals",
+        verbose_name="Approver",
+        help_text="If null, any Support Desk staff/admin can approve."
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name="Status",
+    )
+    comments = models.TextField(
+        blank=True,
+        verbose_name="Comments/Notes",
+    )
+    actioned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Actioned At",
+    )
+
+    class Meta:
+        verbose_name = "Ticket Approval"
+        verbose_name_plural = "Ticket Approvals"
+        ordering = ["case", "tier"]
+
+    def __str__(self):
+        approver_name = self.approver.full_name if self.approver else "Admin"
+        return f"{self.case.ticket_id} - Tier {self.tier} ({approver_name}) - {self.status}"
 
 
 # =====================================================================

@@ -354,6 +354,10 @@
                         <span class="jk-sidebar-link-icon">👥</span>
                         <span x-show="!sidebarCollapsed" x-transition.opacity>User Management</span>
                     </a>
+                    <a href="{% url 'users_desk:employee_list' %}" class="jk-sidebar-link {% block nav_employees %}{% endblock %}">
+                        <span class="jk-sidebar-link-icon">👔</span>
+                        <span x-show="!sidebarCollapsed" x-transition.opacity>Employees</span>
+                    </a>
                     <a href="{% url 'docs_admin' %}" class="jk-sidebar-link {% block nav_admin_guide %}{% endblock %}">
                         <span class="jk-sidebar-link-icon">📘</span>
                         <span x-show="!sidebarCollapsed" x-transition.opacity>Admin Guide</span>

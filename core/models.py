@@ -294,6 +294,15 @@ class Employee(AuditableModel):
         related_name="employees",
         verbose_name="Company Unit",
     )
+    reports_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subordinates",
+        verbose_name="Reports To (Manager)",
+        help_text="The direct manager or supervisor of this employee."
+    )
 
     class Meta:
         verbose_name = "Employee"

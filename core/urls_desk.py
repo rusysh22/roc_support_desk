@@ -28,4 +28,12 @@ urlpatterns = [
     # Update existing via Excel
     path("export/update-template/", views_user.user_export_update_template, name="user_export_update_template"),
     path("import/update/", views_user.user_import_update, name="user_import_update"),
+    
+    # Employees
+    path("employees/", __import__("core.views_employee", fromlist=["views_employee"]).employee_list, name="employee_list"),
+    path("employees/create/", __import__("core.views_employee", fromlist=["views_employee"]).employee_create, name="employee_create"),
+    path("employees/<uuid:pk>/edit/", __import__("core.views_employee", fromlist=["views_employee"]).employee_edit, name="employee_edit"),
+    path("employees/<uuid:pk>/delete/", __import__("core.views_employee", fromlist=["views_employee"]).employee_delete, name="employee_delete"),
+    path("employees/import/template/", __import__("core.views_employee", fromlist=["views_employee"]).employee_export_template, name="employee_export_template"),
+    path("employees/import/", __import__("core.views_employee", fromlist=["views_employee"]).employee_import, name="employee_import"),
 ]

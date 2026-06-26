@@ -265,3 +265,21 @@ class UserAdminForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+class EmployeeForm(forms.ModelForm):
+    """
+    Form for creating/editing Employees in the Support Desk admin.
+    """
+    class Meta:
+        from .models import Employee
+        model = Employee
+        fields = ["full_name", "email", "phone_number", "job_role", "unit", "reports_to"]
+        widgets = {
+            "full_name": forms.TextInput(attrs={"class": "jk-input"}),
+            "email": forms.EmailInput(attrs={"class": "jk-input"}),
+            "phone_number": forms.TextInput(attrs={"class": "jk-input"}),
+            "job_role": forms.TextInput(attrs={"class": "jk-input"}),
+            "unit": forms.Select(attrs={"class": "jk-input"}),
+            "reports_to": forms.Select(attrs={"class": "jk-input"}),
+        }
