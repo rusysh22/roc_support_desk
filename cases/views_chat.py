@@ -642,6 +642,26 @@ def chat_room(request, case_uuid):
             "pdf_url": cr_doc.generated_pdf.url if cr_doc.generated_pdf else None,
         })
 
+    # Unified status label (same as my_tickets)
+    _STATUS_LABEL = {
+        CaseRecord.Status.PENDING_APPROVAL:   ("On Approval",       "amber"),
+        CaseRecord.Status.REVISION_REQUIRED:  ("Revision Required", "red"),
+        CaseRecord.Status.OPEN:               ("Waiting",           "yellow"),
+        CaseRecord.Status.INVESTIGATING:      ("In Progress",       "blue"),
+        CaseRecord.Status.PENDING_INFO:       ("Need Info",         "orange"),
+        CaseRecord.Status.RESOLVED:           ("Resolved",          "green"),
+        CaseRecord.Status.CLOSED:             ("Closed",            "slate"),
+    }
+    status_label, status_color = _STATUS_LABEL.get(case.status, (str(case.status), "slate"))
+
+    # First pending tier = the currently active approver
+    _sorted_approvals = sorted(case.approvals.all(), key=lambda a: a.tier)
+    next_approver_tier = None
+    for _appr in _sorted_approvals:
+        if _appr.status == "Pending":
+            next_approver_tier = _appr.tier
+            break
+
     return render(request, "client/chat_room.html", {
         "case": case,
         "chat_messages": messages_qs,
@@ -656,6 +676,9 @@ def chat_room(request, case_uuid):
         "participants_json": participants_json,
         "current_user_email": (user.email or "").lower() if user.is_authenticated else "",
         "cr_panel": cr_panel,
+        "status_label": status_label,
+        "status_color": status_color,
+        "next_approver_tier": next_approver_tier,
     })
 
 
@@ -1270,6 +1293,14 @@ def my_tickets(request):
                 None,
             )
 
+        # Next pending approver = first Pending tier (in tier order)
+        sorted_approvals = sorted(c.approvals.all(), key=lambda a: a.tier)
+        next_approver_tier = None
+        for appr in sorted_approvals:
+            if appr.status == "Pending":
+                next_approver_tier = appr.tier
+                break
+
         enriched.append({
             "case": c,
             "status_label": label,
@@ -1285,6 +1316,7 @@ def my_tickets(request):
             "last_msg_sender": last_msg_sender,
             "last_msg_time": last_msg_time,
             "matched_messages": message_hits.get(str(c.id), []),
+            "next_approver_tier": next_approver_tier,
         })
 
     # Counts for tab badges

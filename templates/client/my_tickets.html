@@ -5,56 +5,48 @@
 {% block nav_my_tickets %}active{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto" x-data="{ compact: false, searchInput: '{{ search_query|escapejs }}' }">
+<div class="max-w-4xl mx-auto" x-data="{ searchInput: '{{ search_query|escapejs }}' }">
 
-  {# ── Hero Header ── #}
-  <div class="mb-8">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-          <span class="text-3xl">🎫</span> My Tickets
-        </h1>
-        <p class="text-slate-500 text-sm mt-1.5">Track, search and manage all your support conversations.</p>
-      </div>
-      <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow hover:bg-indigo-700 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        New Ticket
-      </a>
+  {# ── Header ── #}
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-bold text-slate-900">My Tickets</h1>
+      <p class="text-slate-500 text-sm mt-0.5">Track and manage all your support conversations.</p>
     </div>
+    <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-2 bg-indigo-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      New Ticket
+    </a>
+  </div>
 
-    {# Stats row #}
-    <div class="grid grid-cols-3 gap-3 sm:gap-4">
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-center relative overflow-hidden group">
-        <div class="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <p class="relative text-3xl sm:text-4xl font-black text-slate-800">{{ count_all }}</p>
-        <p class="relative text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Total Tickets</p>
-      </div>
-      <div class="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 shadow-sm shadow-indigo-100 flex flex-col items-center justify-center relative overflow-hidden group">
-        <div class="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <p class="relative text-3xl sm:text-4xl font-black text-indigo-600">{{ count_mine }}</p>
-        <p class="relative text-[10px] sm:text-xs text-indigo-500/80 font-bold uppercase tracking-wider mt-1">My Tickets</p>
-      </div>
-      <div class="bg-white rounded-2xl border border-purple-100 p-4 sm:p-5 shadow-sm shadow-purple-100 flex flex-col items-center justify-center relative overflow-hidden group">
-        <div class="absolute inset-0 bg-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <p class="relative text-3xl sm:text-4xl font-black text-purple-600">{{ count_following }}</p>
-        <p class="relative text-[10px] sm:text-xs text-purple-500/80 font-bold uppercase tracking-wider mt-1">Following</p>
-      </div>
+  {# Stats row #}
+  <div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <p class="text-2xl font-bold text-slate-800">{{ count_all }}</p>
+      <p class="text-xs text-slate-400 font-medium uppercase tracking-wide mt-0.5">Total</p>
+    </div>
+    <div class="bg-white rounded-xl border border-indigo-100 p-4 text-center">
+      <p class="text-2xl font-bold text-indigo-600">{{ count_mine }}</p>
+      <p class="text-xs text-indigo-400 font-medium uppercase tracking-wide mt-0.5">Mine</p>
+    </div>
+    <div class="bg-white rounded-xl border border-purple-100 p-4 text-center">
+      <p class="text-2xl font-bold text-purple-600">{{ count_following }}</p>
+      <p class="text-xs text-purple-400 font-medium uppercase tracking-wide mt-0.5">Following</p>
     </div>
   </div>
 
-  {# ── Search & Filters ── #}
-  <form method="get" id="filter-form" class="mb-5 space-y-3">
-    {# Search bar #}
-    <div class="relative group flex gap-2">
+  {# ── Filters ── #}
+  <form method="get" id="filter-form" class="mb-5 space-y-2.5">
+    <div class="flex gap-2">
       <div class="relative flex-1">
-        <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
         </svg>
         <input type="text" name="q" value="{{ search_query }}" x-model="searchInput"
-               placeholder="Search tickets, subjects, or chat messages…"
-               class="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400">
+               placeholder="Search tickets…"
+               class="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400">
       </div>
-      <button type="submit" class="flex-shrink-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-3.5 sm:px-5 py-3.5 rounded-xl shadow-sm transition-colors">
+      <button type="submit" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
         <span class="hidden sm:inline">Search</span>
       </button>
@@ -62,268 +54,288 @@
       {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
     </div>
 
-    {# Role tabs + Status + Sort row #}
-    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+    <div class="flex flex-col sm:flex-row gap-2">
       {# Role tabs #}
-      <div class="flex w-full sm:w-auto bg-slate-100 rounded-xl p-1 flex-shrink-0">
+      <div class="flex bg-slate-100 rounded-lg p-0.5 flex-shrink-0">
         <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}sort={{ sort_by }}"
-           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if not role_filter %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
-          All <span class="ml-1 opacity-60">{{ count_all }}</span>
+           class="px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all {% if not role_filter %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          All <span class="ml-0.5 opacity-60">{{ count_all }}</span>
         </a>
         <a href="?role=mine{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
-           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'mine' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
-          Mine <span class="ml-1 opacity-60">{{ count_mine }}</span>
+           class="px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all {% if role_filter == 'mine' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          Mine <span class="ml-0.5 opacity-60">{{ count_mine }}</span>
         </a>
         <a href="?role=following{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}&sort={{ sort_by }}"
-           class="flex-1 sm:flex-none text-center px-4 py-2 text-xs font-bold rounded-lg transition-all {% if role_filter == 'following' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
-          Following <span class="ml-1 opacity-60">{{ count_following }}</span>
+           class="px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all {% if role_filter == 'following' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+          Following <span class="ml-0.5 opacity-60">{{ count_following }}</span>
         </a>
       </div>
 
-      {# Status + Sort dropdowns #}
       <div class="flex gap-2 flex-1">
-        <select name="status" onchange="this.form.submit()" class="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+        <select name="status" onchange="this.form.submit()" class="flex-1 bg-white border border-slate-200 rounded-lg text-sm px-3 py-2 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
           {% for val, label in status_choices %}
           <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
-        <select name="sort" onchange="this.form.submit()" class="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl text-sm px-3 py-2.5 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
+        <select name="sort" onchange="this.form.submit()" class="flex-1 bg-white border border-slate-200 rounded-lg text-sm px-3 py-2 text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer">
           <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest first</option>
           <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest first</option>
           <option value="updated" {% if sort_by == 'updated' %}selected{% endif %}>Last updated</option>
         </select>
         {% if status_filter or search_query or role_filter or show_closed %}
-        <a href="{% url 'chat:my_tickets' %}" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl transition-colors" title="Clear filters">
+        <a href="{% url 'chat:my_tickets' %}" class="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-500 text-sm rounded-lg transition-colors" title="Clear filters">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          <span class="hidden sm:inline">Clear</span>
         </a>
         {% endif %}
       </div>
     </div>
 
-    {# Toolbar: compact toggle + show closed #}
-    <div class="flex items-center justify-between">
-      <label class="flex items-center gap-2 cursor-pointer select-none">
-        <input type="checkbox" name="closed" value="1" {% if show_closed %}checked{% endif %} onchange="this.form.submit()"
-               class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30">
-        <span class="text-xs text-slate-500">Show closed tickets</span>
-      </label>
-      <button type="button" @click="compact = !compact" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100">
-        <svg x-show="!compact" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-        <svg x-show="compact" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-        <span x-text="compact ? 'Detailed view' : 'Compact view'"></span>
-      </button>
-    </div>
+    <label class="flex items-center gap-2 cursor-pointer select-none w-fit">
+      <input type="checkbox" name="closed" value="1" {% if show_closed %}checked{% endif %} onchange="this.form.submit()"
+             class="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30">
+      <span class="text-xs text-slate-500">Show closed tickets</span>
+    </label>
   </form>
 
   {# ── Ticket List ── #}
   {% if tickets %}
-  <div :class="compact ? 'space-y-1.5' : 'space-y-3'">
+  <div class="space-y-3">
     {% for item in tickets %}
-    <div class="group relative bg-white rounded-2xl border transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5
-         {% if item.unread_count > 0 %}border-indigo-300 shadow-md shadow-indigo-500/10{% else %}border-slate-200 shadow-sm{% endif %}">
 
-      {# Unread indicator bar #}
-      {% if item.unread_count > 0 %}
-      <div class="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-r-full"></div>
-      {% endif %}
+    {# Card wrapper — full card clickable #}
+    <div class="bg-white rounded-xl border transition-all hover:shadow-md cursor-pointer
+         {% if item.unread_count > 0 %}border-indigo-300 shadow-sm shadow-indigo-100{% else %}border-slate-200{% endif %}
+         overflow-hidden"
+         onclick="if(!event.target.closest('a,button,input,select,label'))window.location.href='/portal/chat/{{ item.case.id }}/'">
 
-      <div :class="compact ? 'p-3' : 'p-5'" class="{% if item.unread_count > 0 %}pl-6{% endif %}">
-        {# Top row: meta info #}
-        <div :class="compact ? 'mb-1' : 'mb-3'" class="flex items-center justify-between">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-mono text-[11px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">{{ item.case.case_number }}</span>
-            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full
-              {% if item.status_color == 'amber' %}bg-amber-100 text-amber-800
-              {% elif item.status_color == 'red' %}bg-red-100 text-red-700
-              {% elif item.status_color == 'yellow' %}bg-amber-100 text-amber-700
-              {% elif item.status_color == 'blue' %}bg-blue-100 text-blue-700
-              {% elif item.status_color == 'orange' %}bg-orange-100 text-orange-700
-              {% elif item.status_color == 'green' %}bg-emerald-100 text-emerald-700
-              {% else %}bg-slate-100 text-slate-500{% endif %}">
-              {% if item.status_color == 'amber' %}
-              <span class="inline-flex items-center gap-1">
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {{ item.status_label }}
-              </span>
-              {% else %}
-              {{ item.status_label }}
-              {% endif %}
-            </span>
-            {% if item.is_follower %}
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 uppercase tracking-wider flex items-center gap-1">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              Following
-            </span>
-            {% endif %}
-          </div>
+      {# ── Card Header ── #}
+      <div class="flex items-center justify-between px-4 py-2.5 border-b
+           {% if item.unread_count > 0 %}bg-indigo-50 border-indigo-100{% else %}bg-slate-50 border-slate-100{% endif %}">
+        <div class="flex items-center gap-2 flex-wrap">
+          {# Ticket number #}
+          <span class="font-mono text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+            {{ item.case.case_number }}
+          </span>
+          {# Status badge #}
+          <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full
+            {% if item.status_color == 'amber' %}bg-amber-100 text-amber-800
+            {% elif item.status_color == 'red' %}bg-red-100 text-red-700
+            {% elif item.status_color == 'yellow' %}bg-amber-100 text-amber-700
+            {% elif item.status_color == 'blue' %}bg-blue-100 text-blue-700
+            {% elif item.status_color == 'orange' %}bg-orange-100 text-orange-700
+            {% elif item.status_color == 'green' %}bg-emerald-100 text-emerald-700
+            {% else %}bg-slate-100 text-slate-500{% endif %}">
+            {{ item.status_label }}
+          </span>
+          {% if item.is_follower %}
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 uppercase tracking-wide">
+            Following
+          </span>
+          {% endif %}
           {% if item.unread_count > 0 %}
-          <span class="flex items-center gap-1.5 text-[11px] font-bold text-red-500 animate-pulse">
-            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+          <span class="flex items-center gap-1 text-[11px] font-bold text-red-600">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
             {{ item.unread_count }} new
           </span>
           {% endif %}
         </div>
+        <span class="text-[11px] text-slate-400 flex-shrink-0">
+          {{ item.case.created_at|date:"d M Y" }}
+          {% if item.case.updated_at != item.case.created_at %}
+          · updated {{ item.case.updated_at|timesince }} ago
+          {% endif %}
+        </span>
+      </div>
 
-        {# Main content row #}
-        <div class="flex items-start gap-2 sm:gap-4">
-          {# Category icon — hidden on mobile to reclaim horizontal space #}
-          <div x-show="!compact" class="hidden sm:flex flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 items-center justify-center text-xl">
-            {{ item.case.category.icon|default:"🎫" }}
+      {# ── Card Body: 2-column layout ── #}
+      <div class="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+        {# LEFT: Ticket Info #}
+        <div class="flex-1 min-w-0 px-4 py-3.5">
+
+          {# Subject #}
+          <h3 class="text-sm font-bold text-slate-800 mb-2 leading-snug">{{ item.case.subject }}</h3>
+
+          {# Meta chips #}
+          <div class="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap mb-3">
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              {{ item.case.requester_name|default:item.case.requester_email }}
+            </span>
+            <span class="text-slate-200">|</span>
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+              {{ item.case.category.name }}
+            </span>
+            <span class="text-slate-200">|</span>
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+              {{ item.total_messages }} messages
+            </span>
           </div>
 
-          {# Info block #}
-          <div class="flex-1 min-w-0">
-            <h3 class="text-sm font-bold text-slate-800 truncate mb-1 group-hover:text-indigo-700 transition-colors">{{ item.case.subject }}</h3>
-
-            {# Requester + Category #}
-            <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
-              <span class="flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                {{ item.case.requester_name|default:item.case.requester_email }}
-              </span>
-              <span class="w-px h-3 bg-slate-200"></span>
-              <span class="flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-                {{ item.case.category.name }}
-              </span>
-              <span class="w-px h-3 bg-slate-200"></span>
-              <span class="flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                {{ item.total_messages }} msgs
-              </span>
+          {# Last message preview #}
+          {% if item.last_msg_preview %}
+          <div class="flex items-start gap-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            <svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <div class="flex-1 min-w-0">
+              <span class="text-[11px] font-semibold text-slate-500">{{ item.last_msg_sender }}:</span>
+              <span class="text-[11px] text-slate-400 ml-1">{{ item.last_msg_preview }}</span>
             </div>
+            {% if item.last_msg_time %}
+            <span class="text-[10px] text-slate-300 flex-shrink-0 whitespace-nowrap">{{ item.last_msg_time|timesince }} ago</span>
+            {% endif %}
+          </div>
+          {% endif %}
 
-            {# Last message preview #}
-            {% if item.last_msg_preview %}
-            <div x-show="!compact" class="flex items-start gap-2 bg-slate-50 rounded-lg px-3 py-2 mb-2 border border-slate-100">
-              <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          {# Matched search results #}
+          {% if item.matched_messages %}
+          <div class="mt-2.5 space-y-1.5">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              Chat matches
+            </p>
+            {% for msg in item.matched_messages %}
+            <div class="flex items-start gap-2 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+              <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{{ msg.sender|make_list|first|upper }}</span>
               <div class="min-w-0 flex-1">
-                <span class="text-[11px] font-semibold text-slate-600">{{ item.last_msg_sender }}:</span>
-                <span class="text-[11px] text-slate-500 line-clamp-1">{{ item.last_msg_preview }}</span>
+                <span class="text-[11px] font-semibold text-indigo-600">{{ msg.sender }}</span>
+                <p class="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{{ msg.body }}</p>
               </div>
-              {% if item.last_msg_time %}
-              <span class="text-[10px] text-slate-400 flex-shrink-0 whitespace-nowrap">{{ item.last_msg_time|timesince }} ago</span>
+              <span class="text-[10px] text-slate-400 flex-shrink-0 whitespace-nowrap">{{ msg.sent_at|date:"d M, H:i" }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+        </div>
+
+        {# RIGHT: Approval Routing Panel — compact stepper #}
+        {% if item.case.approvals.all %}
+        <div style="width:220px;flex-shrink:0;display:flex;flex-direction:column;">
+          {# Panel header #}
+          <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
+            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Routing Approval</span>
+          </div>
+          {# Compact stepper #}
+          <div class="px-3 py-2.5 space-y-0">
+            {% for appr in item.case.approvals.all %}
+            {% with is_next=item.next_approver_tier|stringformat:"s" tier_str=appr.tier|stringformat:"s" %}
+            <div style="position:relative;display:flex;align-items:flex-start;gap:8px;{% if not forloop.last %}padding-bottom:10px;{% endif %}">
+
+              {# Vertical connector line — inline style to fix alignment #}
+              {% if not forloop.last %}
+              <div style="position:absolute;left:9px;top:20px;bottom:0;width:1px;{% if appr.status == 'Approved' %}background:#6ee7b7;{% else %}background:#e2e8f0;{% endif %}"></div>
               {% endif %}
-            </div>
-            {% endif %}
 
-            {# Matched message search results #}
-            {% if item.matched_messages %}
-            <div x-show="!compact" class="mt-2 space-y-1.5">
-              <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                Chat matches
-              </p>
-              {% for msg in item.matched_messages %}
-              <div class="flex items-start gap-2 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2">
-                <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{{ msg.sender|make_list|first|upper }}</span>
-                <div class="min-w-0 flex-1">
-                  <span class="text-[11px] font-semibold text-indigo-700">{{ msg.sender }}</span>
-                  <p class="text-[11px] text-slate-600 line-clamp-2">{{ msg.body }}</p>
-                </div>
-                <span class="text-[10px] text-slate-400 flex-shrink-0">{{ msg.sent_at|date:"d M, H:i" }}</span>
-              </div>
-              {% endfor %}
-            </div>
-            {% endif %}
-
-            {# Ticket Approval Routing panel #}
-            {% if item.case.approvals.all %}
-            <div x-show="!compact" class="mt-3 border border-slate-200 rounded-xl overflow-hidden">
-              <div class="flex items-center justify-between bg-slate-50 px-3 py-2 border-b border-slate-200">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  Ticket Routing Approval
-                </p>
-              </div>
-              <div class="px-3 py-2.5 bg-white">
-                <div class="flex flex-col gap-2">
-                  {% for appr in item.case.approvals.all %}
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <span class="text-[11px] font-bold text-slate-700">Tier {{ appr.tier }}</span>
-                      <span class="text-[11px] text-slate-500">
-                        {% if appr.approver %}{{ appr.approver.full_name }}{% else %}{% if appr.tier == 1 %}Manager{% else %}Admin{% endif %}{% endif %}
-                      </span>
-                    </div>
-                    <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium
-                      {% if appr.status == 'Approved' %}bg-green-100 text-green-700
-                      {% elif appr.status == 'Rejected' %}bg-red-100 text-red-700
-                      {% else %}bg-amber-100 text-amber-700{% endif %}">
-                      {% if appr.status == 'Approved' %}
-                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                      {% elif appr.status == 'Rejected' %}
-                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                      {% else %}
-                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      {% endif %}
-                      {{ appr.status }}
-                    </span>
-                  </div>
-                  {% if appr.comments %}
-                  <p class="text-[10px] text-slate-500 ml-12 italic border-l-2 border-slate-200 pl-2">"{{ appr.comments }}"</p>
-                  {% endif %}
-                  {% endfor %}
-                </div>
-              </div>
-            </div>
-            {% endif %}
-
-            {# CR History panel — shown when ticket has change request docs #}
-            {% if item.cr_history %}
-            <div x-show="!compact" class="mt-3 border border-indigo-100 rounded-xl overflow-hidden">
-              <div class="flex items-center justify-between bg-indigo-50 px-3 py-2">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                  </svg>
-                  Supporting Letter Workflow
-                </p>
-                <span class="text-[10px] text-indigo-400">{{ item.cr_history|length }} rev.</span>
-              </div>
-
-              {# Show only the latest revision by default — older ones collapsed #}
-              {% for entry in item.cr_history %}
-              <div class="px-3 py-2.5 {% if not forloop.first %}border-t border-slate-100{% endif %}
-                          {% if forloop.first and entry.doc.status == 'rejected' %}bg-red-50{% elif forloop.first and entry.doc.status == 'approved' %}bg-green-50{% else %}bg-white{% endif %}">
-
-                <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-[10px] font-bold text-slate-500">
-                    Rev. #{{ entry.doc.revision_number }}{% if entry.doc.document_template %} · {{ entry.doc.document_template.title }}{% endif %}
+              {# Step icon — w-5 h-5 = 20px, center at 10px #}
+              <div style="flex-shrink:0;position:relative;z-index:10;">
+                {% if appr.status == 'Approved' %}
+                <span style="width:20px;height:20px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;">
+                  <svg style="width:10px;height:10px;color:white;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                {% elif appr.status == 'Rejected' %}
+                <span style="width:20px;height:20px;border-radius:50%;background:#ef4444;display:flex;align-items:center;justify-content:center;">
+                  <svg style="width:10px;height:10px;color:white;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                </span>
+                {% elif is_next == tier_str %}
+                <span style="position:relative;display:flex;">
+                  <span class="animate-ping" style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fbbf24;opacity:0.5;"></span>
+                  <span style="width:20px;height:20px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;position:relative;z-index:10;">
+                    <svg style="width:10px;height:10px;color:white;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                   </span>
-                  {% if entry.doc.status == 'approved' %}
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Approved</span>
-                  {% elif entry.doc.status == 'rejected' %}
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Rejected</span>
-                  {% elif entry.doc.status == 'pending_approval' %}
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pending</span>
+                </span>
+                {% else %}
+                <span style="width:20px;height:20px;border-radius:50%;background:#f1f5f9;border:1.5px solid #cbd5e1;display:flex;align-items:center;justify-content:center;">
+                  <span style="font-size:9px;font-weight:700;color:#94a3b8;">{{ appr.tier }}</span>
+                </span>
+                {% endif %}
+              </div>
+
+              {# Step content — compact #}
+              <div style="flex:1;min-width:0;padding-top:1px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
+                  <p style="font-size:11px;font-weight:700;line-height:1.3;margin:0;
+                    {% if appr.status == 'Approved' %}color:#475569;
+                    {% elif appr.status == 'Rejected' %}color:#b91c1c;
+                    {% elif is_next == tier_str %}color:#92400e;
+                    {% else %}color:#94a3b8;{% endif %}">
+                    T{{ appr.tier }} — {% if appr.tier == 1 %}Manager{% else %}Admin{% endif %}
+                  </p>
+                  {% if appr.status == 'Approved' %}
+                  <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:9999px;background:#d1fae5;color:#065f46;flex-shrink:0;">OK</span>
+                  {% elif appr.status == 'Rejected' %}
+                  <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:9999px;background:#fee2e2;color:#991b1b;flex-shrink:0;">Reject</span>
+                  {% elif is_next == tier_str %}
+                  <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:9999px;background:#fef3c7;color:#92400e;flex-shrink:0;">Pending</span>
                   {% else %}
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Draft</span>
+                  <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:9999px;background:#f1f5f9;color:#94a3b8;flex-shrink:0;">Draft</span>
                   {% endif %}
                 </div>
+                {# Approver & detail — very small #}
+                <p style="font-size:10px;margin:1px 0 0;
+                  {% if is_next != tier_str and appr.status == 'Pending' %}color:#cbd5e1;{% else %}color:#94a3b8;{% endif %}">
+                  {% if appr.approver %}{{ appr.approver.full_name }}{% else %}<em>{% if appr.tier == 1 %}Any Manager{% else %}Any Admin{% endif %}</em>{% endif %}
+                </p>
+                {% if appr.actioned_at %}
+                <p style="font-size:9px;color:#94a3b8;margin:1px 0 0;">{{ appr.actioned_at|date:"d M, H:i" }}</p>
+                {% elif is_next == tier_str %}
+                <p style="font-size:9px;color:#d97706;margin:1px 0 0;">Waiting for action</p>
+                {% endif %}
+                {% if appr.comments %}
+                <p style="font-size:9px;color:#94a3b8;font-style:italic;margin:2px 0 0;border-left:2px solid #e2e8f0;padding-left:4px;">"{{ appr.comments }}"</p>
+                {% endif %}
+              </div>
 
-                {# Rejection reason — shown inline when rejected #}
+            </div>
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+      </div>{# end card body #}
+
+      {# ── Supporting Letter (CR History) ── #}
+      {% if item.cr_history %}
+      <div class="mx-4 mb-3 border border-indigo-100 rounded-lg overflow-hidden">
+        <div class="bg-indigo-50 border-b border-indigo-100 px-3 py-2 flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Supporting Letter Workflow</span>
+          </div>
+          <span class="text-[10px] text-indigo-400">{{ item.cr_history|length }} revision{{ item.cr_history|length|pluralize }}</span>
+        </div>
+        <div class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 220px;">
+          {% for entry in item.cr_history %}
+          <div class="px-3 py-2.5 {% if forloop.first and entry.doc.status == 'rejected' %}bg-red-50{% elif forloop.first and entry.doc.status == 'approved' %}bg-emerald-50{% else %}bg-white{% endif %}">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <span class="text-[11px] font-semibold text-slate-600">
+                  Rev. #{{ entry.doc.revision_number }}{% if entry.doc.document_template %} · {{ entry.doc.document_template.title }}{% endif %}
+                </span>
+                {# Rejection note #}
                 {% if entry.doc.status == 'rejected' %}
                 {% for appr in entry.approvals %}
                 {% if appr.status == 'rejected' and appr.notes %}
-                <div class="mb-2 flex items-start gap-1.5 text-[11px] text-red-700 bg-red-100/60 rounded-lg px-2 py-1.5">
+                <div class="mt-1.5 flex items-start gap-1.5 text-[11px] text-red-700 bg-red-100/60 rounded-md px-2 py-1.5">
                   <svg class="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
-                  <span><strong>Rejected by {{ appr.approver.get_full_name|default:appr.approver.username }}:</strong> {{ appr.notes }}</span>
+                  <span><strong>{{ appr.approver.get_full_name|default:appr.approver.username }}:</strong> {{ appr.notes }}</span>
                 </div>
                 {% endif %}
                 {% endfor %}
                 {% endif %}
-
-                {# Compact approver list #}
+                {# Approver tags #}
                 {% if entry.approvals %}
-                <div class="flex flex-wrap gap-1">
+                <div class="flex flex-wrap gap-1 mt-1.5">
                   {% for appr in entry.approvals %}
-                  <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium
-                    {% if appr.status == 'approved' %}bg-green-100 text-green-700
+                  <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium
+                    {% if appr.status == 'approved' %}bg-emerald-100 text-emerald-700
                     {% elif appr.status == 'rejected' %}bg-red-100 text-red-700
                     {% else %}bg-slate-100 text-slate-500{% endif %}">
                     {% if appr.status == 'approved' %}
@@ -338,87 +350,85 @@
                   {% endfor %}
                 </div>
                 {% endif %}
-
-                {# PDF download if available #}
                 {% if entry.has_pdf %}
                 <a href="{{ entry.pdf_url }}" target="_blank"
-                   class="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 transition-colors">
+                   class="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                   </svg>
-                  Download PDF — Rev. #{{ entry.doc.revision_number }}
+                  Download PDF · Rev. #{{ entry.doc.revision_number }}
                 </a>
                 {% endif %}
               </div>
-              {% endfor %}
+              <span class="text-[11px] font-bold px-2 py-1 rounded-lg flex-shrink-0
+                {% if entry.doc.status == 'approved' %}bg-emerald-100 text-emerald-700
+                {% elif entry.doc.status == 'rejected' %}bg-red-100 text-red-700
+                {% elif entry.doc.status == 'pending_approval' %}bg-amber-100 text-amber-700
+                {% else %}bg-slate-100 text-slate-500{% endif %}">
+                {% if entry.doc.status == 'approved' %}Approved
+                {% elif entry.doc.status == 'rejected' %}Rejected
+                {% elif entry.doc.status == 'pending_approval' %}Pending
+                {% else %}Draft{% endif %}
+              </span>
             </div>
-            {% endif %}
-
-            {# Timestamps #}
-            <p x-show="!compact" class="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              {{ item.case.created_at|date:"d M Y, H:i" }}
-              {% if item.case.updated_at != item.case.created_at %}
-              · updated {{ item.case.updated_at|timesince }} ago
-              {% endif %}
-            </p>
           </div>
-
-          {# Action button — icon-only on mobile, full text on sm+ #}
-          <div class="flex-shrink-0 flex flex-col gap-2 items-end">
-            {% if item.active_cr_doc %}
-            {% if item.case.status == 'RevisionRequired' %}
-            <a href="{% url 'cases:portal_change_request_revise' item.active_cr_doc.id %}"
-               class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-all">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-              <span class="hidden sm:inline">Revise Letter</span>
-            </a>
-            {% else %}
-            <a href="{% url 'cases:portal_change_request_detail' item.active_cr_doc.id %}"
-               class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-all">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-              </svg>
-              <span class="hidden sm:inline">View Approval</span>
-            </a>
-            {% endif %}
-            {% endif %}
-            {% if item.can_chat %}
-            <a href="/portal/chat/{{ item.case.id }}/"
-               class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl transition-all
-               {% if item.unread_count > 0 %}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30{% else %}bg-indigo-50 text-indigo-700 hover:bg-indigo-100{% endif %}">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-              <span class="hidden sm:inline">Open Chat</span>
-              {% if item.unread_count > 0 %}
-              <span class="min-w-[1.25rem] h-5 px-1.5 text-[10px] font-black leading-5 text-indigo-700 bg-white rounded-full">{{ item.unread_count }}</span>
-              {% endif %}
-            </a>
-            {% elif item.can_reopen %}
-            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              <span class="hidden sm:inline">Reopen</span>
-            </a>
-            {% else %}
-            <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-bold p-2 sm:px-4 sm:py-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              <span class="hidden sm:inline">View</span>
-            </a>
-            {% endif %}
-          </div>
+          {% endfor %}
         </div>
       </div>
+      {% endif %}
+
+      {# ── Card Footer (Actions) ── #}
+      <div class="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+        {% if item.active_cr_doc %}
+          {% if item.case.status == 'RevisionRequired' %}
+          <a href="{% url 'cases:portal_change_request_revise' item.active_cr_doc.id %}"
+             class="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Revise Letter
+          </a>
+          {% else %}
+          <a href="{% url 'cases:portal_change_request_detail' item.active_cr_doc.id %}"
+             class="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            View Approval Letter
+          </a>
+          {% endif %}
+        {% endif %}
+
+        {% if item.can_chat %}
+        <a href="/portal/chat/{{ item.case.id }}/"
+           class="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors
+           {% if item.unread_count > 0 %}bg-indigo-600 text-white hover:bg-indigo-700{% else %}bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50{% endif %}">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          Open Chat
+          {% if item.unread_count > 0 %}
+          <span class="bg-white text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">{{ item.unread_count }}</span>
+          {% endif %}
+        </a>
+        {% elif item.can_reopen %}
+        <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Reopen
+        </a>
+        {% else %}
+        <a href="/portal/chat/{{ item.case.id }}/" class="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          View
+        </a>
+        {% endif %}
+      </div>
+
     </div>
     {% endfor %}
   </div>
 
   {# ── Pagination ── #}
   {% if page_obj.has_other_pages %}
-  <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 px-1">
+  <div class="flex items-center justify-between mt-5 px-1">
     <p class="text-xs text-slate-500">
       Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
     </p>
@@ -445,19 +455,17 @@
 
   {% else %}
   {# ── Empty State ── #}
-  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
-    <div class="py-20 text-center">
-      <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-4xl mb-5 shadow-inner">🎫</div>
-      {% if status_filter or search_query or role_filter %}
-      <h3 class="text-lg font-bold text-slate-700 mb-2">No tickets match your filters</h3>
-      <p class="text-sm text-slate-500 mb-6 max-w-xs mx-auto">Try adjusting your search terms or clearing the filters.</p>
-      <a href="{% url 'chat:my_tickets' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">Clear all filters</a>
-      {% else %}
-      <h3 class="text-lg font-bold text-slate-700 mb-2">No tickets yet</h3>
-      <p class="text-sm text-slate-500 mb-6 max-w-xs mx-auto">You haven't submitted any support requests or been added as a follower.</p>
-      <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">Submit your first ticket</a>
-      {% endif %}
-    </div>
+  <div class="bg-white rounded-xl border border-slate-200 py-16 text-center">
+    <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-3xl mb-4">🎫</div>
+    {% if status_filter or search_query or role_filter %}
+    <h3 class="text-base font-bold text-slate-700 mb-1.5">No tickets match your filters</h3>
+    <p class="text-sm text-slate-500 mb-5 max-w-xs mx-auto">Try adjusting your search or clearing filters.</p>
+    <a href="{% url 'chat:my_tickets' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">Clear filters</a>
+    {% else %}
+    <h3 class="text-base font-bold text-slate-700 mb-1.5">No tickets yet</h3>
+    <p class="text-sm text-slate-500 mb-5 max-w-xs mx-auto">You haven't submitted any support requests yet.</p>
+    <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-2 bg-indigo-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">Submit a ticket</a>
+    {% endif %}
   </div>
   {% endif %}
 

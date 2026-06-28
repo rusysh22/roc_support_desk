@@ -142,10 +142,15 @@
 {# ── Mention dropdown (outside Alpine component for fixed positioning) ── #}
 <div id="mention-dropdown" class="hidden fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1" style="min-width:200px;"></div>
 
-<div class="max-w-2xl mx-auto"
+<div style="max-width:72rem;margin:0 auto;"
      x-data="chatRoom()"
      x-init="init()"
      @beforeunload.window="disconnect()">
+
+<div style="display:flex;gap:1rem;align-items:flex-start;">
+
+{# ══ LEFT: Chat panel ══ #}
+<div style="flex:1 1 0%;min-width:0;">
 
   {# ── Header card ── #}
   <div class="jk-card mb-3">
@@ -189,35 +194,30 @@
         </button>
         {# Divider #}
         <span class="w-px h-4 bg-slate-200 mx-0.5"></span>
-        {# Status badge #}
+        {# Status badge — unified label from view #}
         <span id="chat-status-badge"
               class="text-[11px] font-bold px-2 py-0.5 rounded-full
-              {% if case.status == 'Open' %}bg-yellow-100 text-yellow-700
-              {% elif case.status == 'Investigating' %}bg-blue-100 text-blue-700
-              {% elif case.status == 'PendingInfo' %}bg-orange-100 text-orange-700
-              {% elif case.status == 'Resolved' %}bg-emerald-100 text-emerald-700
+              {% if status_color == 'amber' %}bg-amber-100 text-amber-800
+              {% elif status_color == 'red' %}bg-red-100 text-red-700
+              {% elif status_color == 'yellow' %}bg-amber-100 text-amber-700
+              {% elif status_color == 'blue' %}bg-blue-100 text-blue-700
+              {% elif status_color == 'orange' %}bg-orange-100 text-orange-700
+              {% elif status_color == 'green' %}bg-emerald-100 text-emerald-700
               {% else %}bg-slate-100 text-slate-500{% endif %}">
-          {% if case.status == 'Open' %}Waiting
-          {% elif case.status == 'Investigating' %}In Progress
-          {% elif case.status == 'PendingInfo' %}Need Info
-          {% elif case.status == 'Resolved' %}Resolved
-          {% else %}Closed{% endif %}
+          {{ status_label }}
         </span>
       </div>
     </div>
-    {# Row 2: ticket info #}
-    <div class="flex items-center gap-3 px-4 py-3">
-      <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
+    {# Row 2: compact ticket subject #}
+    <div class="flex items-center gap-2.5 px-4 py-2.5">
+      <div class="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-base flex-shrink-0">
         {{ case.category.icon|default:"🎫" }}
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-[11px] text-slate-400 font-medium">{{ case.category.name }}</p>
-        <p class="text-sm font-bold text-slate-800 truncate leading-snug">{{ case.subject }}</p>
-        {% if case.problem_description %}
-        <p class="text-xs text-slate-400 truncate mt-0.5">{{ case.problem_description|truncatechars:80 }}</p>
-        {% endif %}
+        <p class="text-xs font-bold text-slate-800 truncate">{{ case.subject }}</p>
+        <p class="text-[10px] text-slate-400">{{ case.category.name }}</p>
       </div>
-      <span class="text-[10px] text-slate-400 font-mono flex-shrink-0">{{ case.case_number }}</span>
+      <span class="text-[10px] text-slate-400 font-mono flex-shrink-0 hidden lg:block">{{ case.case_number }}</span>
     </div>
     {# Row 3: followers strip (only when followers exist) #}
     <div x-show="followers.length > 0" x-cloak
@@ -343,11 +343,12 @@
       </div>
 
       <div class="flex items-center justify-between gap-2">
-        <label class="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-colors"
+        <label class="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer transition-colors"
                title="Attach file (jpg, png, pdf, docx, xlsx, txt — max 10 MB, 3 files)">
-          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
           </svg>
+          <span class="text-xs font-medium text-slate-500">Attachment</span>
           <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                  @change="onFilePick($event)">
         </label>
@@ -392,6 +393,152 @@
       {% else %}
       <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">← Back to Portal</a>
       {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>{# end LEFT chat panel #}
+
+{# ══ RIGHT: Ticket Details Sidebar ══ #}
+<div style="width:288px;flex-shrink:0;display:flex;flex-direction:column;gap:0.75rem;position:sticky;top:1rem;">
+
+  {# ── Ticket Info Card ── #}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-100 px-3.5 py-2.5 flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ticket Info</span>
+    </div>
+    <div class="px-3.5 py-3 space-y-2.5">
+      {# Category + Icon #}
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
+          {{ case.category.icon|default:"🎫" }}
+        </div>
+        <div class="min-w-0">
+          <p class="text-[10px] text-slate-400 font-medium">{{ case.category.name }}</p>
+          <p class="text-xs font-bold text-slate-800 leading-snug">{{ case.subject }}</p>
+        </div>
+      </div>
+      {# Case number + status #}
+      <div class="flex items-center justify-between gap-2">
+        <span class="font-mono text-[11px] text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">{{ case.case_number }}</span>
+        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full
+          {% if status_color == 'amber' %}bg-amber-100 text-amber-800
+          {% elif status_color == 'red' %}bg-red-100 text-red-700
+          {% elif status_color == 'yellow' %}bg-amber-100 text-amber-700
+          {% elif status_color == 'blue' %}bg-blue-100 text-blue-700
+          {% elif status_color == 'orange' %}bg-orange-100 text-orange-700
+          {% elif status_color == 'green' %}bg-emerald-100 text-emerald-700
+          {% else %}bg-slate-100 text-slate-500{% endif %}">
+          {{ status_label }}
+        </span>
+      </div>
+      {# Requester #}
+      <div class="flex items-center gap-1.5 text-xs text-slate-500">
+        <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        {{ case.requester_name|default:case.requester_email }}
+      </div>
+      {# Dates #}
+      <div class="text-[11px] text-slate-400 space-y-0.5">
+        <p class="flex items-center gap-1.5">
+          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          Created {{ case.created_at|date:"d M Y, H:i" }}
+        </p>
+        {% if case.updated_at != case.created_at %}
+        <p class="flex items-center gap-1.5">
+          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Updated {{ case.updated_at|timesince }} ago
+        </p>
+        {% endif %}
+      </div>
+      {# Problem description #}
+      {% if case.problem_description %}
+      <div class="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+        <p class="text-[11px] text-slate-500 leading-relaxed">{{ case.problem_description|truncatechars:150 }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Routing Approval Stepper ── #}
+  {% if case.approvals.all %}
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-100 px-3.5 py-2.5 flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Routing Approval</span>
+    </div>
+    <div class="px-3.5 py-3 overflow-y-auto" style="max-height: 260px;">
+      {% for appr in case.approvals.all %}
+      {% with is_active=next_approver_tier|stringformat:"s" tier_s=appr.tier|stringformat:"s" %}
+      {% with is_pending_active=is_active|default:"" %}
+      <div class="relative flex gap-3 {% if not forloop.last %}pb-4{% endif %}">
+        {# Connector line #}
+        {% if not forloop.last %}
+        <div class="absolute left-[13px] top-7 bottom-0 w-px {% if appr.status == 'Approved' %}bg-emerald-300{% else %}bg-slate-200{% endif %}" style="left:13px;top:28px;bottom:0;width:1px;position:absolute;"></div>
+        {% endif %}
+        {# Icon — 3 states: done / active-pending / draft #}
+        <div class="flex-shrink-0 relative z-10 mt-0.5">
+          {% if appr.status == 'Approved' %}
+          <span class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          {% elif appr.status == 'Rejected' %}
+          <span class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-sm">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+          </span>
+          {% elif is_active == tier_s %}
+          {# Active pending — pulse animation #}
+          <span class="relative flex" style="display:inline-flex;position:relative;">
+            <span class="animate-ping absolute inline-flex h-7 w-7 rounded-full bg-amber-400 opacity-50" style="position:absolute;"></span>
+            <span class="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shadow-sm relative" style="position:relative;z-index:1;">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+          </span>
+          {% else %}
+          {# Draft — not yet their turn #}
+          <span class="w-7 h-7 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center">
+            <span class="text-[10px] font-bold text-slate-400">{{ appr.tier }}</span>
+          </span>
+          {% endif %}
+        </div>
+        {# Content #}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-1">
+            <p class="text-xs font-bold leading-tight {% if appr.status == 'Approved' %}text-slate-700{% elif appr.status == 'Rejected' %}text-red-700{% elif is_active == tier_s %}text-amber-700{% else %}text-slate-400{% endif %}">
+              Tier {{ appr.tier }} — {% if appr.tier == 1 %}Manager{% else %}Admin{% endif %}
+            </p>
+            {% if appr.status == 'Approved' %}
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-emerald-100 text-emerald-700">Approved</span>
+            {% elif appr.status == 'Rejected' %}
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-red-100 text-red-700">Rejected</span>
+            {% elif is_active == tier_s %}
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-amber-100 text-amber-700">Pending</span>
+            {% else %}
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-slate-100 text-slate-400">Draft</span>
+            {% endif %}
+          </div>
+          <p class="text-[11px] mt-0.5 {% if is_active != tier_s and appr.status == 'Pending' %}text-slate-400{% else %}text-slate-500{% endif %}">
+            {% if appr.approver %}{{ appr.approver.full_name }}{% else %}<span class="italic">{% if appr.tier == 1 %}Any Manager{% else %}Any Admin{% endif %}</span>{% endif %}
+          </p>
+          {% if appr.actioned_at %}
+          <p class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+            <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            {{ appr.actioned_at|date:"d M Y, H:i" }}
+          </p>
+          {% elif is_active == tier_s %}
+          <p class="text-[10px] text-amber-500 mt-0.5 flex items-center gap-1">
+            <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Waiting for action
+          </p>
+          {% endif %}
+          {% if appr.comments %}
+          <p class="text-[10px] text-slate-400 italic mt-1 border-l-2 border-slate-200 pl-2">"{{ appr.comments }}"</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endwith %}
+      {% endwith %}
+      {% endfor %}
     </div>
   </div>
   {% endif %}
@@ -581,6 +728,10 @@
     </div>
   </div>
   {% endif %}
+
+</div>{# end RIGHT sidebar #}
+
+</div>{# end flex row — display:flex #}
 
   {# ── Resolve confirmation modal ── #}
   <div x-show="resolveModal"
@@ -1198,8 +1349,8 @@ function chatRoom() {
 
     applyReadReceipt(latestMessageId) {
       document.querySelectorAll(`[data-direction="${CHAT_USER_DIRECTION}"] .read-status`).forEach(el => {
-        el.textContent = '✓✓ Read';
-        el.classList.add('text-indigo-400');
+        el.innerHTML = `${this._svgDblCheck}Read`;
+        el.style.color = '#6366f1';
       });
     },
 
@@ -1219,23 +1370,34 @@ function chatRoom() {
       this.clearReply();
 
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({
-          type: 'chat_message',
-          body: html,
-          quoted_message_id: quotedId,
-        }));
+        try {
+          this.ws.send(JSON.stringify({
+            type: 'chat_message',
+            body: html,
+            quoted_message_id: quotedId,
+          }));
+        } catch(e) {
+          this._showFailedToast();
+        }
       } else {
         this.sending = true;
         try {
-          await fetch(CHAT_SEND_URL, {
+          const res = await fetch(CHAT_SEND_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
             body: JSON.stringify({ body: html, quoted_message_id: quotedId }),
           });
+          if (!res.ok) this._showFailedToast();
+        } catch(e) {
+          this._showFailedToast();
         } finally {
           this.sending = false;
         }
       }
+    },
+
+    _showFailedToast() {
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Failed to send message. Please try again.' } }));
     },
 
     async sendFiles() {
@@ -1363,17 +1525,22 @@ function chatRoom() {
       </div>`;
     },
 
+    _svgReply: `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>`,
+    _svgTrash: `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`,
+    _svgDblCheck: `<svg style="width:14px;height:9px;flex-shrink:0;" viewBox="0 0 14 9" fill="none"><path d="M1 4L4 7.5L9.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4L8 7.5L13.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
     renderActionBtns(msgId, isOut, senderDisplay) {
+      const replyColor = 'bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600';
       const deleteBtn = isOut
-        ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
-                   data-delete-id="${msgId}" title="Retract message">🗑</button>`
+        ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-500 hover:text-rose-700 shadow-sm transition-colors"
+                   data-delete-id="${msgId}" title="Retract message">${this._svgTrash}</button>`
         : '';
       return `<div class="hover-actions self-center opacity-0 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none">
-        <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+        <button class="reply-action w-6 h-6 rounded-full ${replyColor} flex items-center justify-center shadow-sm transition-colors"
                 data-reply-id="${msgId}"
                 data-reply-body="${this.escAttr(senderDisplay)}"
                 data-reply-sender="${this.escAttr(senderDisplay)}"
-                title="Reply">↩</button>
+                title="Reply">${this._svgReply}</button>
         ${deleteBtn}
       </div>`;
     },
@@ -1408,6 +1575,8 @@ function chatRoom() {
         const time = this.formatTime(data.sent_at);
         const actionBtns = this.renderActionBtns(data.message_id, isOut, data.sender_name);
 
+        const deliveredHtml = `<div style="display:flex;justify-content:flex-end;margin-top:2px;"><span class="read-status" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;color:#94a3b8;">${this._svgDblCheck}Delivered</span></div>`;
+
         if (isOut) {
           el.className = 'group/bubble flex gap-3 mb-4 flex-row-reverse items-start';
           el.innerHTML = `
@@ -1415,7 +1584,7 @@ function chatRoom() {
             <div class="max-w-[70%]">
               <p class="text-[11px] text-slate-400 mb-1 text-right">${this.escHtml(data.sender_name)} · ${time}</p>
               <div class="bubble-content bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed break-words">${quoteHtml}${bodyHtml}</div>
-              <p class="read-status text-[9px] text-slate-400 text-right mt-0.5">✓ Sent</p>
+              ${deliveredHtml}
             </div>
             ${actionBtns}`;
         } else {
