@@ -2,6 +2,7 @@
 node_modules/
 # Django collected statics (generated, not source)
 staticfiles/
+init-ssl.sh
 
 # Python
 __pycache__/

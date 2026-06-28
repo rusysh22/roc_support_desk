@@ -64,15 +64,18 @@ services:
     image: nginx:1.27-alpine
     restart: always
     ports:
-      - "8000:80"
+      - "80:80"
+      - "443:443"
     env_file:
       - .env
     environment:
-      - NGINX_ENVSUBST_TEMPLATE_VARS=NGINX_SERVER_NAMES
+      - NGINX_ENVSUBST_TEMPLATE_VARS=NGINX_SSL_DOMAIN
     volumes:
       - ./nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
       - media_volume:/app/media:ro
       - static_volume:/app/staticfiles:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       web:
         condition: service_healthy

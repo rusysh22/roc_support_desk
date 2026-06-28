@@ -3,15 +3,48 @@
 # the web container restarts and gets a new internal IP.
 resolver 127.0.0.11 valid=10s ipv6=off;
 
+# ── Reject unknown hosts on HTTP ────────────────────────────────────────────
 server {
     listen 80 default_server;
     server_name _;
     return 444;
 }
 
+# ── Reject unknown hosts on HTTPS (no cert needed) ──────────────────────────
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
+
+# ── finance.santika.com — HTTP: ACME challenge + redirect to HTTPS ───────────
 server {
     listen 80;
-    server_name ${NGINX_SERVER_NAMES};
+    server_name finance.santika.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ── finance.santika.com — HTTPS: main application ───────────────────────────
+server {
+    listen 443 ssl;
+    server_name finance.santika.com;
+
+    ssl_certificate     /etc/letsencrypt/live/${NGINX_SSL_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${NGINX_SSL_DOMAIN}/privkey.pem;
+
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache         shared:SSL:10m;
+    ssl_session_timeout       1d;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     client_max_body_size 20M;
 
@@ -19,18 +52,14 @@ server {
         alias /app/media/;
         expires 7d;
         add_header Cache-Control "public, immutable";
-        limit_except GET HEAD {
-            deny all;
-        }
+        limit_except GET HEAD { deny all; }
     }
 
     location /static/ {
         alias /app/staticfiles/;
         expires 30d;
         add_header Cache-Control "public, immutable";
-        limit_except GET HEAD {
-            deny all;
-        }
+        limit_except GET HEAD { deny all; }
     }
 
     # WebSocket upgrade for Django Channels chat (/ws/chat/...)
@@ -55,17 +84,60 @@ server {
         set $upstream http://web:8001;
         proxy_pass $upstream;
 
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_redirect off;
 
-        proxy_read_timeout 120s;
+        proxy_read_timeout    120s;
         proxy_connect_timeout 5s;
-        proxy_send_timeout 120s;
+        proxy_send_timeout    120s;
 
         # Retry on connection error/timeout — prevents instant 502 on transient restart
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
+    }
+}
+
+# ── Tailscale/internal HTTP access ──────────────────────────────────────────
+# santika.roc.web.id → 100.113.80.108 (Tailscale).
+# portal.pajak-santika.my.id dan IP langsung juga dilayani di sini (on hold).
+server {
+    listen 80;
+    server_name santika.roc.web.id portal.pajak-santika.my.id 100.113.80.108 203.153.103.77 203.153.103.78;
+
+    client_max_body_size 20M;
+
+    location /media/ {
+        alias /app/media/;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+        limit_except GET HEAD { deny all; }
+    }
+
+    location /static/ {
+        alias /app/staticfiles/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        limit_except GET HEAD { deny all; }
+    }
+
+    location / {
+        set $upstream http://web:8001;
+        proxy_pass $upstream;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+
+        proxy_read_timeout    120s;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout    120s;
+
         proxy_next_upstream error timeout;
         proxy_next_upstream_tries 2;
         proxy_next_upstream_timeout 10s;
