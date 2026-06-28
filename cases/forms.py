@@ -427,6 +427,7 @@ class CaseCategoryForm(forms.ModelForm):
             'name', 'parent', 'icon', 'description', 'prefix_code',
             'template_subject', 'template_text',
             'is_confidential', 'is_attachment_mandatory', 'enable_change_request',
+            'is_use_routing_approval', 'is_need_admin_approval',
         ]
         _cb = {'class': 'w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 shrink-0'}
         widgets = {
@@ -459,6 +460,8 @@ class CaseCategoryForm(forms.ModelForm):
             'is_confidential': forms.CheckboxInput(attrs=_cb),
             'is_attachment_mandatory': forms.CheckboxInput(attrs=_cb),
             'enable_change_request': forms.CheckboxInput(attrs=_cb),
+            'is_use_routing_approval': forms.CheckboxInput(attrs=_cb),
+            'is_need_admin_approval': forms.CheckboxInput(attrs=_cb),
         }
 
     def __init__(self, *args, **kwargs):
