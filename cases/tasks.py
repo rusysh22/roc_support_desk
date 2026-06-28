@@ -53,8 +53,10 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     try:
         site_config = SiteConfig.get_solo()
         site_name = getattr(site_config, "site_name", "Support Desk")
+        base_url = (site_config.site_url or getattr(settings, 'SITE_URL', '')).rstrip('/')
     except Exception:
         site_name = "Support Desk"
+        base_url = getattr(settings, 'SITE_URL', '').rstrip('/')
 
     sender_name = (
         msg.sender_staff.get_full_name() if msg.sender_staff else "Support Team"
@@ -63,7 +65,7 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     # prevent XSS in email clients and display a clean text preview.
     from django.utils.html import strip_tags, escape
     preview_plain = strip_tags(msg.body or "")[:200]
-    case_url = f"{getattr(settings, 'SITE_URL', '')}/portal/chat/{case.id}/"
+    case_url = f"{base_url}/portal/chat/{case.id}/"
 
     subject = f"[{site_name}] New reply on your ticket: {case.subject}"
     html_content = f"""

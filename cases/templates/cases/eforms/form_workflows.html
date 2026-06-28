@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}e-Form Management{% endblock %}
+{% block nav_form_workflows %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-slate-900">e-Form Management</h2>
+            <p class="text-sm text-slate-500 mt-1">Monitor and manage all active multi-stage dynamic forms across the organization.</p>
+        </div>
+        
+        <!-- Search -->
+        <form method="get" class="relative max-w-sm w-full">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search template title..." 
+                   class="w-full bg-white text-white text-sm border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder-slate-500">
+            <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </form>
+    </div>
+
+    <!-- Analytics Cards (Placeholder for Future) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="jk-card flex items-center gap-4 p-4">
+            <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div>
+                <p class="text-slate-500 text-xs font-semibold uppercase tracking-wider">Total Forms</p>
+                <p class="text-2xl font-black text-white">{{ submissions.paginator.count }}</p>
+            </div>
+        </div>
+        <!-- Add more metric cards if needed -->
+    </div>
+
+    <!-- Workflows Table -->
+    <div class="jk-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-700">
+                <thead class="text-xs uppercase bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">ID / Template</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Initiator</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Status & Stage</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Submitted</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for item in submissions %}
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-slate-800">#{{ item.id|stringformat:"05i" }}</div>
+                            <div class="text-xs font-medium text-indigo-600 mt-0.5">{{ item.template.title }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                                    {{ item.initiator_user.username|first|default:"?" }}
+                                </div>
+                                <span class="text-slate-700">{{ item.initiator_user.get_full_name|default:item.initiator_user.username|default:"System" }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col items-start gap-1.5">
+                                {% if item.status == 'draft' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-500 uppercase tracking-wide">Draft</span>
+                                {% elif item.status == 'in_progress' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase tracking-wide">In Progress</span>
+                                    <div class="text-[11px] text-slate-500">Stage: <span class="text-white font-medium">{{ item.current_stage|default:"-" }}</span></div>
+                                {% elif item.status == 'pending_esign' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20 uppercase tracking-wide">Pending E-Sign</span>
+                                {% elif item.status == 'completed' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 uppercase tracking-wide">Completed</span>
+                                {% elif item.status == 'cancelled' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 uppercase tracking-wide">Cancelled</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap text-xs">
+                            {{ item.created_at|date:"M d, Y H:i" }}
+                        </td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">
+                            <a href="{% url 'cases:eform_detail' item.id %}" class="jk-btn jk-btn-sm !bg-slate-50 hover:!bg-slate-100 !text-slate-700 text-xs">
+                                Manage
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                            <p>No form submissions found.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if submissions.has_other_pages %}
+        <div class="px-6 py-4 border-t border-slate-200 bg-white">
+            <nav class="flex items-center justify-between">
+                <p class="text-sm text-slate-500">
+                    Showing <span class="font-medium text-slate-800">{{ submissions.start_index }}</span> to <span class="font-medium text-slate-800">{{ submissions.end_index }}</span> of <span class="font-medium text-slate-800">{{ submissions.paginator.count }}</span> workflows
+                </p>
+                <div class="flex items-center gap-1">
+                    {% if submissions.has_previous %}
+                    <a href="?page={{ submissions.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded bg-slate-50 text-slate-700 hover:bg-slate-200 text-sm transition-colors">Prev</a>
+                    {% endif %}
+                    {% if submissions.has_next %}
+                    <a href="?page={{ submissions.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded bg-slate-50 text-slate-700 hover:bg-slate-200 text-sm transition-colors">Next</a>
+                    {% endif %}
+                </div>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

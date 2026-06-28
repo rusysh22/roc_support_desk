@@ -182,13 +182,14 @@ class EmployeeAdmin(ModelAdmin):
         "phone_number",
         "job_role",
         "unit",
+        "reports_to",
         "created_at",
     )
     list_filter = ("unit",)
     search_fields = ("full_name", "email", "phone_number")
     ordering = ("full_name",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
-    autocomplete_fields = ("unit",)
+    autocomplete_fields = ("unit", "reports_to")
 
     def save_model(self, request, obj, form, change):
         """Auto-populate audit fields on save."""
@@ -234,6 +235,15 @@ class SiteConfigAdmin(ModelAdmin):
         }),
         ("Portal Settings", {
             "fields": ("require_public_login", "max_upload_size_mb"),
+        }),
+        ("System URLs", {
+            "fields": ("site_url", "marketplace_url"),
+            "description": "Critical URLs for background tasks, webhook links, and license validation.",
+        }),
+        ("WhatsApp Gateway", {
+            "fields": ("wa_inbound_enabled", "wa_outbound_enabled"),
+            "description": "Master toggles for WhatsApp message processing.",
+            "classes": ("collapse",),
         }),
         ("Terms & Privacy", {
             "fields": ("terms_and_privacy",),

@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# Base image pre-loaded with all apt runtime dependencies.
 # Base image pre-loaded with all apt runtime dependencies.
 # Rebuild this only when apt packages change (rarely).
 # Usage: docker build -f Dockerfile.base -t roc-desk-base:latest .

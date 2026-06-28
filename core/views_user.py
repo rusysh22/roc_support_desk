@@ -5,6 +5,7 @@ Provides CRUD operations for User management.
 Restricted to SuperAdmin only.
 """
 import io
+import json
 import secrets
 import string
 
@@ -22,10 +23,45 @@ from django.views.decorators.http import require_POST
 
 from .excel_utils import safe_cell
 from .forms import UserAdminForm
-from .models import User
+from .models import MODULE_REGISTRY, ROLE_DEFAULT_MODULES, User
 
 # Roles that count against the max_agents license limit
 AGENT_ROLES = {User.RoleAccess.SUPPORTDESK, User.RoleAccess.MANAGER}
+
+
+def _build_module_context(user_obj=None):
+    """Return template context variables for the Module Access section."""
+    module_sections = {}
+    for slug, label, emoji, section in MODULE_REGISTRY:
+        module_sections.setdefault(section, []).append((slug, label, emoji))
+
+    if user_obj is not None:
+        is_module_override = user_obj.module_access is not None
+        checked_modules = set(user_obj.module_access) if is_module_override else set()
+        role = user_obj.role_access
+    else:
+        is_module_override = False
+        checked_modules = set()
+        role = User.RoleAccess.SUPPORTDESK
+
+    role_defaults = sorted(ROLE_DEFAULT_MODULES.get(role, set()))
+    return {
+        "module_sections": module_sections,
+        "is_module_override": is_module_override,
+        "checked_modules": checked_modules,
+        "role_defaults_json": json.dumps(role_defaults),
+    }
+
+
+def _save_module_access(user_obj, post_data):
+    """Read module_override + module_access from POST and save to user."""
+    override = post_data.get('module_override') == '1'
+    if override:
+        selected = [s for s in post_data.getlist('module_access') if s]
+        user_obj.module_access = selected
+    else:
+        user_obj.module_access = None
+    user_obj.save(update_fields=['module_access'])
 
 
 def _get_agent_limit():
@@ -124,8 +160,10 @@ def user_create(request):
                     "is_edit": False,
                     "current_agents": current_agents,
                     "max_agents": max_agents,
+                    **_build_module_context(),
                 })
             user = form.save()
+            _save_module_access(user, request.POST)
             messages.success(request, f'User "{user.login_username}" created successfully.')
             return redirect("users_desk:user_list")
     else:
@@ -136,6 +174,7 @@ def user_create(request):
         "is_edit": False,
         "current_agents": current_agents,
         "max_agents": max_agents,
+        **_build_module_context(),
     })
 
 
@@ -166,8 +205,10 @@ def user_edit(request, pk):
                     "user_obj": user_obj,
                     "current_agents": current_agents,
                     "max_agents": max_agents,
+                    **_build_module_context(user_obj),
                 })
             form.save()
+            _save_module_access(user_obj, request.POST)
             messages.success(request, f'User "{user_obj.login_username}" updated successfully.')
             return redirect("users_desk:user_list")
     else:
@@ -179,6 +220,7 @@ def user_edit(request, pk):
         "user_obj": user_obj,
         "current_agents": current_agents,
         "max_agents": max_agents,
+        **_build_module_context(user_obj),
     })
 
 

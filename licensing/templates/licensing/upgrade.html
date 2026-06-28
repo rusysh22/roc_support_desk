@@ -1,518 +1,259 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Choose a Plan | {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
-{% block page_title %}License Plans{% endblock %}
+{% block title %}Manage License | {{ site_config.site_name|default:"RoC Support Desk" }}{% endblock %}
+{% block page_title %}License Management{% endblock %}
 {% block nav_license_status %}active{% endblock %}
 
 {% block extra_head %}
 <style>
-    /* ── Layout ──────────────────────────────────── */
-    .upgrade-wrap { max-width:1100px; margin:0 auto; padding:2rem 1rem 3rem; }
-
-    /* ── Plan card ───────────────────────────────── */
-    .plan-card {
-        background:#fff; border:1.5px solid #e2e8f0; border-radius:20px;
-        padding:1.75rem; display:flex; flex-direction:column;
-        box-shadow:0 2px 8px rgba(0,0,0,.04);
-        transition:all .3s cubic-bezier(.175,.885,.32,1.1);
-        position:relative;
+    .upgrade-wrap { max-width: 800px; margin: 0 auto; padding: 4rem 1rem; text-align: center; }
+    
+    .hero-card {
+        background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        padding: 4rem 2rem;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.03);
+        position: relative;
+        overflow: hidden;
     }
-    .plan-card:hover {
-        transform:translateY(-6px);
-        box-shadow:0 12px 32px rgba(0,0,0,.10);
-        border-color:#c7d2fe;
-    }
-    .plan-card.popular {
-        background:linear-gradient(160deg, #312e81 0%, #1e1b4b 100%);
-        border-color:#6366f1;
-        color:#fff;
-        box-shadow:0 8px 32px rgba(99,102,241,.25);
-    }
-    .plan-card.popular:hover {
-        box-shadow:0 16px 48px rgba(99,102,241,.35);
-        border-color:#818cf8;
-    }
-    .plan-card.current-plan {
-        border-color:#34d399;
-        box-shadow:0 0 0 3px rgba(52,211,153,.12);
+    
+    .hero-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 6px;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6, #d946ef);
     }
 
-    /* ── Badges ──────────────────────────────────── */
-    .badge-popular {
-        position:absolute; top:-1px; right:20px;
-        background:linear-gradient(135deg,#6366f1,#8b5cf6);
-        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
-        letter-spacing:.1em; padding:4px 12px; border-radius:0 0 8px 8px;
-        box-shadow:0 4px 12px rgba(99,102,241,.4);
-    }
-    .badge-current {
-        position:absolute; top:-1px; left:20px;
-        background:linear-gradient(135deg,#059669,#10b981);
-        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
-        letter-spacing:.1em; padding:4px 12px; border-radius:0 0 8px 8px;
+    .badge-status {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 20px;
+        background: #eef2ff;
+        color: #4f46e5;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 1.5rem;
     }
 
-    /* ── Plan header ─────────────────────────────── */
-    .plan-name { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }
-    .plan-tagline { font-size:22px; font-weight:900; letter-spacing:-.02em; margin:8px 0 4px; }
-    .plan-desc { font-size:13px; line-height:1.6; }
+    .title {
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+    }
 
-    /* ── Feature list ────────────────────────────── */
-    .feat-list { list-style:none; padding:0; margin:0; }
-    .feat-list li {
-        display:flex; align-items:center; gap:8px;
-        font-size:13px; padding:4px 0;
+    .subtitle {
+        font-size: 1.125rem;
+        color: #64748b;
+        max-width: 500px;
+        margin: 0 auto 2.5rem;
+        line-height: 1.6;
     }
-    .feat-check { width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:10px; font-weight:900; }
-    .feat-yes  { background:#d1fae5; color:#059669; }
-    .feat-no   { background:#f1f5f9; color:#94a3b8; }
-    .feat-dim  { opacity:.5; text-decoration:line-through; }
 
-    /* ── CTA button ──────────────────────────────── */
-    .plan-cta {
-        display:block; text-align:center; padding:13px 20px;
-        border-radius:12px; font-size:13px; font-weight:800;
-        text-transform:uppercase; letter-spacing:.07em;
-        transition:all .25s; text-decoration:none; margin-top:auto; padding-top:16px;
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+        justify-content: center;
     }
-    .cta-indigo { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; box-shadow:0 4px 12px rgba(99,102,241,.3); }
-    .cta-indigo:hover { box-shadow:0 6px 20px rgba(99,102,241,.45); transform:translateY(-1px); color:#fff; }
-    .cta-white { background:#fff; color:#312e81; border:1.5px solid rgba(255,255,255,.3); }
-    .cta-white:hover { background:#f0f0ff; color:#312e81; }
-    .cta-purple { background:linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; box-shadow:0 4px 12px rgba(124,58,237,.3); }
-    .cta-purple:hover { box-shadow:0 6px 20px rgba(124,58,237,.45); transform:translateY(-1px); color:#fff; }
-    .cta-dark { background:linear-gradient(135deg,#1e293b,#0f172a); color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.2); }
-    .cta-dark:hover { box-shadow:0 6px 20px rgba(0,0,0,.3); transform:translateY(-1px); color:#fff; }
-    .cta-disabled { background:#f1f5f9; color:#94a3b8; cursor:default; }
-    .cta-disabled:hover { transform:none; box-shadow:none; }
+    
+    @media (min-width: 640px) {
+        .action-buttons { flex-direction: row; }
+    }
 
-    .plan-divider { border:none; border-top:1.5px solid currentColor; opacity:.12; margin:16px 0; }
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: #fff;
+        padding: 14px 28px;
+        border-radius: 14px;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+        transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99,102,241,0.4);
+        color: #fff;
+    }
 
-    /* ── Comparison table ────────────────────────── */
-    .cmp-table { width:100%; border-collapse:collapse; font-size:13px; }
-    .cmp-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; border-bottom:1.5px solid #f1f5f9; }
-    .cmp-table th:not(:first-child) { text-align:center; }
-    .cmp-table td { padding:10px 16px; border-bottom:1px solid #f8fafc; color:#475569; }
-    .cmp-table td:not(:first-child) { text-align:center; font-weight:700; }
-    .cmp-table tr:last-child td { border-bottom:none; }
-    .cmp-table tr:hover td { background:#fafbff; }
-    .cmp-yes  { color:#059669; }
-    .cmp-no   { color:#cbd5e1; }
-    .cmp-col  { background:rgba(99,102,241,.04); }
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+        color: #475569;
+        padding: 14px 28px;
+        border-radius: 14px;
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+        border: 1px solid #cbd5e1;
+        transition: all 0.3s ease;
+    }
+    .btn-secondary:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #1e293b;
+    }
 
-    /* ── Payment Method Modal ────────────────────── */
-    .pm-overlay {
-        display:none; position:fixed; inset:0;
-        background:rgba(15,23,42,.55); backdrop-filter:blur(4px);
-        z-index:9999; align-items:center; justify-content:center;
+    .features-preview {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e2e8f0;
     }
-    .pm-overlay.active { display:flex; }
-    .pm-modal {
-        background:#fff; border-radius:20px; padding:2rem;
-        width:100%; max-width:460px; box-shadow:0 24px 64px rgba(0,0,0,.18);
-        animation:pmSlideIn .25s cubic-bezier(.175,.885,.32,1.1);
-    }
-    @keyframes pmSlideIn {
-        from { transform:translateY(24px); opacity:0; }
-        to   { transform:translateY(0);    opacity:1; }
-    }
-    .pm-title { font-size:18px; font-weight:900; color:#1e293b; margin-bottom:4px; }
-    .pm-sub   { font-size:13px; color:#64748b; margin-bottom:20px; }
 
-    .pm-option {
-        display:flex; align-items:center; gap:14px;
-        border:1.5px solid #e2e8f0; border-radius:14px;
-        padding:14px 16px; margin-bottom:10px;
-        cursor:pointer; transition:all .2s;
-        position:relative; background:#fff;
+    .feat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
     }
-    .pm-option:hover:not(.pm-disabled) {
-        border-color:#6366f1; box-shadow:0 4px 16px rgba(99,102,241,.12);
-        background:#fafaff;
+    
+    .feat-icon {
+        color: #10b981;
+        font-size: 16px;
     }
-    .pm-option.pm-disabled {
-        background:#f8fafc; cursor:not-allowed; opacity:.72;
-    }
-    .pm-icon {
-        width:44px; height:44px; border-radius:12px;
-        display:flex; align-items:center; justify-content:center;
-        font-size:22px; flex-shrink:0;
-    }
-    .pm-icon-bank    { background:#eff6ff; }
-    .pm-icon-wallet  { background:#f0fdf4; }
-    .pm-icon-store   { background:#fff7ed; }
-    .pm-label  { font-size:14px; font-weight:800; color:#1e293b; }
-    .pm-desc   { font-size:12px; color:#64748b; margin-top:1px; }
-    .pm-badge-wip {
-        position:absolute; right:14px; top:50%; transform:translateY(-50%);
-        background:linear-gradient(135deg,#f59e0b,#d97706);
-        color:#fff; font-size:9px; font-weight:900; text-transform:uppercase;
-        letter-spacing:.08em; padding:3px 9px; border-radius:20px;
-        display:flex; align-items:center; gap:4px;
-    }
-    .pm-close-btn {
-        display:block; width:100%; text-align:center; margin-top:16px;
-        font-size:13px; color:#94a3b8; cursor:pointer; font-weight:600;
-        padding:8px; border-radius:8px; transition:color .2s;
-    }
-    .pm-close-btn:hover { color:#475569; }
-
-    #pmConfirmBtn:hover  { box-shadow:0 6px 20px rgba(99,102,241,.45); transform:translateY(-1px); }
-    #pmChangeMethod:hover { background:#f5f3ff; border-color:#818cf8; }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="upgrade-wrap">
+    <div class="hero-card">
+        <div class="badge-status">
+            Current Plan: {{ license.get_plan_tier_display|default:"Trial" }}
+        </div>
+        
+        <h1 class="title">
+            Unlock the Full Power of<br>
+            <span style="color: #4f46e5;">{{ site_config.site_name|default:"Support Desk" }}</span>
+        </h1>
+        
+        <p class="subtitle">
+            Scale your customer service with advanced capabilities like WhatsApp Gateway, Document E-Sign, and comprehensive Project Management.
+        </p>
 
-<!-- ── Payment Method Modal ── -->
-<div class="pm-overlay" id="pmOverlay">
-    <div class="pm-modal">
-
-        <!-- ── Step 1: Pilih Metode ── -->
-        <div id="pmStep1">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-                <div style="width:22px; height:22px; background:#6366f1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; flex-shrink:0;">1</div>
-                <p class="pm-title" style="margin:0;">Pilih Metode Pembayaran</p>
-            </div>
-            <p class="pm-sub" style="padding-left:32px;">Pilih cara pembayaran untuk lisensi <strong id="pmPlanName"></strong>.</p>
-
-            <!-- Transfer Bank -->
-            <div class="pm-option" id="pmBankTransfer">
-                <div class="pm-icon pm-icon-bank">🏦</div>
-                <div>
-                    <p class="pm-label">Transfer Bank</p>
-                    <p class="pm-desc">BCA, BNI, BRI, Mandiri &amp; bank lainnya</p>
-                </div>
-            </div>
-
-            <!-- E-Wallet (WIP) -->
-            <div class="pm-option pm-disabled">
-                <div class="pm-icon pm-icon-wallet">💳</div>
-                <div>
-                    <p class="pm-label">E-Wallet</p>
-                    <p class="pm-desc">GoPay, OVO, DANA, ShopeePay</p>
-                </div>
-                <div class="pm-badge-wip">🔧 Dalam Perbaikan</div>
-            </div>
-
-            <!-- Toko Merchant (WIP) -->
-            <div class="pm-option pm-disabled">
-                <div class="pm-icon pm-icon-store">🏪</div>
-                <div>
-                    <p class="pm-label">Toko Merchant</p>
-                    <p class="pm-desc">Indomaret, Alfamart &amp; minimarket lainnya</p>
-                </div>
-                <div class="pm-badge-wip">🔧 Dalam Perbaikan</div>
-            </div>
-
-            <span class="pm-close-btn" id="pmClose">Batal</span>
+        <div class="action-buttons">
+            <a href="{{ marketplace_url }}/p/roc-support-desk/" target="_blank" class="btn-primary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                View Plans & Pricing
+            </a>
+            <a href="{% url 'licensing:activate' %}" class="btn-secondary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                I have a License Key
+            </a>
         </div>
 
-        <!-- ── Step 2: Konfirmasi ── -->
-        <div id="pmStep2" style="display:none;">
-            <!-- Step indicator -->
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
-                <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#94a3b8;">
-                    <div style="width:20px; height:20px; background:#d1fae5; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#059669;">✓</div>
-                    <span>Pilih Metode</span>
-                </div>
-                <div style="flex:1; height:1.5px; background:#e2e8f0;"></div>
-                <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#6366f1;">
-                    <div style="width:20px; height:20px; background:#6366f1; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:900;">2</div>
-                    <span>Konfirmasi</span>
-                </div>
-            </div>
-
-            <!-- Ringkasan pesanan -->
-            <div style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:16px;">
-                <p style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; margin-bottom:10px;">Ringkasan Pesanan</p>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:13px; color:#64748b;">Paket</span>
-                    <span style="font-size:13px; font-weight:800; color:#1e293b;" id="pmConfirmPlan"></span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:13px; color:#64748b;">Metode Pembayaran</span>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span id="pmConfirmMethodIcon" style="font-size:16px;"></span>
-                        <span style="font-size:13px; font-weight:800; color:#1e293b;" id="pmConfirmMethodName"></span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Info notice -->
-            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; margin-bottom:16px; display:flex; gap:10px; align-items:flex-start;">
-                <span style="font-size:16px; flex-shrink:0;">ℹ️</span>
-                <p style="font-size:12px; color:#1d4ed8; line-height:1.6; margin:0;">
-                    Anda akan diarahkan ke halaman marketplace untuk menyelesaikan pembayaran. Pastikan metode di atas sudah sesuai.
-                </p>
-            </div>
-
-            <!-- Actions -->
-            <button id="pmConfirmBtn"
-                style="display:block; width:100%; padding:13px; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; border:none; border-radius:12px; cursor:pointer; transition:all .25s; margin-bottom:10px; box-shadow:0 4px 12px rgba(99,102,241,.3);">
-                Lanjutkan ke Pembayaran →
-            </button>
-
-            <button id="pmChangeMethod"
-                style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:11px; background:#fff; color:#6366f1; font-size:13px; font-weight:700; border:1.5px solid #c7d2fe; border-radius:12px; cursor:pointer; transition:all .2s;">
-                ↩ Ganti Metode Pembayaran
-            </button>
-
-            <span class="pm-close-btn" id="pmClose2" style="margin-top:10px;">Batal</span>
+        <div class="features-preview">
+            <div class="feat-item"><span class="feat-icon">✓</span> Multi-Agent Support</div>
+            <div class="feat-item"><span class="feat-icon">✓</span> WhatsApp Integration</div>
+            <div class="feat-item"><span class="feat-icon">✓</span> Document E-Sign</div>
+            <div class="feat-item"><span class="feat-icon">✓</span> Project Management</div>
         </div>
+    </div>
 
+    <!-- Dynamic Plans Container -->
+    <div id="dynamic-plans-container" style="display: none; margin-top: 3rem;">
+        <h2 class="title" style="font-size: 2rem; margin-bottom: 2rem;">Available Plans</h2>
+        <div id="plans-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; text-align: left;">
+            <!-- Plans will be rendered here -->
+        </div>
     </div>
 </div>
 
 <script>
-(function(){
-    var overlay        = document.getElementById('pmOverlay');
-    var step1          = document.getElementById('pmStep1');
-    var step2          = document.getElementById('pmStep2');
-    var planLabel      = document.getElementById('pmPlanName');
-    var bankBtn        = document.getElementById('pmBankTransfer');
-    var confirmBtn     = document.getElementById('pmConfirmBtn');
-    var changeBtn      = document.getElementById('pmChangeMethod');
-    var closeBtn       = document.getElementById('pmClose');
-    var closeBtn2      = document.getElementById('pmClose2');
-    var confirmPlan    = document.getElementById('pmConfirmPlan');
-    var confirmIcon    = document.getElementById('pmConfirmMethodIcon');
-    var confirmName    = document.getElementById('pmConfirmMethodName');
-    var dest           = '';
-    var selectedMethod = null;
+document.addEventListener("DOMContentLoaded", function() {
+    const marketplaceUrl = "{{ marketplace_url }}";
+    const apiUrl = marketplaceUrl.replace(/\/+$/, '') + "/api/v1/catalog/products/roc-support-desk/plans";
+    
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) throw new Error("Network response was not ok");
+            return response.json();
+        })
+        .then(plans => {
+            const grid = document.getElementById("plans-grid");
+            const container = document.getElementById("dynamic-plans-container");
+            const heroCard = document.querySelector(".hero-card");
+            
+            // Only render if we have plans
+            if (!plans || plans.length === 0) return;
+            
+            // Transform teaser into a smaller header since we are showing full plans
+            heroCard.style.padding = "2rem 1rem";
+            heroCard.querySelector(".subtitle").style.display = "none";
+            heroCard.querySelector(".features-preview").style.display = "none";
+            heroCard.querySelector(".action-buttons .btn-primary").style.display = "none";
+            
+            // Function to format price
+            const formatRupiah = (priceStr) => {
+                const num = parseInt(priceStr);
+                if (isNaN(num)) return priceStr;
+                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+            };
 
-    var methods = {
-        bank: { icon: '🏦', name: 'Transfer Bank' }
-    };
+            plans.forEach(plan => {
+                const card = document.createElement("div");
+                card.style.cssText = "background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1.5rem; display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);";
+                
+                let isPopular = plan.name.toLowerCase().includes("pro");
+                if (isPopular) {
+                    card.style.border = "2px solid #6366f1";
+                    card.style.position = "relative";
+                }
 
-    function openModal(planName, url) {
-        dest = url;
-        planLabel.textContent = planName;
-        showStep(1);
-        overlay.classList.add('active');
-    }
+                // Parse entitlements
+                const e = plan.entitlements || {};
+                const agents = e.MAX_AGENTS === "999" ? "Unlimited" : e.MAX_AGENTS;
+                const wa = e.WHATSAPP === "true";
+                const esign = e.ESIGN === "true";
+                const project = e.PROJECT_MANAGEMENT === "true";
 
-    function showStep(n) {
-        step1.style.display = n === 1 ? '' : 'none';
-        step2.style.display = n === 2 ? '' : 'none';
-    }
+                card.innerHTML = `
+                    ${isPopular ? '<div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #6366f1; color: #fff; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">Most Popular</div>' : ''}
+                    <h3 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin-bottom: 0.5rem; margin-top: ${isPopular ? '0.5rem' : '0'};">${plan.name}</h3>
+                    <div style="font-size: 1.5rem; font-weight: 900; color: #4f46e5; margin-bottom: 0.25rem;">${formatRupiah(plan.price)}</div>
+                    <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 1.5rem;">${plan.interval === 'none' ? 'One-Time Payment' : 'per ' + plan.interval}</div>
+                    
+                    <ul style="list-style: none; padding: 0; margin: 0 0 1.5rem 0; flex-grow: 1; font-size: 0.875rem; color: #475569; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <li style="display: flex; gap: 8px;"><span style="color: #10b981;">✓</span> <strong>${agents}</strong> Agents</li>
+                        <li style="display: flex; gap: 8px;"><span style="color: #10b981;">✓</span> Ticket Management</li>
+                        <li style="display: flex; gap: 8px; opacity: ${wa ? '1' : '0.5'};"><span style="color: ${wa ? '#10b981' : '#94a3b8'};">${wa ? '✓' : '✗'}</span> WhatsApp Gateway</li>
+                        <li style="display: flex; gap: 8px; opacity: ${esign ? '1' : '0.5'};"><span style="color: ${esign ? '#10b981' : '#94a3b8'};">${esign ? '✓' : '✗'}</span> Document E-Sign</li>
+                        <li style="display: flex; gap: 8px; opacity: ${project ? '1' : '0.5'};"><span style="color: ${project ? '#10b981' : '#94a3b8'};">${project ? '✓' : '✗'}</span> Project Management</li>
+                    </ul>
 
-    function goToConfirm(methodKey) {
-        selectedMethod = methodKey;
-        confirmPlan.textContent = planLabel.textContent;
-        confirmIcon.textContent = methods[methodKey].icon;
-        confirmName.textContent = methods[methodKey].name;
-        showStep(2);
-    }
+                    <a href="${marketplaceUrl.replace(/\/+$/, '')}${plan.checkout_url}" target="_blank" style="display: block; text-align: center; background: ${isPopular ? '#4f46e5' : '#f1f5f9'}; color: ${isPopular ? '#fff' : '#475569'}; font-weight: 700; padding: 0.75rem; border-radius: 10px; text-decoration: none; transition: all 0.2s;">
+                        Select Plan
+                    </a>
+                `;
+                
+                grid.appendChild(card);
+            });
 
-    function closeModal() {
-        overlay.classList.remove('active');
-        selectedMethod = null;
-    }
-
-    bankBtn.addEventListener('click', function(){ goToConfirm('bank'); });
-
-    confirmBtn.addEventListener('click', function(){
-        if (dest) window.open(dest, '_blank');
-        closeModal();
-    });
-
-    changeBtn.addEventListener('click', function(){ showStep(1); });
-
-    closeBtn.addEventListener('click',  closeModal);
-    closeBtn2.addEventListener('click', closeModal);
-
-    overlay.addEventListener('click', function(e){
-        if (e.target === overlay) closeModal();
-    });
-
-    document.addEventListener('DOMContentLoaded', function(){
-        document.querySelectorAll('a.plan-cta[href]').forEach(function(el){
-            if (el.href && el.href !== '#' && !el.classList.contains('cta-disabled')) {
-                var planName = el.closest('.plan-card')
-                    ? (el.closest('.plan-card').querySelector('.plan-tagline') || {}).textContent || 'Plan'
-                    : 'Plan';
-                el.addEventListener('click', function(e){
-                    e.preventDefault();
-                    openModal(planName, el.href);
-                });
-            }
+            container.style.display = "block";
+        })
+        .catch(err => {
+            console.warn("Failed to load dynamic plans from Estalatree. Falling back to static teaser UI.", err);
+            // On failure, do nothing, leaving the static teaser as the fallback UI.
         });
-    });
-})();
+});
 </script>
-<div class="upgrade-wrap">
-
-    <!-- ── Hero ── -->
-    <div class="text-center mb-10">
-        <span class="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-[.2em] mb-4 border border-indigo-100">
-            License Management
-        </span>
-        <h1 class="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">
-            Unlock the Full Power of <span class="text-indigo-600">{{ site_config.site_name|default:"RoC Support Desk" }}</span>
-        </h1>
-        <p class="text-slate-500 max-w-lg mx-auto text-sm leading-relaxed">
-            From small teams to large enterprises — there's a plan that fits your scale.
-            Currently on the <strong class="text-indigo-600 italic">{{ license.get_plan_tier_display }}</strong> tier.
-        </p>
-    </div>
-
-    <!-- ── Plan Grid ── -->
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; align-items:start; margin-bottom:40px;">
-
-        <!-- Starter -->
-        <div class="plan-card {% if license.plan_tier == 'starter' %}current-plan{% endif %}">
-            {% if license.plan_tier == 'starter' %}<div class="badge-current">Active Plan</div>{% endif %}
-            <div>
-                <p class="plan-name text-indigo-600">Starter</p>
-                <p class="plan-tagline text-slate-900">Essential</p>
-                <p class="plan-desc text-slate-500">Everything a small support team needs to get started.</p>
-            </div>
-            <hr class="plan-divider border-slate-200">
-            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px;">
-                <li><span class="feat-check feat-yes">✓</span> <span>Ticket Management</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>WhatsApp Gateway</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Form Builder</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Knowledge Base</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Short Links &amp; QR</span></li>
-                <li class="feat-dim"><span class="feat-check feat-no">✗</span> <span>Analytics Dashboard</span></li>
-                <li class="feat-dim"><span class="feat-check feat-no">✗</span> <span>API Access</span></li>
-            </ul>
-            <div class="text-xs text-slate-400 font-semibold mb-3 text-center">Up to 5 Agents</div>
-            {% if license.plan_tier == 'starter' %}
-            <div class="plan-cta cta-disabled">Active Plan</div>
-            {% else %}
-            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-indigo">Get Starter</a>
-            {% endif %}
-        </div>
-
-        <!-- Professional (Most Popular) -->
-        <div class="plan-card popular {% if license.plan_tier == 'professional' %}current-plan{% endif %}">
-            <div class="badge-popular">🔥 Most Popular</div>
-            {% if license.plan_tier == 'professional' %}<div class="badge-current">Active Plan</div>{% endif %}
-            <div>
-                <p class="plan-name" style="color:#a5b4fc;">Professional</p>
-                <p class="plan-tagline" style="color:#fff;">Full Access</p>
-                <p class="plan-desc" style="color:#c7d2fe;">Analytics, company units, SLA reports — everything unlocked.</p>
-            </div>
-            <hr class="plan-divider" style="border-color:#fff;">
-            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px; color:#e0e7ff;">
-                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Starter</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Analytics &amp; Dashboard</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Units</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>SLA Reports</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Audit Log Export</span></li>
-                <li style="opacity:.45;text-decoration:line-through; color:#a5b4fc;"><span class="feat-check" style="background:rgba(165,180,252,.15);color:#818cf8;">✗</span> <span>External API</span></li>
-            </ul>
-            <div class="text-xs font-semibold mb-3 text-center" style="color:#818cf8;">Up to 20 Agents</div>
-            {% if license.plan_tier == 'professional' %}
-            <div class="plan-cta" style="background:rgba(255,255,255,.1);color:#c7d2fe;cursor:default;">Active Plan</div>
-            {% else %}
-            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-white">Get Professional</a>
-            {% endif %}
-        </div>
-
-        <!-- Business -->
-        <div class="plan-card {% if license.plan_tier == 'business' %}current-plan{% endif %}">
-            {% if license.plan_tier == 'business' %}<div class="badge-current">Active Plan</div>{% endif %}
-            <div>
-                <p class="plan-name text-purple-600">Business</p>
-                <p class="plan-tagline text-slate-900">Connected</p>
-                <p class="plan-desc text-slate-500">High-volume capacity and API access for external integrations.</p>
-            </div>
-            <hr class="plan-divider border-slate-200">
-            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px;">
-                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Professional</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>API Access &amp; Hooks</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>High-Volume Capacity</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Priority Queuing</span></li>
-            </ul>
-            <div class="text-xs text-slate-400 font-semibold mb-3 text-center">Up to 50 Agents</div>
-            {% if license.plan_tier == 'business' %}
-            <div class="plan-cta cta-disabled">Active Plan</div>
-            {% else %}
-            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-purple">Get Business</a>
-            {% endif %}
-        </div>
-
-        <!-- Enterprise -->
-        <div class="plan-card {% if license.plan_tier == 'enterprise' %}current-plan{% endif %}" style="background:#0f172a; border-color:#1e293b;">
-            {% if license.plan_tier == 'enterprise' %}<div class="badge-current">Active Plan</div>{% endif %}
-            <div>
-                <p class="plan-name" style="color:#64748b;">Enterprise</p>
-                <p class="plan-tagline" style="color:#fff;">Unlimited</p>
-                <p class="plan-desc" style="color:#64748b;">Custom solutions, dedicated support, and unlimited agents.</p>
-            </div>
-            <hr class="plan-divider" style="border-color:#fff;">
-            <ul class="feat-list mb-6 flex-1" style="display:flex; flex-direction:column; gap:6px; color:#94a3b8;">
-                <li><span class="feat-check feat-yes">✓</span> <span>Everything in Business</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Custom Solutions</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Dedicated Support</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Unlimited Agents</span></li>
-                <li><span class="feat-check feat-yes">✓</span> <span>Custom Integrations</span></li>
-            </ul>
-            <div class="text-xs font-semibold mb-3 text-center" style="color:#475569;">Unlimited Agents ∞</div>
-            {% if license.plan_tier == 'enterprise' %}
-            <div class="plan-cta" style="background:rgba(255,255,255,.05);color:#475569;cursor:default;">Active Plan</div>
-            {% else %}
-            <a href="{{ marketplace_url }}" target="_blank" class="plan-cta cta-dark">Contact Us</a>
-            {% endif %}
-        </div>
-
-    </div>
-
-    <!-- ── Feature Comparison Table ── -->
-    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.04); margin-bottom:40px;">
-        <div style="padding:16px 20px; border-bottom:1px solid #f1f5f9; font-size:14px; font-weight:800; color:#1e293b;">
-            📊 Full Feature Comparison
-        </div>
-        <div style="overflow-x:auto;">
-            <table class="cmp-table">
-                <thead>
-                    <tr>
-                        <th style="width:36%">Feature</th>
-                        <th>Trial</th>
-                        <th>Starter</th>
-                        <th class="cmp-col">Professional</th>
-                        <th>Business</th>
-                        <th>Enterprise</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>Ticket Management</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Knowledge Base (read)</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Knowledge Base (manage)</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>WhatsApp Gateway</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Form Builder</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Short Links &amp; QR Code</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Email Settings (IMAP/SMTP)</td><td class="cmp-no">—</td><td class="cmp-yes">✓</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Analytics Dashboard</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Units</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>SLA Reports</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>Audit Log Export</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-yes cmp-col">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr><td>API Access</td><td class="cmp-no">—</td><td class="cmp-no">—</td><td class="cmp-no cmp-col">—</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-                    <tr>
-                        <td style="font-weight:700; color:#1e293b;">Max Agents</td>
-                        <td style="color:#94a3b8; font-weight:600;">3</td>
-                        <td style="color:#1e293b; font-weight:700;">5</td>
-                        <td class="cmp-col" style="color:#6366f1; font-weight:700;">20</td>
-                        <td style="color:#7c3aed; font-weight:700;">50</td>
-                        <td style="color:#1e293b; font-weight:700;">∞</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- ── Already have a key ── -->
-    <div class="text-center">
-        <p class="text-sm text-slate-400 font-semibold mb-4">Already have a license key?</p>
-        <a href="{% url 'licensing:activate' %}" class="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold hover:shadow-lg hover:border-indigo-200 hover:text-indigo-600 transition-all text-sm">
-            <span class="text-xl">🔑</span>
-            <span>Activate License Key</span>
-        </a>
-    </div>
-
-</div>
 {% endblock %}

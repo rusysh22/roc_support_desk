@@ -172,3 +172,28 @@ class ForcePasswordChangeMiddleware:
             return redirect("/auth/change-password/")
         return self.get_response(request)
 
+
+class SiteUrlAutoDiscoveryMiddleware:
+    """
+    Automatically populates SiteConfig.site_url from the current request's Host header
+    if it hasn't been set yet. This eliminates the need to manually configure SITE_URL
+    in the database or .env for standard deployments.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        try:
+            # Prevent catching internal Docker healthchecks which use localhost:8001
+            if "localhost:8001" not in request.get_host():
+                config = SiteConfig.get_solo()
+                if not config.site_url:
+                    # Construct base URL, e.g., "https://finance.santika.com"
+                    base_url = request.build_absolute_uri('/').rstrip('/')
+                    config.site_url = base_url
+                    config.save(update_fields=['site_url'])
+        except Exception:
+            pass
+
+        return self.get_response(request)
+

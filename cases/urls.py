@@ -11,6 +11,12 @@ app_name = "cases"
 urlpatterns = [
     # Home / Client Dashboard
     path("", views.client_dashboard, name="dashboard"),
+    
+    # My E-Forms (List of standalone submissions for the user)
+    path("my-eforms/", views.my_eforms_list, name="my_eforms"),
+    path("eforms/new/", views.eform_template_list, name="eform_template_list"),
+    path("eforms/new/<uuid:template_id>/", views.eform_initiate, name="eform_initiate"),
+    path("eforms/<uuid:submission_id>/", views.eform_detail, name="eform_detail"),
 
     # Category management (SuperAdmin only, AJAX)
     path("category/create/", views.create_category, name="create_category"),
@@ -28,7 +34,10 @@ urlpatterns = [
     path("submitted/<uuid:case_id>/", views.case_submitted, name="case_submitted"),
     path("send-email/<uuid:case_id>/", views.send_case_email, name="send_case_email"),
 
-    # Dynamic Form Public Renderer
+    # Enterprise E-Form Public/Vendor View
+    path("eforms/guest/<str:token>/", views.eform_public_detail, name="eform_public_detail"),
+
+    # Dynamic Form Public Renderer (Legacy)
     path("f/<slug:slug>/", views.public_form_view, name="public_form"),
 
     # Document template preview (HTMX, admin staff)

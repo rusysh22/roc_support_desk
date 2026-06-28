@@ -28,8 +28,44 @@
   <section class="mb-10">
     <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Pending Your Action</h2>
 
-    {% if pending_approvals %}
+    {% if pending_approvals or pending_tickets %}
     <div class="space-y-3">
+      {% for appr in pending_tickets %}
+      <div class="bg-white border border-indigo-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-5 py-4 flex items-start justify-between gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold text-slate-800">
+              Ticket Routing Approval
+              <span class="text-slate-400 font-normal">· Tier {{ appr.tier }}</span>
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              <span class="font-medium text-indigo-600">{{ appr.case.case_number }}</span>
+              — {{ appr.case.subject|truncatechars:60 }}
+            </p>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Category: {{ appr.case.category.name }}
+              &nbsp;·&nbsp; Submitted: {{ appr.case.created_at|date:"d M Y, H:i"|default:"—" }}
+            </p>
+          </div>
+          <span class="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+            Pending
+          </span>
+        </div>
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+          <p class="text-[11px] text-slate-400 truncate">
+            Requester: {{ appr.case.requester_name|default:appr.case.requester_email }}
+          </p>
+          <a href="/admin/cases/caserecord/{{ appr.case.id }}/change/"
+             class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-colors shadow-sm">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Review Ticket
+          </a>
+        </div>
+      </div>
+      {% endfor %}
       {% for appr in pending_approvals %}
       <div class="bg-white border border-yellow-200 rounded-2xl shadow-sm overflow-hidden">
         <div class="px-5 py-4 flex items-start justify-between gap-4">
@@ -89,10 +125,47 @@
   </section>
 
   {# ── Completed Approvals ── #}
-  {% if completed_approvals %}
+  {% if completed_approvals or completed_tickets %}
   <section>
     <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Recently Completed</h2>
     <div class="space-y-2">
+      {% for appr in completed_tickets %}
+      <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 flex items-center gap-3">
+          <div class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center
+                      {% if appr.status == 'Approved' %}bg-green-100{% else %}bg-red-100{% endif %}">
+            {% if appr.status == 'Approved' %}
+            <svg class="h-3.5 w-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+            {% else %}
+            <svg class="h-3.5 w-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            {% endif %}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-slate-700 truncate">
+              Ticket Routing Approval
+              <span class="text-slate-400 font-normal">— {{ appr.case.case_number }}</span>
+            </p>
+            <p class="text-[11px] text-slate-400 truncate">{{ appr.case.subject|truncatechars:55 }}</p>
+          </div>
+          <div class="flex-shrink-0 text-right">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full
+                         {% if appr.status == 'Approved' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+              {{ appr.status }}
+            </span>
+            <p class="text-[10px] text-slate-400 mt-0.5">{{ appr.actioned_at|date:"d M Y" }}</p>
+          </div>
+        </div>
+        {% if appr.comments %}
+        <div class="px-4 py-2 bg-slate-50 border-t border-slate-100">
+          <p class="text-[11px] text-slate-500 italic">"{{ appr.comments }}"</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
       {% for appr in completed_approvals %}
       <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div class="px-4 py-3 flex items-center gap-3">

@@ -10,6 +10,44 @@ Provides the foundational models for the entire RoC Desk system:
 """
 import uuid
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Module Access Registry
+# Maps every configurable sidebar module to a slug, label, emoji, and section.
+# ─────────────────────────────────────────────────────────────────────────────
+
+MODULE_REGISTRY = [
+    # (slug,                  label,                   emoji,  section)
+    ("dashboard",            "Dashboard",             "📊",  "Workspace"),
+    ("task_management",      "Task Management",       "📋",  "Workspace"),
+    ("eform_management",     "e-Form Management",     "🔄",  "Workspace"),
+    ("projects",             "Projects",              "📈",  "Workspace"),
+    ("knowledge_management", "Knowledge Management",  "📑",  "Content & Docs"),
+    ("esign",                "E-Sign",                "✒️",  "Content & Docs"),
+    ("form_creator",         "Form Creator",          "📝",  "Content & Docs"),
+    ("shared_docs",          "Shared Docs",           "📂",  "Content & Docs"),
+    ("shorten_link",         "Shorten Link",          "🔗",  "Content & Docs"),
+    ("my_approvals",         "My Approvals",          "✅",  "My Workspace"),
+    ("my_signatures",        "My Signatures",         "✍️",  "My Workspace"),
+    ("my_eforms",            "My e-Forms",            "📝",  "My Workspace"),
+    ("my_tickets",           "My Tickets",            "🎟️", "My Workspace"),
+    ("app_portal",           "App Portal",            "🚀",  "Portal"),
+]
+
+# Full set of modules available to non-PortalUser roles (mirrors base.html nav)
+_STAFF_MODULES = {
+    "dashboard", "task_management", "eform_management", "projects",
+    "knowledge_management", "esign", "form_creator", "shared_docs", "shorten_link",
+    "my_approvals", "my_signatures", "my_eforms",
+}
+
+ROLE_DEFAULT_MODULES = {
+    "SuperAdmin":  _STAFF_MODULES,
+    "Manager":     _STAFF_MODULES,
+    "SupportDesk": _STAFF_MODULES,
+    "Auditor":     _STAFF_MODULES,
+    "PortalUser":  {"my_tickets", "my_eforms", "app_portal"},
+}
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
@@ -160,6 +198,17 @@ class User(AbstractUser):
         help_text="User's local timezone for displaying dates and times.",
     )
 
+    module_access = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name="Module Access",
+        help_text=(
+            "List of module slugs this user can access. "
+            "Leave null to inherit role defaults."
+        ),
+    )
+
     # --- Auth configuration ---
     USERNAME_FIELD = "login_username"
     REQUIRED_FIELDS = ["username", "email"]
@@ -171,6 +220,16 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.login_username})"
+
+    def get_accessible_modules(self):
+        """Return the set of module slugs this user can access.
+
+        Returns the custom list when explicitly set, otherwise falls back
+        to the role-based defaults defined in ROLE_DEFAULT_MODULES.
+        """
+        if self.module_access is not None:
+            return set(self.module_access)
+        return set(ROLE_DEFAULT_MODULES.get(self.role_access, set()))
 
 
 # =====================================================================
@@ -294,6 +353,15 @@ class Employee(AuditableModel):
         related_name="employees",
         verbose_name="Company Unit",
     )
+    reports_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subordinates",
+        verbose_name="Reports To (Manager)",
+        help_text="The direct manager or supervisor of this employee."
+    )
 
     class Meta:
         verbose_name = "Employee"
@@ -338,6 +406,18 @@ class SiteConfig(AuditableModel):
         default="Support Desk",
         verbose_name="Site Name",
         help_text="The name of the site displayed in the navbar, tabs, and login screens."
+    )
+    site_url = models.URLField(
+        blank=True,
+        default="",
+        verbose_name="Base Site URL",
+        help_text="The main public URL of this application (e.g. https://finance.santika.com). Used for generating links in emails and background tasks. Leave blank to fallback to the .env setting."
+    )
+    marketplace_url = models.URLField(
+        blank=True,
+        default="http://localhost:5000",
+        verbose_name="Marketplace Server URL",
+        help_text="Base URL of the Estalatree licensing server for verification."
     )
     favicon = models.ImageField(
         upload_to="site_config/",

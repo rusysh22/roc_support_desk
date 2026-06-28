@@ -67,17 +67,39 @@
         {% endfor %}
       {% endif %}
     </div>
+    {# ── Read status indicator ── #}
+    {% if not msg.is_deleted %}
+    <div class="flex justify-end mt-0.5">
+      <span class="read-status" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;color:#94a3b8;">
+        <svg style="width:14px;height:9px;flex-shrink:0;" viewBox="0 0 14 9" fill="none">
+          <path d="M1 4L4 7.5L9.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M5 4L8 7.5L13.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Delivered
+      </span>
+    </div>
+    {% endif %}
   </div>
   {% if not msg.is_deleted %}
   <div class="self-center opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none group-hover/bubble:pointer-events-auto">
-    <button class="reply-action w-6 h-6 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-[11px] shadow-sm"
+    {# Reply button #}
+    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 shadow-sm transition-colors"
             data-reply-id="{{ msg.id }}"
             data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
             data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'You' }}{% endif %}"
-            title="Reply">↩</button>
-    <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600 text-[10px] shadow-sm"
+            title="Reply">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+      </svg>
+    </button>
+    {# Delete (retract) button #}
+    <button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-500 hover:text-rose-700 shadow-sm transition-colors"
             data-delete-id="{{ msg.id }}"
-            title="Retract message">🗑</button>
+            title="Retract message">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+    </button>
   </div>
   {% endif %}
 
@@ -128,11 +150,15 @@
   </div>
   {% if not msg.is_deleted %}
   <div class="self-center opacity-0 group-hover/bubble:opacity-100 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none group-hover/bubble:pointer-events-auto">
-    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 text-[11px] shadow-sm"
+    <button class="reply-action w-6 h-6 rounded-full bg-slate-100 hover:bg-indigo-100 flex items-center justify-center text-slate-500 hover:text-indigo-600 shadow-sm transition-colors"
             data-reply-id="{{ msg.id }}"
             data-reply-body="{{ msg.body|strip_html_tags|truncatechars:80 }}"
             data-reply-sender="{% if msg.direction == 'OUT' %}{{ msg.sender_staff.username|default:'Support' }}{% else %}{{ msg.sender_employee.full_name|default:'User' }}{% endif %}"
-            title="Reply">↩</button>
+            title="Reply">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+      </svg>
+    </button>
   </div>
   {% endif %}
   {% endif %}

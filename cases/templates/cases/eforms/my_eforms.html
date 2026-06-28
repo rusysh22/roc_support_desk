@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}My e-Forms{% endblock %}
+{% block nav_my_eforms %}active{% endblock %}
+{% block nav_my_eforms_staff %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-slate-900">My Form Requests</h2>
+            <p class="text-sm text-slate-500 mt-1">Track the status of dynamic forms and workflows you have initiated.</p>
+        </div>
+        <a href="{% url 'cases:eform_template_list' %}" class="jk-btn jk-btn-primary flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Start New Request
+        </a>
+    </div>
+
+    <!-- Submissions Table -->
+    <div class="jk-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-700">
+                <thead class="text-xs uppercase bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Template & Title</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider text-center">Status</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Current Stage</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider">Submitted On</th>
+                        <th scope="col" class="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for item in submissions %}
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="font-semibold text-slate-800">{{ item.template.title }}</div>
+                            <div class="text-xs text-slate-400 mt-0.5">ID: #{{ item.id|stringformat:"05i" }}</div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if item.status == 'draft' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">Draft</span>
+                            {% elif item.status == 'in_progress' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse"></span>
+                                    In Progress
+                                </span>
+                            {% elif item.status == 'pending_esign' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">Pending E-Sign</span>
+                            {% elif item.status == 'completed' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Completed</span>
+                            {% elif item.status == 'cancelled' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-slate-700">
+                            {% if item.status == 'completed' %}
+                                <span class="text-emerald-500 font-medium">Finished</span>
+                            {% elif item.current_stage %}
+                                Waiting on: <span class="font-semibold text-indigo-600">{{ item.current_stage }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap">
+                            {{ item.created_at|date:"M d, Y" }}
+                        </td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">
+                            {% if item.status == 'draft' or item.status == 'in_progress' %}
+                                <a href="{% url 'cases:eform_detail' item.id %}" class="text-indigo-600 hover:text-indigo-500 font-medium text-xs">Resume</a>
+                            {% else %}
+                                <a href="{% url 'cases:eform_detail' item.id %}" class="text-slate-500 hover:text-slate-800 font-medium text-xs transition-colors">View Details</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                            <svg class="w-12 h-12 mx-auto text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <p>You haven't initiated any e-Forms yet.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if submissions.has_other_pages %}
+        <div class="px-6 py-4 border-t border-slate-200 bg-white">
+            <nav class="flex items-center justify-between">
+                <p class="text-sm text-slate-500">
+                    Showing <span class="font-medium text-slate-800">{{ submissions.start_index }}</span> to <span class="font-medium text-slate-800">{{ submissions.end_index }}</span> of <span class="font-medium text-slate-800">{{ submissions.paginator.count }}</span> forms
+                </p>
+                <div class="flex items-center gap-1">
+                    {% if submissions.has_previous %}
+                    <a href="?page={{ submissions.previous_page_number }}" class="px-3 py-1.5 rounded bg-slate-50 text-slate-700 hover:bg-slate-200 text-sm transition-colors">Prev</a>
+                    {% endif %}
+                    {% if submissions.has_next %}
+                    <a href="?page={{ submissions.next_page_number }}" class="px-3 py-1.5 rounded bg-slate-50 text-slate-700 hover:bg-slate-200 text-sm transition-colors">Next</a>
+                    {% endif %}
+                </div>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

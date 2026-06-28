@@ -18,6 +18,46 @@ from core.models import AuditableModel
 
 
 # =====================================================================
+# SLA Policy
+# =====================================================================
+
+class SLAPolicy(AuditableModel):
+    """
+    Defines SLA thresholds (in hours) based on Priority.
+    Managed exclusively via Django Admin.
+    """
+    priority = models.CharField(
+        max_length=20,
+        choices=[
+            ("Low", "Low"),
+            ("Medium", "Medium"),
+            ("High", "High"),
+            ("Critical", "Critical"),
+        ],
+        unique=True,
+        verbose_name="Priority Level"
+    )
+    response_time_hours = models.PositiveIntegerField(
+        default=2,
+        verbose_name="Response SLA (Hours)",
+        help_text="Time to first response"
+    )
+    resolution_time_hours = models.PositiveIntegerField(
+        default=24,
+        verbose_name="Resolution SLA (Hours)",
+        help_text="Time to resolve ticket"
+    )
+
+    class Meta:
+        verbose_name = "SLA Policy"
+        verbose_name_plural = "SLA Policies"
+        ordering = ["resolution_time_hours"]
+
+    def __str__(self):
+        return f"SLA Policy for {self.priority}"
+
+
+# =====================================================================
 # Ticket Category
 # =====================================================================
 
@@ -81,6 +121,37 @@ class CaseCategory(AuditableModel):
         default=False,
         verbose_name="Enable Change Request",
         help_text="Allow portal users to attach a change request document when submitting tickets in this category.",
+    )
+    
+    class CaseType(models.TextChoices):
+        QUESTION = "Question", "Question"
+        INCIDENT = "Incident", "Incident"
+        REQUEST = "Request", "Request"
+
+    default_case_type = models.CharField(
+        max_length=20,
+        choices=CaseType.choices,
+        blank=True,
+        null=True,
+        verbose_name="Default Ticket Type",
+        help_text="If set, tickets in this category will default to this type."
+    )
+    default_tags = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Default Tags",
+        help_text="Comma-separated tags automatically applied to new tickets."
+    )
+
+    is_use_routing_approval = models.BooleanField(
+        default=False,
+        verbose_name="Use Routing Approval",
+        help_text="If checked, new tickets will enter 'Pending Approval' status and require the requester's direct manager to approve.",
+    )
+    is_need_admin_approval = models.BooleanField(
+        default=False,
+        verbose_name="Need Admin Approval",
+        help_text="If checked along with Routing Approval, tickets will require an additional approval step from the Support Desk Admin after manager approval.",
     )
 
     class Meta:
@@ -445,6 +516,133 @@ class CaseRecord(AuditableModel):
         prefix = self.category.prefix_code if self.category else "RQ"
         return f"{prefix}-{str(self.id)[:8].upper()}"
 
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        
+        # Pre-save modifications
+        if is_new:
+            # Apply category defaults
+            if self.category:
+                if self.category.default_case_type and not getattr(self, '_case_type_set_explicitly', False):
+                    if not self.case_type or self.case_type == self.Type.INCIDENT:
+                        self.case_type = self.category.default_case_type
+                if self.category.default_tags and not self.tags:
+                    self.tags = self.category.default_tags
+
+                # Initial Status for Approval Routing
+                if self.category.is_use_routing_approval:
+                    self.status = self.Status.PENDING_APPROVAL
+
+            # SLA calculation
+            if not self.response_due_at or not self.resolution_due_at:
+                try:
+                    from datetime import timedelta
+                    from django.utils import timezone
+                    
+                    policy = SLAPolicy.objects.filter(priority=self.priority).first()
+                    if policy:
+                        now = timezone.now()
+                        if not self.response_due_at:
+                            self.response_due_at = now + timedelta(hours=policy.response_time_hours)
+                        if not self.resolution_due_at:
+                            self.resolution_due_at = now + timedelta(hours=policy.resolution_time_hours)
+                except Exception:
+                    pass
+                
+        super().save(*args, **kwargs)
+        
+        # Post-save actions (Creation of related objects)
+        if is_new and self.category and self.category.is_use_routing_approval:
+            # Create Tier 1 Manager Approval
+            has_manager = False
+            if self.requester and getattr(self.requester, 'reports_to', None):
+                TicketApproval.objects.create(
+                    case=self,
+                    tier=TicketApproval.Tier.MANAGER,
+                    approver=self.requester.reports_to,
+                    status=TicketApproval.Status.PENDING
+                )
+                has_manager = True
+                
+            # Create Tier 2 Admin Approval
+            if self.category.is_need_admin_approval:
+                TicketApproval.objects.create(
+                    case=self,
+                    tier=TicketApproval.Tier.ADMIN,
+                    approver=None, # None implies Support Desk Admins pool
+                    status=TicketApproval.Status.PENDING if has_manager else TicketApproval.Status.PENDING # Technically wait for T1, but we create it now
+                )
+            
+            # If no manager and no admin required, auto-approve
+            if not has_manager and not self.category.is_need_admin_approval:
+                self.status = self.Status.OPEN
+                self.save(update_fields=['status'])
+
+
+
+# =====================================================================
+# Ticket Approval
+# =====================================================================
+
+class TicketApproval(AuditableModel):
+    """
+    Tracks the approval routing for a specific ticket.
+    Tier 1 = Manager, Tier 2 = Admin/Support Desk
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "Pending", "Pending"
+        APPROVED = "Approved", "Approved"
+        REJECTED = "Rejected", "Rejected"
+
+    class Tier(models.IntegerChoices):
+        MANAGER = 1, "Tier 1 (Manager)"
+        ADMIN = 2, "Tier 2 (Admin)"
+
+    case = models.ForeignKey(
+        CaseRecord,
+        on_delete=models.CASCADE,
+        related_name="approvals",
+        verbose_name="Ticket",
+    )
+    tier = models.PositiveSmallIntegerField(
+        choices=Tier.choices,
+        default=Tier.MANAGER,
+        verbose_name="Approval Tier",
+    )
+    approver = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ticket_approvals",
+        verbose_name="Approver",
+        help_text="If null, any Support Desk staff/admin can approve."
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name="Status",
+    )
+    comments = models.TextField(
+        blank=True,
+        verbose_name="Comments/Notes",
+    )
+    actioned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Actioned At",
+    )
+
+    class Meta:
+        verbose_name = "Ticket Approval"
+        verbose_name_plural = "Ticket Approvals"
+        ordering = ["case", "tier"]
+
+    def __str__(self):
+        approver_name = self.approver.full_name if self.approver else "Admin"
+        return f"{self.case.ticket_id} - Tier {self.tier} ({approver_name}) - {self.status}"
 
 
 # =====================================================================
@@ -791,6 +989,22 @@ class DocumentTemplate(AuditableModel):
         verbose_name="Applicable Categories",
         help_text="Document fill-form appears on ticket submission for these categories.",
     )
+    is_standalone = models.BooleanField(
+        default=False,
+        verbose_name="Standalone Form",
+        help_text="If true, this form can be submitted independently from the e-Forms portal, without needing a Support Ticket."
+    )
+    logo = models.ImageField(
+        upload_to="document_templates/logos/",
+        null=True, blank=True,
+        verbose_name="Document Logo"
+    )
+    form_stages = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Form Stages",
+        help_text='List of stages (e.g. ["Initiator", "Vendor", "IT Ops"]). The first stage is automatically assigned to the form creator.'
+    )
 
     class Meta:
         verbose_name = "Document Template"
@@ -830,6 +1044,12 @@ class DocumentTemplateField(AuditableModel):
         help_text="Display order (1 = first). Maximum 10 fields per template.",
     )
     label = models.CharField(max_length=200, verbose_name="Field Label")
+    variable_name = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Variable Name",
+        help_text="Unique identifier (e.g. 'vendor_name'). Used for PDF placeholders {{ vendor_name }} and E-Sign mapping."
+    )
     placeholder = models.CharField(
         max_length=300,
         blank=True,
@@ -843,6 +1063,32 @@ class DocumentTemplateField(AuditableModel):
                   "Supports basic HTML tags. Leave blank for an empty editor.",
     )
     is_required = models.BooleanField(default=True, verbose_name="Required")
+    
+    class FieldType(models.TextChoices):
+        TEXT = "text", "Short Text"
+        RICHTEXT = "richtext", "Rich Text (HTML)"
+        DATE = "date", "Date"
+        REPEATER = "repeater", "Table / Repeater"
+        
+    field_type = models.CharField(
+        max_length=20,
+        choices=FieldType.choices,
+        default=FieldType.RICHTEXT,
+        verbose_name="Field Type"
+    )
+    
+    is_signer = models.BooleanField(
+        default=False,
+        verbose_name="Is E-Signer?",
+        help_text="Check this if the input of this field should be treated as a unique Signer (Name or Email) for the E-Sign process."
+    )
+    
+    assigned_stage = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Assigned Stage",
+        help_text="Which stage fills this field? (e.g. 'Vendor'). Leave blank for all stages."
+    )
 
     class Meta:
         verbose_name = "Template Field"
@@ -1005,3 +1251,81 @@ class ChangeRequestApproval(AuditableModel):
             return False
         from django.utils import timezone
         return timezone.now() > self.token_expires_at
+
+
+# =====================================================================
+# E-Form Multi-Stage Submissions (Phase 1)
+# =====================================================================
+
+def eform_pdf_path(instance, filename):
+    return f"eforms/{instance.id}/pdf/{filename}"
+
+class FormSubmission(AuditableModel):
+    """
+    Acts as the source of truth for standalone, multi-stage form data.
+    """
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        IN_PROGRESS = "in_progress", "In Progress"
+        PENDING_ESIGN = "pending_esign", "Pending E-Sign"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, verbose_name="ID")
+    template = models.ForeignKey(
+        DocumentTemplate, 
+        on_delete=models.PROTECT, 
+        related_name="form_submissions", 
+        verbose_name="Template"
+    )
+    initiator_user = models.ForeignKey(
+        "core.User", 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name="initiated_forms",
+        verbose_name="Initiator"
+    )
+    data_payload = models.JSONField(
+        default=dict, 
+        blank=True, 
+        verbose_name="Form Data Payload"
+    )
+    current_stage = models.CharField(
+        max_length=100, 
+        blank=True, 
+        verbose_name="Current Stage"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        verbose_name="Status"
+    )
+    guest_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        verbose_name="Guest Token",
+        help_text="Allows public/vendor access to fill their assigned stage."
+    )
+    generated_pdf = models.FileField(
+        upload_to=eform_pdf_path,
+        null=True, blank=True,
+        verbose_name="Generated PDF"
+    )
+    signature_document = models.ForeignKey(
+        "esign.SignatureDocument",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="source_form",
+        verbose_name="E-Sign Document"
+    )
+
+    class Meta:
+        verbose_name = "Form Submission"
+        verbose_name_plural = "Form Submissions"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.template.title} - {self.id} [{self.status}]"

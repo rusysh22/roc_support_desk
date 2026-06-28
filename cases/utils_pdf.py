@@ -340,3 +340,70 @@ def generate_change_request_pdf(doc) -> bytes | None:
         return weasyprint.HTML(string=html).write_pdf()
     except Exception:
         return None
+
+def generate_form_submission_pdf(submission) -> bytes | None:
+    """
+    Renders the HTML content of the template, filling in placeholders
+    from the data_payload, and generating a WeasyPrint PDF byte stream.
+    """
+    try:
+        import weasyprint
+    except ImportError:
+        return None
+
+    template = submission.template
+    content = template.body_html or ""
+    payload = submission.data_payload or {}
+
+    # Replace field placeholders: {{ field_<id> }}, {{ field_<order> }}, or {{ variable_name }} -> value
+    for idx, field in enumerate(template.fields.all().order_by('order'), start=1):
+        placeholder_id = f"{{{{ field_{field.id} }}}}"
+        placeholder_order = f"{{{{ field_{idx} }}}}"
+        value = payload.get(f"field_{field.id}", "")
+        content = content.replace(placeholder_id, str(value))
+        content = content.replace(placeholder_order, str(value))
+        if field.variable_name:
+            placeholder_var = f"{{{{ {field.variable_name} }}}}"
+            content = content.replace(placeholder_var, str(value))
+        
+    # Replace the logo if available
+    from core.models import SiteConfig
+    site_config = SiteConfig.get_solo()
+    
+    logo_uri = ""
+    if template.logo:
+        try:
+            with open(template.logo.path, "rb") as f:
+                raw = base64.b64encode(f.read()).decode("utf-8")
+            logo_uri = f"data:image/png;base64,{raw}"
+        except Exception:
+            pass
+    elif site_config:
+        logo_uri = _logo_data_uri(site_config)
+    
+    content = content.replace("{{ logo_url }}", logo_uri)
+    
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{ size: A4; margin: 2.5cm 2cm; }}
+  body {{ font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.6; color: #1a1a1a; }}
+  .document-body {{ max-width: 100%; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  td, th {{ padding: 4px 8px; border: 1px solid #ccc; }}
+</style>
+</head>
+<body>
+<div class="document-body">
+{content}
+</div>
+</body>
+</html>"""
+
+    try:
+        return weasyprint.HTML(string=html).write_pdf()
+    except Exception:
+        return None
+

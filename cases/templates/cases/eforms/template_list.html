@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Start New Request{% endblock %}
+{% block nav_my_eforms %}active{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+    <div class="text-center space-y-3">
+        <h2 class="text-3xl font-black text-slate-900">Select a Request Type</h2>
+        <p class="text-slate-500 max-w-2xl mx-auto">Choose the appropriate form template below to start your request workflow.</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for template in templates %}
+        <div class="jk-card flex flex-col group hover:ring-2 hover:ring-indigo-500/50 transition-all">
+            <div class="p-6 flex-1 flex flex-col items-center text-center">
+                {% if template.logo %}
+                <div class="w-16 h-16 mb-4 rounded-xl overflow-hidden flex items-center justify-center bg-white">
+                    <img src="{{ template.logo.url }}" alt="{{ template.title }}" class="max-w-full max-h-full object-contain p-2">
+                </div>
+                {% else %}
+                <div class="w-16 h-16 mb-4 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                {% endif %}
+                
+                <h3 class="text-lg font-bold text-slate-900 group-hover:text-indigo-400 transition-colors">{{ template.title }}</h3>
+                <p class="text-sm text-slate-500 mt-2 line-clamp-3">
+                    {{ template.description|default:"Start a new formal request and approval process using this workflow." }}
+                </p>
+                
+                {% if template.form_stages %}
+                <div class="mt-4 flex flex-wrap justify-center gap-1.5">
+                    {% for stage in template.form_stages %}
+                    <span class="text-[9px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase font-bold tracking-wider">{{ stage }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50">
+                <form method="post" action="{% url 'cases:eform_initiate' template.id %}" class="w-full">
+                    {% csrf_token %}
+                    <button type="submit" class="jk-btn jk-btn-primary w-full justify-center">Select Template</button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full text-center py-12 jk-card">
+            <svg class="w-16 h-16 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+            <h3 class="text-lg font-bold text-slate-700">No Templates Available</h3>
+            <p class="text-slate-500 mt-2">There are currently no standalone e-form templates configured by the administrators.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

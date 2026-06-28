@@ -1,7 +1,5 @@
 # Node
 node_modules/
-package-lock.json
-
 # Django collected statics (generated, not source)
 staticfiles/
 
@@ -49,15 +47,10 @@ out.txt
 out*.json
 test_out.json
 
-media/
-
-#LICENSE_SYSTEM
-LICENSE_SYSTEM.md
-
 # Internal security & planning docs
 SECURITY_PLAN.md
 MAPS_PLAN.md
-TEAMS_INTEGRATION_PLAN.md
+_system_docs/TEAMS_INTEGRATION_PLAN.md
 
 # Internal proposals & personal documents (not for the repo)
 proposal_*.md

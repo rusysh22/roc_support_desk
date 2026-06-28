@@ -35,8 +35,12 @@ class LicenseRecord(models.Model):
 
     # --- Identity ---
     license_key = models.CharField(
-        max_length=500, blank=True,
+        max_length=500, blank=True, default="",
         help_text="Django-signed encoded key — NOT plain text.",
+    )
+    activation_token = models.CharField(
+        max_length=1000, blank=True, default="",
+        help_text="Activation token issued by Estalatree upon successful activation. Sent back during validation."
     )
     issued_to = models.CharField(max_length=255, blank=True, help_text="Company name or email.")
     plan_tier = models.CharField(max_length=30, choices=PLAN_CHOICES, default='trial')

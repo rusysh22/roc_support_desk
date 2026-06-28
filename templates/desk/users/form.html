@@ -108,6 +108,59 @@
                         </div>
                     </div>
 
+                    <!-- Section: Module Access -->
+                    <div x-data="{
+                        override: {{ is_module_override|yesno:'true,false' }},
+                        wasOverride: {{ is_module_override|yesno:'true,false' }},
+                        defaults: {{ role_defaults_json|safe }}
+                    }"
+                    x-init="
+                        $watch('override', val => {
+                            if (val && !wasOverride) {
+                                wasOverride = true;
+                                $nextTick(() => {
+                                    defaults.forEach(slug => {
+                                        let cb = $el.querySelector('input[name=module_access][value=' + JSON.stringify(slug) + ']');
+                                        if (cb) cb.checked = true;
+                                    });
+                                });
+                            }
+                        })
+                    ">
+                        <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Module Access</h3>
+
+                        <label class="flex items-center gap-3 cursor-pointer mb-4 p-3 border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-all">
+                            <input type="checkbox" name="module_override" value="1" x-model="override"
+                                style="width:16px;height:16px;accent-color:#6366f1;flex-shrink:0;">
+                            <div>
+                                <span class="block text-sm font-semibold text-slate-800">Override module access</span>
+                                <span class="block text-xs text-slate-500">Customize which modules this user can access instead of using role defaults.</span>
+                            </div>
+                        </label>
+
+                        <div x-show="!override" x-cloak class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-600">
+                            Using <strong class="text-slate-800">role defaults</strong> — modules are determined automatically by this user's role.
+                        </div>
+
+                        <div x-show="override" x-cloak class="space-y-5">
+                            {% for section_name, modules in module_sections.items %}
+                            <div>
+                                <h4 style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">{{ section_name }}</h4>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                    {% for slug, label, emoji in modules %}
+                                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;transition:all 0.15s;" onmouseover="this.style.background='#eef2ff';this.style.borderColor='#a5b4fc';" onmouseout="this.style.background='';this.style.borderColor='#e2e8f0';">
+                                        <input type="checkbox" name="module_access" value="{{ slug }}"
+                                            {% if slug in checked_modules %}checked{% endif %}
+                                            style="width:15px;height:15px;accent-color:#6366f1;flex-shrink:0;">
+                                        <span style="font-size:13px;color:#334155;">{{ emoji }} {{ label }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
                 </div>
             </form>
             <!-- End Main Edit Form -->

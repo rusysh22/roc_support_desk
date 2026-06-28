@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Paths that bypass all license checks
 # ---------------------------------------------------------------------------
 LICENSE_EXEMPT_PREFIXES = (
+    '/health/',       # Docker healthcheck
     '/license/',      # All license management pages
     '/auth/',         # Login, logout, password reset
     '/static/',       # Static assets
@@ -83,14 +84,19 @@ class LicenseGateMiddleware:
             return self.get_response(request)
 
         # Skip routing enforcement for exempt paths
-        if self._is_exempt(request.path):
+        if self._is_exempt(request):
             return self.get_response(request)
 
         # Skip if HTMX request originated from an exempt page (prevents loops)
         current_url = request.headers.get('HX-Current-URL')
         if current_url:
             try:
-                if self._is_exempt(urlparse(current_url).path):
+                parsed_path = urlparse(current_url).path
+                # Construct a dummy request-like object for path checking
+                class DummyReq:
+                    path = parsed_path
+                    user = getattr(request, 'user', None)
+                if self._is_exempt(DummyReq()):
                     return self.get_response(request)
             except Exception:
                 pass
@@ -138,8 +144,18 @@ class LicenseGateMiddleware:
             return self._handle_redirect(request, 'licensing:activate')
 
     @staticmethod
-    def _is_exempt(path: str) -> bool:
-        return any(path.startswith(prefix) for prefix in LICENSE_EXEMPT_PREFIXES)
+    def _is_exempt(request) -> bool:
+        path = request.path
+        if any(path.startswith(prefix) for prefix in LICENSE_EXEMPT_PREFIXES):
+            return True
+        
+        # Allow superuser to access Site Config to update the Marketplace URL if locked out
+        user = getattr(request, 'user', None)
+        if user and user.is_superuser:
+            if path.startswith('/admin/core/siteconfig/') or path == '/admin/':
+                return True
+                
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -157,14 +173,18 @@ class TrialTimerMiddleware:
             return self.get_response(request)
 
         # Also skip exempt paths
-        if LicenseGateMiddleware._is_exempt(request.path):
+        if LicenseGateMiddleware._is_exempt(request):
             return self.get_response(request)
 
         # Skip if HTMX request originated from an exempt page (prevents loops)
         current_url = request.headers.get('HX-Current-URL')
         if current_url:
             try:
-                if LicenseGateMiddleware._is_exempt(urlparse(current_url).path):
+                parsed_path = urlparse(current_url).path
+                class DummyReq:
+                    path = parsed_path
+                    user = getattr(request, 'user', None)
+                if LicenseGateMiddleware._is_exempt(DummyReq()):
                     return self.get_response(request)
             except Exception:
                 pass
