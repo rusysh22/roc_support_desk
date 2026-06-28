@@ -1,112 +1,141 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ title }} | RoC Desk{% endblock %}
+{% block title %}{{ title }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_employees %}active{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="px-6 py-8 mx-auto max-w-3xl">
-    <div class="flex items-center gap-4 mb-8">
-        <a href="{% url 'users_desk:employee_list' %}" class="flex items-center justify-center w-10 h-10 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white transition-colors">
-            <i class="fas fa-arrow-left"></i>
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'users_desk:employee_list' %}"
+           class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
         </a>
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ title }}</h1>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <h2 class="text-lg font-bold text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500 mt-0.5">
                 {% if employee %}Update information for {{ employee.full_name }}.{% else %}Add a new employee to the database.{% endif %}
             </p>
         </div>
     </div>
 
-    <div class="p-6 bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700">
-        <form method="post" class="space-y-6">
-            {% csrf_token %}
-            
-            {% if form.errors %}
-                <div class="p-4 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
-                    <div class="flex items-center gap-3 mb-2 font-medium">
-                        <i class="fas fa-exclamation-circle"></i>
+    <!-- Form Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 sm:p-8">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                <div class="p-4 rounded-xl bg-red-50 text-red-800 border border-red-200 text-sm">
+                    <div class="flex items-center gap-2 mb-2 font-semibold">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
                         Please correct the errors below.
                     </div>
                     {{ form.non_field_errors }}
                 </div>
-            {% endif %}
+                {% endif %}
 
-            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Full Name <span class="text-red-500">*</span></label>
-                    {{ form.full_name }}
-                    {% if form.full_name.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.full_name.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
+                <!-- Section: Identity -->
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Email Address</label>
-                    {{ form.email }}
-                    {% if form.email.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.email.errors.0 }}</p>
-                    {% endif %}
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Employee Information</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Full Name <span class="text-red-500">*</span></label>
+                            {{ form.full_name }}
+                            {% if form.full_name.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.full_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.email.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Phone Number</label>
+                            {{ form.phone_number }}
+                            <p class="mt-1 text-xs text-slate-400">Format: +628123…</p>
+                            {% if form.phone_number.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.phone_number.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
 
+                <!-- Section: Organization -->
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Phone Number</label>
-                    {{ form.phone_number }}
-                    <p class="mt-1 text-xs text-gray-500">Format: +628123...</p>
-                    {% if form.phone_number.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.phone_number.errors.0 }}</p>
-                    {% endif %}
+                    <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Organization</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Job Role</label>
+                            {{ form.job_role }}
+                            {% if form.job_role.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.job_role.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Company Unit <span class="text-red-500">*</span></label>
+                            {{ form.unit }}
+                            {% if form.unit.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.unit.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Reports To (Manager)</label>
+                            {{ form.reports_to }}
+                            <p class="mt-1 text-xs text-slate-400">Select the direct supervisor or manager for approval routing.</p>
+                            {% if form.reports_to.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.reports_to.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Job Role</label>
-                    {{ form.job_role }}
-                    {% if form.job_role.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.job_role.errors.0 }}</p>
-                    {% endif %}
+                <!-- Footer Actions -->
+                <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
+                    <a href="{% url 'users_desk:employee_list' %}"
+                       class="px-6 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center">
+                        Cancel
+                    </a>
+                    <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm">
+                        {% if employee %}Save Changes{% else %}Create Employee{% endif %}
+                    </button>
                 </div>
-
-                <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Company Unit <span class="text-red-500">*</span></label>
-                    {{ form.unit }}
-                    {% if form.unit.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.unit.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Reports To (Manager)</label>
-                    {{ form.reports_to }}
-                    <p class="mt-1 text-xs text-gray-500">Select the direct supervisor or manager for approval routing.</p>
-                    {% if form.reports_to.errors %}
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.reports_to.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="pt-6 mt-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-                <a href="{% url 'users_desk:employee_list' %}" class="jk-button-secondary">Cancel</a>
-                <button type="submit" class="jk-button-primary">Save Employee</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
+
 </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        if (document.getElementById("id_reports_to")) {
-            new TomSelect("#id_reports_to", {
-                create: false,
-                sortField: {field: "text", direction: "asc"},
-                placeholder: "Search for a manager..."
-            });
-        }
-        if (document.getElementById("id_unit")) {
-            new TomSelect("#id_unit", {
-                create: false,
-                sortField: {field: "text", direction: "asc"},
-                placeholder: "Select a company unit..."
-            });
-        }
-    });
+document.addEventListener("DOMContentLoaded", function() {
+    if (document.getElementById("id_reports_to")) {
+        new TomSelect("#id_reports_to", {
+            create: false,
+            sortField: { field: "text", direction: "asc" },
+            placeholder: "Search for a manager..."
+        });
+    }
+    if (document.getElementById("id_unit")) {
+        new TomSelect("#id_unit", {
+            create: false,
+            sortField: { field: "text", direction: "asc" },
+            placeholder: "Select a company unit..."
+        });
+    }
+});
 </script>
 {% endblock %}

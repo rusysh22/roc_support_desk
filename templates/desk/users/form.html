@@ -109,24 +109,29 @@
                     </div>
 
                     <!-- Section: Module Access -->
-                    <div x-data="{
-                        override: {{ is_module_override|yesno:'true,false' }},
-                        wasOverride: {{ is_module_override|yesno:'true,false' }},
-                        defaults: {{ role_defaults_json|safe }}
-                    }"
-                    x-init="
-                        $watch('override', val => {
-                            if (val && !wasOverride) {
-                                wasOverride = true;
-                                $nextTick(() => {
-                                    defaults.forEach(slug => {
-                                        let cb = $el.querySelector('input[name=module_access][value=' + JSON.stringify(slug) + ']');
-                                        if (cb) cb.checked = true;
-                                    });
+                    <script>
+                    function moduleAccessData() {
+                        return {
+                            override: {{ is_module_override|yesno:'true,false' }},
+                            wasOverride: {{ is_module_override|yesno:'true,false' }},
+                            defaults: {{ role_defaults_json|safe }},
+                            init() {
+                                this.$watch('override', val => {
+                                    if (val && !this.wasOverride) {
+                                        this.wasOverride = true;
+                                        this.$nextTick(() => {
+                                            this.defaults.forEach(slug => {
+                                                let cb = this.$el.querySelector('input[name=module_access][value=' + JSON.stringify(slug) + ']');
+                                                if (cb) cb.checked = true;
+                                            });
+                                        });
+                                    }
                                 });
                             }
-                        })
-                    ">
+                        };
+                    }
+                    </script>
+                    <div x-data="moduleAccessData()">
                         <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Module Access</h3>
 
                         <label class="flex items-center gap-3 cursor-pointer mb-4 p-3 border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-all">
