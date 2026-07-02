@@ -1288,18 +1288,30 @@ def create_case(request, slug=None):
 
             # Update existing employee details if they changed
             if not created:
-                updated = False
+                updated_fields = []
                 if form.cleaned_data["requester_name"] and employee.full_name != form.cleaned_data["requester_name"]:
                     employee.full_name = form.cleaned_data["requester_name"]
-                    updated = True
+                    updated_fields.append("full_name")
                 if company_unit and employee.unit != company_unit:
                     employee.unit = company_unit
-                    updated = True
+                    updated_fields.append("unit")
                 if form.cleaned_data["job_role"] and employee.job_role != form.cleaned_data["job_role"]:
                     employee.job_role = form.cleaned_data["job_role"]
-                    updated = True
-                if updated:
-                    employee.save(update_fields=["full_name", "unit", "job_role"])
+                    updated_fields.append("job_role")
+
+                # Enrichment: matched by one contact method but missing the
+                # other — fill it in if the visitor chose to add it.
+                additional_phone = form.cleaned_data.get("additional_phone") or ""
+                additional_email = form.cleaned_data.get("additional_email") or ""
+                if additional_phone and not employee.phone_number:
+                    employee.phone_number = additional_phone
+                    updated_fields.append("phone_number")
+                if additional_email and not employee.email:
+                    employee.email = additional_email
+                    updated_fields.append("email")
+
+                if updated_fields:
+                    employee.save(update_fields=updated_fields)
 
             category = form.cleaned_data["category"]
             case = CaseRecord.objects.create(

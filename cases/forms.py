@@ -50,6 +50,17 @@ class CaseCreateForm(forms.Form):
         initial="email",
         widget=forms.HiddenInput(),
     )
+    # Optional enrichment: offered when an existing Employee was matched by
+    # one contact method but is missing the other, so it can be added on.
+    additional_phone = forms.CharField(
+        required=False,
+        max_length=20,
+        widget=forms.TextInput(attrs={"class": "jk-input"}),
+    )
+    additional_email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={"class": "jk-input"}),
+    )
     requester_name = forms.CharField(
         max_length=255,
         label="Your Full Name",
@@ -177,6 +188,21 @@ class CaseCreateForm(forms.Form):
     def clean_requester_phone(self):
         """Normalize common Indonesian local formats to E.164 and validate."""
         phone = (self.cleaned_data.get("requester_phone") or "").strip()
+        if not phone:
+            return phone
+
+        digits = normalize_phone_e164(phone)
+        try:
+            phone_regex(digits)
+        except ValidationError:
+            raise ValidationError(
+                "Enter a valid phone number, e.g. 0812xxxxxxxx or +6281234567890."
+            )
+        return digits
+
+    def clean_additional_phone(self):
+        """Normalize the optional enrichment phone number the same way."""
+        phone = (self.cleaned_data.get("additional_phone") or "").strip()
         if not phone:
             return phone
 

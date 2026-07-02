@@ -451,6 +451,8 @@ def chat_start(request):
     name = (body.get("name") or "").strip()
     email = (body.get("email") or "").strip()
     phone = normalize_phone_e164((body.get("phone") or "").strip())
+    additional_phone = normalize_phone_e164((body.get("additional_phone") or "").strip())
+    additional_email = (body.get("additional_email") or "").strip()
     unit_id = (body.get("unit_id") or "").strip()
     first_message = (body.get("message") or "").strip()
 
@@ -501,6 +503,12 @@ def chat_start(request):
         if employee.unit_id != unit.pk:
             employee.unit = unit
             update_fields.append("unit")
+        if additional_phone and not employee.phone_number:
+            employee.phone_number = additional_phone
+            update_fields.append("phone_number")
+        if additional_email and not employee.email:
+            employee.email = additional_email
+            update_fields.append("email")
         if update_fields:
             employee.save(update_fields=update_fields)
 
