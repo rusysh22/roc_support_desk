@@ -4031,12 +4031,22 @@ def apps_connection_view(request):
         raise PermissionDenied
 
     from core.models import TeamsConfig, NotificationConfig
+    from gateways.services import EvolutionAPIService
     teams_cfg = TeamsConfig.get_solo()
     notif_cfg = NotificationConfig.get_solo()
+
+    try:
+        svc = EvolutionAPIService()
+        state_data = svc.get_instance_state()
+        wa_state = state_data.get("instance", {}).get("state") if state_data else None
+        wa_connected = wa_state in ("open", "connected")
+    except Exception:
+        wa_connected = False
 
     return render(request, 'desk/apps_connection.html', {
         'teams_cfg': teams_cfg,
         'notif_cfg': notif_cfg,
+        'wa_connected': wa_connected,
     })
 
 

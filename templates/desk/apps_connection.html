@@ -22,7 +22,11 @@
                     <div style="font-size:11px;color:#065f46;font-weight:500;">via Evolution API</div>
                 </div>
             </div>
-            <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;">✅ Active</span>
+            {% if wa_connected %}
+            <span class="jk-badge" style="background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;">✅ Connected</span>
+            {% else %}
+            <span class="jk-badge" style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;font-size:11px;">⚠️ Disconnected</span>
+            {% endif %}
         </div>
         <div class="jk-card-body" style="padding:16px 20px;flex:1;display:flex;flex-direction:column;">
             <p style="font-size:13px;color:var(--jk-text-muted);margin-bottom:6px;line-height:1.6;">Receive and reply to WhatsApp messages directly inside the ticket system via QR Code pairing.</p>
