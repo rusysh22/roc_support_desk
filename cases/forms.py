@@ -9,7 +9,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 import dns.resolver
 
-from core.models import CompanyUnit, JobRole
+from core.models import CompanyUnit, JobRole, normalize_phone_e164, phone_regex
 from .models import CaseCategory, CaseRecord, DocumentTemplate
 
 
@@ -26,11 +26,29 @@ class CaseCreateForm(forms.Form):
 
     requester_email = forms.EmailField(
         label="Your Work Email",
+        required=False,
         widget=forms.EmailInput(attrs={
             "class": "jk-input",
             "placeholder": "e.g. john.doe@company.com",
             "autocomplete": "email",
         }),
+    )
+    requester_phone = forms.CharField(
+        label="Your Phone Number",
+        required=False,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            "class": "jk-input",
+            "placeholder": "e.g. 0812xxxxxxxx",
+            "autocomplete": "tel",
+        }),
+    )
+    # Which of the two contact fields above is the active/authoritative one.
+    contact_mode = forms.ChoiceField(
+        choices=[("email", "email"), ("phone", "phone")],
+        required=False,
+        initial="email",
+        widget=forms.HiddenInput(),
     )
     requester_name = forms.CharField(
         max_length=255,
@@ -52,6 +70,9 @@ class CaseCreateForm(forms.Form):
         widget=forms.TextInput(attrs={
             "class": "jk-input",
             "placeholder": "e.g. Staff IT, Manager Finance",
+            "x-ref": "jobRoleInput",
+            ":disabled": "locked",
+            ":class": "locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''",
         }),
     )
 
@@ -77,7 +98,12 @@ class CaseCreateForm(forms.Form):
             self.fields['job_role'] = forms.ChoiceField(
                 label="Job Role",
                 choices=choices,
-                widget=forms.Select(attrs={"class": "jk-select"}),
+                widget=forms.Select(attrs={
+                    "class": "jk-select",
+                    "x-ref": "jobRoleInput",
+                    ":disabled": "locked",
+                    ":class": "locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''",
+                }),
             )
 
         # Only show leaf categories (exclude parents that have children)
@@ -147,6 +173,41 @@ class CaseCreateForm(forms.Form):
             pass
 
         return email
+
+    def clean_requester_phone(self):
+        """Normalize common Indonesian local formats to E.164 and validate."""
+        phone = (self.cleaned_data.get("requester_phone") or "").strip()
+        if not phone:
+            return phone
+
+        digits = normalize_phone_e164(phone)
+        try:
+            phone_regex(digits)
+        except ValidationError:
+            raise ValidationError(
+                "Enter a valid phone number, e.g. 0812xxxxxxxx or +6281234567890."
+            )
+        return digits
+
+    def clean(self):
+        """
+        Exactly one of requester_email / requester_phone is authoritative,
+        chosen via contact_mode. The other is discarded even if it has a
+        (stale) value, so switching modes never mixes data.
+        """
+        cleaned = super().clean()
+        mode = cleaned.get("contact_mode") or "email"
+
+        if mode == "phone":
+            cleaned["requester_email"] = ""
+            if not cleaned.get("requester_phone"):
+                self.add_error("requester_phone", "Phone number is required.")
+        else:
+            cleaned["requester_phone"] = ""
+            if not cleaned.get("requester_email"):
+                self.add_error("requester_email", "Work email is required.")
+
+        return cleaned
 
     ALLOWED_MIME_TYPES = {
         "application/pdf",

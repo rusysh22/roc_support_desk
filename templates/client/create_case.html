@@ -251,7 +251,99 @@
                 {% csrf_token %}
 
                 <!-- Requester Info Section -->
-                <div class="mb-5">
+                <div class="mb-5"
+                     x-data="{
+                        contactMode: '{{ form.contact_mode.value|default:"email" }}',
+                        contactEmail: '{{ form.requester_email.value|default:"" }}',
+                        contactPhone: '{{ form.requester_phone.value|default:"" }}',
+                        suggestion: '',
+                        lookupState: 'idle',
+                        foundName: '',
+                        locked: false,
+                        unitOpen: false,
+                        search: '',
+                        selectedId: '{{ form.company_unit.value|default_if_none:"" }}',
+                        selectedLabel: '',
+                        unitOptions: [
+                            {% for unit in company_units %}
+                            { id: '{{ unit.pk }}', name: '{{ unit.name }}' }{% if not forloop.last %},{% endif %}
+                            {% endfor %}
+                        ],
+                        get filteredUnits() {
+                            if (!this.search) return this.unitOptions;
+                            return this.unitOptions.filter(o => o.name.toLowerCase().includes(this.search.toLowerCase()));
+                        },
+                        selectUnit(opt) {
+                            this.selectedId = opt.id;
+                            this.selectedLabel = opt.name;
+                            this.search = opt.name;
+                            this.unitOpen = false;
+                        },
+                        initMailcheck() {
+                            const input = this.$refs.emailInput;
+                            const that = this;
+                            input.addEventListener('blur', function() {
+                                that.suggestion = '';
+                                Mailcheck.run({
+                                    email: input.value,
+                                    suggested: function(suggestion) { that.suggestion = suggestion.full; },
+                                    empty: function() { that.suggestion = ''; }
+                                });
+                            });
+                        },
+                        acceptSuggestion() {
+                            this.contactEmail = this.suggestion;
+                            this.suggestion = '';
+                            this.lookupEmployee();
+                        },
+                        toggleContactMode() {
+                            if (this.locked) return;
+                            this.contactMode = this.contactMode === 'email' ? 'phone' : 'email';
+                            this.lookupState = 'idle';
+                            this.$nextTick(() => {
+                                const ref = this.contactMode === 'email' ? this.$refs.emailInput : this.$refs.phoneInput;
+                                if (ref) ref.focus();
+                            });
+                        },
+                        async lookupEmployee() {
+                            const val = (this.contactMode === 'email' ? this.contactEmail : this.contactPhone).trim();
+                            if (!val) { this.lookupState = 'idle'; this.locked = false; return; }
+                            this.lookupState = 'checking';
+                            try {
+                                const param = this.contactMode === 'email' ? `email=${encodeURIComponent(val)}` : `phone=${encodeURIComponent(val)}`;
+                                const res = await fetch(`{% url 'chat:lookup_employee' %}?${param}`);
+                                const data = await res.json();
+                                if (data.found) {
+                                    this.lookupState = 'found';
+                                    this.foundName = data.full_name;
+                                    this.locked = true;
+                                    if (this.$refs.fullNameInput) this.$refs.fullNameInput.value = data.full_name;
+                                    if (this.$refs.jobRoleInput && data.job_role) this.$refs.jobRoleInput.value = data.job_role;
+                                    if (data.unit_id) {
+                                        this.selectedId = data.unit_id;
+                                        this.selectedLabel = data.unit_name;
+                                        this.search = data.unit_name;
+                                    }
+                                } else {
+                                    this.lookupState = 'new';
+                                    this.locked = false;
+                                }
+                            } catch (e) { this.lookupState = 'idle'; }
+                        },
+                        unlockEmployee() {
+                            this.locked = false;
+                            this.lookupState = 'idle';
+                        },
+                        init() {
+                            this.initMailcheck();
+                            if (this.selectedId) {
+                                const found = this.unitOptions.find(o => o.id === this.selectedId);
+                                if (found) { this.selectedLabel = found.name; this.search = found.name; }
+                            }
+                        }
+                     }"
+                     x-init="init()"
+                     @click.outside="unitOpen = false">
                     <h3 class="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-1">
                         👤 Your Information
                     </h3>
@@ -259,95 +351,111 @@
                         <!-- Full Name -->
                         <div class="jk-form-group mb-0">
                             <label for="id_requester_name" class="jk-label">Full Name *</label>
-                            {{ form.requester_name }}
+                            <input type="text" name="requester_name" id="id_requester_name" x-ref="fullNameInput"
+                                   :disabled="locked"
+                                   :class="locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''"
+                                   class="jk-input" placeholder="e.g. John Doe"
+                                   value="{{ form.requester_name.value|default:'' }}">
                             {% if form.requester_name.errors %}
                             <div class="jk-form-error">{{ form.requester_name.errors.0 }}</div>
                             {% endif %}
                         </div>
 
-                        <!-- Email -->
-                        <div class="jk-form-group mb-0" 
-                             x-data="{
-                                suggestion: '',
-                                initMailcheck() {
-                                    const input = this.$refs.emailInput;
-                                    const that = this;
-                                    
-                                    input.addEventListener('blur', function() {
-                                        that.suggestion = ''; // reset
-                                        Mailcheck.run({
-                                            email: input.value,
-                                            suggested: function(suggestion) {
-                                                that.suggestion = suggestion.full;
-                                            },
-                                            empty: function() {
-                                                that.suggestion = '';
-                                            }
-                                        });
-                                    });
-                                },
-                                acceptSuggestion() {
-                                    this.$refs.emailInput.value = this.suggestion;
-                                    this.suggestion = '';
-                                }
-                             }"
-                             x-init="initMailcheck()">
-                            <label for="id_requester_email" class="jk-label">Work Email *</label>
-                            <!-- Render the input normally, but attach x-ref -->
-                            <div x-ref="emailWrapper">
-                                <input type="email" name="requester_email" id="id_requester_email" class="jk-input" placeholder="e.g. john.doe@company.com" autocomplete="email" required x-ref="emailInput" value="{{ form.requester_email.value|default:'' }}">
+                        <!-- Email / Phone (toggle) -->
+                        <div class="jk-form-group mb-0">
+                            <label class="jk-label" x-text="contactMode === 'email' ? 'Work Email *' : 'Phone Number *'"></label>
+                            <p x-show="!locked && contactMode === 'phone' && contactEmail" x-cloak
+                               @click="toggleContactMode()"
+                               class="text-[11px] text-slate-400 mb-1 cursor-pointer hover:text-indigo-600 transition-colors">
+                                📧 Email tersimpan: <span class="font-medium" x-text="contactEmail"></span> — klik untuk kembali
+                            </p>
+                            <p x-show="!locked && contactMode === 'email' && contactPhone" x-cloak
+                               @click="toggleContactMode()"
+                               class="text-[11px] text-slate-400 mb-1 cursor-pointer hover:text-indigo-600 transition-colors">
+                                📱 No. Telepon tersimpan: <span class="font-medium" x-text="contactPhone"></span> — klik untuk kembali
+                            </p>
+                            <div class="relative overflow-hidden">
+                                <div x-show="contactMode === 'email'"
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0 -translate-x-2"
+                                     x-transition:enter-end="opacity-100 translate-x-0"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100 translate-x-0"
+                                     x-transition:leave-end="opacity-0 translate-x-2">
+                                    <input type="email" name="requester_email" id="id_requester_email" x-ref="emailInput"
+                                           x-model="contactEmail"
+                                           @blur="lookupEmployee()"
+                                           :disabled="locked"
+                                           :class="locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''"
+                                           class="jk-input pr-10" placeholder="e.g. john.doe@company.com" autocomplete="email">
+                                </div>
+                                <div x-show="contactMode === 'phone'" x-cloak
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0 translate-x-2"
+                                     x-transition:enter-end="opacity-100 translate-x-0"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100 translate-x-0"
+                                     x-transition:leave-end="opacity-0 -translate-x-2">
+                                    <input type="tel" name="requester_phone" id="id_requester_phone" x-ref="phoneInput"
+                                           x-model="contactPhone"
+                                           @blur="lookupEmployee()"
+                                           :disabled="locked"
+                                           :class="locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''"
+                                           class="jk-input pr-10" placeholder="e.g. 0812xxxxxxxx" autocomplete="tel">
+                                </div>
+                                <input type="hidden" name="contact_mode" :value="contactMode">
+
+                                <!-- Toggle icon (inside the input) -->
+                                <button type="button" @click="toggleContactMode()" :disabled="locked"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                                        :title="contactMode === 'email' ? 'Gunakan No. Telepon' : 'Gunakan Email'">
+                                    <svg x-show="contactMode === 'email'" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h1.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.05 11.05 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                    </svg>
+                                    <svg x-show="contactMode === 'phone'" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
                             </div>
-                            
-                            <!-- Typo Suggestion -->
-                            <div x-show="suggestion" x-transition style="display: none;" class="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-800 flex items-start gap-2">
+
+                            <!-- Typo Suggestion (email mode) -->
+                            <div x-show="contactMode === 'email' && suggestion" x-transition style="display: none;" class="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm text-indigo-800 flex items-start gap-2">
                                 <span class="mt-0.5">💡</span>
                                 <div>
                                     Did you mean <strong class="cursor-pointer text-indigo-600 hover:underline" @click="acceptSuggestion()" x-text="suggestion"></strong>?
                                 </div>
                             </div>
 
+                            <!-- Employee auto-detect -->
+                            <div x-show="lookupState === 'found'" x-cloak x-transition class="mt-2 p-2.5 bg-green-50 border border-green-200 rounded-md text-xs text-green-800 flex items-center justify-between gap-2">
+                                <span>✓ Terdaftar sebagai <strong x-text="foundName"></strong> — data lain otomatis terisi.</span>
+                                <button type="button" @click="unlockEmployee()" class="text-green-700 underline hover:text-green-900 whitespace-nowrap">Bukan saya</button>
+                            </div>
+                            <p x-show="lookupState === 'checking'" x-cloak class="mt-1.5 text-xs text-slate-400">Memeriksa data karyawan...</p>
+                            <p x-show="lookupState === 'new'" x-cloak class="mt-1.5 text-xs text-slate-400">Belum terdaftar — data karyawan baru akan dibuat.</p>
+
                             {% if form.requester_email.errors %}
                             <div class="jk-form-error mt-1">{{ form.requester_email.errors.0 }}</div>
+                            {% endif %}
+                            {% if form.requester_phone.errors %}
+                            <div class="jk-form-error mt-1">{{ form.requester_phone.errors.0 }}</div>
+                            {% endif %}
+                            {% if form.non_field_errors %}
+                            <div class="jk-form-error mt-1">{{ form.non_field_errors.0 }}</div>
                             {% endif %}
                         </div>
 
                         <!-- Company Unit (searchable) -->
-                        <div class="jk-form-group mb-0"
-                             x-data="{
-                                open: false,
-                                search: '',
-                                selectedId: '{{ form.company_unit.value|default_if_none:"" }}',
-                                selectedLabel: '',
-                                options: [
-                                    {% for unit in company_units %}
-                                    { id: '{{ unit.pk }}', name: '{{ unit.name }}' }{% if not forloop.last %},{% endif %}
-                                    {% endfor %}
-                                ],
-                                get filtered() {
-                                    if (!this.search) return this.options;
-                                    return this.options.filter(o => o.name.toLowerCase().includes(this.search.toLowerCase()));
-                                },
-                                select(opt) {
-                                    this.selectedId = opt.id;
-                                    this.selectedLabel = opt.name;
-                                    this.search = opt.name;
-                                    this.open = false;
-                                },
-                                init() {
-                                    if (this.selectedId) {
-                                        const found = this.options.find(o => o.id === this.selectedId);
-                                        if (found) { this.selectedLabel = found.name; this.search = found.name; }
-                                    }
-                                }
-                             }"
-                             @click.outside="open = false">
+                        <div class="jk-form-group mb-0">
                             <label class="jk-label">Company Unit *</label>
                             <input type="hidden" name="company_unit" :value="selectedId">
                             <div class="relative">
                                 <input type="text"
                                        x-model="search"
-                                       @focus="open = true"
-                                       @input="open = true; selectedId = ''"
+                                       @focus="unitOpen = true"
+                                       @input="unitOpen = true; selectedId = ''"
+                                       :disabled="locked"
+                                       :class="locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''"
                                        placeholder="Type to search unit..."
                                        autocomplete="off"
                                        class="jk-input">
@@ -355,17 +463,17 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                 </svg>
                                 <!-- Dropdown -->
-                                <div x-show="open && filtered.length > 0" x-transition
+                                <div x-show="unitOpen && filteredUnits.length > 0" x-transition
                                      class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                    <template x-for="opt in filtered" :key="opt.id">
-                                        <div @click="select(opt)"
+                                    <template x-for="opt in filteredUnits" :key="opt.id">
+                                        <div @click="selectUnit(opt)"
                                              class="px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
                                              :class="opt.id === selectedId ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'"
                                              x-text="opt.name">
                                         </div>
                                     </template>
                                 </div>
-                                <div x-show="open && search && filtered.length === 0" x-transition
+                                <div x-show="unitOpen && search && filteredUnits.length === 0" x-transition
                                      class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg">
                                     <div class="px-3 py-3 text-sm text-slate-600 text-center">No matching unit found</div>
                                 </div>

@@ -8,6 +8,7 @@ Provides the foundational models for the entire RoC Desk system:
 - ``CompanyUnit``     — organisational unit (e.g. IT, FIN, HR).
 - ``Employee``        — internal staff / end-user who submits or receives cases.
 """
+import re
 import uuid
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -323,6 +324,24 @@ phone_regex = RegexValidator(
 )
 
 
+def normalize_phone_e164(raw):
+    """
+    Best-effort normalization of common Indonesian local formats to E.164,
+    e.g. '0812xxxxxxxx' -> '+62812xxxxxxxx'. Used consistently wherever a
+    visitor-typed phone number is matched against or saved to Employee.
+    """
+    if not raw:
+        return ""
+    digits = re.sub(r"[\s\-()]", "", raw.strip())
+    if digits.startswith("0"):
+        digits = "+62" + digits[1:]
+    elif digits.startswith("62"):
+        digits = "+" + digits
+    elif not digits.startswith("+"):
+        digits = "+" + digits
+    return digits
+
+
 class Employee(AuditableModel):
     """
     Internal employee / end-user who interacts with the service desk.
@@ -388,6 +407,18 @@ class Employee(AuditableModel):
             return False
         raw = self.phone_number.lstrip("+")
         return raw.isdigit() and 7 <= len(raw) <= 15
+
+    @classmethod
+    def find_by_contact(cls, email=None, phone=None):
+        """Return the first Employee matching either email or phone_number, or None."""
+        lookup = models.Q()
+        if email:
+            lookup |= models.Q(email__iexact=email)
+        if phone:
+            lookup |= models.Q(phone_number=phone)
+        if not lookup:
+            return None
+        return cls.objects.select_related("unit").filter(lookup).first()
 
     def __str__(self):
         return f"{self.full_name} ({self.unit.code})"

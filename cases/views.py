@@ -1256,6 +1256,7 @@ def create_case(request, slug=None):
                 })
 
             email = form.cleaned_data["requester_email"]
+            phone = form.cleaned_data["requester_phone"]
             company_unit = form.cleaned_data["company_unit"]
 
             cr_request_change_check = request.POST.get("cr_request_change", "").strip()
@@ -1271,16 +1272,19 @@ def create_case(request, slug=None):
                 request.POST.get("track_via_chat") == "true" or cr_has_content_early
             ):
                 email = request.user.email
+                phone = ""
 
-            # Auto-link or auto-create Employee safely
-            employee, created = Employee.objects.get_or_create(
-                email=email,
-                defaults={
-                    "full_name": form.cleaned_data["requester_name"],
-                    "job_role": form.cleaned_data["job_role"],
-                    "unit": company_unit,
-                }
-            )
+            # Auto-link an existing Employee by email OR phone, else create one
+            employee = Employee.find_by_contact(email=email, phone=phone)
+            created = employee is None
+            if created:
+                employee = Employee.objects.create(
+                    full_name=form.cleaned_data["requester_name"],
+                    email=email or None,
+                    phone_number=phone or None,
+                    job_role=form.cleaned_data["job_role"],
+                    unit=company_unit,
+                )
 
             # Update existing employee details if they changed
             if not created:
@@ -1301,6 +1305,7 @@ def create_case(request, slug=None):
             case = CaseRecord.objects.create(
                 requester=employee,
                 requester_email=email,
+                requester_phone=phone,
                 requester_name=form.cleaned_data["requester_name"],
                 requester_job_role=form.cleaned_data["job_role"],
                 requester_unit_name=company_unit.name,

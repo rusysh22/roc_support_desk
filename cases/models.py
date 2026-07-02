@@ -308,6 +308,12 @@ class CaseRecord(AuditableModel):
         verbose_name="Requester Email",
         help_text="Email provided by the requester on the web form.",
     )
+    requester_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Requester Phone",
+        help_text="Phone number (E.164) provided by the requester on the web form.",
+    )
     requester_name = models.CharField(
         max_length=255,
         blank=True,

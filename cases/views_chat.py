@@ -20,6 +20,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.conf import settings
@@ -30,7 +31,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from ipware import get_client_ip as _get_client_ip
 
-from core.models import CompanyUnit, Employee, User
+from core.models import CompanyUnit, Employee, User, normalize_phone_e164, phone_regex
 from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument, Message,
@@ -362,6 +363,50 @@ def chat_categories(request):
 
 
 # ---------------------------------------------------------------------------
+# Public API — employee lookup by email or phone (pre-chat / ticket forms)
+# ---------------------------------------------------------------------------
+
+EMPLOYEE_LOOKUP_RATE_LIMIT_KEY = "employee_lookup_{ip}"
+EMPLOYEE_LOOKUP_RATE_LIMIT_MAX = 30
+EMPLOYEE_LOOKUP_RATE_LIMIT_WINDOW = 600  # 10 minutes
+
+
+@require_GET
+def chat_lookup_employee(request):
+    """
+    JSON lookup used by the ticket/chat forms to detect an already-registered
+    Employee as the visitor types their email or phone, so the rest of the
+    form (name, unit, job role) can be auto-filled instead of re-entered.
+    """
+    client_ip, _ = _get_client_ip(request)
+    client_ip = client_ip or "unknown"
+    rate_key = EMPLOYEE_LOOKUP_RATE_LIMIT_KEY.format(ip=client_ip)
+    attempts = cache.get(rate_key, 0)
+    if attempts >= EMPLOYEE_LOOKUP_RATE_LIMIT_MAX:
+        return JsonResponse({"error": "Too many requests."}, status=429)
+    cache.set(rate_key, attempts + 1, timeout=EMPLOYEE_LOOKUP_RATE_LIMIT_WINDOW)
+
+    email = (request.GET.get("email") or "").strip()
+    phone = normalize_phone_e164((request.GET.get("phone") or "").strip())
+    if not email and not phone:
+        return JsonResponse({"found": False})
+
+    employee = Employee.find_by_contact(email=email, phone=phone)
+    if not employee:
+        return JsonResponse({"found": False})
+
+    return JsonResponse({
+        "found": True,
+        "full_name": employee.full_name,
+        "job_role": employee.job_role,
+        "unit_id": str(employee.unit_id) if employee.unit_id else None,
+        "unit_name": employee.unit.name if employee.unit_id else "",
+        "email": employee.email or "",
+        "phone_number": employee.phone_number or "",
+    })
+
+
+# ---------------------------------------------------------------------------
 # Chat — start (create ticket from widget)
 # ---------------------------------------------------------------------------
 
@@ -405,6 +450,7 @@ def chat_start(request):
     category_id = (body.get("category_id") or "").strip()
     name = (body.get("name") or "").strip()
     email = (body.get("email") or "").strip()
+    phone = normalize_phone_e164((body.get("phone") or "").strip())
     unit_id = (body.get("unit_id") or "").strip()
     first_message = (body.get("message") or "").strip()
 
@@ -419,10 +465,16 @@ def chat_start(request):
     user = request.user
     if user.is_authenticated and user.role_access == User.RoleAccess.PORTALUSER:
         email = user.email or email
+        phone = ""
         name = name or user.get_full_name() or user.username
 
-    if not email:
-        return JsonResponse({"error": "Email is required."}, status=400)
+    if not email and not phone:
+        return JsonResponse({"error": "Email or phone number is required."}, status=400)
+    if phone:
+        try:
+            phone_regex(phone)
+        except DjangoValidationError:
+            return JsonResponse({"error": "Enter a valid phone number, e.g. 0812xxxxxxxx."}, status=400)
     if not name:
         return JsonResponse({"error": "Name is required."}, status=400)
 
@@ -433,12 +485,15 @@ def chat_start(request):
     unit = get_object_or_404(CompanyUnit, id=unit_id)
     unit_name = unit.name
 
-    # Auto-link or create Employee; always assign the selected unit
-    employee, created = Employee.objects.get_or_create(
-        email=email,
-        defaults={"full_name": name, "unit": unit},
-    )
-    if not created:
+    # Auto-link an existing Employee by email OR phone, else create one;
+    # always assign the selected unit.
+    employee = Employee.find_by_contact(email=email, phone=phone)
+    created = employee is None
+    if created:
+        employee = Employee.objects.create(
+            full_name=name, email=email or None, phone_number=phone or None, unit=unit,
+        )
+    else:
         update_fields = []
         if name and employee.full_name != name:
             employee.full_name = name
@@ -459,6 +514,7 @@ def chat_start(request):
     case = CaseRecord.objects.create(
         requester=employee,
         requester_email=email,
+        requester_phone=phone,
         requester_name=name,
         requester_unit_name=unit_name,
         category=category,

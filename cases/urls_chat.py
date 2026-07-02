@@ -12,6 +12,9 @@ urlpatterns = [
     path("categories/", views_chat.chat_categories, name="categories"),
     path("units/", views_chat.chat_units, name="units"),
 
+    # JSON API — auto-detect an existing Employee by email or phone
+    path("lookup-employee/", views_chat.chat_lookup_employee, name="lookup_employee"),
+
     # Start a new chat session (POST — creates CaseRecord)
     path("start/", views_chat.chat_start, name="start"),
 
