@@ -214,6 +214,76 @@ class EvolutionAPIService:
             logger.error("Failed to logout WhatsApp instance: %s", exc)
             return False
 
+    def disconnect_and_reset(self, webhook_url: str) -> bool:
+        """
+        Fully reset the WA session so Evolution API shows a fresh QR code.
+
+        /instance/logout alone does not work: Baileys immediately reconnects
+        using credentials cached in PostgreSQL and Redis.  The only reliable
+        way to force a QR is to delete the instance (which removes ALL cached
+        state from memory, DB, and Redis) and then recreate it with the same
+        webhook configuration.
+        """
+        from django.conf import settings
+
+        # 1. Delete the instance — clears in-memory Baileys state + all storage
+        delete_url = f"{self.base_url}/instance/delete/{self.instance}"
+        try:
+            resp = requests.delete(delete_url, headers=self._headers(), timeout=self.timeout)
+            resp.raise_for_status()
+            logger.info("WA instance '%s' deleted for reset.", self.instance)
+        except requests.RequestException as exc:
+            logger.error("Failed to delete WA instance '%s': %s", self.instance, exc)
+            return False
+
+        # Brief pause — Evolution API needs a moment to fully deregister the
+        # deleted instance before accepting a create with the same name.
+        import time
+        time.sleep(2)
+
+        # 2. Recreate the instance — Evolution API starts fresh and returns QR
+        create_url = f"{self.base_url}/instance/create"
+        webhook_token = getattr(settings, "EVOLUTION_WEBHOOK_TOKEN", "")
+        payload = {
+            "instanceName": self.instance,
+            "qrcode": True,
+            "integration": "WHATSAPP-BAILEYS",
+            "webhook": {
+                "enabled": True,
+                "url": webhook_url,
+                "byEvents": False,
+                "base64": False,
+                "headers": {"Authorization": webhook_token},
+                "events": [
+                    "MESSAGES_UPSERT",
+                    "MESSAGES_UPDATE",
+                    "CONNECTION_UPDATE",
+                    "QRCODE_UPDATED",
+                    "SEND_MESSAGE",
+                    "CONTACTS_SET",
+                    "CONTACTS_UPSERT",
+                    "CONTACTS_UPDATE",
+                    "PRESENCE_UPDATE",
+                    "CHATS_SET",
+                    "CHATS_UPSERT",
+                    "CHATS_UPDATE",
+                    "CHATS_DELETE",
+                    "GROUPS_UPSERT",
+                    "GROUP_UPDATE",
+                    "GROUP_PARTICIPANTS_UPDATE",
+                    "CALL",
+                ],
+            },
+        }
+        try:
+            resp = requests.post(create_url, json=payload, headers=self._headers(), timeout=self.timeout)
+            resp.raise_for_status()
+            logger.info("WA instance '%s' recreated — QR code ready.", self.instance)
+            return True
+        except requests.RequestException as exc:
+            logger.error("Failed to recreate WA instance '%s': %s", self.instance, exc)
+            return False
+
     # ------------------------------------------------------------------
     # Public API — Send Messages & Presence
     # ------------------------------------------------------------------

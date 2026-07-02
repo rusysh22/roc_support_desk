@@ -3713,8 +3713,9 @@ def case_add_comment(request, case_id):
 @staff_required
 @feature_required('whatsapp')
 def whatsapp_disconnect_view(request):
-    """Force-logout the WhatsApp session so the instance resets and shows a fresh QR."""
+    """Delete and recreate the WA instance so Evolution API shows a fresh QR code."""
     from gateways.services import EvolutionAPIService
+    from core.models import SiteConfig
     from django.contrib import messages
     import time
 
@@ -3722,26 +3723,23 @@ def whatsapp_disconnect_view(request):
         from django.http import HttpResponseNotAllowed
         return HttpResponseNotAllowed(["POST"])
 
+    site_url = SiteConfig.get_solo().site_url.rstrip("/")
+    webhook_url = f"{site_url}/gateways/evolution/webhook/"
+
     svc = EvolutionAPIService()
-    success = svc.logout_instance()
+    success = svc.disconnect_and_reset(webhook_url)
 
     if success:
-        # Wait up to 4 seconds for Evolution API to transition to disconnected state
-        disconnected = False
-        for _ in range(4):
+        # After delete+recreate, Evolution API needs a moment to initialise.
+        # Wait up to 6 seconds for the state to settle to "connecting" (QR shown).
+        for _ in range(6):
             time.sleep(1)
             state_data = svc.get_instance_state()
-            if state_data and state_data.get("instance", {}).get("state") not in ["open", "connected"]:
-                disconnected = True
+            state = state_data.get("instance", {}).get("state") if state_data else None
+            if state and state not in ["open", "connected"]:
                 break
-        if disconnected:
-            messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
-        else:
-            # Evolution API accepted the logout call but hasn't confirmed the
-            # session actually closed yet. Keep polling the status page in the
-            # background until it does, instead of showing a false "Connected".
-            request.session['wa_pending_disconnect'] = True
-            messages.info(request, "Disconnect request sent. Waiting for WhatsApp to confirm the session is closed…")
+
+        messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
     else:
         messages.error(request, "Failed to disconnect WhatsApp session. Check the Evolution API logs.")
 
