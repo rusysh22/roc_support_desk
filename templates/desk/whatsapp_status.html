@@ -28,8 +28,9 @@
     <div class="space-y-2">
         {% for message in messages %}
         <div class="flex items-center gap-3 p-4 rounded-xl text-sm border
-            {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %}">
+            {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% elif message.tags == 'info' %}bg-blue-50 text-blue-800 border-blue-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %}">
             {% if message.tags == 'success' %}<svg class="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            {% elif message.tags == 'info' %}<svg class="h-5 w-5 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
             {% else %}<svg class="h-5 w-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>{% endif %}
             {{ message }}
         </div>

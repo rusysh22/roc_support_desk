@@ -3722,12 +3722,21 @@ def whatsapp_disconnect_view(request):
 
     if success:
         # Wait up to 4 seconds for Evolution API to transition to disconnected state
+        disconnected = False
         for _ in range(4):
             time.sleep(1)
             state_data = svc.get_instance_state()
             if state_data and state_data.get("instance", {}).get("state") not in ["open", "connected"]:
+                disconnected = True
                 break
-        messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
+        if disconnected:
+            messages.success(request, "WhatsApp session disconnected. Scan the new QR code to reconnect.")
+        else:
+            # Evolution API accepted the logout call but hasn't confirmed the
+            # session actually closed yet. Keep polling the status page in the
+            # background until it does, instead of showing a false "Connected".
+            request.session['wa_pending_disconnect'] = True
+            messages.info(request, "Disconnect request sent. Waiting for WhatsApp to confirm the session is closed…")
     else:
         messages.error(request, "Failed to disconnect WhatsApp session. Check the Evolution API logs.")
 
@@ -3899,11 +3908,21 @@ def whatsapp_status_view(request):
         if qr_data and "base64" in qr_data:
             qr_base64 = qr_data.get("base64")
 
+    # If a disconnect was just requested but the instance still reports
+    # connected, keep the status card polling until it actually flips.
+    force_poll = False
+    if request.session.get('wa_pending_disconnect'):
+        if instance_state in ["open", "connected"]:
+            force_poll = True
+        else:
+            del request.session['wa_pending_disconnect']
+
     if request.headers.get('HX-Request') == 'true':
         return render(request, "partials/whatsapp_status_card.html", {
             "instance_state": instance_state,
             "qr_base64": qr_base64,
             "last_connected": last_connected,
+            "force_poll": force_poll,
         })
 
     # Build notification recipient options from active staff
@@ -3947,6 +3966,7 @@ def whatsapp_status_view(request):
         "instance_state": instance_state,
         "qr_base64": qr_base64,
         "last_connected": last_connected,
+        "force_poll": force_poll,
         "notif_cfg": notif_cfg,
         "wa_options": wa_options,
         "daily_sent": daily_sent,

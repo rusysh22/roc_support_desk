@@ -1,6 +1,6 @@
 {% load static %}
 
-<div id="whatsapp-state-container" {% if instance_state != 'open' and instance_state != 'connected' %}hx-get="{% url 'desk:whatsapp_status' %}" hx-trigger="every 5s" hx-swap="outerHTML"{% endif %}>
+<div id="whatsapp-state-container" {% if instance_state != 'open' and instance_state != 'connected' or force_poll %}hx-get="{% url 'desk:whatsapp_status' %}" hx-trigger="every 5s" hx-swap="outerHTML"{% endif %}>
     <!-- Connection Status Header -->
     <div class="flex items-center gap-3 mb-6">
         {% if instance_state == 'open' or instance_state == 'connected' %}
