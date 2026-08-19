@@ -158,11 +158,16 @@ class CaseCreateForm(forms.Form):
     # Max file size: 10 MB
     MAX_FILE_SIZE = 10 * 1024 * 1024
 
+    # Set by clean_requester_email when the domain looks unusual, so the view
+    # can surface a non-blocking warning instead of rejecting the submission.
+    email_domain_warning = None
+
     def clean_requester_email(self):
         """
-        Validate that the email domain is not completely non-existent (NXDOMAIN).
-        Transient DNS errors (timeout, SERVFAIL) are allowed through to avoid
-        blocking valid corporate email addresses on slow or private DNS setups.
+        Flag emails whose domain has no MX record (including NXDOMAIN) as
+        potentially mistyped, but never block submission on it — corporate
+        domains can be behind private/split-horizon DNS that this server
+        can't resolve even though the address is legitimate.
         """
         email = self.cleaned_data.get("requester_email")
         if not email:
@@ -175,8 +180,9 @@ class CaseCreateForm(forms.Form):
             resolver.lifetime = 5.0
             resolver.resolve(domain, 'MX')
         except dns.resolver.NXDOMAIN:
-            raise ValidationError(
-                f"The domain '{domain}' does not exist. Please check your email address for typos."
+            self.email_domain_warning = (
+                f"Heads up: the domain '{domain}' could not be found. "
+                f"Please double-check for typos — we've submitted your ticket anyway."
             )
         except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout, Exception):
             # Domain may have A-record-only mail or DNS is temporarily unreachable;

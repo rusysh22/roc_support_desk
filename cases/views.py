@@ -1431,6 +1431,8 @@ def create_case(request, slug=None):
             )
 
             messages.success(request, f"Your ticket ({case.case_number}) has been created successfully.")
+            if form.email_domain_warning:
+                messages.warning(request, form.email_domain_warning)
 
             # Increment Rate Limit Counter
             cache.set(cache_key, attempts + 1, timeout=600)  # 10 minutes timeout
