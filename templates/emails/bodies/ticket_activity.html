@@ -1,0 +1,20 @@
+<p style="margin:0 0 6px;font-size:15px;color:#475569;line-height:1.6;">Hello <span style="color:#0f172a;font-weight:600;">{{ recipient_name }}</span>,</p>
+<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6;">{{ intro }}</p>
+
+{% for item in items %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;border:1px solid #e0e7ff;border-left:4px solid {% if item.tone == 'amber' %}#f59e0b{% elif item.tone == 'violet' %}#8b5cf6{% else %}#6366f1{% endif %};border-radius:10px;background:#ffffff;">
+  <tr>
+    <td style="padding:12px 16px;">
+      <p style="margin:0;font-size:14px;color:#0f172a;font-weight:700;line-height:1.45;">{{ item.icon }}&nbsp; {{ item.title }}</p>
+      {% if item.meta %}<p style="margin:3px 0 0;font-size:12px;color:#94a3b8;">{{ item.meta }}</p>{% endif %}
+      {% if item.text %}
+      {% if item.label %}<p style="margin:10px 0 3px;font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">{{ item.label }}</p>{% endif %}
+      <p style="margin:{% if item.label %}0{% else %}10px 0 0{% endif %};padding:10px 12px;background:#f5f3ff;border-radius:8px;font-size:14px;color:#334155;line-height:1.55;white-space:pre-line;">{{ item.text }}</p>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+{% endfor %}
+{% if more %}<p style="margin:0 0 10px;font-size:12px;color:#94a3b8;">…and {{ more }} earlier update{{ more|pluralize }}.</p>{% endif %}
+
+{% include "emails/_ticket_card.html" %}

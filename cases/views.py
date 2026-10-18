@@ -2820,14 +2820,8 @@ def case_update_rca(request, case_id):
                 if case.sub_tickets.exists():
                     case.sub_tickets.update(status=case.status, updated_by=request.user)
                 form.save_m2m() # Important for followers
-                # Check if we should notify about assignment change during RCA save
+                # Assignment emails come from cases.signals (gateways.email_notify).
 
-                
-                if 'assigned_to' in form.changed_data and case.assigned_to:
-                    from gateways.tasks import send_assignment_email_task
-                    case_url = request.build_absolute_uri(reverse(URLNAME_CASE_DETAIL, kwargs={"case_id": case.id}))
-                    send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
-                
                 from django.template.loader import render_to_string
                 form_response = render(request, TEMPLATE_RCA_FORM, {
                     "case": case,
@@ -2900,11 +2894,6 @@ def case_update_rca(request, case_id):
             if case.sub_tickets.exists():
                 case.sub_tickets.update(status=case.status, updated_by=request.user)
             form.save_m2m() # Important for followers
-
-            if 'assigned_to' in form.changed_data and case.assigned_to:
-                from gateways.tasks import send_assignment_email_task
-                case_url = request.build_absolute_uri(reverse(URLNAME_CASE_DETAIL, kwargs={"case_id": case.id}))
-                send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
 
             if (
                 "status" in form.changed_data
@@ -4425,6 +4414,15 @@ def email_settings_view(request):
     if request.method == "POST":
         form_type = request.POST.get('form_type', 'email_config')
 
+        if form_type == 'email_events':
+            notif_cfg = NotificationConfig.get_solo()
+            for field in EMAIL_EVENT_FIELDS:
+                setattr(notif_cfg, field, field in request.POST)
+            notif_cfg.updated_by = request.user
+            notif_cfg.save()
+            messages.success(request, "Ticket update email settings saved.")
+            return redirect("desk:email_settings")
+
         if form_type == 'email_notif':
             notif_cfg = NotificationConfig.get_solo()
             notif_cfg.notify_new_ticket_email = 'notify_new_ticket_email' in request.POST
@@ -4454,6 +4452,38 @@ def email_settings_view(request):
     return render(request, TEMPLATE_EMAIL_SETTINGS, _email_settings_ctx(form, notif_cfg))
 
 
+EMAIL_EVENT_FIELDS = (
+    "email_updates_enabled",
+    "email_requester_on_received", "email_requester_on_reply", "email_requester_on_status",
+    "email_requester_on_assigned", "email_requester_on_resolved",
+    "email_staff_on_assigned", "email_staff_on_reply", "email_staff_on_status",
+    "email_staff_on_mention", "email_staff_on_follower",
+)
+
+
+def _email_event_groups(notif_cfg):
+    """Toggle rows for the Ticket Update Emails card, grouped by who receives them."""
+    meta = notif_cfg._meta
+
+    def row(field, icon):
+        f = meta.get_field(field)
+        label = str(f.verbose_name).split(": ", 1)[-1]
+        return {"name": field, "icon": icon, "label": label, "help": f.help_text, "on": getattr(notif_cfg, field)}
+
+    return [
+        {"title": "Requester", "subtitle": "The person who submitted the ticket (CC'd addresses are copied).", "rows": [
+            row("email_requester_on_received", "📥"), row("email_requester_on_assigned", "📌"),
+            row("email_requester_on_status", "🔄"), row("email_requester_on_reply", "💬"),
+            row("email_requester_on_resolved", "✅"),
+        ]},
+        {"title": "Support team", "subtitle": "Assignee, followers and mentioned staff — each person's My Profile preferences also apply.", "rows": [
+            row("email_staff_on_assigned", "📌"), row("email_staff_on_reply", "💬"),
+            row("email_staff_on_status", "🔄"), row("email_staff_on_mention", "@"),
+            row("email_staff_on_follower", "👥"),
+        ]},
+    ]
+
+
 def _email_settings_ctx(form, notif_cfg):
     from core.models import User as UserModel
     selected_emails = {e.strip() for e in (notif_cfg.email_recipients or '').split(',') if e.strip()}
@@ -4471,6 +4501,7 @@ def _email_settings_ctx(form, notif_cfg):
         'form': form,
         'notif_cfg': notif_cfg,
         'email_options': email_options,
+        'email_event_groups': _email_event_groups(notif_cfg),
     }
 
 

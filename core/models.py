@@ -1647,6 +1647,53 @@ class NotificationConfig(AuditableModel):
         help_text="Post to Teams when someone is @mentioned in a ticket's internal chat.",
     )
 
+    # --- Email: ticket update notifications (Apps Connection → Email) ---
+    email_updates_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Email: Ticket Update Notifications",
+        help_text="Master switch for every ticket-update email below.",
+    )
+    email_requester_on_received = models.BooleanField(
+        default=True, verbose_name="Requester: Ticket Received",
+        help_text="Confirmation with the ticket number when a ticket is submitted.",
+    )
+    email_requester_on_reply = models.BooleanField(
+        default=True, verbose_name="Requester: Support Desk Replied",
+        help_text="A support desk reply in the portal chat (replies sent by email or WhatsApp are not repeated).",
+    )
+    email_requester_on_status = models.BooleanField(
+        default=True, verbose_name="Requester: Progress Updates",
+        help_text="Status changes such as Assigned, In Progress, Pending, Rejected or Cancelled, with the progress note.",
+    )
+    email_requester_on_assigned = models.BooleanField(
+        default=True, verbose_name="Requester: Ticket Assigned",
+        help_text="Tells the requester who is now handling the ticket.",
+    )
+    email_requester_on_resolved = models.BooleanField(
+        default=True, verbose_name="Requester: Resolved & Closed",
+        help_text="When the ticket is resolved or closed.",
+    )
+    email_staff_on_assigned = models.BooleanField(
+        default=True, verbose_name="Staff: Ticket Assigned",
+        help_text="The new assignee (and the previous one, on reassignment).",
+    )
+    email_staff_on_reply = models.BooleanField(
+        default=True, verbose_name="Staff: Requester Replied",
+        help_text="Assignee and followers; the New Ticket recipients when nobody is assigned yet.",
+    )
+    email_staff_on_status = models.BooleanField(
+        default=True, verbose_name="Staff: Status Changed",
+        help_text="Assignee and followers when someone else changes the status.",
+    )
+    email_staff_on_mention = models.BooleanField(
+        default=True, verbose_name="Staff: @Mention",
+        help_text="When someone is @mentioned in a ticket's internal chat.",
+    )
+    email_staff_on_follower = models.BooleanField(
+        default=True, verbose_name="Staff: Added as Follower",
+        help_text="When someone is added as a follower of a ticket.",
+    )
+
     # Email: comma-separated addresses of internal recipients
     email_recipients = models.TextField(
         blank=True,

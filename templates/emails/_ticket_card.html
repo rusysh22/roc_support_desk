@@ -1,0 +1,68 @@
+{% comment %}
+Ticket card for notification emails: number, subject, status pill, people and a
+progress tracker. Context comes from gateways.email_notify.ticket_summary().
+{% endcomment %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin:22px 0 4px;">
+  <tr>
+    <td style="padding:18px 20px 6px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top;">
+            <p style="margin:0 0 2px;font-size:12px;color:#64748b;font-weight:500;">Ticket</p>
+            <p style="margin:0;font-size:17px;font-weight:700;color:#312e81;letter-spacing:-0.01em;">{{ case_number }}</p>
+          </td>
+          <td align="right" style="vertical-align:top;">
+            <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:{{ status_color }};color:#ffffff;font-size:12px;font-weight:700;white-space:nowrap;">{{ status_label }}</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:12px 0 0;font-size:15px;color:#0f172a;font-weight:600;line-height:1.45;">{{ case_subject }}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0 0;">
+        <tr>
+          <td style="padding:0 18px 8px 0;vertical-align:top;">
+            <p style="margin:0 0 2px;font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Handled by</p>
+            <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">{{ assignee_name|default:"Not assigned yet" }}</p>
+          </td>
+          {% if requester_label %}
+          <td style="padding:0 18px 8px 0;vertical-align:top;">
+            <p style="margin:0 0 2px;font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Requester</p>
+            <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">{{ requester_label }}</p>
+          </td>
+          {% endif %}
+          {% if priority_label %}
+          <td style="padding:0 0 8px 0;vertical-align:top;">
+            <p style="margin:0 0 2px;font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Priority</p>
+            <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">{{ priority_label }}</p>
+          </td>
+          {% endif %}
+        </tr>
+      </table>
+    </td>
+  </tr>
+  {% if steps %}
+  <tr>
+    <td style="padding:6px 20px 18px;">
+      {% if status_stopped %}
+      <p style="margin:6px 0 0;font-size:13px;color:#b91c1c;font-weight:600;">This ticket was {{ status_label|lower }} and will not be processed further.</p>
+      {% else %}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
+        <tr>
+          {% for step in steps %}
+          <td style="padding:0 2px;">
+            <div style="height:6px;border-radius:999px;background:{% if step.state == 'todo' %}#e2e8f0{% else %}#6366f1{% endif %};font-size:0;line-height:0;">&nbsp;</div>
+          </td>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for step in steps %}
+          <td style="padding:7px 2px 0;vertical-align:top;">
+            <p style="margin:0;font-size:11px;line-height:1.3;font-weight:{% if step.state == 'current' %}700{% else %}500{% endif %};color:{% if step.state == 'current' %}#4338ca{% elif step.state == 'done' %}#475569{% else %}#94a3b8{% endif %};">{% if step.state == 'done' %}✓ {% elif step.state == 'current' %}● {% endif %}{{ step.label }}</p>
+          </td>
+          {% endfor %}
+        </tr>
+      </table>
+      {% endif %}
+    </td>
+  </tr>
+  {% endif %}
+</table>

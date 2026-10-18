@@ -1090,13 +1090,8 @@ def chat_send(request, case_uuid):
         case.record_first_response()
 
     if not is_staff:
+        # Staff are emailed about the reply by cases.signals (gateways.email_notify).
         CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True, last_user_reply_at=timezone.now())
-        # Notify staff of new chat reply (fires async, skipped if staff is active)
-        try:
-            from gateways.tasks import notify_staff_chat_reply_task
-            notify_staff_chat_reply_task.delay(str(msg.id))
-        except Exception:
-            pass
     if is_staff:
         sender_name = user.get_full_name() or str(user)
 
@@ -1243,11 +1238,6 @@ def chat_upload(request, case_uuid):
 
     if not is_staff:
         CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True, last_user_reply_at=timezone.now())
-        try:
-            from gateways.tasks import notify_staff_chat_reply_task
-            notify_staff_chat_reply_task.delay(str(msg.id))
-        except Exception:
-            pass
 
     saved = []
     channel_layer = get_channel_layer()

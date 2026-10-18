@@ -396,6 +396,9 @@ SITE_URL = env("SITE_URL", default="http://localhost:8000")
 # E-sign: remind assigned (internal) signers again after this many hours without action; 0 turns it off.
 ESIGN_AUTO_REMIND_HOURS = env.int("ESIGN_AUTO_REMIND_HOURS", default=24)
 
+# Ticket update emails: events on one ticket within this window go out as one email.
+EMAIL_NOTIFY_BATCH_SECONDS = env.int("EMAIL_NOTIFY_BATCH_SECONDS", default=60)
+
 # Auto-close Resolved tickets after this many days; reopen is allowed until then
 CHAT_AUTO_CLOSE_IDLE_DAYS = env.int("CHAT_AUTO_CLOSE_IDLE_DAYS", default=5)
 

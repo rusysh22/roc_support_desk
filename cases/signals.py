@@ -1,6 +1,6 @@
 """
 Ticket activity → Microsoft Teams (channel card + personal chats, see
-gateways/teams_notify.py).
+gateways/teams_notify.py) and email (gateways/email_notify.py).
 
 Signals catch every code path that creates a message, a status audit entry,
 an assignment or a follower (portal chat, WhatsApp, email, desk replies,
@@ -29,13 +29,15 @@ def _name(user):
 
 
 def _queue(case_id, kind, **data):
+    from gateways.email_notify import queue_email_event
     from gateways.teams_notify import queue_teams_event
 
     def send():
-        try:
-            queue_teams_event(case_id, kind, **data)
-        except Exception:  # never let a notification break the request
-            logger.exception("Could not queue Teams %s event for case %s", kind, case_id)
+        for name, queue in (("Teams", queue_teams_event), ("email", queue_email_event)):
+            try:
+                queue(case_id, kind, **data)
+            except Exception:  # never let a notification break the request
+                logger.exception("Could not queue %s %s event for case %s", name, kind, case_id)
 
     transaction.on_commit(send)
 

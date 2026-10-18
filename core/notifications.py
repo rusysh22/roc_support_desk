@@ -66,10 +66,8 @@ def notify_user(user, event_type: str, context: dict):
     context.setdefault("recipient_name", user.username or user.get_full_name() or "User")
     context.setdefault("site_name", _get_site_name())
 
-    # Dispatch to enabled channels
-    if pref.email_enabled and user.email:
-        send_notification_email_task.delay(str(user.id), event_type, context)
-
+    # Dispatch to enabled channels. Email for ticket activity is sent by
+    # gateways.email_notify (fed by cases.signals), so it isn't repeated here.
     if pref.whatsapp_enabled and _whatsapp_notifications_allowed():
         wa_number = pref.get_whatsapp_destination()
         if wa_number:

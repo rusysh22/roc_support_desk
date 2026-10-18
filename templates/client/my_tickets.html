@@ -21,7 +21,7 @@
       <h1 class="text-lg sm:text-xl font-bold text-slate-900">My Tickets</h1>
       <p class="text-slate-500 text-xs sm:text-sm mt-0.5 hidden sm:block">Track and manage all your support conversations.</p>
     </div>
-    <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-emerald-600 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-emerald-700 transition-all shadow-sm flex-shrink-0">
+    <a href="{% url 'cases:dashboard' %}" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm flex-shrink-0">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       <span>New Ticket</span>
     </a>
@@ -33,7 +33,7 @@
     <a href="{{ tab.url }}" title="{{ tab.description }}" data-ticket-filter="{{ tab.key }}"
        {% if tab.active %}aria-current="page"{% endif %}
        class="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0
-       {% if tab.active %}{% if tab.key == 'action' %}bg-amber-500 text-white shadow-sm{% else %}bg-gradient-to-r from-indigo-600 to-emerald-600 text-white shadow-sm{% endif %}{% else %}bg-white border border-slate-200 text-slate-600 hover:bg-slate-50{% endif %}">
+       {% if tab.active %}{% if tab.key == 'action' %}bg-amber-500 text-white shadow-sm{% else %}bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm{% endif %}{% else %}bg-white border border-slate-200 text-slate-600 hover:bg-slate-50{% endif %}">
       {% if tab.key == 'action' and tab.count %}<span aria-hidden="true" class="w-1.5 h-1.5 rounded-full {% if tab.active %}bg-white{% else %}bg-amber-500{% endif %}"></span>{% endif %}
       {{ tab.label }} <span class="opacity-75">&middot; {{ tab.count }}</span>
     </a>
@@ -62,7 +62,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-6.3 8.4v5a1 1 0 01-.4.8l-4 3a1 1 0 01-1.6-.8v-8l-6.3-8.4A1 1 0 013 4z"/></svg>
           <span class="hidden sm:inline">Filters</span>
         </button>
-        <button type="submit" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white font-semibold text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all flex-shrink-0">
+        <button type="submit" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all flex-shrink-0">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
           <span class="hidden sm:inline">Search</span>
         </button>
@@ -220,11 +220,11 @@
     {% if status_filter or search_query or role_filter or view_filter %}
     <h3 class="text-base font-bold text-slate-700 mb-1.5">No tickets match your filters</h3>
     <p class="text-sm text-slate-500 mb-5 max-w-xs mx-auto">Try adjusting your search or clearing filters.</p>
-    <a href="{% url 'chat:my_tickets' %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-emerald-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-emerald-700 transition-all">Clear filters</a>
+    <a href="{% url 'chat:my_tickets' %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all">Clear filters</a>
     {% else %}
     <h3 class="text-base font-bold text-slate-700 mb-1.5">No tickets yet</h3>
     <p class="text-sm text-slate-500 mb-5 max-w-xs mx-auto">You haven't submitted any support requests yet.</p>
-    <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-emerald-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-emerald-700 transition-all">Submit a ticket</a>
+    <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all">Submit a ticket</a>
     {% endif %}
   </div>
   {% endif %}

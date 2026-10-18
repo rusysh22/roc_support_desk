@@ -1286,8 +1286,14 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
 
     site_name = SiteConfig.get_solo().site_name
 
+    from core.models import NotificationConfig
+
+    notif_cfg = NotificationConfig.get_solo()
+    if not (notif_cfg.email_updates_enabled and notif_cfg.email_requester_on_received):
+        return "skipped:disabled"
+
     try:
-        case = CaseRecord.objects.select_related("requester").get(id=case_id)
+        case = CaseRecord.objects.select_related("requester", "assigned_to").get(id=case_id)
         requester_name = case.requester_name or "there"
         to_email = ""
         if case.requester and case.requester.email:
@@ -1316,19 +1322,21 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
         )
 
         from core.utils.email_branding import attach_logo, render_branded_from_template
+        from gateways.email_notify import ticket_summary
 
         html_body = render_branded_from_template(
             "emails/bodies/ticket_ack.html",
             {
                 "requester_name": requester_name,
-                "case_number": case_number,
-                "case_subject": case.subject,
                 "ticket_url": ticket_url,
+                **ticket_summary(case, portal=True),
             },
             site_name=site_name,
-            title="Request received",
+            title="We've received your request",
+            eyebrow=f"{site_name} · {case_number}",
             cta_url=ticket_url,
-            cta_label="Open ticket",
+            cta_label="View ticket details",
+            footer_note="You receive this email because you submitted this ticket.",
         )
 
         from core.models import EmailConfig
@@ -1387,83 +1395,15 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
-@shared_task(
-    bind=True,
-    name="gateways.send_assignment_email_task",
-    max_retries=3,
-    default_retry_delay=30,
-    acks_late=True,
-)
-def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url: str) -> str:
-    """
-    Sends a modern card-designed email notification to the newly assigned user.
-    """
-    from cases.models import CaseRecord
-    from core.models import SiteConfig
-    from core.utils.email_branding import attach_logo, render_branded_from_template
-    from django.core.mail import EmailMultiAlternatives
-    import logging
-
-    try:
-        case = CaseRecord.objects.get(id=case_id)
-        if not case.assigned_to or not case.assigned_to.email:
-            return "skipped:no_assignee_email"
-            
-        site_name = SiteConfig.get_solo().site_name
-
-        req_name = case.requester.full_name if case.requester else case.requester_name
-        if case.requester and case.requester.unit:
-            req_name += f" ({case.requester.unit.name})"
-        elif case.requester_unit_name:
-            req_name += f" ({case.requester_unit_name})"
-
-        context = {
-            "case_number": case.case_number,
-            "case_subject": case.subject,
-            "requester_name": req_name,
-            "priority": case.get_priority_display(),
-            "assignee_name": case.assigned_to.get_full_name() or case.assigned_to.username,
-            "assigned_by": assigner_name,
-            "site_name": site_name,
-            "case_url": case_url,
-        }
-
-        html_body = render_branded_from_template(
-            "emails/bodies/ticket_assigned.html",
-            context,
-            site_name=site_name,
-            title="Ticket assigned to you",
-            cta_url=case_url,
-            cta_label="Open ticket",
-        )
-        
-        subject = f"[{site_name}] Ticket Assigned: {case.case_number} - {case.subject}"
-        
-        email_msg = EmailMultiAlternatives(
-            subject=subject,
-            body=f"Ticket {case.case_number} has been assigned to you by {assigner_name}. View here: {case_url}",
-            from_email=_resolved_from_email(),
-            to=[case.assigned_to.email],
-        )
-        email_msg.attach_alternative(html_body, "text/html")
-        attach_logo(email_msg)
-        email_msg.send(fail_silently=False)
-        
-        return "success:email_sent"
-        
-    except CaseRecord.DoesNotExist:
-        return "error:case_not_found"
-    except Exception as exc:
-        try:
-            self.retry(exc=exc)
-        except self.MaxRetriesExceededError:
-            return "error:max_retries"
-
-
 def queue_requester_status_email(case_id, status_value: str) -> None:
     from cases.models import CaseRecord
 
+    from core.models import NotificationConfig
+
     if status_value not in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED):
+        return
+    notif_cfg = NotificationConfig.get_solo()
+    if not (notif_cfg.email_updates_enabled and notif_cfg.email_requester_on_resolved):
         return
     send_requester_ticket_status_email_task.delay(str(case_id), status_value)
 
@@ -1487,7 +1427,7 @@ def send_requester_ticket_status_email_task(self, case_id: str, status_value: st
     from django.core.mail import EmailMultiAlternatives
 
     try:
-        case = CaseRecord.objects.select_related("requester").get(id=case_id)
+        case = CaseRecord.objects.select_related("requester", "assigned_to").get(id=case_id)
         to_email = ""
         requester_name = case.requester_name or "there"
         if case.requester and case.requester.email:
@@ -1526,17 +1466,23 @@ def send_requester_ticket_status_email_task(self, case_id: str, status_value: st
             f"{detail}\n\n"
             f"---\n{site_name}\n"
         )
+        from gateways.email_notify import ticket_summary
+
+        ticket_url = _case_portal_url(case.id)
         html_body = render_branded_from_template(
             "emails/bodies/ticket_status.html",
             {
                 "requester_name": requester_name,
-                "case_number": case_number,
-                "case_subject": case.subject or "",
-                "status_label": status_label,
                 "detail": detail,
+                "solution": (case.solving_steps or "").strip() if status_value == CaseRecord.Status.RESOLVED else "",
+                **ticket_summary(case, portal=True),
             },
             site_name=site_name,
             title=headline,
+            eyebrow=f"{site_name} · {case_number}",
+            cta_url=ticket_url,
+            cta_label="View ticket details",
+            footer_note="You receive this email because you submitted this ticket.",
         )
 
         cc_list = []
@@ -2485,106 +2431,6 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
         return "error:case_not_found"
     except Exception as exc:
         logger.error("send_new_ticket_email_notif_task failed: %s", exc)
-        try:
-            self.retry(exc=exc)
-        except self.MaxRetriesExceededError:
-            return "error:max_retries"
-
-
-# =====================================================================
-# Chat Portal — Staff Reply Notification
-# =====================================================================
-
-@shared_task(
-    bind=True,
-    name="gateways.notify_staff_chat_reply_task",
-    max_retries=2,
-    default_retry_delay=15,
-    acks_late=True,
-)
-def notify_staff_chat_reply_task(self, message_id: str) -> str:
-    """
-    Email staff when a portal user sends a new message in an existing ticket.
-
-    Only fires when:
-    - NotificationConfig.notify_new_ticket_email is enabled (reuses same setting)
-    - The ticket has not been viewed by staff in the last 2 minutes
-      (avoids flooding when a staff member is actively watching the thread)
-    """
-    from datetime import timedelta
-
-    from cases.models import CaseRecord, Message
-    from core.models import NotificationConfig, SiteConfig
-    from core.utils.email_branding import attach_logo, render_branded_from_template
-    from django.core.mail import EmailMultiAlternatives
-    from django.utils import timezone
-
-    try:
-        msg = Message.objects.select_related(
-            "case__requester", "case__category", "case__assigned_to"
-        ).get(id=message_id)
-    except Message.DoesNotExist:
-        return "error:message_not_found"
-
-    try:
-        case = msg.case
-
-        notif_cfg = NotificationConfig.get_solo()
-        if not notif_cfg.notify_new_ticket_email:
-            return "skipped:email_notif_disabled"
-
-        if case.last_viewed_at and (timezone.now() - case.last_viewed_at) < timedelta(minutes=2):
-            return "skipped:staff_active"
-
-        recipients = notif_cfg.get_email_recipients_list()
-        if case.assigned_to and case.assigned_to.email:
-            recipients = [case.assigned_to.email]
-        if not recipients:
-            return "skipped:no_recipients"
-
-        site_name = SiteConfig.get_solo().site_name
-        case_url = _case_desk_url(case.id)
-
-        from_name = case.requester_name or case.requester_email or "Portal User"
-        preview = (msg.body or "")[:300]
-
-        email_subject = f"[{site_name}] New chat message in {case.case_number}"
-
-        plain = (
-            f"A portal user sent a new message in ticket {case.case_number}.\n\n"
-            f"From   : {from_name}\n"
-            f"Ticket : {case.subject}\n"
-            f"Message: {msg.body[:300] if msg.body else ''}\n\n"
-            f"Open ticket: {case_url}\n"
-        )
-
-        html = render_branded_from_template(
-            "emails/bodies/chat_reply_staff.html",
-            {
-                "case_number": case.case_number,
-                "from_name": from_name,
-                "case_subject": case.subject,
-                "message_preview": preview,
-            },
-            site_name=site_name,
-            title="New portal chat message",
-            cta_url=case_url,
-            cta_label="Open ticket",
-        )
-
-        email_msg = EmailMultiAlternatives(
-            subject=email_subject,
-            body=plain,
-            from_email=_resolved_from_email(),
-            to=recipients,
-        )
-        email_msg.attach_alternative(html, "text/html")
-        attach_logo(email_msg)
-        email_msg.send(fail_silently=False)
-        return f"success:{len(recipients)}_recipients"
-
-    except Exception as exc:
-        logger.error("notify_staff_chat_reply_task failed: %s", exc)
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
