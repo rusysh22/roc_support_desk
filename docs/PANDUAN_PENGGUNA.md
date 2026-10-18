@@ -51,6 +51,8 @@ Halaman login adalah pintu masuk utama ke sistem RoC Support Desk.
 
 > 💡 **Tips:** Jika Anda sudah pernah login sebelumnya dan lupa password, klik tautan **"Forgot password?"** di bawah tombol Sign In.
 
+> Jika Anda login dengan Microsoft atau Google (SSO), password dikelola di penyedia tersebut. Fitur Change Password tidak tampil di halaman profil.
+
 > ⚠️ **Perhatian:** Akun akan terkunci sementara jika terlalu banyak percobaan login yang gagal. Hubungi administrator jika mengalami masalah.
 
 ![Halaman Login](./screenshots/login.png)
@@ -270,9 +272,11 @@ Kanban Board menampilkan tiket dalam bentuk kolom berdasarkan statusnya, memudah
 
 | Kolom | Warna | Keterangan |
 |-------|-------|-----------|
-| **Open** | Kuning | Tiket baru, belum ditangani |
-| **Investigating** | Biru | Sedang dalam proses investigasi |
-| **Pending Info** | Ungu | Menunggu informasi tambahan dari pemohon |
+| **New** | Kuning | Tiket baru, belum ditangani |
+| **Assigned** | Biru muda | Sudah ditugaskan ke PIC |
+| **In Progress** | Biru | Sedang dikerjakan oleh PIC |
+| **Pending User** | Ungu | Menunggu informasi tambahan dari pemohon (SLA dijeda) |
+| **Pending External** | Oranye | Menunggu vendor/pihak ketiga (SLA dijeda) |
 | **Resolved** | Hijau | Masalah sudah diselesaikan |
 | **Closed** | Abu-abu | Tiket ditutup secara final |
 
@@ -313,7 +317,9 @@ Halaman detail tiket adalah tempat utama pengelolaan sebuah tiket secara lengkap
 - **Nama Pemohon, Email, No. Telepon, Jabatan, Unit** — Informasi kontak pemohon.
 - **Status** — Status saat ini ditampilkan dengan badge warna.
 - **Sumber** — Saluran masuk tiket (WhatsApp / Email / Web Form).
-- **Prioritas** — Tingkat urgensi (Low / Medium / High / Critical).
+- **Impact** — High / Medium / Low.
+- **Severity** — Severity 1 / 2 / 3.
+- **Priority** — Dihitung otomatis dari matriks Severity × Impact (P1–P4).
 - **Tipe** — Jenis permintaan (Question / Incident / Request).
 
 **Panel Kiri — Thread Percakapan:**
@@ -391,20 +397,24 @@ Jika tersedia, klik salah satu tombol template di bawah kolom RCA. Template akan
 Setiap tiket melewati alur status berikut:
 
 ```
-Open  →  Investigating  →  Pending Info  →  Resolved  →  Closed
+New  →  Assigned  →  In Progress  →  (Pending User / Pending External)  →  Resolved  →  Closed
 ```
 
 | Status | Keterangan |
 |--------|-----------|
-| **Open** | Tiket baru diterima, belum ada tindakan |
-| **Investigating** | Staf sedang menginvestigasi masalah |
-| **Pending Info** | Menunggu informasi tambahan dari pemohon |
-| **Resolved** | Masalah telah diselesaikan (menunggu konfirmasi pemohon) |
-| **Closed** | Tiket ditutup secara final |
+| **New** | Tiket baru diterima, belum ada tindakan |
+| **Assigned** | Tiket sudah ditugaskan ke PIC |
+| **In Progress** | Staf sedang mengerjakan tiket |
+| **Pending User** | Menunggu informasi tambahan dari pemohon |
+| **Pending External** | Menunggu proses dari vendor atau pihak ketiga |
+| **Resolved** | Masalah telah diselesaikan. Pemohon atau staff masih dapat reopen tiket (kembali ke In Progress). |
+| **Closed** | Tiket ditutup secara final. Tidak dapat di-reopen. Otomatis setelah 5 hari berstatus Resolved, atau ditutup oleh staff. |
+| **Rejected** | Tiket tidak valid atau tidak memenuhi persyaratan |
+| **Cancelled** | Tiket dibatalkan sebelum selesai diproses |
 
 **Cara mengubah status:**
 
-1. Di halaman detail tiket, klik tombol status yang sesuai (contoh: **"Set to Investigating"**).
+1. Di halaman detail tiket, klik tombol status yang sesuai (contoh: **"Set to In Progress"**).
 2. Konfirmasi perubahan jika diminta.
 3. Status tiket akan diperbarui dan pemohon akan mendapat notifikasi (tergantung konfigurasi).
 

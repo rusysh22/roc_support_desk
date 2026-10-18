@@ -33,7 +33,9 @@ Dokumen ini menjelaskan alur kerja operasional utama dalam sistem **RoC Support 
    - Waktu penyelesaian (Resolution Time) dihentikan (untuk penghitungan performa SLA).
 
 6. **Penutupan (Closed):**
-   - Jika dalam beberapa hari tidak ada sanggahan lebih lanjut dari Klien, admin secara permanen mengubah status ke **"Closed"**.
+   - Tiket **Resolved** masih dapat di-reopen (kembali ke In Progress) oleh pemohon atau staff.
+   - Jika status Resolved sudah 5 hari, sistem otomatis mengubah status ke **Closed**.
+   - Tiket **Closed** tidak dapat di-reopen.
 
 ---
 
