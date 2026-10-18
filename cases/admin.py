@@ -7,8 +7,8 @@ from unfold.admin import ModelAdmin, TabularInline, StackedInline
 from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument,
-    DocumentTemplate, DocumentTemplateField, Message, RCATemplate,
-    SLAPolicy, TicketApproval,
+    DocumentTemplate, DocumentTemplateField, Message, PriorityMatrixRule, RCATemplate,
+    SLAPolicy, TicketApproval, TicketLocation,
 )
 
 
@@ -92,6 +92,22 @@ class RCATemplateAdmin(ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+@admin.register(TicketLocation)
+class TicketLocationAdmin(ModelAdmin):
+    list_display = ("name", "slug", "requires_detail", "is_active", "order")
+    list_filter = ("is_active", "requires_detail")
+    list_editable = ("order", "is_active")
+    search_fields = ("name", "slug")
+    ordering = ("order", "name")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
 # =====================================================================
 # Ticket Record
 # =====================================================================
@@ -103,7 +119,7 @@ class CaseRecordAdmin(ModelAdmin):
         "requester", "assigned_to", "created_at",
         "response_due_at", "resolution_due_at", "is_spam",
     )
-    list_filter = ("is_spam", "status", "source", "category", "assigned_to")
+    list_filter = ("is_spam", "status", "source", "category", "assigned_to", "location")
     search_fields = ("subject", "requester__full_name", "requester__email")
     ordering = ("-created_at",)
     readonly_fields = (
@@ -117,6 +133,7 @@ class CaseRecordAdmin(ModelAdmin):
             "fields": (
                 "id", "case_number", "is_spam", "requester", "category",
                 "subject", "status", "source", "assigned_to",
+                "location", "location_detail",
             ),
         }),
         ("Problem & Solving", {
@@ -261,6 +278,33 @@ class TicketApprovalAdmin(ModelAdmin):
     list_display = ("case", "tier", "approver", "status", "actioned_at", "created_at")
     list_filter = ("status", "tier")
     search_fields = ("case__ticket_id", "approver__full_name", "case__subject")
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(SLAPolicy)
+class SLAPolicyAdmin(ModelAdmin):
+    list_display = ("priority", "response_time_hours", "resolution_time_hours", "updated_at")
+    ordering = ("priority",)
+    readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(PriorityMatrixRule)
+class PriorityMatrixRuleAdmin(ModelAdmin):
+    list_display = ("severity", "impact", "priority", "updated_at")
+    list_filter = ("severity", "impact", "priority")
+    ordering = ("severity", "impact")
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
 
     def save_model(self, request, obj, form, change):

@@ -29,6 +29,13 @@ urlpatterns = [
     path("cases/partials/table/", views.case_list_partial, name="case_list_partial"),
     path("cases/partials/kanban/", views.case_kanban_partial, name="case_kanban_partial"),
 
+    # Live filtering (HTMX) — results block (count/chips/table/pagination)
+    path("cases/partials/results/", views.case_list_results_partial, name="case_list_results_partial"),
+
+    # Saved Filters (Ticket Management quick views)
+    path("cases/saved-filters/", views.saved_filter_create, name="saved_filter_create"),
+    path("cases/saved-filters/<uuid:filter_id>/delete/", views.saved_filter_delete, name="saved_filter_delete"),
+
     # Export to Excel
     path("cases/export/", views.case_export_excel, name="case_export"),
 
@@ -42,6 +49,7 @@ urlpatterns = [
     path("cases/<uuid:case_id>/comment/", views.case_add_comment, name="case_add_comment"),
     path("cases/<uuid:case_id>/thread/", views.chat_thread, name="chat_thread"),
     path("cases/<uuid:case_id>/status/", views.case_update_status, name="case_update_status"),
+    path("cases/<uuid:case_id>/activate-sso-user/", views.case_activate_sso_user, name="case_activate_sso_user"),
     path("cases/<uuid:case_id>/close-notify/", views.case_close_and_notify, name="case_close_and_notify"),
     path("cases/<uuid:case_id>/update-requester/", views.case_update_requester, name="case_update_requester"),
     path("cases/<uuid:case_id>/update-subject/", views.case_update_subject, name="case_update_subject"),
@@ -87,8 +95,14 @@ urlpatterns = [
     path("forms/<uuid:pk>/edit/", views.form_edit_view, name="form_edit"),
     path("forms/<uuid:pk>/delete/", views.form_delete_view, name="form_delete"),
     path("forms/<uuid:pk>/duplicate/", views.form_duplicate_view, name="form_duplicate"),
+    path("forms/<uuid:pk>/collaborators/", views.form_collaborators_update, name="form_collaborators_update"),
     path("forms/<uuid:pk>/responses/", views.form_responses_view, name="form_responses"),
     path("forms/<uuid:pk>/responses/export/", views.form_responses_export, name="form_responses_export"),
+    path("forms/bulk-archive/", views.form_bulk_archive, name="form_bulk_archive"),
+    path("forms/bulk-unarchive/", views.form_bulk_unarchive, name="form_bulk_unarchive"),
+    path("forms/bulk-delete/", views.form_bulk_delete, name="form_bulk_delete"),
+    path("forms/bulk-duplicate/", views.form_bulk_duplicate, name="form_bulk_duplicate"),
+    path("forms/bulk-export/", views.form_bulk_export, name="form_bulk_export"),
 
     # RCA Templates
     path("rca-templates/create/", views.rca_template_create, name="rca_template_create"),
@@ -100,11 +114,27 @@ urlpatterns = [
     path("categories/<uuid:category_id>/edit/", views.category_manage_edit, name="category_edit"),
     path("categories/<uuid:category_id>/delete/", views.category_manage_delete, name="category_delete"),
 
+    # Ticket Location Management (Admin CRUD — Master Data)
+    path("locations/", views.location_manage_list, name="location_list"),
+    path("locations/create/", views.location_manage_create, name="location_create"),
+    path("locations/<uuid:location_id>/edit/", views.location_manage_edit, name="location_edit"),
+    path("locations/<uuid:location_id>/delete/", views.location_manage_delete, name="location_delete"),
+    path("locations/bulk-archive/", views.location_bulk_archive, name="location_bulk_archive"),
+    path("locations/bulk-unarchive/", views.location_bulk_unarchive, name="location_bulk_unarchive"),
+    path("locations/bulk-delete/", views.location_bulk_delete, name="location_bulk_delete"),
+    path("locations/bulk-duplicate/", views.location_bulk_duplicate, name="location_bulk_duplicate"),
+    path("locations/bulk-export/", views.location_bulk_export, name="location_bulk_export"),
+
     # Document Templates (Admin CRUD)
     path("document-templates/", views.document_template_list, name="document_template_list"),
     path("document-templates/create/", views.document_template_create, name="document_template_create"),
     path("document-templates/<uuid:template_id>/edit/", views.document_template_edit, name="document_template_edit"),
     path("document-templates/<uuid:template_id>/delete/", views.document_template_delete, name="document_template_delete"),
+    path("document-templates/bulk-archive/", views.document_template_bulk_archive, name="document_template_bulk_archive"),
+    path("document-templates/bulk-unarchive/", views.document_template_bulk_unarchive, name="document_template_bulk_unarchive"),
+    path("document-templates/bulk-delete/", views.document_template_bulk_delete, name="document_template_bulk_delete"),
+    path("document-templates/bulk-duplicate/", views.document_template_bulk_duplicate, name="document_template_bulk_duplicate"),
+    path("document-templates/bulk-export/", views.document_template_bulk_export, name="document_template_bulk_export"),
 
     # Notifications Bell
     path("notifications/", views.notification_bell, name="notifications"),
@@ -115,6 +145,10 @@ urlpatterns = [
 from core.views import (
     CompanyUnitListView, CompanyUnitCreateView, CompanyUnitUpdateView, CompanyUnitDeleteView,
     JobRoleListView, JobRoleCreateView, JobRoleUpdateView, JobRoleDeleteView,
+    company_unit_bulk_archive, company_unit_bulk_unarchive, company_unit_bulk_delete,
+    company_unit_bulk_duplicate, company_unit_bulk_export,
+    job_role_bulk_archive, job_role_bulk_unarchive, job_role_bulk_delete,
+    job_role_bulk_duplicate, job_role_bulk_export,
 )
 
 urlpatterns += [
@@ -123,10 +157,20 @@ urlpatterns += [
     path("company-units/create/", CompanyUnitCreateView.as_view(), name="company_unit_create"),
     path("company-units/<uuid:pk>/edit/", CompanyUnitUpdateView.as_view(), name="company_unit_edit"),
     path("company-units/<uuid:pk>/delete/", CompanyUnitDeleteView.as_view(), name="company_unit_delete"),
+    path("company-units/bulk-archive/", company_unit_bulk_archive, name="company_unit_bulk_archive"),
+    path("company-units/bulk-unarchive/", company_unit_bulk_unarchive, name="company_unit_bulk_unarchive"),
+    path("company-units/bulk-delete/", company_unit_bulk_delete, name="company_unit_bulk_delete"),
+    path("company-units/bulk-duplicate/", company_unit_bulk_duplicate, name="company_unit_bulk_duplicate"),
+    path("company-units/bulk-export/", company_unit_bulk_export, name="company_unit_bulk_export"),
 
     # Job Roles Master Data
     path("job-roles/", JobRoleListView.as_view(), name="job_role_list"),
     path("job-roles/create/", JobRoleCreateView.as_view(), name="job_role_create"),
     path("job-roles/<int:pk>/edit/", JobRoleUpdateView.as_view(), name="job_role_edit"),
     path("job-roles/<int:pk>/delete/", JobRoleDeleteView.as_view(), name="job_role_delete"),
+    path("job-roles/bulk-archive/", job_role_bulk_archive, name="job_role_bulk_archive"),
+    path("job-roles/bulk-unarchive/", job_role_bulk_unarchive, name="job_role_bulk_unarchive"),
+    path("job-roles/bulk-delete/", job_role_bulk_delete, name="job_role_bulk_delete"),
+    path("job-roles/bulk-duplicate/", job_role_bulk_duplicate, name="job_role_bulk_duplicate"),
+    path("job-roles/bulk-export/", job_role_bulk_export, name="job_role_bulk_export"),
 ]

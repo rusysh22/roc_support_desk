@@ -21,21 +21,43 @@ from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.conf import settings
 from django.core.mail import send_mail
-from django.shortcuts import get_object_or_404, render
+from django.contrib.auth.views import redirect_to_login
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from ipware import get_client_ip as _get_client_ip
 
+from .activity import annotate_portal_activity, mark_activity_read, portal_activity_snapshot, visible_cases
+from .models import CaseActivityRead
 from core.models import CompanyUnit, Employee, User, normalize_phone_e164, phone_regex
 from .models import (
     Attachment, CaseAuditLog, CaseCategory, CaseRecord,
     ChangeRequestApproval, ChangeRequestDocument, Message,
 )
+
+# Client-facing status label/color — single source of truth for this module
+# (was previously duplicated 3x). Wording is intentionally friendlier than
+# CaseRecord.STATUS_META's staff-facing labels (e.g. "Need Info" instead of
+# "Pending User"). Includes the two approval-routing statuses, which
+# STATUS_META deliberately excludes.
+STATUS_DISPLAY_MAP = {
+    CaseRecord.Status.PENDING_APPROVAL:   ("On Approval",        "amber"),
+    CaseRecord.Status.REVISION_REQUIRED:  ("Revision Required",  "red"),
+    CaseRecord.Status.NEW:                ("Waiting",            "yellow"),
+    CaseRecord.Status.ASSIGNED:           ("Assigned",           "indigo"),
+    CaseRecord.Status.IN_PROGRESS:        ("In Progress",        "blue"),
+    CaseRecord.Status.PENDING_USER:       ("Need Info",          "orange"),
+    CaseRecord.Status.PENDING_EXTERNAL:   ("Waiting on Vendor",  "pink"),
+    CaseRecord.Status.RESOLVED:           ("Resolved",           "green"),
+    CaseRecord.Status.CLOSED:             ("Closed",             "slate"),
+    CaseRecord.Status.REJECTED:           ("Rejected",           "red"),
+    CaseRecord.Status.CANCELLED:          ("Cancelled",          "slate"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +68,105 @@ CHAT_RATE_LIMIT_KEY = "chat_start_{ip}"
 CHAT_RATE_LIMIT_MAX = 5
 CHAT_RATE_LIMIT_WINDOW = 600  # 10 minutes
 
-REOPEN_WINDOW_DAYS = 7
+def _reopen_window_days() -> int:
+    return int(getattr(settings, "CHAT_AUTO_CLOSE_IDLE_DAYS", 5))
+
+
+# ---------------------------------------------------------------------------
+# Portal "My Tickets" progress tracker
+# ---------------------------------------------------------------------------
+# Collapses CaseRecord's internal ~11-status lifecycle (New/Assigned/
+# InProgress/PendingUser/PendingExternal/Resolved/Closed/Rejected/Cancelled,
+# plus the approval-routing sub-states PendingApproval/RevisionRequired)
+# into a friendly 5-step linear tracker for the portal ticket list — the
+# same mental model as a delivery/order tracker, so requesters don't need
+# to learn internal workflow vocabulary. Rejected/Cancelled are terminal
+# off-ramps that don't fit a forward-moving bar, so they're flagged
+# separately (is_negative) instead of forced onto a step number.
+PORTAL_STEP_LABELS = ["Submitted", "Received", "In Progress", "Solution Provided", "Closed"]
+PORTAL_TOTAL_STEPS = len(PORTAL_STEP_LABELS)
+
+# Statuses where the ball is explicitly in the requester's court.
+NEEDS_ACTION_STATUSES = {
+    CaseRecord.Status.PENDING_USER,
+    CaseRecord.Status.REVISION_REQUIRED,
+    CaseRecord.Status.RESOLVED,
+}
+# Everything else that's still moving (not needing action, not finished/killed).
+IN_PROGRESS_STATUSES = {
+    CaseRecord.Status.NEW,
+    CaseRecord.Status.ASSIGNED,
+    CaseRecord.Status.IN_PROGRESS,
+    CaseRecord.Status.PENDING_EXTERNAL,
+}
+
+# Portal groups cover the entire lifecycle without overlapping status counts.
+PORTAL_TICKET_FILTERS = (
+    ("", "All", None, "All your submitted and followed tickets, including closed tickets."),
+    ("action", "Action Required", NEEDS_ACTION_STATUSES, "Requester reply, revision, or solution review is needed."),
+    ("progress", "In Progress", IN_PROGRESS_STATUSES, "Submitted, assigned, being investigated, or waiting on another team."),
+    ("approval", "Awaiting Approval", {CaseRecord.Status.PENDING_APPROVAL}, "Waiting for an approver's decision. Your approvals are in My Approvals."),
+    ("closed", "Closed", {CaseRecord.Status.CLOSED}, "Completed tickets that have been closed."),
+    ("inactive", "Rejected / Cancelled", {CaseRecord.Status.REJECTED, CaseRecord.Status.CANCELLED}, "Requests that were rejected or cancelled."),
+)
+
+
+_PORTAL_STATUS_META = {
+    # status: (step, step_label, status_label, status_color, needs_action, action_label)
+    CaseRecord.Status.REVISION_REQUIRED: (1, "Submitted", "Revision Needed", "amber", True, "Revise & Resubmit"),
+    CaseRecord.Status.PENDING_APPROVAL:  (1, "Submitted", "Awaiting Approval", "blue", False, None),
+    CaseRecord.Status.NEW:               (1, "Submitted", "Submitted", "blue", False, None),
+    CaseRecord.Status.ASSIGNED:          (2, "Received", "Received by Team", "blue", False, None),
+    CaseRecord.Status.PENDING_USER:      (3, "In Progress", "Needs Your Reply", "amber", True, "Reply"),
+    CaseRecord.Status.PENDING_EXTERNAL:  (3, "In Progress", "Waiting on Third Party", "blue", False, None),
+    CaseRecord.Status.IN_PROGRESS:       (3, "In Progress", "In Progress", "blue", False, None),
+    CaseRecord.Status.RESOLVED:          (4, "Solution Provided", "Solution Provided", "green", True, "Review Solution"),
+    CaseRecord.Status.CLOSED:            (5, "Closed", "Closed", "green", False, None),
+}
+
+
+def _portal_progress(status: str) -> dict:
+    """Portal-friendly step/status info for one CaseRecord.status value,
+    including pre-computed progress-bar segment colors — see module
+    docstring above for the design rationale."""
+    from core.templatetags.custom_tags import status_meta
+    # Bar segments use the status's own color (same one as its status
+    # badge), so the progress bar matches the ticket's real status color.
+    bar_color = status_meta(status).get("color", "#94a3b8")
+
+    if status in (CaseRecord.Status.REJECTED, CaseRecord.Status.CANCELLED):
+        is_rejected = status == CaseRecord.Status.REJECTED
+        label = "Rejected" if is_rejected else "Cancelled"
+        return {
+            "step": None, "total_steps": PORTAL_TOTAL_STEPS, "step_label": label, "bar_color": bar_color,
+            "status_label": label, "status_color": "red" if is_rejected else "slate",
+            "needs_action": False, "action_label": None,
+            "is_terminal": True, "is_negative": True, "segments": None,
+        }
+
+    step, step_label, status_label, status_color, needs_action, action_label = (
+        _PORTAL_STATUS_META.get(status, (1, str(status), str(status), "slate", False, None))
+    )
+    is_terminal = status == CaseRecord.Status.CLOSED
+
+    if is_terminal:
+        segments = ["done-green"] * PORTAL_TOTAL_STEPS
+    else:
+        segments = []
+        for i in range(1, PORTAL_TOTAL_STEPS + 1):
+            if i < step:
+                segments.append("done")
+            elif i == step:
+                segments.append("current-action" if needs_action else "current")
+            else:
+                segments.append("upcoming")
+
+    return {
+        "step": step, "total_steps": PORTAL_TOTAL_STEPS, "step_label": step_label, "bar_color": bar_color,
+        "status_label": status_label, "status_color": status_color,
+        "needs_action": needs_action, "action_label": action_label,
+        "is_terminal": is_terminal, "is_negative": False, "segments": segments,
+    }
 
 ALLOWED_MIME_TYPES = {
     "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -65,6 +185,7 @@ STAFF_ROLES = {
     User.RoleAccess.SUPERADMIN,
     User.RoleAccess.MANAGER,
     User.RoleAccess.SUPPORTDESK,
+    User.RoleAccess.ENGINEER,
     User.RoleAccess.AUDITOR,
 }
 
@@ -80,14 +201,22 @@ def _get_guest_token(request, case_uuid):
 def _dispatch_status_notification(case, actor_user, new_status_label):
     """Notify all ticket participants about a status change."""
     from core.notifications import notify_user
-    from core.models import User
+    from core.models import SiteConfig, User
+
+    # Absolute URL — matches the convention used for the offline chat-reply
+    # email (cases/tasks.py) and the chat-notification email (cases/consumers.py).
+    try:
+        site_config = SiteConfig.get_solo()
+        base_url = (site_config.site_url or getattr(settings, "SITE_URL", "")).rstrip("/")
+    except Exception:
+        base_url = getattr(settings, "SITE_URL", "").rstrip("/")
 
     context = {
         "ticket_id": str(case.id),
         "ticket_subject": case.subject or "",
         "sender_name": actor_user.username or actor_user.get_full_name() or "System",
         "new_status": new_status_label,
-        "ticket_url": f"/portal/chat/{case.id}/",
+        "ticket_url": f"{base_url}/portal/chat/{case.id}/",
     }
 
     participants = []
@@ -109,7 +238,13 @@ def _can_access_case(request, case):
     """Return True if the request is allowed to access this case's chat."""
     user = request.user
     if user.is_authenticated:
+        email = (user.email or "").lower()
+        if email and email == (case.requester_email or "").lower():
+            return True
         if user.role_access in STAFF_ROLES:
+            if user.role_access == User.RoleAccess.ENGINEER:
+                if case.assigned_to_id != user.id:
+                    return False
             if getattr(case.category, 'is_confidential', False):
                 if user.role_access != User.RoleAccess.SUPERADMIN and not getattr(user, 'can_handle_confidential', False):
                     return False
@@ -336,30 +471,32 @@ def chat_units(request):
 
 @require_GET
 def chat_categories(request):
-    """JSON list of root categories for the pre-chat category picker."""
-    roots = (
+    """JSON tree of categories for the pre-chat category picker."""
+    cats = list(
         CaseCategory.objects
-        .filter(parent__isnull=True)
         .exclude(slug__in=["whatsapp-general", "email-general"])
         .exclude(is_confidential=True)
-        .prefetch_related("children")
+        .order_by("name")
     )
-    data = []
-    for cat in roots:
-        children = [
-            {"id": str(c.id), "name": c.name, "icon": c.icon}
-            for c in cat.children.all()
-            if not c.is_confidential
-        ]
-        data.append({
-            "id": str(cat.id),
-            "name": cat.name,
-            "icon": cat.icon or "📝",
-            "description": cat.description,
-            "has_children": bool(children),
-            "children": children,
-        })
-    return JsonResponse({"categories": data})
+    by_parent = {}
+    for cat in cats:
+        by_parent.setdefault(cat.parent_id, []).append(cat)
+
+    def serialize(parent_id):
+        data = []
+        for cat in by_parent.get(parent_id, []):
+            children = serialize(cat.pk)
+            data.append({
+                "id": str(cat.id),
+                "name": cat.name,
+                "icon": cat.icon or "📝",
+                "description": cat.description,
+                "has_children": bool(children),
+                "children": children,
+            })
+        return data
+
+    return JsonResponse({"categories": serialize(None)})
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +556,7 @@ def chat_start(request):
       category_id  — UUID of the leaf category
       name         — requester full name
       email        — requester email
+      job_role     — requester job role (optional, from the requestor picker)
       unit_id      — CompanyUnit PK (selected from dropdown)
       message      — first message body
 
@@ -454,6 +592,7 @@ def chat_start(request):
     additional_phone = normalize_phone_e164((body.get("additional_phone") or "").strip())
     additional_email = (body.get("additional_email") or "").strip()
     unit_id = (body.get("unit_id") or "").strip()
+    job_role = (body.get("job_role") or "").strip()[:150]
     first_message = (body.get("message") or "").strip()
 
     if not category_id:
@@ -493,7 +632,8 @@ def chat_start(request):
     created = employee is None
     if created:
         employee = Employee.objects.create(
-            full_name=name, email=email or None, phone_number=phone or None, unit=unit,
+            full_name=name, email=email or None, phone_number=phone or None,
+            unit=unit, job_role=job_role,
         )
     else:
         update_fields = []
@@ -509,6 +649,9 @@ def chat_start(request):
         if additional_email and not employee.email:
             employee.email = additional_email
             update_fields.append("email")
+        if job_role and not employee.job_role:
+            employee.job_role = job_role
+            update_fields.append("job_role")
         if update_fields:
             employee.save(update_fields=update_fields)
 
@@ -524,13 +667,15 @@ def chat_start(request):
         requester_email=email,
         requester_phone=phone,
         requester_name=name,
+        requester_job_role=job_role or employee.job_role or "",
         requester_unit_name=unit_name,
         category=category,
         subject=subject,
         problem_description=first_message,
         source=CaseRecord.Source.WEBCHAT,
-        status=CaseRecord.Status.OPEN,
+        status=CaseRecord.Status.NEW,
         has_unread_messages=True,
+        last_user_reply_at=timezone.now(),
         guest_token=guest_token,
     )
 
@@ -589,7 +734,23 @@ def chat_room(request, case_uuid):
     """
     case = get_object_or_404(CaseRecord, id=case_uuid)
     if not _can_access_case(request, case):
+        if not request.user.is_authenticated:
+            return redirect_to_login(request.get_full_path(), login_url=settings.LOGIN_URL)
+        if request.user.role_access == User.RoleAccess.PORTALUSER:
+            from django.contrib import messages
+            messages.warning(request, "You don't have access to that ticket.")
+            return redirect("chat:my_tickets")
         return HttpResponseForbidden()
+
+    # Staff handle tickets in the Desk — send them there, unless it's their own
+    # ticket (they're the requester) or they explicitly want the portal view.
+    if (
+        request.user.is_authenticated
+        and request.user.role_access in STAFF_ROLES
+        and (request.user.email or "").lower() != (case.requester_email or "").lower()
+        and request.GET.get("view") != "portal"
+    ):
+        return redirect("desk:case_detail", case_id=case.id)
 
     messages_qs = (
         case.messages
@@ -604,8 +765,9 @@ def chat_room(request, case_uuid):
     can_send = case.status not in (CaseRecord.Status.CLOSED,)
     can_reopen = (
         case.status == CaseRecord.Status.RESOLVED
-        and (timezone.now() - case.updated_at).days < REOPEN_WINDOW_DAYS
+        and (timezone.now() - case.updated_at).days < _reopen_window_days()
     )
+    can_follow_up, follow_up_reason = case.can_follow_up()
 
     user = request.user
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
@@ -623,8 +785,9 @@ def chat_room(request, case_uuid):
         session_key = f"chat_lr_{case_uuid}"
         last_read_str = request.session.get(session_key)
         # Fall back to DB value when session was cleared (e.g. after re-login)
-        if not last_read_str and case.client_last_read_at:
-            last_read_str = case.client_last_read_at.isoformat()
+        personal_read = CaseActivityRead.objects.filter(case=case, user=user).first() if user.is_authenticated else None
+        if personal_read:
+            last_read_str = personal_read.last_read_at.isoformat()
         if last_read_str:
             try:
                 last_read_dt = datetime.datetime.fromisoformat(last_read_str)
@@ -645,6 +808,7 @@ def chat_room(request, case_uuid):
         # Persist to DB so the read state survives session expiry / re-login
         case.client_last_read_at = timezone.now()
         case.save(update_fields=["client_last_read_at"])
+    mark_activity_read(case, user)
 
     followers = list(
         case.followers.values("id", "username", "email")
@@ -707,16 +871,65 @@ def chat_room(request, case_uuid):
         })
 
     # Unified status label (same as my_tickets)
-    _STATUS_LABEL = {
-        CaseRecord.Status.PENDING_APPROVAL:   ("On Approval",       "amber"),
-        CaseRecord.Status.REVISION_REQUIRED:  ("Revision Required", "red"),
-        CaseRecord.Status.OPEN:               ("Waiting",           "yellow"),
-        CaseRecord.Status.INVESTIGATING:      ("In Progress",       "blue"),
-        CaseRecord.Status.PENDING_INFO:       ("Need Info",         "orange"),
-        CaseRecord.Status.RESOLVED:           ("Resolved",          "green"),
-        CaseRecord.Status.CLOSED:             ("Closed",            "slate"),
-    }
-    status_label, status_color = _STATUS_LABEL.get(case.status, (str(case.status), "slate"))
+    status_label, status_color = STATUS_DISPLAY_MAP.get(case.status, (str(case.status), "slate"))
+
+    # "Progress & Updates" sidebar timeline — merges status-change audit log
+    # entries with staff-sent chat messages into one newest-first feed, so a
+    # requester can see what happened and what support said without having
+    # to parse the full conversation. Replaces the old "Ticket Info" card's
+    # duplicate status/subject/number (already shown in the page header).
+    progress_timeline = []
+    for log in (
+        case.audit_logs
+        .filter(field_name__in=["status", "assigned_to", "progress_note"])
+        .select_related("created_by")
+        .order_by("-created_at")[:20]
+    ):
+        if log.field_name == "progress_note":
+            # Optional note staff typed in the status-change pop-up;
+            # old_value holds the status the ticket moved to.
+            progress_timeline.append({
+                "kind": "progress",
+                "at": log.created_at,
+                "actor": log.created_by.get_full_name() if log.created_by else "System",
+                "new_status": log.old_value,
+                "body": log.new_value,
+            })
+        elif log.field_name == "status":
+            progress_timeline.append({
+                "kind": "status",
+                "at": log.created_at,
+                "actor": log.created_by.get_full_name() if log.created_by else "System",
+                # Raw status codes (not the friendly label) — the template
+                # renders these through the same solid jk-badge colors as
+                # the admin ticket table, via partials/status_badge.html.
+                "old_status": log.old_value,
+                "new_status": log.new_value,
+            })
+        else:
+            progress_timeline.append({
+                "kind": "assigned",
+                "at": log.created_at,
+                "actor": log.created_by.get_full_name() if log.created_by else "System",
+                "new_label": log.new_value,
+            })
+
+    for msg in (
+        case.messages
+        .filter(direction="OUT", is_system=False, is_deleted=False)
+        .exclude(sender_staff__isnull=True)
+        .select_related("sender_staff")
+        .order_by("-sent_at")[:20]
+    ):
+        progress_timeline.append({
+            "kind": "message",
+            "at": msg.sent_at,
+            "actor": msg.sender_staff.get_full_name() or msg.sender_staff.username,
+            "body": re.sub(r'<[^>]+>', ' ', msg.body or '').strip()[:180],
+        })
+
+    progress_timeline.sort(key=lambda e: e["at"], reverse=True)
+    progress_timeline = progress_timeline[:15]
 
     # First pending tier = the currently active approver
     _sorted_approvals = sorted(case.approvals.all(), key=lambda a: a.tier)
@@ -731,6 +944,9 @@ def chat_room(request, case_uuid):
         "chat_messages": messages_qs,
         "can_send": can_send,
         "can_reopen": can_reopen,
+        "reopen_window_days": _reopen_window_days(),
+        "can_follow_up": can_follow_up,
+        "follow_up_reason": follow_up_reason,
         "guest_token": _get_guest_token(request, case_uuid),
         "user_direction": user_direction,
         "is_staff": is_staff and not is_requester,
@@ -743,6 +959,7 @@ def chat_room(request, case_uuid):
         "status_label": status_label,
         "status_color": status_color,
         "next_approver_tier": next_approver_tier,
+        "progress_timeline": progress_timeline,
     })
 
 
@@ -808,8 +1025,11 @@ def chat_send(request, case_uuid):
         quoted_message_id=quoted_message_id,
     )
 
+    if is_staff:
+        case.record_first_response()
+
     if not is_staff:
-        CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True)
+        CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True, last_user_reply_at=timezone.now())
         # Notify staff of new chat reply (fires async, skipped if staff is active)
         try:
             from gateways.tasks import notify_staff_chat_reply_task
@@ -820,6 +1040,7 @@ def chat_send(request, case_uuid):
         sender_name = user.get_full_name() or str(user)
 
     _broadcast_message(case_uuid, msg, sender_name)
+    mark_activity_read(case, user)
 
     return JsonResponse({
         "message_id": str(msg.id),
@@ -960,7 +1181,7 @@ def chat_upload(request, case_uuid):
     )
 
     if not is_staff:
-        CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True)
+        CaseRecord.objects.filter(id=case_uuid).update(has_unread_messages=True, last_user_reply_at=timezone.now())
         try:
             from gateways.tasks import notify_staff_chat_reply_task
             notify_staff_chat_reply_task.delay(str(msg.id))
@@ -1004,6 +1225,7 @@ def chat_upload(request, case_uuid):
             },
         )
 
+    mark_activity_read(case, request.user)
     return JsonResponse({"message_id": str(msg.id), "attachments": saved})
 
 
@@ -1020,6 +1242,8 @@ def chat_poll(request, case_uuid):
     case = get_object_or_404(CaseRecord, id=case_uuid)
     if not _can_access_case(request, case):
         return HttpResponseForbidden()
+
+    mark_activity_read(case, request.user)
 
     user = request.user
     is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
@@ -1064,7 +1288,9 @@ def chat_resolve(request, case_uuid):
     is_requester = user.is_authenticated and (user.email or "").lower() == (case.requester_email or "").lower()
     if not is_staff and not is_requester:
         return JsonResponse({"error": "Only the ticket owner can resolve this ticket."}, status=403)
-    if case.status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED):
+    if case.status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED,
+                       CaseRecord.Status.REJECTED, CaseRecord.Status.CANCELLED,
+                       CaseRecord.Status.PENDING_APPROVAL, CaseRecord.Status.REVISION_REQUIRED):
         return JsonResponse({"error": "Ticket is already resolved or closed."}, status=400)
 
     try:
@@ -1118,6 +1344,11 @@ def chat_resolve(request, case_uuid):
         _dispatch_status_notification(case, user, "Resolved")
     except Exception:
         pass
+    try:
+        from gateways.tasks import queue_requester_status_email
+        queue_requester_status_email(case.id, CaseRecord.Status.RESOLVED)
+    except Exception:
+        pass
 
     return JsonResponse({"status": CaseRecord.Status.RESOLVED})
 
@@ -1139,17 +1370,20 @@ def chat_reopen(request, case_uuid):
     if not is_staff and not is_requester:
         return JsonResponse({"error": "Only the ticket owner can reopen this ticket."}, status=403)
     if case.status != CaseRecord.Status.RESOLVED:
+        if case.status == CaseRecord.Status.CLOSED:
+            return JsonResponse({"error": "Closed tickets cannot be reopened."}, status=400)
         return JsonResponse({"error": "Only resolved tickets can be reopened."}, status=400)
 
     days_since = (timezone.now() - case.updated_at).days
-    if days_since >= REOPEN_WINDOW_DAYS:
+    window_days = _reopen_window_days()
+    if days_since >= window_days:
         return JsonResponse(
-            {"error": f"Tickets can only be reopened within {REOPEN_WINDOW_DAYS} days of resolution."},
+            {"error": f"Tickets can only be reopened within {window_days} days of resolution."},
             status=403,
         )
 
-    case.status = CaseRecord.Status.OPEN
-    case.save(update_fields=["status", "updated_at"])
+    case.apply_status_transition(CaseRecord.Status.IN_PROGRESS, old_status=CaseRecord.Status.RESOLVED)
+    case.save(update_fields=["status", "hold_wa_session", "updated_at"])
 
     Message.objects.create(
         case=case,
@@ -1162,10 +1396,10 @@ def chat_reopen(request, case_uuid):
     CaseAuditLog.objects.create(
         case=case,
         action=CaseAuditLog.ActionText.STATUS_CHANGE,
-        new_value=CaseRecord.Status.OPEN,
+        new_value=CaseRecord.Status.IN_PROGRESS,
     )
 
-    _broadcast_status(case_uuid, CaseRecord.Status.OPEN, "Open")
+    _broadcast_status(case_uuid, CaseRecord.Status.IN_PROGRESS, "In Progress")
 
     # Notify participants about status change
     try:
@@ -1173,7 +1407,63 @@ def chat_reopen(request, case_uuid):
     except Exception:
         pass
 
-    return JsonResponse({"status": CaseRecord.Status.OPEN})
+    return JsonResponse({"status": CaseRecord.Status.IN_PROGRESS})
+
+
+# ---------------------------------------------------------------------------
+# Chat — follow up (bump priority)
+# ---------------------------------------------------------------------------
+
+@require_POST
+def chat_follow_up(request, case_uuid):
+    """Requester nudges staff on their own ticket — bumps priority one
+    level (capped at P1), rate-limited by CaseRecord.can_follow_up()."""
+    case = get_object_or_404(CaseRecord, id=case_uuid)
+    if not _can_access_case(request, case):
+        return HttpResponseForbidden()
+    # Only the requester or staff can follow up — not followers
+    user = request.user
+    is_staff = user.is_authenticated and user.role_access in STAFF_ROLES
+    is_requester = user.is_authenticated and (user.email or "").lower() == (case.requester_email or "").lower()
+    if not is_staff and not is_requester:
+        return JsonResponse({"error": "Only the ticket owner can follow up on this ticket."}, status=403)
+
+    allowed, reason = case.can_follow_up()
+    if not allowed:
+        return JsonResponse({"error": reason}, status=400)
+
+    old_priority = case.priority
+    case.bump_priority()
+    case.save(update_fields=[
+        "impact", "severity", "priority", "response_due_at", "resolution_due_at",
+        "follow_up_count", "last_follow_up_at", "updated_at",
+    ])
+
+    Message.objects.create(
+        case=case,
+        body=f"The requester followed up — priority raised to {case.get_priority_display()}.",
+        direction=Message.Direction.OUTBOUND,
+        channel=Message.Channel.WEB,
+        is_system=True,
+    )
+
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="priority",
+        old_value=old_priority,
+        new_value=case.priority,
+        created_by=user if is_staff else None,
+    )
+
+    _broadcast_status(case_uuid, case.status, case.get_status_display())
+
+    try:
+        _dispatch_status_notification(case, user, "Follow-up")
+    except Exception:
+        pass
+
+    return JsonResponse({"priority": case.priority, "priority_label": case.get_priority_display()})
 
 
 # ---------------------------------------------------------------------------
@@ -1186,7 +1476,7 @@ def my_tickets(request):
     Portal history page for authenticated users.
     Shows all CaseRecords where requester_email matches the logged-in user's email.
     Staff roles are redirected to the main desk dashboard.
-    Supports filtering by status/keyword and pagination (20 per page).
+    Supports filtering by status/keyword and pagination (25 per page by default — see core/list_pagination.py).
     """
     from django.core.paginator import Paginator
     user = request.user
@@ -1195,10 +1485,8 @@ def my_tickets(request):
         from django.shortcuts import redirect
         return redirect("desk:case_list")
 
-    from django.db.models import Q, Count
     qs = (
-        CaseRecord.objects
-        .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
+        visible_cases(user)
         .select_related("category")
         .prefetch_related(
             "messages", "followers",
@@ -1209,24 +1497,24 @@ def my_tickets(request):
         .distinct()
     )
 
+    qs = annotate_portal_activity(qs, user)
+
     # Filters
     status_filter = request.GET.get("status", "").strip()
     search_query = request.GET.get("q", "").strip()
     role_filter = request.GET.get("role", "").strip()  # "mine" | "following" | ""
-    sort_by = request.GET.get("sort", "newest").strip()
-    show_closed = request.GET.get("closed", "").strip()
-
-    # Default: hide Closed tickets unless user explicitly asks
-    if status_filter != CaseRecord.Status.CLOSED and not show_closed:
-        qs = qs.exclude(status=CaseRecord.Status.CLOSED)
-
-    if role_filter == "mine":
-        qs = qs.filter(requester_email__iexact=user.email)
-    elif role_filter == "following":
-        qs = qs.filter(followers=user).exclude(requester_email__iexact=user.email)
-
-    if status_filter:
-        qs = qs.filter(status=status_filter)
+    sort_by = request.GET.get("sort", "updated").strip()
+    view_filter = request.GET.get("view", "").strip()
+    if status_filter not in CaseRecord.Status.values:
+        status_filter = ""
+    if role_filter not in ("mine", "following"):
+        role_filter = ""
+    if sort_by not in ("updated", "newest", "oldest"):
+        sort_by = "updated"
+    if view_filter not in {key for key, *_ in PORTAL_TICKET_FILTERS} or status_filter:
+        # An exact status selection supersedes the broad group, avoiding empty
+        # intersections such as Action Required + Closed from stale form inputs.
+        view_filter = ""
 
     # Search: subject, ticket number, AND chat message body
     message_hits = {}  # case_id -> list of matched message snippets
@@ -1268,26 +1556,50 @@ def my_tickets(request):
                         "sent_at": m.sent_at,
                     })
 
-    STATUS_LABEL = {
-        CaseRecord.Status.PENDING_APPROVAL: ("On Approval", "amber"),
-        CaseRecord.Status.REVISION_REQUIRED: ("Revision Required", "red"),
-        CaseRecord.Status.OPEN: ("Waiting", "yellow"),
-        CaseRecord.Status.INVESTIGATING: ("In Progress", "blue"),
-        CaseRecord.Status.PENDING_INFO: ("Need Info", "orange"),
-        CaseRecord.Status.RESOLVED: ("Resolved", "green"),
-        CaseRecord.Status.CLOSED: ("Closed", "slate"),
-    }
-    # Sorting
+    # Counts use the same search and ownership scope as the displayed tickets.
+    mine = Q(requester_email__iexact=user.email) if user.email else Q(pk__in=[])
+    role_counts = qs.aggregate(all=Count("pk", distinct=True), mine=Count("pk", filter=mine, distinct=True))
+    if role_filter == "mine":
+        qs = qs.filter(mine)
+    elif role_filter == "following":
+        qs = qs.filter(followers=user).exclude(mine)
+
+    group_counts = qs.aggregate(**{
+        key or "all": Count("pk", filter=Q(status__in=statuses) if statuses else Q(), distinct=True)
+        for key, _label, statuses, _description in PORTAL_TICKET_FILTERS
+    })
+    from urllib.parse import urlencode
+    parameters = {"sort": sort_by}
+    if search_query:
+        parameters["q"] = search_query
+    if role_filter:
+        parameters["role"] = role_filter
+    base_url = reverse("chat:my_tickets")
+    ticket_tabs = [{
+        "key": key, "label": label, "count": group_counts[key or "all"],
+        "description": description, "active": key == view_filter,
+        "url": base_url + "?" + urlencode({**parameters, **({"view": key} if key else {})}),
+    } for key, label, _statuses, description in PORTAL_TICKET_FILTERS]
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+        parameters["status"] = status_filter
+    elif view_filter:
+        statuses = next(statuses for key, _label, statuses, _description in PORTAL_TICKET_FILTERS if key == view_filter)
+        qs = qs.filter(status__in=statuses)
+        parameters["view"] = view_filter
+
+    STATUS_LABEL = STATUS_DISPLAY_MAP
+    # Sorting — "updated" (last activity, chat or otherwise) is the default.
     SORT_MAP = {
+        "updated": "-last_activity_at",
         "newest": "-created_at",
         "oldest": "created_at",
-        "updated": "-updated_at",
     }
-    qs = qs.order_by(SORT_MAP.get(sort_by, "-created_at"))
+    qs = qs.order_by(SORT_MAP.get(sort_by, "-last_activity_at"), "-id")
 
-    paginator = Paginator(qs, 20)
-    page_number = request.GET.get("page", 1)
-    page_obj = paginator.get_page(page_number)
+    from core.list_pagination import get_page_size, make_paginator, page_size_context
+    page_size = get_page_size(request)
+    page_obj = make_paginator(qs, page_size).get_page(request.GET.get("page", 1))
 
     now = timezone.now()
     enriched = []
@@ -1296,26 +1608,10 @@ def my_tickets(request):
         can_chat = c.status not in (CaseRecord.Status.CLOSED,)
         can_reopen = (
             c.status == CaseRecord.Status.RESOLVED
-            and (now - c.updated_at).days < REOPEN_WINDOW_DAYS
+            and (now - c.updated_at).days < _reopen_window_days()
         )
         # Unread staff replies
-        session_key = f"chat_lr_{c.id}"
-        last_read_str = request.session.get(session_key)
-        if not last_read_str and c.client_last_read_at:
-            last_read_str = c.client_last_read_at.isoformat()
-        unread_count = 0
-        if last_read_str:
-            try:
-                last_read_dt = datetime.datetime.fromisoformat(last_read_str)
-                if last_read_dt.tzinfo is None:
-                    last_read_dt = last_read_dt.replace(tzinfo=datetime.timezone.utc)
-                unread_count = c.messages.filter(
-                    direction="OUT", is_system=False, sent_at__gt=last_read_dt
-                ).count()
-            except (ValueError, TypeError):
-                pass
-        else:
-            unread_count = c.messages.filter(direction="OUT", is_system=False).count()
+        unread_count = c.portal_unread_count
 
         # Is follower?
         is_follower = (user.email or "").lower() != (c.requester_email or "").lower()
@@ -1369,6 +1665,7 @@ def my_tickets(request):
             "case": c,
             "status_label": label,
             "status_color": color,
+            "progress": _portal_progress(c.status),
             "can_chat": can_chat,
             "can_reopen": can_reopen,
             "active_cr_doc": active_cr_doc,
@@ -1383,36 +1680,75 @@ def my_tickets(request):
             "next_approver_tier": next_approver_tier,
         })
 
-    # Counts for tab badges
-    all_base = CaseRecord.objects.filter(
-        Q(requester_email__iexact=user.email) | Q(followers=user)
-    ).distinct()
-    count_all = all_base.count()
-    count_mine = all_base.filter(requester_email__iexact=user.email).count()
-    count_following = count_all - count_mine
-
     return render(request, "client/my_tickets.html", {
+        **page_size_context(page_size),
         "tickets": enriched,
+        "activity_snapshot": portal_activity_snapshot(user),
         "page_obj": page_obj,
         "status_filter": status_filter,
         "search_query": search_query,
         "role_filter": role_filter,
-        "count_all": count_all,
-        "count_mine": count_mine,
-        "count_following": count_following,
+        "view_filter": view_filter,
+        "ticket_tabs": ticket_tabs,
+        "pagination_query": urlencode(parameters),
+        "count_role_all": role_counts["all"],
+        "count_mine": role_counts["mine"],
+        "count_following": role_counts["all"] - role_counts["mine"],
         "sort_by": sort_by,
-        "show_closed": show_closed,
-        "status_choices": [
-            ("", "All statuses"),
-            (CaseRecord.Status.PENDING_APPROVAL, "On Approval"),
-            (CaseRecord.Status.REVISION_REQUIRED, "Revision Required"),
-            (CaseRecord.Status.OPEN, "Waiting"),
-            (CaseRecord.Status.INVESTIGATING, "In Progress"),
-            (CaseRecord.Status.PENDING_INFO, "Need Info"),
-            (CaseRecord.Status.RESOLVED, "Resolved"),
-            (CaseRecord.Status.CLOSED, "Closed"),
+        "status_choices": [("", "All statuses")] + [
+            (code, _portal_progress(code)["status_label"]) for code, _label in CaseRecord.Status.choices
         ],
     })
+
+
+@login_required
+def ticket_search(request):
+    """
+    JSON typeahead endpoint backing the "recently accessed" dropdown on the
+    My Tickets search bar and the in-ticket switcher. Scoped to the same set
+    of tickets as `my_tickets` (requester or follower).
+
+    - `?q=<text>` — search by subject / ticket number, newest-updated first.
+    - `?ids=<uuid,uuid,...>` — fetch fresh data for a specific list of ticket
+      ids (used to re-hydrate the client's localStorage "recent tickets" list
+      with live status/subject instead of trusting a stale cached copy).
+    """
+    user = request.user
+    base_qs = (
+        CaseRecord.objects
+        .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
+        .distinct()
+    )
+
+    q = request.GET.get("q", "").strip()
+    ids_param = request.GET.get("ids", "").strip()
+
+    if ids_param:
+        ids = [v for v in ids_param.split(",") if v]
+        qs = base_qs.filter(id__in=ids)
+        by_id = {str(c.id): c for c in qs}
+        cases = [by_id[i] for i in ids if i in by_id]
+    elif q:
+        cases = list(
+            base_qs.filter(Q(subject__icontains=q) | Q(id__icontains=q))
+            .order_by("-updated_at")[:8]
+        )
+    else:
+        cases = []
+
+    results = []
+    for c in cases:
+        label, color = STATUS_DISPLAY_MAP.get(c.status, (c.status, "slate"))
+        results.append({
+            "id": str(c.id),
+            "case_number": c.case_number,
+            "subject": c.subject,
+            "status_label": label,
+            "status_color": color,
+            "url": reverse("chat:room", args=[c.id]),
+        })
+
+    return JsonResponse({"results": results})
 
 
 @login_required
@@ -1459,56 +1795,27 @@ def my_approvals(request):
             .order_by("-updated_at")[:30]
         )
         
+    from core.my_approvals import kb_items
+
+    other_items = sorted(kb_items(request.user), key=lambda item: item["when"])
     return render(request, "client/my_approvals.html", {
         "pending_approvals": pending,
         "completed_approvals": completed,
         "pending_tickets": pending_tickets,
         "completed_tickets": completed_tickets,
-        "pending_count": pending.count() + (pending_tickets.count() if pending_tickets else 0),
+        "other_items": other_items,
+        "pending_count": pending.count() + (pending_tickets.count() if pending_tickets else 0) + len(other_items),
     })
 
 
 @login_required
 @require_GET
 def my_tickets_status(request):
-    """JSON endpoint: returns unread counts per open ticket for the portal user. Used for polling."""
+    """Personal unread counts include replies and ticket progress updates."""
     user = request.user
     if user.role_access in STAFF_ROLES:
         return JsonResponse({"tickets": []})
-
-    from django.db.models import Q
-    cases = (
-        CaseRecord.objects
-        .filter(Q(requester_email__iexact=user.email) | Q(followers=user))
-        .exclude(status=CaseRecord.Status.CLOSED)
-        .prefetch_related("messages")
-        .distinct()
-        .only("id", "subject", "status")
-    )
-
-    result = []
-    for c in cases:
-        session_key = f"chat_lr_{c.id}"
-        last_read_str = request.session.get(session_key)
-        if not last_read_str and c.client_last_read_at:
-            last_read_str = c.client_last_read_at.isoformat()
-        unread_count = 0
-        if last_read_str:
-            try:
-                last_read_dt = datetime.datetime.fromisoformat(last_read_str)
-                if last_read_dt.tzinfo is None:
-                    last_read_dt = last_read_dt.replace(tzinfo=datetime.timezone.utc)
-                unread_count = c.messages.filter(
-                    direction="OUT", is_system=False, sent_at__gt=last_read_dt
-                ).count()
-            except (ValueError, TypeError):
-                pass
-        else:
-            unread_count = c.messages.filter(direction="OUT", is_system=False).count()
-
-        result.append({"id": str(c.id), "subject": c.subject, "unread": unread_count})
-
-    return JsonResponse({"tickets": result})
+    return JsonResponse({"tickets": portal_activity_snapshot(user)})
 
 
 # ---------------------------------------------------------------------------
