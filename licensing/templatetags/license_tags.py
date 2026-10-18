@@ -119,7 +119,7 @@ _FEATURE_LABELS = {
     'kb_manage':      'Knowledge Base Management',
     'short_links':    'Short Links & QR Code',
     'analytics':      'Analytics Dashboard',
-    'company_units':  'Units',
+    'company_units':  'Entities',
     'sla_reports':    'SLA Reports',
     'audit_export':   'Audit Log Export',
     'api_access':     'API Access',

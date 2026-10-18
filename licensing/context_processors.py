@@ -18,9 +18,15 @@ def license_context(request):
     - license            : LicenseRecord instance
     - license_status     : effective status string ('active', 'trial', 'grace', etc.)
     - trial_seconds_left : seconds remaining in today's trial (0 if not in trial)
+    - licensed_features  : set of feature names usable right now — the same check
+                            feature_required()/FeatureRequiredMixin enforce on the
+                            view, so a sidebar item gated on it never links to a
+                            view that will redirect the user to the upgrade page.
     """
     try:
         from .models import LicenseRecord
+        from .decorators import has_feature_access
+        from .validators import TIER_DEFAULT_FEATURES
 
         # Prefer pre-computed values set by middleware (faster — saves a DB query)
         license_obj    = getattr(request, 'license', None)
@@ -53,12 +59,20 @@ def license_context(request):
         
         trial_seconds_left = trial_seconds_left or 0
 
+        all_feature_names = set()
+        for tier_features in TIER_DEFAULT_FEATURES.values():
+            all_feature_names.update(tier_features.keys())
+        licensed_features = {
+            name for name in all_feature_names if has_feature_access(request, name)
+        }
+
         return {
             'license':            license_obj,
             'license_status':     license_status,
             'trial_seconds_left': trial_seconds_left,
             'is_license_exempt':  is_exempt,
             'trial_blocked':      trial_blocked,
+            'licensed_features':  licensed_features,
         }
     except Exception as exc:
         logger.debug(f"[LicenseContext] Could not load license context: {exc}")
@@ -66,4 +80,5 @@ def license_context(request):
             'license':            None,
             'license_status':     'unlicensed',
             'trial_seconds_left': 0,
+            'licensed_features':  set(),
         }

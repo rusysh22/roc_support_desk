@@ -89,7 +89,44 @@
     .feature-pill.on  { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
     .feature-pill.off { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; }
     .feature-pill .pill-icon { font-size: 16px; flex-shrink: 0; }
-    .feature-pill .pill-check { font-size: 12px; font-weight: 900; margin-left: auto; flex-shrink: 0; }
+    .feature-pill .pill-check {
+        width: 18px; height: 18px; margin-left: auto; flex-shrink: 0;
+        position: relative; display: inline-block; border-radius: 999px;
+        font-size: 0;
+    }
+    .feature-pill.on .pill-check { background: #dcfce7; border: 1px solid #86efac; }
+    .feature-pill.on .pill-check::after {
+        content: ''; position: absolute; width: 5px; height: 9px;
+        left: 6px; top: 2px; border-right: 2px solid #15803d;
+        border-bottom: 2px solid #15803d; transform: rotate(45deg);
+    }
+    .feature-pill.off .pill-check { background: #f1f5f9; border: 1px solid #cbd5e1; }
+    .feature-pill.off .pill-check::before,
+    .feature-pill.off .pill-check::after {
+        content: ''; position: absolute; width: 8px; height: 1.5px;
+        left: 4px; top: 7px; background: #94a3b8;
+    }
+    .feature-pill.off .pill-check::before { transform: rotate(45deg); }
+    .feature-pill.off .pill-check::after { transform: rotate(-45deg); }
+
+    .signature-mark {
+        width: 16px; height: 16px; position: relative; display: inline-block;
+        border-radius: 999px; flex-shrink: 0;
+    }
+    .signature-mark.valid { background: #dcfce7; border: 1px solid #86efac; }
+    .signature-mark.valid::after {
+        content: ''; position: absolute; width: 4px; height: 7px;
+        left: 5px; top: 2px; border-right: 2px solid #15803d;
+        border-bottom: 2px solid #15803d; transform: rotate(45deg);
+    }
+    .signature-mark.invalid { background: #fee2e2; border: 1px solid #fca5a5; }
+    .signature-mark.invalid::before,
+    .signature-mark.invalid::after {
+        content: ''; position: absolute; width: 7px; height: 1.5px;
+        left: 3px; top: 6px; background: #dc2626;
+    }
+    .signature-mark.invalid::before { transform: rotate(45deg); }
+    .signature-mark.invalid::after { transform: rotate(-45deg); }
 
     /* ── Audit chip ───────────────────────────────── */
     .a-chip {
@@ -204,6 +241,14 @@
                 <a href="{% url 'licensing:upgrade' %}" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.4);font-weight:700;">
                     💎 View Plans
                 </a>
+                {% if license.license_key %}
+                <form method="post" action="{% url 'licensing:verify_now' %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.4);font-weight:700;">
+                        Verify Now
+                    </button>
+                </form>
+                {% endif %}
                 {% if marketplace_url %}
                 <a href="{{ marketplace_url }}" target="_blank" class="jk-btn jk-btn-sm" style="background:rgba(255,255,255,0.1);color:#fff;border:1.5px solid rgba(255,255,255,0.25);font-weight:600;font-size:12px;">
                     🛒 Marketplace ↗
@@ -246,7 +291,7 @@
 
         <div class="metric-card">
             <div class="metric-icon">📅</div>
-            <div class="metric-label">Valid Until</div>
+            <div class="metric-label">License Valid Until</div>
             <div class="metric-value" style="font-size:15px;">
                 {% if license.expires_at %}
                     {{ license.expires_at|date:"d M Y" }}
@@ -370,9 +415,9 @@
                     {% if entry.payload.reason %}<span class="text-slate-400 ml-1">· {{ entry.payload.reason }}</span>{% endif %}
                 </div>
                 {% if entry.signature_valid %}
-                    <span class="text-emerald-400 text-xs" title="Valid signature">✓</span>
+                    <span class="signature-mark valid" role="img" aria-label="Valid signature" title="Valid signature"></span>
                 {% else %}
-                    <span class="text-rose-400 text-xs" title="Invalid / missing signature">✗</span>
+                    <span class="signature-mark invalid" role="img" aria-label="Invalid or missing signature" title="Invalid / missing signature"></span>
                 {% endif %}
             </div>
             {% empty %}
