@@ -2,7 +2,7 @@
 {% block title %}
     {% if just_signed %}Signature Successful
     {% elif just_rejected %}Document Rejected
-    {% else %}Already Processed{% endif %} — E-Sign
+    {% else %}Already Processed{% endif %} | E-Sign
 {% endblock %}
 
 {% block layout %}
@@ -25,7 +25,7 @@
             </div>
             {% if document.status == 'completed' and document.signed_pdf %}
             <a href="{{ document.signed_pdf.url }}" download
-               class="flex-shrink-0 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+               class="flex-shrink-0 inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
@@ -76,8 +76,8 @@
     <div class="flex flex-col items-center justify-center py-20 px-4" x-data="{ showPreview: false }">
         <!-- Site Branding -->
         <div class="mb-8 text-center" x-show="!showPreview">
-            {% if site_config and site_config.logo %}
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
+            {% if site_config and site_config.logo_for_light_bg %}
+                <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
             {% endif %}
             <h1 class="text-2xl font-bold text-slate-900">{{ site_config.site_name|default:"E-Sign" }}</h1>
         </div>
@@ -127,13 +127,13 @@
                 <div class="flex items-center gap-2">
                     {% with first_p=signer.placements.first %}
                     {% if first_p %}
-                    <button type="button" onclick="goToPdfPage('pdf-iframe-preview', '{{ document.preview_pdf.url|escapejs }}#page={{ first_p.page_number }}')" class="text-xs bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+                    <button type="button" onclick="goToPdfPage('pdf-iframe-preview', '{{ document.preview_pdf.url|escapejs }}#page={{ first_p.page_number }}')" class="text-xs bg-indigo-100 border border-indigo-200 text-indigo-700 hover:bg-indigo-200 font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                         Go to My Signature
                     </button>
                     {% endif %}
                     {% endwith %}
-                    <button @click="showPreview = false" class="text-xs text-slate-500 hover:text-slate-800 font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 transition-colors shadow-sm">
+                    <button @click="showPreview = false" class="text-xs text-slate-600 hover:text-slate-800 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-200 hover:bg-slate-300 transition-colors shadow-sm">
                         Close Preview
                     </button>
                 </div>
@@ -156,8 +156,8 @@
     <div class="flex flex-col items-center justify-center min-h-screen px-4 py-12">
         <!-- Site Branding -->
         <div class="mb-8 text-center">
-            {% if site_config and site_config.logo %}
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
+            {% if site_config and site_config.logo_for_light_bg %}
+                <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
             {% endif %}
             <h1 class="text-2xl font-bold text-slate-900">{{ site_config.site_name|default:"E-Sign" }}</h1>
         </div>
@@ -184,8 +184,8 @@
     <div class="flex flex-col items-center justify-center min-h-screen px-4 py-12">
         <!-- Site Branding -->
         <div class="mb-8 text-center">
-            {% if site_config and site_config.logo %}
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
+            {% if site_config and site_config.logo_for_light_bg %}
+                <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto object-contain mb-3">
             {% endif %}
             <h1 class="text-2xl font-bold text-slate-900">{{ site_config.site_name|default:"E-Sign" }}</h1>
         </div>
@@ -203,7 +203,7 @@
             {% if document.status == 'completed' and document.signed_pdf %}
             <div class="mt-5">
                 <a href="{{ document.signed_pdf.url }}" download
-                   class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
+                   class="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>

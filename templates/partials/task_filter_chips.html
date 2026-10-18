@@ -1,0 +1,10 @@
+{% if active_filter_chips %}
+<div class="flex flex-wrap items-center gap-1.5 mb-3">
+    {% for chip in active_filter_chips %}
+    <a href="?{{ chip.remove_qs }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100">
+        {{ chip.label }} <span aria-label="Remove filter">×</span>
+    </a>
+    {% endfor %}
+    <a href="{{ task_view_url }}" class="text-xs text-slate-600 underline">Clear all</a>
+</div>
+{% endif %}

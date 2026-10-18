@@ -11,10 +11,10 @@
 
     <script src="{% static 'vendor/chartjs.min.js' %}"></script>
 
+    <div class="jk-back-row">
+        {% url 'desk:form_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4 flex-wrap">
-        <a href="{% url 'desk:form_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-        </a>
         <div>
             <h2 class="text-xl font-bold text-slate-900">{{ dynamic_form.title }} - Responses</h2>
             <div class="flex items-center gap-2 mt-1">
@@ -147,12 +147,15 @@
             </div>
             
             <!-- Pagination block -->
-            {% if submissions.has_other_pages %}
+            {% if submissions.paginator.count %}
             <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-4">
-                <div class="text-sm text-slate-600">
-                    Showing <span class="font-medium text-slate-900">{{ submissions.start_index }}</span> to <span class="font-medium text-slate-900">{{ submissions.end_index }}</span> of <span class="font-medium text-slate-900">{{ submissions.paginator.count }}</span> responses
+                <div class="flex items-center gap-4 flex-wrap">
+                    {% include "partials/list/_page_size.html" %}
+                    <div class="text-sm text-slate-600">
+                        Showing <span class="font-medium text-slate-900">{{ submissions.start_index }}</span> to <span class="font-medium text-slate-900">{{ submissions.end_index }}</span> of <span class="font-medium text-slate-900">{{ submissions.paginator.count }}</span> responses
+                    </div>
                 </div>
-                <div class="flex items-center gap-1">
+                {% if submissions.has_other_pages %}<div class="flex items-center gap-1">
                     {% if submissions.has_previous %}
                     <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ submissions.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
                     {% else %}
@@ -172,7 +175,7 @@
                     {% else %}
                     <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Next</button>
                     {% endif %}
-                </div>
+                </div>{% endif %}
             </div>
             {% endif %}
         {% else %}

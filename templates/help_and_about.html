@@ -13,8 +13,8 @@
     <!-- ============================================================= -->
     <div class="text-center mb-6">
         <div class="mb-3">
-            {% if site_config.logo %}
-            <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}"
+            {% if site_config.logo_for_light_bg %}
+            <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name }}"
                  class="mx-auto object-contain" style="height: clamp(52px, 8vw, 72px); max-width: min(280px, 80vw);">
             {% else %}
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-2xl shadow-lg">
@@ -55,7 +55,35 @@
                 </details>
                 <details class="group">
                     <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">What are the ticket statuses?</summary>
-                    <p class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed"><strong>Open</strong> — Newly created. <strong>Investigating</strong> — Being worked on. <strong>Pending Info</strong> — Waiting for your response. <strong>Resolved</strong> — Solution applied. <strong>Closed</strong> — Completed and archived.</p>
+                    <div class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed space-y-1">
+                        <p><strong>New</strong> — Ticket baru dibuat dan belum diproses. <em class="text-slate-400">Otomatis saat ticket dibuat.</em></p>
+                        <p><strong>Assigned</strong> — Ticket telah ditugaskan kepada PIC yang bertanggung jawab. <em class="text-slate-400">Setelah admin atau supervisor melakukan assignment.</em></p>
+                        <p><strong>In Progress</strong> — PIC sedang mengerjakan ticket. <em class="text-slate-400">Setelah pengerjaan dimulai.</em></p>
+                        <p><strong>Pending User</strong> — Pengerjaan dihentikan sementara karena menunggu informasi atau konfirmasi dari user. <em class="text-slate-400">Saat membutuhkan data tambahan atau approval dari user.</em></p>
+                        <p><strong>Pending External</strong> — Ticket menunggu tindakan dari pihak eksternal atau vendor. <em class="text-slate-400">Jika penyelesaian bergantung pada pihak lain.</em></p>
+                        <p><strong>Resolved</strong> — Solusi telah diberikan. User masih dapat reopen tiket. Setelah 5 hari, status menjadi Closed. <em class="text-slate-400">Setelah masalah berhasil diselesaikan.</em></p>
+                        <p><strong>Closed</strong> — Ticket ditutup secara final dan tidak dapat di-reopen. <em class="text-slate-400">Setelah 5 hari Resolved, atau ditutup oleh staff.</em></p>
+                        <p><strong>Rejected</strong> — Ticket tidak dapat diproses karena tidak valid atau tidak memenuhi persyaratan. <em class="text-slate-400">Setelah dilakukan verifikasi dan dinyatakan tidak valid.</em></p>
+                        <p><strong>Cancelled</strong> — Ticket dibatalkan oleh user atau admin sebelum proses selesai. <em class="text-slate-400">Saat permintaan sudah tidak diperlukan lagi.</em></p>
+                    </div>
+                </details>
+                <details class="group">
+                    <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">How does a ticket move between statuses?</summary>
+                    <div class="mt-1.5 pl-4 text-slate-600 text-xs leading-relaxed">
+                        <p class="font-semibold text-slate-700 mb-1">Aturan Perubahan Status</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            <li>New → Assigned : Ticket telah memiliki PIC.</li>
+                            <li>Assigned → In Progress : PIC mulai mengerjakan ticket.</li>
+                            <li>In Progress → Pending User : Menunggu informasi atau konfirmasi dari user.</li>
+                            <li>In Progress → Pending External : Menunggu proses dari vendor atau pihak ketiga.</li>
+                            <li>Pending User / Pending External → In Progress : Informasi atau proses yang ditunggu telah tersedia.</li>
+                            <li>In Progress → Resolved : Solusi telah selesai diberikan.</li>
+                            <li>Resolved → In Progress : User atau staff reopen tiket (maksimal 5 hari).</li>
+                            <li>Resolved → Closed : Otomatis setelah 5 hari Resolved, atau ditutup oleh staff. Closed tidak dapat di-reopen.</li>
+                            <li>New → Rejected : Ticket tidak memenuhi kriteria untuk diproses.</li>
+                            <li>New / Assigned / In Progress → Cancelled : Ticket dibatalkan sebelum selesai diproses.</li>
+                        </ul>
+                    </div>
                 </details>
                 <details class="group">
                     <summary class="font-medium cursor-pointer text-slate-800 hover:text-indigo-600 transition-colors">What channels can I use to submit tickets?</summary>
@@ -67,6 +95,19 @@
                 </details>
             </div>
         </div>
+
+        <!-- Portal User Guide -->
+        <a href="{% url 'docs_portal' %}" target="_blank" rel="noopener"
+           class="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-slate-800 text-sm">Portal User Guide</div>
+                <div class="text-xs text-slate-600">How to use the ticket portal</div>
+            </div>
+            <svg class="w-4 h-4 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
 
         <!-- Contact Developer -->
         <button @click="open = open === 'contact' ? null : 'contact'"
@@ -180,7 +221,7 @@
                     </div>
                     <div>
                         <div class="font-bold text-slate-800">{{ config.site_name|default:"RoC Support Desk" }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v1.5.0</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Integrated Service Desk Platform &middot; v{{ app_version }}</div>
                     </div>
                 </div>
 
@@ -284,7 +325,7 @@
 
 
                 <div class="text-xs text-slate-400 text-center pt-1">
-                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v1.5.0
+                    {{ config.site_name|default:"RoC Support Desk" }} &middot; v{{ app_version }}
                     &middot; Powered by <a href="https://hello.rusydani.my.id" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">Rusydani on Cloud</a>
                 </div>
 
@@ -322,13 +363,36 @@
         <div x-show="open === 'changelog'" x-collapse class="bg-slate-50">
             <div class="px-6 py-4 space-y-4 text-sm">
 
-                <!-- v1.5.0 -->
+                <!-- v1.6.0 -->
                 <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(99,102,241,0.25), 0 2px 8px rgba(99,102,241,0.15);">
                     <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"></div>
                     <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800 text-xs">v{{ app_version }}</span>
+                        <span class="text-xs text-slate-600">18 Oct 2026</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
+                    </div>
+                    <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                        <li><strong>New ticket lifecycle</strong> — New, Assigned, In Progress, Pending User, Pending External, Resolved, Closed, Rejected and Cancelled, with enforced transitions. The SLA clock pauses while a ticket waits on the user or a vendor, and Resolved tickets can be reopened for 5 days before closing automatically.</li>
+                        <li><strong>Priority matrix</strong> — Impact × Severity set the priority (P1–P4) automatically, with first-response tracking and follow-ups.</li>
+                        <li><strong>Task Management</strong> — Field/operator/value filter builder, saved filters, clickable dashboard counts, Type column, 25 rows per page, unread activity on My Tickets, and a mobile-friendly toolbar.</li>
+                        <li><strong>Tickets</strong> — Ticket locations, CC emails, multiple attachments, category picker level by level, favourite services on the portal, automatic acknowledgement and resolve/close emails.</li>
+                        <li><strong>My Approvals</strong> — Ticket approvals and Knowledge Base reviews in one place, with a sidebar count.</li>
+                        <li><strong>Announcements</strong> — General announcements on the Ticket Portal, targeted per company unit, with optional e-mail and acknowledgement.</li>
+                        <li><strong>Microsoft Teams notifications</strong> — Ticket activity cards to a channel and personal notifications via a Workflows flow.</li>
+                        <li><strong>Knowledge Base</strong> — Views and likes, contributors, comment controls, change log and shared editing with review.</li>
+                        <li><strong>E-Sign</strong> — Self-signing, contributors, automatic 24-hour reminders, bulk delete and undo/redo when placing signature boxes.</li>
+                        <li><strong>Shorten Link</strong> — Redirect portal with countdown, video/YouTube/TikTok media and full-page or mini layout.</li>
+                        <li><strong>Platform</strong> — User Roles master data, Engineer role, per-role module defaults, archiving across lists, sidebar search with recent pages, unsaved-changes guard, signed license entitlements and upload hardening.</li>
+                        <li><strong>New settings</strong> — Require Location on new tickets, show/hide the Generate Template button, allow WhatsApp notifications in My Profile, and an optional dedicated developer contact.</li>
+                    </ul>
+                </div>
+
+                <!-- v1.5.0 -->
+                <div class="relative pl-5 rounded-lg p-3" style="box-shadow: inset 0 0 0 1px rgba(148,163,184,0.15), 0 2px 8px rgba(148,163,184,0.10);">
+                    <div class="absolute -left-[5px] top-3 w-2.5 h-2.5 bg-slate-300 rounded-full"></div>
+                    <div class="flex items-center gap-2 mb-1">
                         <span class="font-bold text-slate-800 text-xs">v1.5.0</span>
                         <span class="text-xs text-slate-600">24 Jun 2026</span>
-                        <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-semibold">Latest</span>
                     </div>
                     <ul class="text-xs text-slate-600 space-y-0.5 list-disc list-inside">
                         <li><strong>E-Sign (Electronic Signatures)</strong> — A complete digital signature system! You can now request signatures from multiple people, adjust exactly where their signatures appear on the document via drag-and-drop, and automatically send them email requests. Completed documents are securely sealed and come with a scan-able QR code to verify authenticity.</li>

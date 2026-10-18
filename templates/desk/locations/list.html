@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}Locations / Sites | {{ site_config.site_name }}{% endblock %}
+{% block nav_locations %}active{% endblock %}
+{% block page_title %}Locations / Sites{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    {% url 'desk:location_create' as create_url_val %}
+    {% include "partials/list/_toolbar.html" with result_noun="location(s)" title="Locations / Sites" subtitle="Locations used by ticket submission." create_url=create_url_val create_label="New Location" search_query=request.GET.q search_placeholder="Search location name…" clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="desk/locations/_filter_fields.html" %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto min-h-[40vh]"
+             x-data="jkListTable([{{ locations|length|default:0 }} ? [{% for loc in locations %}'{{ loc.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}] : []])">
+            <table class="jk-table">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-bind:checked="allSelected" @change="toggleAll()">
+                        </th>
+                        <th class="w-16 text-center">Order</th>
+                        <th>Location</th>
+                        <th>Settings</th>
+                        <th class="w-24 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for loc in locations %}
+                    <tr class="hover:bg-slate-50/70 transition-colors cursor-pointer" @click="openRow('{% url 'desk:location_edit' loc.pk %}')">
+                        <td @click.stop>
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-model="selectedIds" value="{{ loc.pk }}">
+                        </td>
+                        <td class="text-center text-sm text-slate-500 font-mono">{{ loc.order }}</td>
+                        <td>
+                            <span class="text-sm font-medium text-slate-700">{{ loc.name }}</span>
+                        </td>
+                        <td>
+                            {% if loc.requires_detail %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">📝 Requires Detail</span>
+                            {% else %}
+                            <span class="text-xs text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if loc.is_active %}
+                            <span class="jk-badge jk-badge-resolved">Active</span>
+                            {% else %}
+                            <span class="jk-badge jk-badge-cancelled">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-slate-500 text-sm">
+                            {% if search_query or has_active_filters %}
+                            No locations match your search.
+                            {% else %}
+                            No locations yet. <a href="{% url 'desk:location_create' %}" class="text-indigo-600 hover:underline">Create one →</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% include "partials/list/_pagination.html" %}
+
+            {% url 'desk:location_bulk_archive' as bulk_archive_url %}
+            {% url 'desk:location_bulk_duplicate' as bulk_duplicate_url %}
+            {% url 'desk:location_bulk_export' as bulk_export_url %}
+            {% url 'desk:location_bulk_delete' as bulk_delete_url %}
+            {% include "partials/list/_bulk_bar.html" with archive_url=bulk_archive_url duplicate_url=bulk_duplicate_url export_url=bulk_export_url delete_url=bulk_delete_url %}
+            {% include "partials/_confirm_modal.html" %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

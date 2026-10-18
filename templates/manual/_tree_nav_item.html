@@ -1,0 +1,22 @@
+{% comment %}One sidebar node — included by _tree_nav.html with page, vc (visible children), level, open_ids.{% endcomment %}
+<div class="nav-item {% if current_page and current_page.pk == page.pk %}active{% endif %} mb-0.5"{% if vc %} x-data="{ open: {% if level < 3 or page.pk in open_ids %}true{% else %}false{% endif %} }"{% endif %}>
+    <div class="nav-item-row">
+        <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}" title="{{ page.title }}">
+            {% if page.is_faq %}<span class="faq-dot flex-shrink-0" title="FAQ"></span>{% endif %}
+            {% if can_edit and not page.is_published %}<span class="draft-dot flex-shrink-0" title="Draft"></span>{% endif %}
+            <span class="nav-label jk-marquee flex-1 leading-snug"><span class="jk-marquee-inner">{{ page.title }}</span></span>
+        </a>
+        {% if vc %}
+        <button class="nav-toggle" @click="open = !open" :aria-expanded="open" title="Toggle">
+            <svg :style="open ? '' : 'transform:rotate(-90deg)'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        {% endif %}
+    </div>
+    {% if vc %}
+    <div class="nav-children" x-show="open" x-cloak x-transition>
+        {% include "manual/_tree_nav.html" with pages=vc current_page=current_page manual=manual can_edit=can_edit depth=level|add:1 open_ids=open_ids %}
+    </div>
+    {% endif %}
+</div>

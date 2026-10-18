@@ -1,99 +1,171 @@
-<!DOCTYPE html>
-<html lang="en">
+{% load static %}<!DOCTYPE html>
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search: {{ query }} | {{ site_config.site_name|default:"RoC Desk" }}</title>
+    <title>{% if query %}Hasil pencarian "{{ query }}" | {% endif %}User Manual | {{ site_config.site_name|default:"RoC Desk" }}</title>
+    <meta name="robots" content="noindex, follow">
     {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { font-family: 'Inter', sans-serif; }
-        mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 2px; }
+        .search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: #fff; border-radius: 16px;
+            border: 1px solid #e2e8f0; box-shadow: 0 18px 50px rgba(15,23,42,.16); display: none; z-index: 40;
+            max-height: 70vh; overflow-y: auto; }
+        .filter-chip { transition: all .15s; }
+        .filter-chip.is-active { background: #0f172a; color: #fff; border-color: #0f172a; }
+        .result-card { transition: border-color .15s, box-shadow .15s, transform .15s; }
+        .result-card:hover { border-color: #a5b4fc; box-shadow: 0 8px 24px rgba(79, 70, 229,.10); transform: translateY(-1px); }
+        .result-card.ms-clicked, .result-card.ms-visited { border-color: #fde68a; }
+        .result-card.ms-clicked .result-title,
+        .result-card.ms-visited .result-title {
+            background: linear-gradient(100deg, rgba(253,224,71,0), rgba(253,224,71,.5) 2%, rgba(250,204,21,.35) 98%, rgba(253,224,71,0));
+            border-radius: .35em .9em; padding: 0 .2em; margin-left: -.2em;
+        }
+        .result-card.ms-clicked .result-title { background: linear-gradient(100deg, rgba(251,146,60,0), rgba(251,146,60,.6) 2%, rgba(249,115,22,.45) 98%, rgba(251,146,60,0)); }
+        .visited-tag { display: none; }
+        .result-card.ms-visited .visited-tag, .result-card.ms-clicked .visited-tag { display: inline-flex; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
+<body class="bg-slate-50 min-h-screen text-slate-800">
 
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3 sm:gap-4">
-            <a href="{% url 'manual:landing' %}" class="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-            </a>
-            <span class="text-slate-200 flex-shrink-0">|</span>
-            <div class="relative flex-1">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    {# ─── Header with predictive search ─── #}
+    <header class="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-4">
+            {% url 'manual:landing' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+            <form method="GET" action="{% url 'manual:search' %}" class="relative flex-1" id="pageSearchWrap" role="search">
+                <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                 </svg>
-                <form method="GET" action="{% url 'manual:search' %}">
-                    <input id="pageSearchInput" name="q" type="text" value="{{ query }}" placeholder="Search again…"
-                           autocomplete="off"
-                           class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">
-                </form>
-            </div>
-            {% if results %}
-            <span class="text-xs text-slate-400 flex-shrink-0 bg-slate-100 px-2.5 py-1 rounded-full font-semibold">
-                {{ results|length }}
-            </span>
-            {% endif %}
+                <input id="pageSearchInput" name="q" type="search" value="{{ query }}" autocomplete="off" autofocus
+                       placeholder="Cari menu, proses, atau kode (mis. FA01, Purchase Order)…" aria-label="Cari di User Manual"
+                       class="w-full border border-slate-200 rounded-2xl pl-11 pr-28 py-2.5 text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all">
+                <button type="submit" class="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all">Cari</button>
+                <div id="pageSearchDropdown" class="search-dropdown"><div id="pageSearchResults"></div></div>
+            </form>
         </div>
     </header>
 
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {% if query %}
-        <h1 class="text-base sm:text-lg font-black text-slate-800 mb-1">
-            Results for "<span class="text-indigo-600">{{ query }}</span>"
-        </h1>
-        <p class="text-xs text-slate-400 mb-5 sm:mb-6">
-            {% if results %}{{ results|length }} result{{ results|length|pluralize }} found{% else %}No results found{% endif %}
-        </p>
+        <div class="mb-5">
+            <h1 class="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+                Hasil pencarian untuk <mark class="stabilo">{{ query }}</mark>
+            </h1>
+            <p class="text-sm text-slate-500 mt-1">
+                {% if results %}{{ results|length }} halaman ditemukan, diurutkan dari yang paling relevan.{% else %}Tidak ada halaman yang cocok.{% endif %}
+            </p>
+        </div>
+
+        {% if suggestions %}
+        <div class="flex flex-wrap items-center gap-2 mb-5">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Mungkin maksud Anda</span>
+            {% for s in suggestions|slice:":6" %}
+            <a href="?q={{ s|urlencode }}" class="ms-hl inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors">🔍 {{ s }}</a>
+            {% endfor %}
+        </div>
         {% endif %}
 
         {% if results %}
-        <div class="space-y-2.5 sm:space-y-3">
+        {% if sections|length > 1 %}
+        <div class="flex flex-wrap gap-2 mb-5" id="sectionFilters" role="tablist" aria-label="Filter hasil">
+            <button type="button" class="filter-chip is-active px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-white text-slate-600" data-filter="">
+                Semua <span class="opacity-60 ml-0.5">{{ results|length }}</span>
+            </button>
+            {% for sec in sections %}
+            <button type="button" class="filter-chip px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-white text-slate-600 hover:border-slate-300" data-filter="{{ sec }}">
+                {{ sec }} <span class="opacity-60 ml-0.5" data-count-for="{{ sec }}"></span>
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="space-y-3" id="resultList">
             {% for r in results %}
-            <a href="{{ r.url }}"
-               class="flex items-start gap-3 sm:gap-4 bg-white border border-slate-200 rounded-2xl px-4 sm:px-5 py-3.5 sm:py-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group">
-                <span class="text-xl sm:text-2xl flex-shrink-0 mt-0.5">{{ r.icon|default:r.manual_icon|default:"📄" }}</span>
+            <a href="{{ r.url }}?hl={{ query|urlencode }}" data-ms-result data-url="{{ r.url }}"
+               data-section="{% if r.type == 'manual' %}Manual{% else %}{{ r.section }}{% endif %}"
+               class="result-card flex items-start gap-3 sm:gap-4 bg-white border border-slate-200 rounded-2xl px-4 sm:px-5 py-4 group">
+                <span class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg flex-shrink-0">{{ r.icon|default:r.manual_icon|default:"📄" }}</span>
                 <div class="flex-1 min-w-0">
+                    {% if r.breadcrumb %}
+                    <div class="text-[11px] text-slate-400 truncate mb-0.5">{{ r.manual_title }} › {{ r.breadcrumb|join:" › " }}</div>
+                    {% elif r.manual_title %}
+                    <div class="text-[11px] text-slate-400 truncate mb-0.5">{{ r.manual_title }}</div>
+                    {% endif %}
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-bold text-slate-800 group-hover:text-indigo-700 transition-colors text-sm">
-                            {{ r.title }}
-                        </span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full
-                            {% if r.type == 'manual' %}bg-indigo-100 text-indigo-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">
-                            {{ r.type }}
-                        </span>
-                        {% if r.manual_title %}
-                        <span class="text-xs text-slate-400">in {{ r.manual_title }}</span>
-                        {% endif %}
+                        <span class="result-title ms-hl font-bold text-[15px] text-slate-900 group-hover:text-indigo-700 transition-colors">{{ r.title }}</span>
+                        <span class="visited-tag items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">✓ Sudah dibuka</span>
                     </div>
                     {% if r.subtitle %}
-                    <p class="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{{ r.subtitle }}</p>
+                    <p class="ms-hl text-[13px] text-slate-600 mt-1.5 leading-relaxed line-clamp-2">{{ r.subtitle }}</p>
                     {% endif %}
                 </div>
-                <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 flex-shrink-0 mt-1 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-500 flex-shrink-0 mt-3 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
                 </svg>
             </a>
             {% endfor %}
         </div>
 
-        {% elif query %}
-        <div class="text-center py-16 sm:py-20">
-            <div class="text-4xl sm:text-5xl mb-4">🔍</div>
-            <h2 class="text-base sm:text-lg font-bold text-slate-700 mb-2">No results found</h2>
-            <p class="text-sm text-slate-400 px-4">Try different keywords or check the spelling.</p>
-            <a href="{% url 'manual:landing' %}" class="mt-5 sm:mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
-                Browse all manuals
+        {% else %}
+        <div class="text-center py-14 sm:py-20 bg-white border border-slate-200 rounded-3xl">
+            <div class="text-5xl mb-4">🔍</div>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">Tidak ada hasil untuk "{{ query }}"</h2>
+            <ul class="text-sm text-slate-500 space-y-1 mb-6">
+                <li>Periksa kembali ejaan kata kunci.</li>
+                <li>Gunakan nama menu atau fitur, misalnya <b>Create Ticket</b> atau <b>E-Sign</b>.</li>
+                <li>Cari dengan kode proses, misalnya <b>FA01</b> atau <b>SC04</b>.</li>
+            </ul>
+            <a href="{% url 'manual:landing' %}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all">
+                Lihat semua manual
             </a>
         </div>
-        {% else %}
-        <div class="text-center py-16 sm:py-20 text-slate-400 text-sm">Enter a search query above.</div>
         {% endif %}
 
-    </div>
+        {% else %}
+        <div class="text-center py-16 sm:py-24">
+            <div class="text-5xl mb-4">📖</div>
+            <h1 class="text-xl font-black text-slate-800 mb-2">Cari di User Manual</h1>
+            <p class="text-sm text-slate-500">Ketik nama menu, proses bisnis, atau kode test script pada kotak pencarian di atas.</p>
+        </div>
+        {% endif %}
+    </main>
+
+    <script src="{% static 'js/manual-search.js' %}"></script>
+    <script>
+    (function () {
+        ManualSearch.injectCss();
+        ManualSearch.initBox({
+            input: 'pageSearchInput', results: 'pageSearchResults', dropdown: 'pageSearchDropdown',
+            wrap: 'pageSearchWrap', searchUrl: "{% url 'manual:search' %}",
+        });
+
+        // Stabilo-highlight the searched words in titles, snippets and suggestions
+        const terms = ManualSearch.termsOf(document.getElementById('pageSearchInput').value);
+        document.querySelectorAll('.ms-hl').forEach(el => ManualSearch.markIn(el, terms));
+
+        // Results already opened keep their stabilo mark; a click marks it straight away
+        const list = document.getElementById('resultList');
+        if (list) {
+            list.querySelectorAll('[data-ms-result]').forEach(a => {
+                if (ManualSearch.isVisited(a.dataset.url)) a.classList.add('ms-visited');
+            });
+            ManualSearch.bindResultClicks(list);
+        }
+
+        // Section filter chips
+        const chips = document.querySelectorAll('#sectionFilters .filter-chip');
+        const cards = document.querySelectorAll('#resultList [data-section]');
+        document.querySelectorAll('[data-count-for]').forEach(el => {
+            el.textContent = Array.from(cards).filter(c => c.dataset.section === el.dataset.countFor).length;
+        });
+        chips.forEach(chip => chip.addEventListener('click', () => {
+            chips.forEach(c => c.classList.toggle('is-active', c === chip));
+            cards.forEach(c => { c.style.display = !chip.dataset.filter || c.dataset.section === chip.dataset.filter ? '' : 'none'; });
+        }));
+    })();
+    </script>
 </body>
 </html>

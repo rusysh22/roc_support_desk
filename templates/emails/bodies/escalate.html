@@ -1,0 +1,60 @@
+{% if custom_message %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff7ed;border:1px solid #fed7aa;margin:0 0 16px;">
+  <tr>
+    <td style="padding:14px 16px;">
+      <p style="margin:0 0 6px;font-size:12px;color:#c2410c;font-weight:600;">Action required / notes</p>
+      <p style="margin:0;font-size:14px;color:#7c2d12;line-height:1.55;">{{ custom_message|linebreaksbr }}</p>
+    </td>
+  </tr>
+</table>
+{% endif %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8fa;border:1px solid #dbe7ec;margin:0 0 16px;">
+  <tr>
+    <td style="padding:16px 18px;">
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Ticket</p>
+      <p style="margin:0 0 14px;font-size:17px;font-weight:600;color:#312e81;letter-spacing:-0.01em;">{{ case_number }}</p>
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Subject</p>
+      <p style="margin:0 0 14px;font-size:15px;color:#0f172a;font-weight:500;">{{ case_subject }}</p>
+      <p style="margin:0;font-size:13px;color:#475569;font-weight:400;">
+        Escalated {{ date_escalated }}
+        · From <span style="color:#0f172a;font-weight:500;">{{ requester_name }}</span>{% if req_unit %} ({{ req_unit }}){% endif %}
+      </p>
+    </td>
+  </tr>
+</table>
+{% if selected_messages %}
+<p style="margin:0 0 10px;font-size:12px;color:#64748b;font-weight:500;">Conversation ({{ selected_messages|length }} messages)</p>
+{% for m in selected_messages %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;background:{% if m.direction == 'OUT' %}#f0fdf4{% else %}#f4f8fa{% endif %};border:1px solid {% if m.direction == 'OUT' %}#bbf7d0{% else %}#dbe7ec{% endif %};">
+  <tr>
+    <td style="padding:12px 14px;border-left:3px solid {% if m.direction == 'OUT' %}#4f46e5{% else %}#6366f1{% endif %};">
+      <p style="margin:0 0 6px;font-size:12px;color:#64748b;">
+        <span style="font-weight:600;color:{% if m.direction == 'OUT' %}#166534{% else %}#312e81{% endif %};">{% if m.direction == 'OUT' %}Staff{% else %}Customer{% endif %} ({{ m.sender }})</span>
+        · {{ m.timestamp }}
+      </p>
+      <div style="font-size:14px;color:#334155;line-height:1.5;white-space:pre-wrap;">{{ m.body }}</div>
+      {% if m.has_attachments %}
+      <p style="margin:8px 0 0;font-size:12px;color:#64748b;">Attachments: {% for name in m.attachment_names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+{% endfor %}
+{% elif problem_description %}
+<p style="margin:0 0 8px;font-size:12px;color:#64748b;font-weight:500;">Problem description</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8fa;border:1px solid #dbe7ec;margin:0 0 12px;">
+  <tr>
+    <td style="padding:14px 16px;font-size:14px;color:#475569;line-height:1.55;white-space:pre-wrap;">{{ problem_description }}</td>
+  </tr>
+</table>
+{% endif %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8fa;border:1px solid #dbe7ec;margin:16px 0 0;">
+  <tr>
+    <td style="padding:14px 16px;">
+      <p style="margin:0;font-size:13px;color:#0f172a;line-height:1.5;font-weight:500;">To respond, reply directly to this email. Your response will be threaded into the support portal.</p>
+    </td>
+  </tr>
+</table>
+{% if limit_exceeded %}
+<p style="margin:14px 0 0;font-size:12px;color:#b91c1c;font-weight:500;">Some attachments were not included because the total size exceeded the email limit (10MB).</p>
+{% endif %}

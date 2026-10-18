@@ -25,8 +25,8 @@
 
     <!-- Header -->
     <div class="text-center mb-8">
-      {% if site_config and site_config.logo %}
-        <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto mb-4 object-contain">
+      {% if site_config and site_config.logo_for_light_bg %}
+        <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name|default:'E-Sign' }}" class="h-12 mx-auto mb-4 object-contain">
       {% else %}
         <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 mb-4">
           <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -52,7 +52,14 @@
     </div>
 
     <!-- Error banner -->
-    {% if error %}
+    {% if locked_out %}
+    <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
+      <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+      </svg>
+      <p class="text-sm text-red-700 font-medium">Too many incorrect attempts. Please wait 15 minutes before trying again, or contact the document sender.</p>
+    </div>
+    {% elif error %}
     <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
       <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
@@ -62,8 +69,9 @@
     {% endif %}
 
     <!-- Verify form -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 {% if locked_out %}opacity-50 pointer-events-none{% endif %}">
       <form method="post" autocomplete="off" novalidate>
+        <fieldset {% if locked_out %}disabled{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="action" value="verify">
 
@@ -107,10 +115,11 @@
 
         <button
           type="submit"
-          class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg px-4 py-2.5 transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          class="mt-6 w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-lg px-4 py-2.5 transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
           Verify &amp; Continue
         </button>
+        </fieldset>
       </form>
 
       <script>

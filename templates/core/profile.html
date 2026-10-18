@@ -106,7 +106,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="{% if is_sso_user %}max-w-xl{% else %}grid grid-cols-1 md:grid-cols-2 gap-6 items-start{% endif %}">
 
         {# ─── Edit Profile ─────────────────────────────────────────── #}
         <div class="jk-card">
@@ -115,7 +115,7 @@
                 <span class="font-bold text-slate-800">Edit Profile</span>
             </div>
             <div class="jk-card-body">
-                <form method="POST">
+                <form data-unsaved-guard method="POST">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="profile">
 
@@ -144,6 +144,7 @@
             </div>
         </div>
 
+        {% if not is_sso_user %}
         {# ─── Change Password ──────────────────────────────────────── #}
         <div class="jk-card">
             <div class="jk-card-header flex items-center gap-2">
@@ -151,7 +152,7 @@
                 <span class="font-bold text-slate-800">Change Password</span>
             </div>
             <div class="jk-card-body">
-                <form method="POST" id="pw-form">
+                <form data-unsaved-guard method="POST" id="pw-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="password">
 
@@ -186,6 +187,7 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
     </div>
 
@@ -199,7 +201,7 @@
             <p class="text-sm text-slate-500 mb-4">
                 All dates and times across the system will display in your selected timezone.
             </p>
-            <form method="POST">
+            <form data-unsaved-guard method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="timezone">
                 <label class="jk-label mb-1.5 block" for="timezone_select">Your Timezone</label>
@@ -232,7 +234,7 @@
             <span class="ml-auto text-xs text-slate-400 font-medium">Choose how you want to be notified</span>
         </div>
         <div class="jk-card-body">
-            <form method="POST">
+            <form data-unsaved-guard method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="notifications">
 
@@ -257,6 +259,7 @@
                         </label>
                     </div>
 
+                    {% if whatsapp_notifications_available %}
                     {# WhatsApp #}
                     <div class="rounded-xl border transition-colors"
                          :class="waOn ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-white'">
@@ -280,32 +283,26 @@
                             <p class="text-[11px] text-slate-400 mt-1">Leave blank to use your profile phone number.</p>
                         </div>
                     </div>
+                    {% endif %}
 
-                    {# Teams #}
-                    <div class="rounded-xl border transition-colors"
+                    {% if teams_personal_available %}
+                    {# Microsoft Teams — personal chat with the Workflows bot #}
+                    <div class="flex items-center justify-between p-3 rounded-xl border transition-colors"
                          :class="teamsOn ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200 bg-white'">
-                        <div class="flex items-center justify-between p-3">
-                            <div class="flex items-center gap-3">
-                                <span class="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center text-lg">🟣</span>
-                                <div>
-                                    <p class="text-sm font-bold text-slate-800">Microsoft Teams</p>
-                                    <p class="text-xs text-slate-400">Incoming Webhook</p>
-                                </div>
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center text-lg">💬</span>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800">Microsoft Teams</p>
+                                <p class="text-xs text-slate-400">Chat with the Workflows bot · {{ profile_user.email }}</p>
                             </div>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="teams_enabled" class="sr-only peer"
-                                       x-model="teamsOn" {% if notif_pref.teams_enabled %}checked{% endif %}>
-                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
-                            </label>
                         </div>
-                        <div x-show="teamsOn" x-collapse class="px-3 pb-3">
-                            <input type="url" name="teams_webhook_url" value="{{ notif_pref.teams_webhook_url }}"
-                                   class="jk-input w-full text-sm" placeholder="https://outlook.office.com/webhook/...">
-                            <p class="text-[11px] text-slate-400 mt-1">
-                                Get this URL from your Teams channel → Connectors → Incoming Webhook.
-                            </p>
-                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="teams_enabled" class="sr-only peer"
+                                   x-model="teamsOn" {% if notif_pref.teams_enabled %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        </label>
                     </div>
+                    {% endif %}
                 </div>
 
                 {# ── Event Types ── #}
@@ -374,6 +371,7 @@
 </div>
 
 <script>
+{% if not is_sso_user %}
 function checkPwStrength(val) {
     const fill  = document.getElementById('pw-strength-fill');
     const label = document.getElementById('pw-strength-label');
@@ -397,6 +395,7 @@ function checkPwMatch() {
     if (np === cp) { msg.textContent = '✓ Passwords match'; msg.style.color = '#22c55e'; }
     else           { msg.textContent = '✗ Passwords do not match'; msg.style.color = '#ef4444'; }
 }
+{% endif %}
 
 // Show browser-detected timezone as a hint on the timezone selector
 (function () {

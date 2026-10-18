@@ -9,7 +9,8 @@
         <span class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{{ msg.body }}</span>
     </div>
     {% else %}
-    <div class="jk-msg {% if msg.direction == 'OUT' %}jk-msg--out{% else %}jk-msg--in{% endif %}">
+    <div class="jk-msg {% if msg.direction == 'OUT' %}jk-msg--out{% else %}jk-msg--in{% endif %}"
+         data-msg-id="{{ msg.id }}" data-direction="{{ msg.direction }}">
         <!-- Selection checkbox (visible only in escalate selection mode via CSS) -->
         <label class="jk-msg__select-check" onclick="event.stopPropagation()">
             <input type="checkbox" value="{{ msg.id }}" class="jk-escalate-msg-check rounded border-slate-300 text-indigo-600 shadow-sm"
@@ -175,6 +176,10 @@
                              data-lightbox-name="{{ att.original_filename|default:'Image' }}"
                              data-lightbox-group="chat-gallery"
                              onclick="openLightbox(this)">
+                        {% elif att.mime_type and "video/" in att.mime_type %}
+                        <video controls preload="metadata" style="max-width:100%;max-height:240px;border-radius:8px;" aria-label="{{ att.original_filename }}">
+                            <source src="{{ att.file.url }}" type="{{ att.mime_type }}">
+                        </video>
                         {% elif att.mime_type and "audio/" in att.mime_type %}
                         <div class="jk-msg__audio-player">
                             <div class="jk-msg__audio-icon">

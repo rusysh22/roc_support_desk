@@ -92,6 +92,7 @@
 <div x-data="{
     showAddFieldModal: false,
     showInviteModal: false,
+    showCollabModal: false,
     showQrModal: false,
     qrGenerated: false,
     inviteEmails: '',
@@ -167,9 +168,7 @@
     <div class="flex items-center justify-between border-b border-slate-200 shrink-0 transition-all duration-300"
          :class="fullscreenMode ? 'pb-2 mb-2' : 'pb-4 mb-4'">
         <div class="flex items-center gap-3 min-w-0">
-            <a href="{% url 'desk:form_list' %}" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-all shadow-sm shrink-0">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            </a>
+            {% url 'desk:form_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
             <div class="min-w-0">
                 <h1 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight truncate">{{ dynamic_form.title }}</h1>
                 <div class="flex items-center gap-2 mt-0.5">
@@ -214,6 +213,14 @@
             <!-- Send Invitation -->
             <button @click="showInviteModal = true" class="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-all shadow-sm" title="Send Invitation">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+            </button>
+
+            <!-- Collaborators -->
+            <button @click="showCollabModal = true" class="relative w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-all shadow-sm" title="Collaborators">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 00-9.288 0M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                {% if dynamic_form.collaborators.count %}
+                <span class="absolute -top-1.5 -right-1.5 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center leading-none">{{ dynamic_form.collaborators.count }}</span>
+                {% endif %}
             </button>
 
             <!-- Duplicate Form -->
@@ -304,17 +311,17 @@
             </div>
             
             <div class="flex-1 overflow-y-auto inspector-scroll p-5">
-                <form method="post" enctype="multipart/form-data" class="space-y-5">
+                <form data-unsaved-guard method="post" enctype="multipart/form-data" class="space-y-5">
                     {% csrf_token %}
                     
                     <!-- Details -->
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.title.label }}</label>
+                            <label for="{{ form.title.id_for_label }}" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.title.label }}</label>
                             {{ form.title }}
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.slug.label }}</label>
+                            <label for="id_slug" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.slug.label }}</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600 font-mono text-sm">/</span>
                                 <input type="text" name="slug" value="{{ form.slug.value }}" class="jk-input pl-7 font-mono text-sm {% if form.slug.errors %}border-red-400 bg-red-50 focus:ring-red-500 focus:border-red-500{% else %}bg-slate-50 focus:bg-white{% endif %}" required id="id_slug">
@@ -324,7 +331,7 @@
                             {% endif %}
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>
+                            <label for="id_description" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.description.label }}</label>
                             <div class="hidden">{{ form.description }}</div>
                         <div x-data="{ quillFormDesc: null }" x-init="
                                 let qContainer = $el.querySelector('.quill-target');
@@ -355,7 +362,7 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.success_message.label }}</label>
+                            <label for="{{ form.success_message.id_for_label }}" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-1.5">{{ form.success_message.label }}</label>
                             {{ form.success_message }}
                         </div>
                     </div>
@@ -367,7 +374,7 @@
                         <h4 class="text-xs font-black text-indigo-500 uppercase tracking-widest">Appearance</h4>
                         
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Background Color</label>
+                            <label for="id_background_color" class="block text-xs font-bold text-slate-600 mb-1.5">Background Color</label>
                             <div class="flex items-center gap-2.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
                                 <input type="color" name="background_color" id="id_background_color" x-model="bgColor" class="w-9 h-9 p-0 border-0 rounded-lg shadow-sm cursor-pointer" value="{{ form.instance.background_color|default:'#ffffff' }}">
                                 <span class="text-xs font-mono text-slate-600 flex-1" x-text="bgColor || 'Default'"></span>
@@ -375,9 +382,9 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Background Image</label>
+                            <label for="id_background_image" class="block text-xs font-bold text-slate-600 mb-1.5">Background Image</label>
                             <div class="space-y-2">
-                                <input type="file" name="background_image" accept="image/*" class="jk-file-input text-xs" @change="
+                                <input type="file" name="background_image" id="id_background_image" accept="image/*" class="jk-file-input text-xs" @change="
                                     if ($event.target.files.length > 0) {
                                         bgImageUrl = URL.createObjectURL($event.target.files[0]);
                                     }
@@ -396,9 +403,9 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Header Image</label>
+                            <label for="id_header_image" class="block text-xs font-bold text-slate-600 mb-1.5">Header Image</label>
                             <div class="space-y-2">
-                                <input type="file" name="header_image" accept="image/*" class="jk-file-input text-xs" @change="
+                                <input type="file" name="header_image" id="id_header_image" accept="image/*" class="jk-file-input text-xs" @change="
                                     if ($event.target.files.length > 0) {
                                         headerImgUrl = URL.createObjectURL($event.target.files[0]);
                                     }
@@ -559,7 +566,7 @@
                     </div>
 
                     <!-- HTMX Form -->
-                    <form id="add-field-form" 
+                    <form id="add-field-form" data-unsaved-guard
                           hx-post="{% url 'desk:form_edit' dynamic_form.pk %}" 
                           hx-target="#field-list-container" 
                           hx-swap="outerHTML" 
@@ -569,9 +576,9 @@
                         <input type="hidden" name="action" value="add_field">
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">1. Select Input Type</label>
+                            <label for="new-field-type" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">1. Select Input Type</label>
                             <div class="relative">
-                                <select name="field_type" x-model="newFieldType" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none transition-shadow pl-9 cursor-pointer">
+                                <select name="field_type" id="new-field-type" x-model="newFieldType" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none transition-shadow pl-9 cursor-pointer">
                                     <optgroup label="Input Fields">
                                         <option value="text">Short Text (Single Line)</option>
                                         <option value="textarea">Long Text (Paragraph)</option>
@@ -598,12 +605,12 @@
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">2. What is your question?</label>
-                            <input type="text" name="label" required placeholder="Type your question here..." class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                            <label for="new-field-label" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">2. What is your question?</label>
+                            <input type="text" name="label" id="new-field-label" required placeholder="Type your question here..." class="w-full bg-white border border-slate-300 text-slate-900 text-base rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
                         </div>
 
                         <div class="field-description-wrapper">
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Description / Content (Optional)</label>
+                            <label for="new-field-help-text" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Description / Content (Optional)</label>
                             <div x-data="{ quill: null }" x-init="
                                 quill = new Quill($refs.quillEditor, {
                                     theme: 'snow',
@@ -622,7 +629,7 @@
                                 });
                             ">
                                 <div x-ref="quillEditor"></div>
-                                <input type="hidden" name="help_text" x-ref="helpTextHidden" value="">
+                                <input type="hidden" name="help_text" id="new-field-help-text" x-ref="helpTextHidden" value="">
                             </div>
                         </div>
 
@@ -635,7 +642,7 @@
 
                         <!-- Dynamic Options -->
                         <div x-show="['dropdown', 'radio', 'checkbox', 'survey'].includes(newFieldType)" x-transition class="pt-4 border-t border-slate-100">
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-3">3. Configure Choices</label>
+                            <p class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-3">3. Configure Choices</p>
                             <div class="space-y-2">
                                 <template x-for="(choice, index) in newFieldChoices" :key="index">
                                     <div class="flex items-center gap-2 group">
@@ -662,7 +669,7 @@
 
                         <!-- Number Settings -->
                         <div x-show="newFieldType === 'number'" x-transition class="pt-4 border-t border-slate-100 space-y-4">
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest">Number Format</label>
+                            <p class="block text-xs font-bold text-slate-600 uppercase tracking-widest">Number Format</p>
                             
                             <div class="grid grid-cols-3 gap-2">
                                 <label class="border rounded-xl p-3 cursor-pointer transition-colors" :class="numberType === 'general' ? 'border-indigo-500 bg-indigo-50/50 text-indigo-700' : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'">
@@ -683,18 +690,18 @@
                             </div>
 
                             <div x-show="numberType === 'currency'" x-transition>
-                                <label class="block text-xs font-bold text-slate-600 mb-1.5">Currency Type</label>
-                                <select name="settings_currency_type" x-model="numberCurrency" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow cursor-pointer">
+                                <label for="new-field-currency-type" class="block text-xs font-bold text-slate-600 mb-1.5">Currency Type</label>
+                                <select name="settings_currency_type" id="new-field-currency-type" x-model="numberCurrency" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow cursor-pointer">
                                     <option value="idr">Rp (Indonesian Rupiah)</option>
                                     <option value="usd">$ (US Dollar)</option>
                                 </select>
                             </div>
 
                             <div x-show="numberType === 'phone'" x-transition>
-                                <label class="block text-xs font-bold text-slate-600 mb-1.5">Default Country Code</label>
+                                <label for="new-field-phone-code" class="block text-xs font-bold text-slate-600 mb-1.5">Default Country Code</label>
                                 <div class="relative">
                                     <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 font-bold">+</span>
-                                    <input type="text" name="settings_phone_code" x-model="numberPhoneCode" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
+                                    <input type="text" name="settings_phone_code" id="new-field-phone-code" x-model="numberPhoneCode" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow">
                                 </div>
                                 <p class="text-xs text-slate-500 mt-1">Users enter 8XX-XXX, saved as +628XX-XXX</p>
                             </div>
@@ -728,9 +735,9 @@
                     <div class="p-6 space-y-4">
                         <!-- Copy Link Section -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Form Link</label>
+                            <label for="invite-form-link" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Form Link</label>
                             <div class="flex gap-2">
-                                <input type="text" readonly :value="window.location.origin + '/f/{{ dynamic_form.slug }}/'"
+                                <input type="text" id="invite-form-link" readonly :value="window.location.origin + '/f/{{ dynamic_form.slug }}/'"
                                     class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-600 truncate">
                                 <button type="button" @click="copyFormLink()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 transition-colors flex items-center gap-1.5">
                                     <svg x-show="!linkCopied" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
@@ -743,8 +750,8 @@
 
                         <!-- Email Invitation -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Send via Email</label>
-                            <textarea x-model="inviteEmails" rows="3" placeholder="Enter email addresses, separated by commas..." class="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"></textarea>
+                            <label for="invite-emails" class="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">Send via Email</label>
+                            <textarea id="invite-emails" x-model="inviteEmails" rows="3" placeholder="Enter email addresses, separated by commas..." class="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"></textarea>
                             <p class="text-xs text-slate-600 mt-1">Separate multiple emails with commas</p>
                         </div>
 
@@ -763,6 +770,89 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== COLLABORATORS MODAL ===== -->
+    <div x-show="showCollabModal" style="display:none;" class="relative z-50"
+         x-data="{
+            allStaff: JSON.parse(document.getElementById('collab-candidates-data')?.textContent || '[]'),
+            selected: JSON.parse(document.getElementById('collab-current-data')?.textContent || '[]'),
+            search: '',
+            dropOpen: false,
+            get filtered() {
+                const q = this.search.toLowerCase();
+                return this.allStaff.filter(a =>
+                    !this.selected.find(s => s.id === a.id) &&
+                    (!q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+                );
+            },
+            add(a) { this.selected.push(a); this.search = ''; this.dropOpen = false; },
+            remove(id) { this.selected = this.selected.filter(a => a.id !== id); }
+         }">
+        <script type="application/json" id="collab-candidates-data">{{ collaborator_candidates_json|safe }}</script>
+        <script type="application/json" id="collab-current-data">{{ collaborators_json|safe }}</script>
+        <div x-show="showCollabModal" x-transition.opacity class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div x-show="showCollabModal" @click.away="showCollabModal = false" x-transition class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100">
+                    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 flex items-center justify-between text-white rounded-t-2xl">
+                        <h3 class="text-base font-bold flex items-center gap-2">
+                            <svg class="h-5 w-5 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 00-9.288 0M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            Collaborators
+                        </h3>
+                        <button type="button" @click="showCollabModal = false" class="text-indigo-200 hover:text-white transition-colors bg-indigo-700/50 hover:bg-indigo-800 p-1 rounded-lg">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <form method="POST" action="{% url 'desk:form_collaborators_update' dynamic_form.pk %}" class="p-6 space-y-4 rounded-b-2xl">
+                        {% csrf_token %}
+                        <div>
+                            <p class="text-xs text-slate-600 mb-2">Staff added here can view and edit this form — settings, fields, and responses — alongside you.</p>
+                            <div x-show="selected.length > 0" class="flex flex-wrap gap-2 mb-2.5">
+                                <template x-for="person in selected" :key="person.id">
+                                    <div class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg pl-2.5 pr-2 py-1">
+                                        <span class="text-xs font-medium text-slate-800 max-w-[160px] truncate" x-text="person.name"></span>
+                                        <button type="button" @click="remove(person.id)" class="flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors">
+                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="relative">
+                                <input type="text" x-model="search"
+                                       @focus="dropOpen = true" @input="dropOpen = true"
+                                       @click.outside="dropOpen = false"
+                                       placeholder="Search staff by name or email..." autocomplete="off"
+                                       class="jk-input w-full text-sm pr-8">
+                                <div x-show="dropOpen && filtered.length > 0" x-transition
+                                     class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                    <template x-for="person in filtered" :key="person.id">
+                                        <button type="button" @click="add(person)"
+                                                class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 transition-colors border-b border-slate-100 last:border-0 flex items-center gap-3">
+                                            <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
+                                                 x-text="person.name.charAt(0).toUpperCase()"></div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium text-slate-800 truncate" x-text="person.name"></p>
+                                                <p class="text-xs text-slate-500 truncate" x-text="person.email"></p>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <template x-for="person in selected" :key="person.id">
+                                <input type="hidden" name="collaborators" :value="person.id">
+                            </template>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" @click="showCollabModal = false" class="px-4 py-2 rounded-xl font-bold text-slate-600 hover:text-slate-700 hover:bg-slate-100 transition-colors text-sm">Cancel</button>
+                            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all text-sm">Save Collaborators</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

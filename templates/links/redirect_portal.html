@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>{{ link.title|default:"Redirecting" }} | {{ site_config.site_name|default:"Support Desk" }}</title>
+    {% if site_config.favicon %}<link rel="icon" href="{{ site_config.favicon.url }}">{% endif %}
+
+    <!-- Open Graph / Twitter (same card as the direct redirect) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
+    <meta property="og:title" content="{{ link.title|default:'Shared Link' }}">
+    <meta property="og:description" content="{{ link.description|default:'Click to view this shared link via RoC Desk.' }}">
+    {% if link.qr_code %}<meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ link.qr_code.url }}">{% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ link.title|default:'Shared Link' }}">
+    <meta name="twitter:description" content="{{ link.description|default:'Click to view this shared link via RoC Desk.' }}">
+    {% if link.qr_code %}<meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{{ link.qr_code.url }}">{% endif %}
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { margin: 0; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #334155;
+            background: #f1f5f9;
+            background-image: radial-gradient(circle at 15% 0%, #e0e7ff 0, transparent 45%),
+                              radial-gradient(circle at 100% 100%, #ede9fe 0, transparent 40%);
+            min-height: 100vh; min-height: 100dvh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 32px 16px;
+        }
+        .portal {
+            width: 100%; max-width: 560px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 20px;
+            box-shadow: 0 24px 48px -16px rgba(15, 23, 42, 0.18);
+            overflow: hidden;
+        }
+        .portal__brand {
+            display: flex; align-items: center; gap: 10px;
+            padding: 16px 24px; border-bottom: 1px solid #f1f5f9;
+            font-weight: 700; color: #0f172a; font-size: 15px;
+        }
+        .portal__brand img { height: 28px; width: auto; max-width: 160px; object-fit: contain; }
+        .portal__brand img.logo-on-light { filter: brightness(0); opacity: .85; }
+        /* The frame follows the media's own shape: landscape fills the card width,
+           portrait is capped by height and centred — no black letterbox bars. */
+        .portal__media {
+            display: flex; justify-content: center; align-items: center;
+            background: #f8fafc; border-bottom: 1px solid #f1f5f9;
+        }
+        /* --ar-n is the media's real width / height (set by the script below). The box takes exactly that shape
+           and shrinks as a whole when the height limit applies, so the frame follows the video: no bars. */
+        .portal__media { --maxh: min(70vh, 560px); --ar-n: 1.7778; }
+        .portal__media img, .portal__media video {
+            display: block; height: auto; max-width: 100%; max-height: var(--maxh);
+            aspect-ratio: var(--ar-n); width: min(100%, calc(var(--maxh) * var(--ar-n)));
+        }
+        .portal__media--portrait { padding: 12px 0; }
+        .portal__media { position: relative; }
+        .portal__media iframe { display: block; border: 0; width: 100%; aspect-ratio: 16 / 9; background: #0f172a; }
+        .portal__media--embed.portal__media--portrait iframe { width: 325px; max-width: 100%; aspect-ratio: auto; height: min(740px, 78vh); border-radius: 12px; }
+        .portal__sound {
+            position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2;
+            display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 9999px;
+            background: rgba(15, 23, 42, .88); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+            box-shadow: 0 8px 20px -6px rgba(15, 23, 42, .5); white-space: nowrap;
+        }
+        .portal__sound:hover { background: #0f172a; }
+        .portal__sound:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+        .portal__sound[hidden] { display: none; }
+        .portal__media--portrait img, .portal__media--portrait video { border-radius: 12px; }
+        @media (max-width: 520px) {
+            .portal__media { --maxh: 65vh; }
+        }
+        .portal__body { padding: 24px; }
+        .portal__title { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+        .portal__message { margin: 0; font-size: 15px; line-height: 1.6; color: #475569; word-break: break-word; }
+        .portal__dest {
+            margin-top: 20px; padding: 12px 14px;
+            display: flex; align-items: center; gap: 12px;
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+        }
+        .portal__dest-icon {
+            flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            background: #eef2ff; color: #4f46e5;
+        }
+        .portal__dest-text { min-width: 0; }
+        .portal__dest-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+        .portal__dest-host { font-size: 14px; font-weight: 600; color: #0f172a; }
+        .portal__dest-url { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .portal__footer {
+            display: flex; align-items: center; gap: 16px;
+            padding: 16px 24px 24px;
+        }
+        .portal__count { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+        .ring { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+        .ring svg { width: 48px; height: 48px; transform: rotate(-90deg); }
+        .ring__track { stroke: #e2e8f0; }
+        .ring__bar { stroke: #4f46e5; transition: stroke-dashoffset 1s linear; }
+        .ring__num {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 16px; color: #0f172a; font-variant-numeric: tabular-nums;
+        }
+        .portal__count-text { font-size: 13px; color: #475569; line-height: 1.4; }
+        .portal__count-text strong { color: #0f172a; }
+        .link-btn { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: #4f46e5; cursor: pointer; }
+        .link-btn:hover { text-decoration: underline; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 12px 20px; border-radius: 12px; border: 0;
+            background: #4f46e5; color: #fff; font: inherit; font-size: 14px; font-weight: 600;
+            text-decoration: none; white-space: nowrap; cursor: pointer;
+            box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.4);
+            transition: background .15s;
+        }
+        .btn:hover { background: #4338ca; }
+        .btn:focus-visible, .link-btn:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+        .btn--block { width: 100%; }
+
+        @media (max-width: 520px) {
+            body { padding: 16px; align-items: flex-start; }
+            .portal { border-radius: 16px; }
+            .portal__brand, .portal__body { padding-left: 18px; padding-right: 18px; }
+            .portal__title { font-size: 18px; }
+            .portal__footer { flex-direction: column; align-items: stretch; padding: 12px 18px 20px; }
+            .portal__footer .btn { width: 100%; }
+        }
+
+        /* ---- Full page layout (desktop): media large on the left, message + redirect on the right ---- */
+        @media (min-width: 900px) {
+            body:has(.portal--full) { padding: 24px; }
+            .portal--full {
+                max-width: min(1440px, 100%); display: grid;
+                grid-template-columns: minmax(0, 1fr) 400px;
+                grid-template-rows: auto 1fr auto;
+                grid-template-areas: "media brand" "media body" "media footer";
+            }
+            .portal--full .portal__brand { grid-area: brand; border-bottom: 1px solid #f1f5f9; }
+            .portal--full .portal__body { grid-area: body; padding: 24px; overflow-y: auto; }
+            .portal--full .portal__footer { grid-area: footer; flex-direction: column; align-items: stretch; padding: 16px 24px 24px; border-top: 1px solid #f1f5f9; }
+            .portal--full .portal__footer .btn { width: 100%; }
+            .portal--full .portal__title { font-size: 24px; }
+            /* the stage is as tall as the media (or the right-hand panel, whichever is taller); a dark stage only behind video */
+            .portal--full .portal__media { grid-area: media; min-height: 420px; background: #f8fafc; border-bottom: 0; border-right: 1px solid #e2e8f0; }
+            .portal--full .portal__media--embed, .portal--full .portal__media:has(video) { background: #0b1020; }
+            /* the frame follows the media's own shape and uses as much of the stage as it can */
+            .portal--full .portal__media { --maxh: 86vh; }
+            .portal--full .portal__media--portrait { padding: 16px 0; }
+            .portal--full .portal__media--embed.portal__media--landscape iframe { width: min(100%, calc(86vh * 16 / 9)); aspect-ratio: 16 / 9; }
+            .portal--full .portal__media--embed.portal__media--portrait iframe { width: auto; max-width: 100%; height: min(86vh, 900px); aspect-ratio: 9 / 16; min-width: 325px; border-radius: 12px; }
+            .portal--full .portal__media--embed { padding: 0; }
+        }
+        @media (min-width: 900px) and (max-width: 1100px) { .portal--full { grid-template-columns: minmax(0, 1fr) 340px; } }
+        /* phones and tablets: media first, full width; then the message and the redirect */
+        @media (max-width: 899px) {
+            .portal--full .portal__media { --maxh: 65vh; }
+            .portal--full .portal__media--embed.portal__media--landscape iframe { width: 100%; aspect-ratio: 16 / 9; }
+        }
+        .ring__num--long { font-size: 12px; }
+        @media (prefers-reduced-motion: reduce) { .ring__bar { transition: none; } }
+    </style>
+</head>
+<body>
+    {% with has_media=link.portal_media|yesno:"1,"|add:link.portal_video_url %}
+    <main class="portal{% if link.portal_layout == "full" and has_media %} portal--full{% endif %}">
+        <div class="portal__brand">
+            {% if site_config.logo_light %}
+                <img src="{{ site_config.logo_light.url }}" alt="{{ site_config.site_name|default:'Support Desk' }}">
+            {% elif site_config.logo %}
+                {# Only the dark-background (white) logo exists — darken it so it shows on this light header #}
+                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name|default:'Support Desk' }}" class="logo-on-light">
+            {% else %}
+                {{ site_config.site_name|default:"Support Desk" }}
+            {% endif %}
+        </div>
+
+        {% with embed=link.portal_embed %}
+        {% if embed %}
+        <div class="portal__media portal__media--embed portal__media--{% if embed.portrait %}portrait{% else %}landscape{% endif %}">
+            {# The address is rebuilt from the video id on the server; only YouTube and TikTok are ever embedded #}
+            <iframe src="{{ embed.src }}" title="{{ link.title|default:'Video' }}"
+                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                    referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        {% elif link.portal_media %}
+        <div class="portal__media">
+            {% if link.portal_media_type == "video" %}
+                {# Sound: the page tries to play with sound; when the browser refuses (no interaction yet) it starts muted and shows a button #}
+                <video id="portal-video" src="{{ link.portal_media.url }}" {% if not link.portal_media_sound or link.portal_media_has_audio is False %}muted autoplay{% endif %} loop playsinline controls preload="auto"></video>
+                {% if link.portal_media_sound and link.portal_media_has_audio is not False %}
+                <button type="button" class="portal__sound" id="sound-btn" hidden>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>
+                    Tap to turn on sound
+                </button>
+                {% endif %}
+            {% else %}
+                <img src="{{ link.portal_media.url }}" alt="{{ link.title|default:'' }}">
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="portal__body">
+            {% if link.title %}<h1 class="portal__title">{{ link.title }}</h1>{% endif %}
+            {% if link.portal_message %}<p class="portal__message">{{ link.portal_message|linebreaksbr }}</p>{% endif %}
+
+            <div class="portal__dest">
+                <div class="portal__dest-icon" aria-hidden="true">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </div>
+                <div class="portal__dest-text">
+                    <div class="portal__dest-label">Destination</div>
+                    <div class="portal__dest-host">{{ target_host }}</div>
+                    <div class="portal__dest-url" title="{{ link.target_url }}">{{ link.target_url }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="portal__footer">
+            {% if link.portal_countdown %}
+            <div class="portal__count" id="count-box">
+                <div class="ring" aria-hidden="true">
+                    <svg viewBox="0 0 48 48">
+                        <circle class="ring__track" cx="24" cy="24" r="21" fill="none" stroke-width="4"/>
+                        <circle class="ring__bar" id="ring-bar" cx="24" cy="24" r="21" fill="none" stroke-width="4" stroke-linecap="round"
+                                stroke-dasharray="131.95" stroke-dashoffset="0"/>
+                    </svg>
+                    <span class="ring__num" id="count-num">{{ link.portal_countdown }}</span>
+                </div>
+                <div class="portal__count-text" aria-live="polite">
+                    <span id="count-label">Redirecting to destination in <strong id="count-sec">{{ link.portal_countdown }}</strong> <span id="count-unit">seconds</span></span><br>
+                    <button type="button" class="link-btn" id="pause-btn">Stay on this page</button>
+                </div>
+            </div>
+            {% endif %}
+            <a href="{{ link.target_url }}" class="btn{% if not link.portal_countdown %} btn--block{% endif %}" id="go-btn" rel="noopener">
+                Continue to destination
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </a>
+        </div>
+    </main>
+    {% endwith %}
+
+    {% if link.portal_media and not link.portal_embed and link.portal_media_type == "video" and link.portal_media_sound %}
+    <script>
+        // Play with sound. Browsers refuse that until the visitor has interacted with the page; then fall
+        // back to muted playback and offer a button (any first tap on the page also turns the sound on).
+        (function () {
+            var video = document.getElementById('portal-video');
+            var btn = document.getElementById('sound-btn');
+            if (!video || !btn) return;
+            function soundOn() {
+                video.muted = false;
+                var played = video.play();
+                if (played && played.catch) played.catch(function () {});
+                btn.hidden = true;
+            }
+            btn.addEventListener('click', soundOn);
+            // A video with no audio track has nothing to turn on: hide the button once playback shows that
+            // (Firefox: mozHasAudio, Chrome / Edge: webkitAudioDecodedByteCount; Safari can't tell).
+            // Checked on upload (ffprobe): true / false, or null when unknown (older uploads).
+            var KNOWN_AUDIO = {{ link.portal_media_has_audio|yesno:"true,false,null" }};
+            function hasNoAudio() {
+                if (KNOWN_AUDIO !== null) return !KNOWN_AUDIO;
+                if (typeof video.mozHasAudio === 'boolean') return !video.mozHasAudio;
+                // Chrome decodes no audio while the video is muted, so this only tells something when unmuted.
+                if (typeof video.webkitAudioDecodedByteCount === 'number' && !video.muted) {
+                    return video.currentTime > 0.8 && video.webkitAudioDecodedByteCount === 0;
+                }
+                return false;
+            }
+            video.addEventListener('timeupdate', function check() {
+                if (video.currentTime <= 0.8) return;
+                video.removeEventListener('timeupdate', check);
+                if (hasNoAudio()) btn.hidden = true;
+            });
+            var attempt = video.play();
+            if (attempt && attempt.then) {
+                attempt.catch(function () {
+                    video.muted = true;
+                    video.play().catch(function () {});
+                    btn.hidden = hasNoAudio();
+                    document.addEventListener('pointerdown', function (e) {
+                        if (video.muted && !btn.hidden && e.target.closest && !e.target.closest('a, #pause-btn, #go-btn')) soundOn();
+                    }, { once: true });
+                });
+            }
+        })();
+    </script>
+    {% endif %}
+
+    {% if link.portal_media and not link.portal_embed %}
+    <script>
+        // Tag the frame landscape/portrait from the media's real dimensions
+        (function () {
+            var box = document.querySelector('.portal__media');
+            var el = box && box.querySelector('img, video');
+            if (!el) return;
+            function fit() {
+                var w = el.videoWidth || el.naturalWidth, h = el.videoHeight || el.naturalHeight;
+                if (!w || !h) return;
+                box.style.setProperty('--ar-n', (w / h).toFixed(4));
+                box.classList.toggle('portal__media--portrait', h > w);
+                box.classList.toggle('portal__media--landscape', h <= w);
+            }
+            // metadata may already be there (cached file) — don't wait for an event that has fired
+            ['loadedmetadata', 'loadeddata', 'load', 'resize'].forEach(function (name) { el.addEventListener(name, fit); });
+            fit();
+            if (el.tagName === 'VIDEO') { var tries = 0, poll = setInterval(function () { fit(); if (el.videoWidth || ++tries > 40) clearInterval(poll); }, 150); }
+        })();
+    </script>
+    {% endif %}
+
+    {% if link.portal_countdown %}
+    <script>
+        (function () {
+            var total = {{ link.portal_countdown }};
+            var left = total;
+            var paused = false;
+            var CIRC = 131.95;
+            var target = "{{ link.target_url|escapejs }}";
+            var num = document.getElementById('count-num');
+            var sec = document.getElementById('count-sec');
+            var label = document.getElementById('count-label');
+            var bar = document.getElementById('ring-bar');
+            var pauseBtn = document.getElementById('pause-btn');
+
+            // up to 10 minutes: show seconds below a minute, m:ss above it
+            function clock(n) {
+                if (n < 60) return String(n);
+                return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+            }
+            function render() {
+                num.textContent = clock(left);
+                num.classList.toggle('ring__num--long', left >= 60);
+                if (sec) sec.textContent = clock(left);
+                var unit = document.getElementById('count-unit');
+                if (unit) unit.textContent = left >= 60 ? 'minutes' : 'seconds';
+                bar.style.strokeDashoffset = (CIRC * (1 - left / total)).toFixed(2);
+            }
+            render();
+
+            var timer = setInterval(function () {
+                if (paused) return;
+                left -= 1;
+                render();
+                if (left <= 0) {
+                    clearInterval(timer);
+                    window.location.href = target;
+                }
+            }, 1000);
+
+            pauseBtn.addEventListener('click', function () {
+                paused = !paused;
+                if (paused) {
+                    label.innerHTML = 'Auto-redirect paused';
+                    pauseBtn.textContent = 'Resume countdown';
+                } else {
+                    label.innerHTML = 'Redirecting to destination in <strong id="count-sec"></strong> <span id="count-unit"></span>';
+                    sec = document.getElementById('count-sec');
+                    render();
+                    pauseBtn.textContent = 'Stay on this page';
+                }
+            });
+
+            // The countdown only stops when the visitor presses "Stay on this page". It used to stop on any touch
+            // of the video or when the sound came on — on phones a scroll or the first tap (which turns the sound
+            // on) did that, so the page never redirected.
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>

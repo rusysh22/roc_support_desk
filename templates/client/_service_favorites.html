@@ -1,0 +1,133 @@
+{% comment %}
+Star / favorite behaviour for Ticket Portal service cards (top-level and sub-categories).
+Include once per page. Toggling a star saves it per user and fires a `svc:favorite`
+event on the card ({detail: {favorite}}) so the page can refresh its filters.
+{% endcomment %}
+<style>
+.jk-category-card > .svc-fav-btn, .svc-fav-btn {
+    position: absolute; top: .65rem; right: .65rem; z-index: 3; display: inline-flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: 9999px; background: rgba(255, 255, 255, .85); transition: transform .15s;
+}
+/* Not a favorite: a light grey star without outline; favorite: solid amber. */
+.svc-fav-btn svg path { fill: #e2e8f0; stroke: none; transition: fill .15s; }
+.svc-fav-btn:hover svg path { fill: #fcd34d; }
+.svc-fav-btn:hover { transform: scale(1.1); }
+.svc-fav-btn.is-on svg path { fill: #f59e0b; }
+.svc-fav-btn:disabled { opacity: .6; }
+/* Admin edit/delete on a card: in line with the star, just left of it. */
+.svc-card-admin { position: absolute; top: .775rem; right: 3rem; z-index: 10; display: flex; align-items: center; gap: .375rem; }
+.svc-tool { display: inline-flex; align-items: center; gap: .3rem; padding: .375rem .625rem; border-radius: .375rem; color: #64748b; }
+.svc-tool:hover { color: #334155; }
+.svc-tool[aria-pressed="true"], .svc-tool.is-active { background: #fffbeb; color: #b45309; }
+.svc-tool svg path { fill: none; }
+.svc-tool[aria-pressed="true"] svg path { fill: currentColor; }
+.svc-sort-menu { position: absolute; left: 0; top: calc(100% + 4px); z-index: 30; width: 11rem; padding: .25rem;
+                 background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; box-shadow: 0 10px 25px rgba(15, 23, 42, .12); }
+.svc-sort-menu button { display: flex; width: 100%; padding: .45rem .65rem; border-radius: .5rem; font-size: .8rem; color: #334155; text-align: left; }
+.svc-sort-menu button:hover { background: #f1f5f9; }
+.svc-sort-menu button[aria-checked="true"] { background: #eef2ff; color: #4338ca; font-weight: 600; }
+.jk-category-card.svc-fav-hidden { display: none !important; }
+</style>
+<script>
+/* ★ favorites-only + Recently / Most used sort for a page's service cards (client/_service_toolbar.html).
+   The choice is remembered per browser and shared by the portal and sub-category pages.
+   Cards carry data-fav, data-uses, data-last (and data-extra="1" for starred sub-categories
+   that only show under the ★ filter). */
+window.createServiceFilters = function (opts) {
+  const SORT_LABELS = { default: '', recent: 'Recently used', most: 'Most used' };
+  const favOnlyBtn = document.getElementById('services-fav-only');
+  const sortBtn = document.getElementById('services-sort-btn');
+  const sortMenu = document.getElementById('services-sort-menu');
+  const sortLabel = document.getElementById('services-sort-label');
+  const cards = opts.cards || [];
+  let favOnly = false;
+  let sortMode = 'default';
+  try {
+    favOnly = localStorage.getItem('roc_services_fav_only') === '1';
+    const saved = localStorage.getItem('roc_services_sort');
+    sortMode = Object.prototype.hasOwnProperty.call(SORT_LABELS, saved) ? saved : 'default';
+  } catch (e) {}
+  if (!favOnlyBtn) { favOnly = false; sortMode = 'default'; }  // no toolbar (signed out): show everything
+
+  function favHidden(card) {
+    if (card.dataset.extra === '1') return !favOnly || card.dataset.fav !== '1';
+    return favOnly && card.dataset.fav !== '1';
+  }
+  function key(card) {
+    const uses = Number(card.dataset.uses) || 0;
+    const last = Number(card.dataset.last) || 0;
+    if (sortMode === 'recent') return [-last, -uses];
+    if (sortMode === 'most') return [-uses, -last];
+    return [0, 0];
+  }
+  // Lower = earlier; ties keep the page's own order.
+  function compare(a, b) {
+    const ka = key(a), kb = key(b);
+    return (ka[0] - kb[0]) || (ka[1] - kb[1]) || (cards.indexOf(a) - cards.indexOf(b));
+  }
+  function render() {
+    if (favOnlyBtn) {
+      favOnlyBtn.setAttribute('aria-pressed', String(favOnly));
+      favOnlyBtn.title = favOnly ? 'Showing favorites only — click to show all' : 'Show favorites only';
+    }
+    if (sortBtn) {
+      sortBtn.classList.toggle('is-active', sortMode !== 'default');
+      if (sortLabel) sortLabel.textContent = SORT_LABELS[sortMode];
+    }
+    if (sortMenu) sortMenu.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.sort === sortMode)));
+    cards.forEach(card => card.classList.toggle('svc-fav-hidden', favHidden(card)));
+    if (opts.favEmpty) {
+      const searching = opts.hasQuery ? opts.hasQuery() : false;
+      opts.favEmpty.classList.toggle('hidden', !(favOnly && !searching && !cards.some(c => c.dataset.fav === '1')));
+    }
+  }
+  const changed = () => (opts.refresh ? opts.refresh() : render());
+
+  if (favOnlyBtn) favOnlyBtn.addEventListener('click', () => {
+    favOnly = !favOnly;
+    try { localStorage.setItem('roc_services_fav_only', favOnly ? '1' : '0'); } catch (e) {}
+    changed();
+  });
+  if (sortBtn && sortMenu) {
+    const close = () => { sortMenu.classList.add('hidden'); sortBtn.setAttribute('aria-expanded', 'false'); };
+    sortBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = sortMenu.classList.toggle('hidden') === false;
+      sortBtn.setAttribute('aria-expanded', String(open));
+    });
+    sortMenu.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
+      sortMode = b.dataset.sort;
+      try { localStorage.setItem('roc_services_sort', sortMode); } catch (e) {}
+      close();
+      changed();
+    }));
+    document.addEventListener('click', (e) => { if (!sortMenu.contains(e.target) && !sortBtn.contains(e.target)) close(); });
+  }
+  return { favHidden, compare, render };
+};
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.svc-fav-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const card = btn.closest('.jk-category-card');
+  const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+    || (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(btn.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': token }, credentials: 'same-origin' });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error();
+    if (card) card.dataset.fav = data.favorite ? '1' : '0';
+    btn.classList.toggle('is-on', data.favorite);
+    btn.setAttribute('aria-pressed', String(data.favorite));
+    btn.title = data.favorite ? 'Remove from favorites' : 'Add to favorites';
+    if (card) card.dispatchEvent(new CustomEvent('svc:favorite', { bubbles: true, detail: { favorite: data.favorite } }));
+  } catch (err) {
+    if (typeof showToast === 'function') showToast('Could not update favorites. Please try again.');
+  } finally {
+    btn.disabled = false;
+  }
+}, true);
+</script>

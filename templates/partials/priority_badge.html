@@ -1,0 +1,3 @@
+{% with p=priority %}
+<span class="jk-badge" style="{% if p == 'P1' %}background:#fee2e2;color:#b91c1c;{% elif p == 'P2' %}background:#ffedd5;color:#c2410c;{% elif p == 'P3' %}background:#fef3c7;color:#b45309;{% else %}background:#f1f5f9;color:#475569;{% endif %}">{{ p }}</span>
+{% endwith %}

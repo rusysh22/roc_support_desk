@@ -1,0 +1,21 @@
+{% comment %}
+5-segment progress bar for a portal ticket. Expects `progress` (the dict
+from cases.views_chat._portal_progress) and optional `compact` (bool, for
+the mobile card's slightly shorter bar). Filled segments use
+progress.bar_color — the ticket status's own color, same as its badge.
+{% endcomment %}
+{% if progress.is_negative %}
+<div class="flex items-center gap-1.5 text-xs font-semibold" style="color: {{ progress.bar_color }};">
+    <span class="w-full h-1.5 rounded-full" style="background-color: {{ progress.bar_color }};"></span>
+</div>
+{% else %}
+<div class="flex items-center gap-1">
+    {% for seg in progress.segments %}
+    <span class="h-1.5 rounded-full flex-1 {% if seg == 'upcoming' %}bg-slate-200{% endif %}"
+          {% if seg != 'upcoming' %}style="background-color: {{ progress.bar_color }};"{% endif %}></span>
+    {% endfor %}
+</div>
+<p class="text-[11px] text-slate-400 mt-1">
+    Step {{ progress.step }} of {{ progress.total_steps }} · {{ progress.step_label }}
+</p>
+{% endif %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_tags %}
 
 {% block title %}Dynamic Forms | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 
@@ -8,26 +8,6 @@
 
 {% block content %}
 <div class="space-y-6">
-
-    <div class="flex flex-col sm:flex-row gap-4 sm:items-center justify-between bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">All Forms</h2>
-            <p class="text-sm text-slate-600 mt-1">Manage and publish custom forms to the client portal.</p>
-        </div>
-        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center w-full sm:w-auto">
-            <form method="get" class="relative flex-1 sm:flex-none">
-                <input type="text" name="q" value="{{ search_query }}" placeholder="Search forms..." class="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 bg-slate-50 transition-all shadow-sm">
-                <svg class="h-4 w-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            </form>
-            {% if request.user.role_access != 'Auditor' %}
-            <a href="{% url 'desk:form_create' %}" class="jk-btn-primary flex justify-center items-center gap-2 px-4 py-2 rounded-2xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all whitespace-nowrap text-sm">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                <span class="hidden sm:inline">Create New</span>
-                <span class="sm:hidden">New Form</span>
-            </a>
-            {% endif %}
-        </div>
-    </div>
 
     <!-- Django Messages -->
     {% if messages %}
@@ -40,118 +20,64 @@
     </div>
     {% endif %}
 
-    <div class="bg-white border text-center border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        {% if forms %}
-            <!-- Mobile Card Layout -->
-            <div class="md:hidden divide-y divide-slate-100">
-                {% for form in forms %}
-                <div class="p-4">
-                    <div class="flex items-start justify-between gap-3 mb-2">
-                        <div class="min-w-0 flex-1">
-                            <div class="font-semibold text-slate-900 text-sm truncate">{{ form.title }}</div>
-                            <div class="text-xs text-slate-600 mt-0.5 truncate">/f/{{ form.slug }}</div>
-                        </div>
-                        {% if form.is_published %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 shrink-0">Published</span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 shrink-0">Draft</span>
-                        {% endif %}
-                    </div>
-                    <div class="flex items-center justify-between mt-3">
-                        <span class="text-xs text-slate-600"><span class="font-semibold text-slate-700">{{ form.submissions.count }}</span> responses</span>
-                        <div class="flex items-center gap-1.5">
-                            <a href="{% url 'desk:form_responses' form.pk %}" class="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">Responses</a>
-                            {% if request.user.role_access != 'Auditor' %}
-                            <a href="{% url 'desk:form_edit' form.pk %}" class="text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors">Edit</a>
-                            <form method="post" action="{% url 'desk:form_delete' form.pk %}" onsubmit="return confirm('Are you sure you want to delete the form \'{{ form.title }}\'? All responses will be permanently lost.')">
-                                {% csrf_token %}
-                                <button type="submit" class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors">Delete</button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+    {% if request.user.role_access != 'Auditor' %}
+    {% url 'desk:form_create' as create_url_val %}
+    {% endif %}
+    {% include "partials/list/_toolbar.html" with result_noun="form(s)" title="All Forms" subtitle="Manage and publish custom forms to the client portal." create_url=create_url_val create_label="Create New" search_query=request.GET.q search_placeholder="Search forms…" clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="desk/forms/_filter_fields.html" %}
 
-            <!-- Desktop Table Layout -->
-            <div class="hidden md:block overflow-x-auto min-h-[400px]">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-200">
-                            <th class="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">Form Title</th>
-                            <th class="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                            <th class="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider hidden lg:table-cell">Responses</th>
-                            <th class="py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">
-                        {% for form in forms %}
-                            <tr class="hover:bg-slate-50/50 transition-colors">
-                                <td class="py-4 px-6">
-                                    <div class="font-medium text-slate-900">{{ form.title }}</div>
-                                    <div class="text-sm text-slate-600 mt-0.5">/f/{{ form.slug }}</div>
-                                </td>
-                                <td class="py-4 px-6">
-                                    {% if form.is_published %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Published</span>
-                                    {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Draft</span>
-                                    {% endif %}
-                                </td>
-                                <td class="py-4 px-6 text-sm text-slate-700 hidden lg:table-cell">
-                                    <a href="{% url 'desk:form_responses' form.pk %}" class="flex items-center gap-2 hover:text-indigo-600 group">
-                                        <span class="font-semibold">{{ form.submissions.count }}</span> entries
-                                        <svg class="h-4 w-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                    </a>
-                                </td>
-                                <td class="py-4 px-6">
-                                    <div class="flex items-center gap-2 flex-wrap">
-                                        <a href="{% url 'desk:form_responses' form.pk %}" class="text-sm font-medium text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Responses</a>
-                                        {% if request.user.role_access != 'Auditor' %}
-                                        <a href="{% url 'desk:form_edit' form.pk %}" class="text-sm font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Edit</a>
-                                        <form method="post" action="{% url 'desk:form_delete' form.pk %}" onsubmit="return confirm('Are you sure you want to delete the form \'{{ form.title }}\'? All responses will be permanently lost.')">
-                                            {% csrf_token %}
-                                            <button type="submit" class="text-sm font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors shrink-0">Delete</button>
-                                        </form>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Pagination block -->
-            {% if forms.has_other_pages %}
-            <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-4">
-                <div class="text-sm text-slate-600">
-                    Showing <span class="font-medium text-slate-900">{{ forms.start_index }}</span> to <span class="font-medium text-slate-900">{{ forms.end_index }}</span> of <span class="font-medium text-slate-900">{{ forms.paginator.count }}</span> forms
-                </div>
-                <div class="flex items-center gap-1">
-                    {% if forms.has_previous %}
-                    <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ forms.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
-                    {% else %}
-                    <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Prev</button>
-                    {% endif %}
-        
-                    {% for i in forms.paginator.page_range %}
-                        {% if forms.number == i %}
-                        <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20">{{ i }}</span>
-                        {% elif i > forms.number|add:'-3' and i < forms.number|add:'3' %}
-                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
-                        {% endif %}
+    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        {% if forms %}
+        <div class="overflow-x-auto min-h-[40vh]"
+             x-data="jkListTable([{{ forms|length|default:0 }} ? [{% for form in forms %}'{{ form.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}] : []])">
+            <table class="jk-table">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-bind:checked="allSelected" @change="toggleAll()">
+                        </th>
+                        <th>Form Title</th>
+                        <th>Status</th>
+                        <th>Responses</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for form in forms %}
+                    <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer" @click="openRow('{% url 'desk:form_edit' form.pk %}')">
+                        <td @click.stop>
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-model="selectedIds" value="{{ form.pk }}">
+                        </td>
+                        <td>
+                            <div class="font-medium text-slate-900">{{ form.title }}</div>
+                            <div class="text-sm text-slate-600 mt-0.5">/f/{{ form.slug }}</div>
+                        </td>
+                        <td>
+                            {% if form.is_published %}
+                            <span class="jk-badge jk-badge-resolved">Published</span>
+                            {% else %}
+                            <span class="jk-badge jk-badge-cancelled">Draft</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm text-slate-700">
+                            <a href="{% url 'desk:form_responses' form.pk %}" @click.stop class="font-semibold hover:text-indigo-600">{{ form.submissions.count }}</a>
+                        </td>
+                    </tr>
                     {% endfor %}
-        
-                    {% if forms.has_next %}
-                    <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ forms.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
-                    {% else %}
-                    <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Next</button>
-                    {% endif %}
-                </div>
-            </div>
+                </tbody>
+            </table>
+
+            {% include "partials/list/_pagination.html" %}
+
+            {% if request.user.role_access != 'Auditor' %}
+            {% url 'desk:form_bulk_archive' as bulk_archive_url %}
+            {% url 'desk:form_bulk_duplicate' as bulk_duplicate_url %}
+            {% url 'desk:form_bulk_export' as bulk_export_url %}
+            {% url 'desk:form_bulk_delete' as bulk_delete_url %}
+            {% include "partials/list/_bulk_bar.html" with archive_url=bulk_archive_url duplicate_url=bulk_duplicate_url export_url=bulk_export_url delete_url=bulk_delete_url %}
+            {% include "partials/_confirm_modal.html" %}
             {% endif %}
+        </div>
         {% else %}
             <div class="py-16 px-6 text-center">
                 <div class="mx-auto w-16 h-16 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-4">
@@ -160,7 +86,9 @@
                     </svg>
                 </div>
                 <h3 class="text-lg font-medium text-slate-900">No Forms Created</h3>
-                <p class="mt-1 text-slate-600 max-w-sm mx-auto">Create beautiful, dynamic forms to easily collect data from your clients.</p>
+                <p class="mt-1 text-slate-600 max-w-sm mx-auto">
+                    {% if search_query or has_active_filters %}No forms match your search.{% else %}Create beautiful, dynamic forms to easily collect data from your clients.{% endif %}
+                </p>
                 {% if request.user.role_access != 'Auditor' %}
                 <div class="mt-6">
                     <a href="{% url 'desk:form_create' %}" class="jk-btn jk-btn-primary inline-flex px-6 py-2.5 rounded-xl shadow-sm text-sm">

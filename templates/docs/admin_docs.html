@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}
-Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
+Panduan SuperAdmin | {{ site_config.site_name|default:"RoC Support Desk" }}
 {% endblock %}
 {% block nav_admin_guide %}active{% endblock %}
 
@@ -30,7 +30,7 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
 {% endblock %}
 
 {% block extra_head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
 <style>
     body.lang-en .lang-id { display: none !important; }
     body.lang-id .lang-en { display: none !important; }
@@ -142,6 +142,7 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
             <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
         </div>
         <div class="jk-card-body" style="padding:8px 10px;">
+            {% include "docs/_docs_search_trigger.html" %}
             <nav>
                 <a href="#overview" class="docs-toc-link"><span class="lang-id">Overview SuperAdmin</span><span class="lang-en">SuperAdmin Overview</span></a>
                 <a href="#users" class="docs-toc-link"><span class="lang-id">Manajemen Pengguna</span><span class="lang-en">User Management</span></a>
@@ -157,7 +158,10 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
                     <a href="#setelan" class="docs-toc-link"><span class="lang-id">↳ Setelan</span><span class="lang-en">↳ Settings</span></a>
                     <a href="#template-teks" class="docs-toc-link"><span class="lang-id">↳ Template Teks</span><span class="lang-en">↳ Text Templates</span></a>
                 </div>
+                <a href="#lokasi" class="docs-toc-link"><span class="lang-id">Lokasi</span><span class="lang-en">Location</span></a>
+                <a href="#job-roles" class="docs-toc-link"><span class="lang-id">Job Roles</span><span class="lang-en">Job Roles</span></a>
                 <a href="#rca-template" class="docs-toc-link"><span class="lang-id">Template RCA</span><span class="lang-en">RCA Templates</span></a>
+                <a href="#doc-templates" class="docs-toc-link"><span class="lang-id">Template Dokumen</span><span class="lang-en">Document Templates</span></a>
                 <a href="#form-builder" class="docs-toc-link">Form Builder</a>
                 <a href="#email" class="docs-toc-link"><span class="lang-id">Pengaturan Email</span><span class="lang-en">Email Settings</span></a>
                 <div class="docs-toc-sub">
@@ -167,6 +171,10 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
                 <a href="#whatsapp" class="docs-toc-link">WhatsApp Gateway</a>
                 <a href="#approve-edit" class="docs-toc-link"><span class="lang-id">Approve Edit Tiket</span><span class="lang-en">Approve Ticket Edits</span></a>
                 <a href="#kb-admin" class="docs-toc-link">Knowledge Base</a>
+                <a href="#apps-connection" class="docs-toc-link"><span class="lang-id">Apps Connection</span><span class="lang-en">Apps Connection</span></a>
+                <a href="#module-defaults" class="docs-toc-link"><span class="lang-id">Module Defaults</span><span class="lang-en">Module Defaults</span></a>
+                <a href="#app-portal-admin" class="docs-toc-link">App Portal</a>
+                <a href="#user-manual-admin" class="docs-toc-link"><span class="lang-id">User Manual</span><span class="lang-en">User Manual</span></a>
                 <a href="#tips" class="docs-toc-link"><span class="lang-id">Tips Keamanan</span><span class="lang-en">Security Tips</span></a>
             </nav>
         </div>
@@ -183,6 +191,12 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
             <div class="jk-card-body" style="display:flex;flex-direction:column;gap:16px;">
                 <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">SuperAdmin adalah peran tertinggi dalam sistem — memiliki akses penuh ke seluruh konfigurasi yang menentukan cara tim dan pengguna berinteraksi dengan platform ini.</p>
                 <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">SuperAdmin is the highest role in the system — with full access to all configuration that determines how the team and users interact with the platform.</p>
+
+                <div class="docs-callout docs-callout-tip">
+                    ⭐ <span class="lang-id"><strong>Login:</strong> gunakan tombol <strong>Continue with Microsoft</strong> di halaman login (SSO) — lebih cepat dan aman daripada username/password. Aktifkan/nonaktifkan SSO untuk organisasi Anda di <strong>SSO Settings</strong>.</span>
+                    <span class="lang-en"><strong>Login:</strong> use the <strong>Continue with Microsoft</strong> button on the login page (SSO) — faster and more secure than username/password. Enable/disable SSO for your organization under <strong>SSO Settings</strong>.</span>
+                </div>
+
                 <div class="docs-grid-2" style="gap:12px;">
                     {% for item in "12345678"|make_list %}{% endfor %}
                     <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
@@ -306,8 +320,8 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
         <section id="company-units" class="docs-section jk-card">
             <div class="jk-card-header">🏢 <span class="lang-id">Master Data Company Units</span><span class="lang-en">Company Units Master Data</span></div>
             <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
-                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units adalah master data divisi atau unit kerja perusahaan. Digunakan untuk mengkategorikan staf berdasarkan divisi, memudahkan filtering dan pelaporan per unit.</p>
-                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units are master data for company divisions or work units. Used to categorize staff by division, making filtering and per-unit reporting easier.</p>
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units adalah master data divisi atau unit kerja perusahaan. Digunakan untuk mengkategorikan staf dan tiket berdasarkan unit, memudahkan filtering dan pelaporan per unit.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Company Units are master data for company divisions or work units. Used to categorize staff and tickets by unit, making filtering and per-unit reporting easier.</p>
                 <div class="overflow-x-auto">
                     <table class="docs-table">
                         <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th><th><span class="lang-id">Contoh</span><span class="lang-en">Example</span></th></tr></thead>
@@ -356,8 +370,8 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
             <div id="setelan" class="jk-card mb-4">
                 <div class="jk-card-header" style="font-size:14px;"><span class="lang-id">Setelan Kategori</span><span class="lang-en">Category Settings</span></div>
                 <div class="jk-card-body">
-                    <p class="lang-id" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Akses melalui Django Admin → Cases → Ticket Categories.</p>
-                    <p class="lang-en" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Access via Django Admin → Cases → Ticket Categories.</p>
+                    <p class="lang-id" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Akses melalui sidebar → Master Data → Ticket Categories.</p>
+                    <p class="lang-en" style="font-size:13px;color:var(--jk-text-muted);margin-bottom:12px;">Access via the sidebar → Master Data → Ticket Categories.</p>
                     <div class="overflow-x-auto">
                         <table class="docs-table">
                             <thead><tr><th>Field</th><th><span class="lang-id">Fungsi</span><span class="lang-en">Function</span></th><th>Tips</th></tr></thead>
@@ -398,6 +412,47 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
             </div>
         </section>
 
+        <!-- ═══ #lokasi ═══ -->
+        <section id="lokasi" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">📍 <span class="lang-id">Lokasi</span><span class="lang-en">Location</span></div>
+            <div class="jk-card-body">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;margin-bottom:12px;">Daftar lokasi yang muncul di dropdown "Location" saat pengguna mengajukan tiket (misalnya "Head Office - Jakarta"). Dikelola dari sidebar → Master Data → Location.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;margin-bottom:12px;">The list of locations shown in the "Location" dropdown when a user submits a ticket (e.g. "Head Office - Jakarta"). Managed from the sidebar → Master Data → Location.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Field</th><th><span class="lang-id">Fungsi</span><span class="lang-en">Function</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><strong><span class="lang-id">Nama Lokasi</span><span class="lang-en">Location Name</span></strong></td><td><span class="lang-id">Label yang tampil di dropdown</span><span class="lang-en">Label shown in the dropdown</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Urutan Tampil</span><span class="lang-en">Display Order</span></strong></td><td><span class="lang-id">Angka lebih kecil tampil lebih dulu</span><span class="lang-en">Lower numbers appear first</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Requires Detail</span></strong></td><td><span class="lang-id">Wajibkan pengguna mengisi detail tambahan (mis. untuk "Other / Remote")</span><span class="lang-en">Require users to fill an extra free-text detail (e.g. for "Other / Remote")</span></td></tr>
+                            <tr><td><strong>Active</strong></td><td><span class="lang-id">Lokasi non-aktif hilang dari form baru, tapi tiket lama tetap menyimpan referensinya</span><span class="lang-en">Inactive locations disappear from new submissions, but existing tickets keep their reference</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-callout docs-callout-warn" style="margin-top:12px;">⚠️ <span class="lang-id">Lokasi yang masih dipakai oleh tiket tidak bisa dihapus — nonaktifkan saja (uncheck Active) jika sudah tidak relevan.</span><span class="lang-en">A location still referenced by tickets can't be deleted — just deactivate it (uncheck Active) if it's no longer relevant.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #job-roles ═══ -->
+        <section id="job-roles" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">🏷️ Job Roles</div>
+            <div class="jk-card-body">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;margin-bottom:12px;">Master data jabatan/peran pekerjaan yang muncul sebagai dropdown "Job Role" di form tiket dan data karyawan — dikelola dari sidebar → Master Data → Job Roles.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;margin-bottom:12px;">Master data for job titles/roles shown as the "Job Role" dropdown on ticket forms and employee data — managed from the sidebar → Master Data → Job Roles.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Field</th><th><span class="lang-id">Fungsi</span><span class="lang-en">Function</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><strong><span class="lang-id">Nama Job Role</span><span class="lang-en">Job Role Name</span></strong></td><td><span class="lang-id">Label yang tampil di dropdown</span><span class="lang-en">Label shown in the dropdown</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Urutan Tampil</span><span class="lang-en">Display Order</span></strong></td><td><span class="lang-id">Angka lebih kecil tampil lebih dulu</span><span class="lang-en">Lower numbers appear first</span></td></tr>
+                            <tr><td><strong>Active</strong></td><td><span class="lang-id">Job role non-aktif hilang dari dropdown baru, tapi data lama tetap tersimpan</span><span class="lang-en">Inactive job roles disappear from new dropdowns, but old data is preserved</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-callout docs-callout-tip" style="margin-top:12px;">💡 <span class="lang-id">Field "Work Email" dan "Job Role" pada form tiket bisa otomatis terisi berdasarkan Nama Lengkap yang dipilih, jika data karyawan sudah cocok di master Employees.</span><span class="lang-en">The "Work Email" and "Job Role" fields on the ticket form can auto-fill based on the selected Full Name, if matching employee data exists in Employees master data.</span></div>
+            </div>
+        </section>
+
         <!-- ═══ #rca-template ═══ -->
         <section id="rca-template" class="docs-section jk-card">
             <div class="jk-card-header">🧠 <span class="lang-id">Template RCA</span><span class="lang-en">RCA Templates</span></div>
@@ -423,6 +478,30 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
                     <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Simpan. Template langsung tersedia di semua tiket yang sesuai.</span><span class="lang-en">Save. The template is immediately available for all matching tickets.</span></div></div>
                 </div>
                 <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Tulis template seperti panduan kerja standar (SOP) — spesifik, terurut, bisa langsung diikuti staf baru. Gunakan placeholder [Nama User] atau [Tanggal].</span><span class="lang-en">Write templates like standard work guides (SOPs) — specific, ordered, immediately actionable for new staff. Use placeholders like [User Name] or [Date].</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #doc-templates ═══ -->
+        <section id="doc-templates" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">📄 <span class="lang-id">Template Dokumen</span><span class="lang-en">Document Templates</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Berbeda dari Template RCA — ini adalah template surat/dokumen resmi (mis. Surat Tugas, Form Permintaan Barang) dengan variabel <code>{% templatetag openvariable %}placeholder{% templatetag closevariable %}</code> yang otomatis terisi dari jawaban pengguna, dan bisa menghasilkan PDF. Dikelola dari sidebar → Master Data → Document Templates.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Different from RCA Templates — this is a formal letter/document template (e.g. Assignment Letter, Goods Request Form) with <code>{% templatetag openvariable %}placeholder{% templatetag closevariable %}</code> variables auto-filled from user answers, generating a downloadable PDF. Managed from the sidebar → Master Data → Document Templates.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><strong><span class="lang-id">Judul &amp; Deskripsi</span><span class="lang-en">Title &amp; Description</span></strong></td><td><span class="lang-id">Nama template dan penjelasan singkat</span><span class="lang-en">Template name and short explanation</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Isi Dokumen (HTML)</span><span class="lang-en">Document Body (HTML)</span></strong></td><td><span class="lang-id">Isi surat dengan variabel, mis. <code>{% templatetag openvariable %}nama_pemohon{% templatetag closevariable %}</code>, <code>{% templatetag openvariable %}tanggal{% templatetag closevariable %}</code></span><span class="lang-en">Letter body with variables, e.g. <code>{% templatetag openvariable %}nama_pemohon{% templatetag closevariable %}</code>, <code>{% templatetag openvariable %}tanggal{% templatetag closevariable %}</code></span></td></tr>
+                            <tr><td><strong><span class="lang-id">Kategori Terkait</span><span class="lang-en">Applicable Categories</span></strong></td><td><span class="lang-id">Form pengisian dokumen muncul otomatis saat pengguna submit tiket di kategori ini</span><span class="lang-en">The fill-in form appears automatically when a user submits a ticket in these categories</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Form Standalone</span></strong></td><td><span class="lang-id">Jika aktif, dokumen bisa diajukan langsung dari <strong>My e-Forms</strong> tanpa perlu membuat tiket</span><span class="lang-en">If enabled, the document can be submitted directly from <strong>My e-Forms</strong> without creating a ticket</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Tahapan Form (Form Stages)</span><span class="lang-en">Form Stages</span></strong></td><td><span class="lang-id">Alur multi-tahap, mis. Initiator → Vendor → IT Ops — setiap tahap mengisi bagiannya sebelum lanjut ke tahap berikutnya</span><span class="lang-en">Multi-stage flow, e.g. Initiator → Vendor → IT Ops — each stage fills its part before moving to the next</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Field Kustom (maks. 10)</span><span class="lang-en">Custom Fields (max 10)</span></strong></td><td><span class="lang-id">Kolom isian per-field, dengan Variable Name yang bisa dipetakan ke E-Sign untuk penandatanganan</span><span class="lang-en">Per-field inputs, with a Variable Name that can be mapped to E-Sign for signing</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-callout docs-callout-info">ℹ️ <span class="lang-id">Submission dari Document Template dipantau staf lewat menu <strong>e-Form Management</strong> (semua pengajuan enterprise), sementara pengguna melihat pengajuan miliknya sendiri di <strong>My e-Forms</strong>.</span><span class="lang-en">Document Template submissions are monitored by staff via the <strong>e-Form Management</strong> menu (all enterprise submissions), while users see their own submissions under <strong>My e-Forms</strong>.</span></div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Kombinasikan dengan E-Sign — petakan Variable Name field ke placement tanda tangan agar dokumen langsung siap ditandatangani setelah form selesai.</span><span class="lang-en">Combine with E-Sign — map a field's Variable Name to a signature placement so the document is ready to sign right after the form is completed.</span></div>
             </div>
         </section>
 
@@ -575,6 +654,76 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
             </div>
         </section>
 
+        <!-- ═══ #apps-connection ═══ -->
+        <section id="apps-connection" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">🔌 Apps Connection</div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Hub integrasi aplikasi eksternal — akses melalui sidebar → Configuration → Apps Connection. Halaman ini mengatur koneksi ke sistem notifikasi pihak ketiga.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Hub for external app integrations — access via sidebar → Configuration → Apps Connection. This page manages connections to third-party notification systems.</p>
+                <div class="docs-grid-2" style="gap:12px;">
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">💬 Microsoft Teams</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Kirim notifikasi tiket ke channel Teams via Incoming Webhook</span><span class="lang-en">Send ticket notifications to a Teams channel via Incoming Webhook</span></div>
+                    </div>
+                    <div class="jk-card" style="padding:14px;border:1px solid var(--jk-border);">
+                        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">🔔 Notification Config</div>
+                        <div style="font-size:12px;color:var(--jk-text-muted);"><span class="lang-id">Atur event apa saja yang memicu notifikasi keluar (tiket baru, eskalasi, dll)</span><span class="lang-en">Configure which events trigger outbound notifications (new ticket, escalation, etc.)</span></div>
+                    </div>
+                </div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Gunakan tombol Test setelah mengisi Webhook URL untuk memastikan pesan benar-benar sampai ke channel tujuan.</span><span class="lang-en">Use the Test button after filling in the Webhook URL to confirm messages actually reach the target channel.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #module-defaults ═══ -->
+        <section id="module-defaults" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">🧩 <span class="lang-id">Module Defaults — Akses Sidebar per Role</span><span class="lang-en">Module Defaults — Sidebar Access per Role</span></div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Halaman ini mengontrol menu apa saja yang muncul di sidebar untuk setiap role (mis. apakah PortalUser melihat menu <strong>App Portal</strong>, <strong>My Signatures</strong>, atau <strong>My e-Forms</strong>). Akses melalui sidebar → Configuration → Module Defaults.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">This page controls which sidebar menus appear for each role (e.g. whether PortalUser sees the <strong>App Portal</strong>, <strong>My Signatures</strong>, or <strong>My e-Forms</strong> menu). Access via sidebar → Configuration → Module Defaults.</p>
+                <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Pilih tab role (PortalUser, SupportDesk, Engineer, Manager, Auditor)</span><span class="lang-en">Select a role tab (PortalUser, SupportDesk, Engineer, Manager, Auditor)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Centang modul yang ingin diaktifkan untuk role tersebut (Dashboard, Task Management, Knowledge Base, App Portal, My Signatures, My Approvals, My e-Forms, Shared Docs, Shorten Link, dll)</span><span class="lang-en">Check the modules to enable for that role (Dashboard, Task Management, Knowledge Base, App Portal, My Signatures, My Approvals, My e-Forms, Shared Docs, Shorten Link, etc.)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Simpan. Perubahan berlaku sebagai default untuk <strong>semua pengguna</strong> di role tersebut.</span><span class="lang-en">Save. The change applies as the default for <strong>every user</strong> in that role.</span></div></div>
+                <div class="docs-callout docs-callout-info">ℹ️ <span class="lang-id">Untuk pengecualian per-pengguna (mis. satu PortalUser butuh akses tambahan), gunakan opsi <strong>Module Access Override</strong> di halaman edit pengguna tersebut — ini menimpa default role-nya.</span><span class="lang-en">For a per-user exception (e.g. one PortalUser needs extra access), use the <strong>Module Access Override</strong> option on that user's edit page — it overrides their role default.</span></div>
+                <div class="docs-callout docs-callout-warn">⚠️ <span class="lang-id">Modul yang tidak dicentang di sini tidak akan muncul di sidebar sama sekali, meskipun fitur-nya sendiri sudah aktif di lisensi.</span><span class="lang-en">A module not checked here will not appear in the sidebar at all, even if the feature itself is active in the license.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #app-portal-admin ═══ -->
+        <section id="app-portal-admin" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">🚀 App Portal</div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">App Portal adalah halaman launcher berisi kartu-kartu aplikasi eksternal (mis. Finance System, HRIS, Absensi) yang bisa diklik pengguna untuk membuka aplikasi lain di luar {{ site_config.site_name|default:"RoC Support Desk" }}. SuperAdmin dan Manager bisa menambah/mengedit entri dari tombol <strong>+ Tambah Aplikasi</strong> di halaman App Portal itu sendiri.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">App Portal is a launcher page with cards for external applications (e.g. Finance System, HRIS, Attendance) that users can click to open other apps outside {{ site_config.site_name|default:"RoC Support Desk" }}. SuperAdmin and Manager can add/edit entries from the <strong>+ Add App</strong> button on the App Portal page itself.</p>
+                <div class="overflow-x-auto">
+                    <table class="docs-table">
+                        <thead><tr><th>Field</th><th><span class="lang-id">Keterangan</span><span class="lang-en">Description</span></th></tr></thead>
+                        <tbody>
+                            <tr><td><strong><span class="lang-id">Nama &amp; Deskripsi</span><span class="lang-en">Name &amp; Description</span></strong></td><td><span class="lang-id">Judul kartu dan penjelasan singkat aplikasi</span><span class="lang-en">Card title and short app description</span></td></tr>
+                            <tr><td><strong>URL</strong></td><td><span class="lang-id">Alamat aplikasi tujuan — dibuka di tab baru</span><span class="lang-en">Target app address — opens in a new tab</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Ikon / Emoji</span><span class="lang-en">Icon / Emoji</span></strong></td><td><span class="lang-id">Upload gambar ikon, atau gunakan emoji default</span><span class="lang-en">Upload an icon image, or use the default emoji</span></td></tr>
+                            <tr><td><strong>Badge</strong></td><td><span class="lang-id">Label opsional, mis. "New", "Beta", "Internal"</span><span class="lang-en">Optional label, e.g. "New", "Beta", "Internal"</span></td></tr>
+                            <tr><td><strong><span class="lang-id">Bisa Diakses Oleh</span><span class="lang-en">Accessible By</span></strong></td><td><span class="lang-id">Batasi kartu ini hanya untuk role tertentu, atau biarkan "Semua Pengguna"</span><span class="lang-en">Restrict this card to specific roles, or leave it as "All Users"</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Menu App Portal hanya tampil di sidebar role yang modulnya diaktifkan — cek <a href="#module-defaults" style="color:inherit;text-decoration:underline;">Module Defaults</a> jika kartu sudah dibuat tapi menu tidak terlihat oleh pengguna tertentu.</span><span class="lang-en">The App Portal menu only shows in the sidebar for roles with the module enabled — check <a href="#module-defaults" style="color:inherit;text-decoration:underline;">Module Defaults</a> if cards exist but a user can't see the menu.</span></div>
+            </div>
+        </section>
+
+        <!-- ═══ #user-manual-admin ═══ -->
+        <section id="user-manual-admin" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">📖 User Manual</div>
+            <div class="jk-card-body" style="display:flex;flex-direction:column;gap:14px;">
+                <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Berbeda dari halaman docs ini — User Manual adalah dokumentasi berjenjang (tree) yang Anda buat sendiri untuk aplikasi internal perusahaan (mis. panduan pakai Finance System atau HRIS). Bisa dibuat oleh siapa saja yang login, dengan struktur bab/sub-bab tak terbatas.</p>
+                <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);line-height:1.7;">Different from this docs page — User Manual is a tree-structured documentation set you author yourself for internal company applications (e.g. a guide for the Finance System or HRIS). Any logged-in user can create one, with unlimited chapter/sub-chapter depth.</p>
+                <div class="docs-step"><div class="docs-step-num">1</div><div style="font-size:13px;"><span class="lang-id">Buka menu <strong>User Manual</strong> di sidebar → <strong>Kelola Manual</strong></span><span class="lang-en">Open the <strong>User Manual</strong> menu in the sidebar → <strong>Manage Manuals</strong></span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div style="font-size:13px;"><span class="lang-id">Klik <strong>+ Manual Baru</strong> → isi Judul, Deskripsi, Ikon (emoji)</span><span class="lang-en">Click <strong>+ New Manual</strong> → fill in Title, Description, Icon (emoji)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div style="font-size:13px;"><span class="lang-id">Tambahkan halaman (pages) dengan editor rich-text — bisa bersarang sebagai sub-halaman, ditandai sebagai FAQ, dan diurutkan drag-and-drop</span><span class="lang-en">Add pages using the rich-text editor — pages can nest as sub-pages, be marked as FAQ, and reordered via drag-and-drop</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div style="font-size:13px;"><span class="lang-id">Centang <strong>Publish</strong> pada manual dan setiap halaman agar terlihat oleh pengguna lain — draft hanya terlihat oleh pembuat/editor</span><span class="lang-en">Check <strong>Publish</strong> on the manual and each page for it to be visible to other users — drafts are only visible to editors</span></div></div>
+                <div class="docs-callout docs-callout-tip">💡 <span class="lang-id">Konfigurasi hero landing page (judul, subjudul, gambar latar) diatur lewat <strong>Landing Page Config</strong> di halaman Kelola Manual.</span><span class="lang-en">The landing page hero (title, subtitle, background image) is configured via <strong>Landing Page Config</strong> on the Manage Manuals page.</span></div>
+            </div>
+        </section>
+
         <!-- ═══ #tips ═══ -->
         <section id="tips" class="docs-section">
             <div class="jk-card mb-4">
@@ -660,6 +809,8 @@ Panduan SuperAdmin — {{ site_config.site_name|default:"RoC Support Desk" }}
 
     </div><!-- end main content -->
 </div><!-- end grid -->
+
+{% include "docs/_docs_search_modal.html" %}
 
 {% endblock %}
 

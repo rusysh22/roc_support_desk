@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Progress — {{ doc.title }}{% endblock %}
+{% block title %}Progress | {{ doc.title }}{% endblock %}
 
 {% block content %}
 <div x-data="{ pdfOpen: false }" @keydown.escape.window="pdfOpen = false" class="min-h-screen pb-24 lg:pb-6">
@@ -174,7 +174,7 @@
                     </div>
                     {% if doc.status == 'completed' and doc.signed_pdf %}
                     <a href="{{ doc.signed_pdf.url }}" download
-                       class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                       class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition-all">
                         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                         </svg>

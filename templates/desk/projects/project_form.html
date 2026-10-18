@@ -31,11 +31,11 @@
     {% endif %}
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'projects_desk:project_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-            <a href="{% url 'projects_desk:project_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors" title="Back to Projects">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            </a>
             <div>
                 <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}{{ project_obj.name }}{% else %}Create New Project{% endif %}</h2>
                 <p class="text-sm text-slate-600 mt-0.5">{% if is_edit %}{{ project_obj.client_name }}{% else %}Fill in project details below.{% endif %}</p>
@@ -67,7 +67,7 @@
             
             <!-- TAB: OVERVIEW (or New form) -->
             <div x-show="tab === 'overview'">
-                <form method="post" enctype="multipart/form-data" class="space-y-6">
+                <form data-unsaved-guard method="post" enctype="multipart/form-data" class="space-y-6">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="edit_project">
 

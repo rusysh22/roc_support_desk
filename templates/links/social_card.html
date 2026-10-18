@@ -24,8 +24,10 @@
     <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{{ link.qr_code.url }}">
     {% endif %}
 
+    {% if not hide_target %}
     <!-- Auto redirect if a user stumbles upon this instead of a bot -->
     <meta http-equiv="refresh" content="0; url={{ link.target_url }}">
+    {% endif %}
     
     <style>
         body {
@@ -68,16 +70,23 @@
 </head>
 <body>
     <div class="container">
+        {% if hide_target %}
+        <h1>{{ link.title|default:"Shared Link" }}</h1>
+        <p>Sign in to open this link.</p>
+        {% else %}
         <div class="loader"></div>
         <h1>Redirecting you...</h1>
         <p>If you are not redirected automatically, <a href="{{ link.target_url }}">click here</a>.</p>
+        {% endif %}
     </div>
     
+    {% if not hide_target %}
     <script>
         // Fallback JavaScript redirect
         setTimeout(function() {
             window.location.href = "{{ link.target_url|escapejs }}";
         }, 1500);
     </script>
+    {% endif %}
 </body>
 </html>

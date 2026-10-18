@@ -12,9 +12,9 @@
     <div class="w-full max-w-md">
 
         <div class="mb-8 text-center">
-            {% if site_config.logo %}
+            {% if site_config.logo_for_light_bg %}
             <div class="inline-flex items-center justify-center rounded-2xl p-3 shadow-sm" style="background:#fff; border:1.5px solid #e8e8e8; min-width:120px;">
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="mx-auto object-contain" style="height: clamp(52px, 8vw, 72px); max-width: 220px;">
+                <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name }}" class="mx-auto object-contain" style="height: clamp(52px, 8vw, 72px); max-width: 220px;">
             </div>
             {% else %}
             <div class="inline-flex items-center justify-center rounded-2xl px-6 py-3 shadow-sm" style="background:#fff; border:1.5px solid #e8e8e8;">
@@ -58,8 +58,8 @@
     <div class="w-full max-w-md">
 
         <div class="text-center mb-8">
-            {% if site_config.logo %}
-            <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="mx-auto object-contain mb-3" style="height: 52px; max-width: 180px;">
+            {% if site_config.logo_for_light_bg %}
+            <img src="{{ site_config.logo_for_light_bg.url }}" alt="{{ site_config.site_name }}" class="mx-auto object-contain mb-3" style="height: 52px; max-width: 180px;">
             {% else %}
             <span class="font-extrabold text-2xl tracking-tight" style="color:#ffffff;">{{ site_config.site_name|default:"Support Desk" }}</span>
             {% endif %}

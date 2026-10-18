@@ -1,0 +1,18 @@
+<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6;font-weight:400;">
+  Hi <span style="color:#0f172a;font-weight:500;">{{ assignee_name }}</span>,
+  a ticket has been assigned to you by {{ assigned_by }}.
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8fa;border:1px solid #dbe7ec;">
+  <tr>
+    <td style="padding:16px 18px;">
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Ticket</p>
+      <p style="margin:0 0 14px;font-size:17px;font-weight:600;color:#312e81;letter-spacing:-0.01em;">{{ case_number }}</p>
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Subject</p>
+      <p style="margin:0 0 14px;font-size:15px;color:#0f172a;font-weight:500;">{{ case_subject }}</p>
+      <p style="margin:0;font-size:13px;color:#475569;font-weight:400;">
+        Requester <span style="color:#0f172a;font-weight:500;">{{ requester_name }}</span>
+        · Priority <span style="color:#0f172a;font-weight:600;">{{ priority }}</span>
+      </p>
+    </td>
+  </tr>
+</table>

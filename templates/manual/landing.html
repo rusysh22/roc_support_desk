@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,7 +106,7 @@
             position: absolute; top: calc(100% + 6px); left: 0; right: 0;
             background: #fff; border-radius: 14px;
             box-shadow: 0 12px 40px rgba(0,0,0,.18);
-            overflow: hidden; z-index: 50;
+            overflow-y: auto; max-height: 70vh; z-index: 50;
             display: none;
             border: 1px solid #e2e8f0;
         }
@@ -162,14 +163,13 @@
 
             {# Left: back + logo #}
             <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                <a href="/" class="text-slate-400 hover:text-slate-700 transition-colors" title="Back to app">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                    </svg>
-                </a>
+                {% include "partials/back_button.html" with fallback="/" %}
                 <span class="text-slate-300">|</span>
-                {% if site_config.logo %}
-                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-6 object-contain max-w-[100px] sm:max-w-none">
+                {% if site_config.logo_light %}
+                <img src="{{ site_config.logo_light.url }}" alt="{{ site_config.site_name }}" class="h-6 object-contain max-w-[100px] sm:max-w-none">
+                {% elif site_config.logo %}
+                {# Only the dark-background (white) logo exists — darken it so it shows on the white header #}
+                <img src="{{ site_config.logo.url }}" alt="{{ site_config.site_name }}" class="h-6 object-contain max-w-[100px] sm:max-w-none brightness-0 opacity-80">
                 {% else %}
                 <span class="text-sm font-black text-slate-800 truncate max-w-[120px] sm:max-w-none">📖 {{ site_config.site_name|default:"RoC Desk" }}</span>
                 {% endif %}
@@ -181,7 +181,7 @@
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                     </svg>
-                    <input id="headerSearchInput" type="text" placeholder="Search manuals, pages, content…"
+                    <input id="headerSearchInput" type="text" placeholder="Cari menu, proses, atau kode (mis. FA01)…"
                            autocomplete="off"
                            class="w-full border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 bg-slate-50">
                     <div id="headerSearchDropdown" class="search-dropdown">
@@ -322,10 +322,10 @@
 
 </div>
 
+<script src="{% static 'js/manual-search.js' %}"></script>
 <script>
 (function () {
     const SEARCH_URL = "{% url 'manual:search' %}";
-    let debounceTimer = null;
 
     // Mobile search toggle
     const toggleBtn = document.getElementById('mobileSearchToggle');
@@ -343,98 +343,9 @@
         });
     }
 
-    function highlight(text, query) {
-        if (!query || !text) return text || '';
-        const esc = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return text.replace(new RegExp(`(${esc})`, 'gi'), '<mark>$1</mark>');
-    }
-
-    function renderDropdown(results, query, containerEl, dropdownEl) {
-        dropdownEl.classList.remove('open');
-        if (!query) return;
-
-        if (!results.length) {
-            containerEl.innerHTML = `<div class="sd-empty">No results for "<strong>${query}</strong>"</div>`;
-        } else {
-            containerEl.innerHTML = results.slice(0, 8).map((r, i) => `
-                <a class="sd-item" href="${r.url}" data-idx="${i}">
-                    <span class="sd-icon">${r.icon || r.manual_icon || '📄'}</span>
-                    <div class="flex-1 min-w-0">
-                        <div class="sd-main">${highlight(r.title, query)}</div>
-                        ${r.subtitle ? `<div class="sd-sub">${highlight(r.subtitle, query)}</div>` : ''}
-                        ${r.manual_title ? `<div class="sd-sub text-indigo-400 mt-0.5">in ${r.manual_title}</div>` : ''}
-                    </div>
-                    <span class="sd-badge ${r.type === 'manual' ? 'manual-badge' : 'page-badge'}">${r.type}</span>
-                </a>
-            `).join('');
-            if (results.length > 8) {
-                containerEl.innerHTML += `<div class="sd-footer" onclick="goSearch('${encodeURIComponent(query)}')">View all ${results.length} results →</div>`;
-            }
-        }
-        dropdownEl.classList.add('open');
-    }
-
-    function goSearch(q) {
-        window.location.href = SEARCH_URL + '?q=' + q;
-    }
-
-    function setupSearch(inputId, resultsId, dropdownId, wrapperId) {
-        const input = document.getElementById(inputId);
-        const results = document.getElementById(resultsId);
-        const dropdown = document.getElementById(dropdownId);
-        if (!input) return;
-
-        let activeIdx = -1;
-
-        input.addEventListener('input', () => {
-            const q = input.value.trim();
-            clearTimeout(debounceTimer);
-            activeIdx = -1;
-            if (!q) { dropdown.classList.remove('open'); return; }
-            debounceTimer = setTimeout(async () => {
-                try {
-                    const res = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`, {
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    });
-                    const data = await res.json();
-                    renderDropdown(data.results, q, results, dropdown);
-                } catch (_) {}
-            }, 280);
-        });
-
-        input.addEventListener('keydown', (e) => {
-            const items = dropdown.querySelectorAll('.sd-item');
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                activeIdx = Math.min(activeIdx + 1, items.length - 1);
-                items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                activeIdx = Math.max(activeIdx - 1, -1);
-                items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (activeIdx >= 0 && items[activeIdx]) {
-                    window.location.href = items[activeIdx].href;
-                } else if (input.value.trim()) {
-                    goSearch(encodeURIComponent(input.value.trim()));
-                }
-            } else if (e.key === 'Escape') {
-                dropdown.classList.remove('open');
-                input.blur();
-            }
-        });
-
-        document.addEventListener('click', (e) => {
-            const wrapper = wrapperId ? document.getElementById(wrapperId) : input.parentElement;
-            if (wrapper && !wrapper.contains(e.target)) {
-                dropdown.classList.remove('open');
-            }
-        });
-    }
-
-    setupSearch('headerSearchInput', 'headerSearchResults', 'headerSearchDropdown', 'headerSearch');
-    setupSearch('mobileSearchInput', 'mobileSearchResults', 'mobileSearchDropdown', 'mobileSearchWrap');
+    // Search (shared: static/js/manual-search.js)
+    ManualSearch.initBox({ input: 'headerSearchInput', results: 'headerSearchResults', dropdown: 'headerSearchDropdown', wrap: 'headerSearch', searchUrl: SEARCH_URL });
+    ManualSearch.initBox({ input: 'mobileSearchInput', results: 'mobileSearchResults', dropdown: 'mobileSearchDropdown', wrap: 'mobileSearchWrap', searchUrl: SEARCH_URL });
 })();
 </script>
 </body>

@@ -1,0 +1,18 @@
+{% comment %}
+Colored dot + label for a portal ticket's status. Expects `color` (blue/
+green/amber/red/slate) and `label` (text).
+{% endcomment %}
+<span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full
+    {% if color == 'blue' %}bg-indigo-50 text-indigo-700
+    {% elif color == 'green' %}bg-emerald-50 text-emerald-700
+    {% elif color == 'amber' %}bg-amber-50 text-amber-700
+    {% elif color == 'red' %}bg-red-50 text-red-700
+    {% else %}bg-slate-100 text-slate-500{% endif %}">
+    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
+        {% if color == 'blue' %}bg-indigo-500
+        {% elif color == 'green' %}bg-emerald-500
+        {% elif color == 'amber' %}bg-amber-500{% if pulse %} animate-pulse{% endif %}
+        {% elif color == 'red' %}bg-red-500
+        {% else %}bg-slate-400{% endif %}"></span>
+    {{ label }}
+</span>

@@ -1,0 +1,6 @@
+{% load custom_tags %}
+{% with meta=case_status|status_meta %}
+<span class="jk-badge {% if large %}jk-badge-lg {% endif %}{{ meta.badge_class }}">
+    {% if meta.icon %}{{ meta.icon }} {% endif %}{{ label_override|default:meta.label }}
+</span>
+{% endwith %}

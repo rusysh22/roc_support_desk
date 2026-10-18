@@ -19,13 +19,10 @@
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'cases:dashboard' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'cases:dashboard' %}"
-           class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-        </a>
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
             <h1 class="text-xl font-bold text-slate-900">Supporting Letter Status</h1>
@@ -87,7 +84,7 @@
             </div>
         </div>
         <a href="{{ doc.generated_pdf.url }}" target="_blank"
-           class="shrink-0 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+           class="shrink-0 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>

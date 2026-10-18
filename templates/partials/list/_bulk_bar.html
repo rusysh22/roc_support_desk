@@ -1,0 +1,89 @@
+{% load custom_tags %}
+{% comment %}
+Floating bulk-action bar for the standardized list views. Generalized from
+the bulk-action bar in partials/case_results.html. Expects the enclosing
+x-data scope to expose `selectedIds` (array of checked pk strings) and,
+for the delete confirmation, `confirmOpen`/`confirmTitle`/`confirmMessage`/
+`confirmSubmit`. The including template supplies the action URLs (archive_url is optional, for lists without archiving):
+archive_url, unarchive_url (optional, only if this list shows archived
+rows and needs an Unarchive action instead), delete_url, duplicate_url,
+export_url.
+{% endcomment %}
+<div x-show="selectedIds.length > 0"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 translate-y-10"
+     x-transition:enter-end="opacity-100 translate-y-0"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 translate-y-0"
+     x-transition:leave-end="opacity-0 translate-y-10"
+     style="display: none;"
+     class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
+
+    <div class="px-5 py-3.5 bg-slate-800 flex items-center gap-2 border-r border-slate-700/50 font-medium">
+        <span class="flex items-center justify-center w-6 h-6 bg-indigo-500 rounded-full text-xs font-bold" x-text="selectedIds.length"></span>
+        <span class="text-sm">selected</span>
+    </div>
+
+    <div class="flex items-center px-2">
+        {% if unarchive_url %}
+        <form action="{{ unarchive_url }}" method="post" class="flex">
+            {% csrf_token %}
+            <template x-for="id in selectedIds" :key="id"><input type="hidden" name="selected_ids" :value="id"></template>
+            <button type="submit" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                {% icon "unarchive" %} Unarchive
+            </button>
+        </form>
+        {% elif archive_url %}
+        <form action="{{ archive_url }}" method="post" class="flex">
+            {% csrf_token %}
+            <template x-for="id in selectedIds" :key="id"><input type="hidden" name="selected_ids" :value="id"></template>
+            <button type="submit" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                {% icon "archive" %} Archive
+            </button>
+        </form>
+        {% endif %}
+
+        {% if unarchive_url or archive_url %}<div class="w-px h-8 bg-slate-700/50 self-center"></div>{% endif %}
+
+        {% if duplicate_url %}
+        <form action="{{ duplicate_url }}" method="post" class="flex">
+            {% csrf_token %}
+            <template x-for="id in selectedIds" :key="id"><input type="hidden" name="selected_ids" :value="id"></template>
+            <button type="submit"
+                    :disabled="selectedIds.length !== 1"
+                    :class="selectedIds.length !== 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-800'"
+                    class="px-4 py-3.5 text-sm font-medium transition-colors flex items-center gap-2 text-indigo-300">
+                {% icon "duplicate" %} Duplicate
+            </button>
+        </form>
+        <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+        {% endif %}
+
+        {% if export_url %}
+        <form action="{{ export_url }}" method="post" class="flex">
+            {% csrf_token %}
+            <template x-for="id in selectedIds" :key="id"><input type="hidden" name="selected_ids" :value="id"></template>
+            <button type="submit" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-emerald-300">
+                {% icon "export" %} Export to Excel
+            </button>
+        </form>
+        <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+        {% endif %}
+
+        <form id="bulk-delete-form" action="{{ delete_url }}" method="post" class="flex">
+            {% csrf_token %}
+            <template x-for="id in selectedIds" :key="id"><input type="hidden" name="selected_ids" :value="id"></template>
+            <button type="button"
+                    @click="confirmTitle = 'Delete selected items?'; confirmMessage = `This will permanently delete ${selectedIds.length} item(s). This cannot be undone.`; confirmSubmit = () => $el.closest('form').submit(); confirmOpen = true"
+                    class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-rose-400">
+                {% icon "trash" %} Delete
+            </button>
+        </form>
+
+        <div class="w-px h-8 bg-slate-700/50 self-center mx-1"></div>
+
+        <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-400 hover:bg-slate-800 transition-colors">
+            {% icon "close" css_class="h-5 w-5" %}
+        </button>
+    </div>
+</div>

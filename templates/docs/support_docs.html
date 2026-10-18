@@ -28,7 +28,7 @@
 {% endblock %}
 
 {% block extra_head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
 <style>
     /* ── Language switching ─────────────────────────────────── */
     body.lang-en .lang-id { display: none !important; }
@@ -157,6 +157,7 @@
             <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
         </div>
         <div class="jk-card-body" style="padding:8px 10px;">
+            {% include "docs/_docs_search_trigger.html" %}
             <nav>
                 <a href="#mengapa" class="docs-toc-link">
                     <span class="lang-id">Mengapa Sistem Ini</span><span class="lang-en">Why This System</span>
@@ -206,11 +207,16 @@
                     <a href="#edit-closed" class="docs-toc-link">
                         <span class="lang-id">Edit Tiket Closed</span><span class="lang-en">Edit Closed Ticket</span>
                     </a>
-                    <a href="#wa-session" class="docs-toc-link">WA Session</a>
                 </div>
+                <a href="#eform-mgmt" class="docs-toc-link">
+                    <span class="lang-id">e-Form Management</span><span class="lang-en">e-Form Management</span>
+                </a>
+                <a href="#projects" class="docs-toc-link">Projects</a>
                 <a href="#kb" class="docs-toc-link">Knowledge Base</a>
+                <a href="#esign" class="docs-toc-link">E-Sign</a>
                 <a href="#links" class="docs-toc-link">Short Links</a>
                 <a href="#forms" class="docs-toc-link">Form Builder</a>
+                <a href="#shared-docs" class="docs-toc-link">Shared Docs</a>
                 <a href="#notifikasi" class="docs-toc-link">
                     <span class="lang-id">Notifikasi</span><span class="lang-en">Notifications</span>
                 </a>
@@ -243,6 +249,11 @@
                 <p class="lang-en" style="margin-bottom:16px;">
                     As staff, you are the frontline. This system is designed so you can handle more requests faster, with a full audit trail.
                 </p>
+
+                <div class="docs-callout docs-callout-tip" style="margin-bottom:16px;">
+                    ⭐ <span class="lang-id"><strong>Login:</strong> gunakan tombol <strong>Continue with Microsoft</strong> di halaman login (SSO) — lebih cepat dan aman daripada username/password, dan tidak ada password terpisah yang perlu diingat.</span>
+                    <span class="lang-en"><strong>Login:</strong> use the <strong>Continue with Microsoft</strong> button on the login page (SSO) — faster and more secure than username/password, with no separate password to remember.</span>
+                </div>
 
                 <!-- 4 benefit cards -->
                 <div class="docs-grid-2" style="gap:12px;">
@@ -412,10 +423,10 @@
                     </div>
                     <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
                         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;color:#ef4444;">
-                            <span class="lang-id">Tiket Kritis</span><span class="lang-en">Critical Tickets</span>
+                            <span class="lang-id">Tiket P1</span><span class="lang-en">P1 Tickets</span>
                         </div>
                         <div style="font-size:11.5px;">
-                            <span class="lang-id">Prioritas Critical yang masih terbuka</span><span class="lang-en">Critical priority tickets still open</span>
+                            <span class="lang-id">Prioritas P1 yang masih terbuka</span><span class="lang-en">P1 priority tickets still open</span>
                         </div>
                     </div>
                     <div style="background:var(--jk-surface-alt);border-radius:var(--jk-radius-sm);padding:10px 14px;border:1px solid var(--jk-border);">
@@ -524,7 +535,7 @@
                     </h3>
                     <ul style="font-size:13.5px;color:var(--jk-text-muted);list-style:disc;padding-left:18px;line-height:1.9;">
                         <li><span class="lang-id">Kalender bulanan berdasarkan tanggal pembuatan tiket</span><span class="lang-en">Monthly calendar by ticket creation date</span></li>
-                        <li><span class="lang-id">Warna berbeda per prioritas (Critical: merah, High: oranye, dll.)</span><span class="lang-en">Different colors per priority (Critical: red, High: orange, etc.)</span></li>
+                        <li><span class="lang-id">Warna berbeda per prioritas (P1: merah, P2: oranye, dll.)</span><span class="lang-en">Different colors per priority (P1: red, P2: orange, etc.)</span></li>
                         <li><span class="lang-id">Klik tanggal untuk melihat tiket yang dibuat pada hari tersebut</span><span class="lang-en">Click a date to see tickets created on that day</span></li>
                     </ul>
                 </div>
@@ -600,7 +611,7 @@
                             </tr>
                             <tr>
                                 <td><span class="lang-id">Prioritas</span><span class="lang-en">Priority</span></td>
-                                <td>Low / Medium / High / Critical</td>
+                                <td>Impact (High/Medium/Low) × Severity (1/2/3) → Priority (P1–P4)</td>
                                 <td>✅ <span class="lang-id">Dropdown</span><span class="lang-en">Dropdown</span></td>
                             </tr>
                             <tr>
@@ -686,8 +697,8 @@
                     <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
                         📤 <span class="lang-id">Membalas &amp; Mengirim Pesan</span><span class="lang-en">Replying &amp; Sending Messages</span>
                     </h3>
-                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Kotak reply memiliki tiga tab channel:</p>
-                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">The reply box has three channel tabs:</p>
+                    <p class="lang-id" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Balasan dapat dikirim melalui email atau portal:</p>
+                    <p class="lang-en" style="font-size:13.5px;color:var(--jk-text-muted);margin-bottom:10px;">Replies can be sent through email or the portal:</p>
 
                     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
                         <div style="flex:1;min-width:150px;background:#d1fae5;border-radius:var(--jk-radius-sm);padding:10px 14px;">
@@ -932,7 +943,62 @@
                         <span class="lang-en">Activate WA Session Hold during an active Q&amp;A session via WhatsApp.</span>
                     </div>
                 </div>
+            </div>
+        </section>
 
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #eform-mgmt — e-Form Management                        -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="eform-mgmt" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🔄 e-Form Management
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Dashboard untuk memantau seluruh pengajuan <strong>Document Template</strong> (e-Form) di seluruh perusahaan — bukan hanya milikmu sendiri. Cocok untuk staf yang menangani tahapan multi-stage (mis. sebagai Vendor atau IT Ops pada alur persetujuan).</p>
+                <p class="lang-en" style="margin-bottom:14px;">A dashboard to monitor all <strong>Document Template</strong> (e-Form) submissions company-wide — not just your own. Useful for staff handling a stage in a multi-stage approval flow (e.g. as Vendor or IT Ops).</p>
+
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu e-Form Management di sidebar</span><span class="lang-en">Open the e-Form Management menu in the sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Cari submission dengan nama template pada kolom pencarian</span><span class="lang-en">Search submissions by template name in the search box</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Klik satu baris untuk melihat detail pengajuan, tahap yang sedang berjalan, dan riwayat pengisian setiap tahap</span><span class="lang-en">Click a row to view submission detail, the current stage, and each stage's fill-in history</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Jika kamu adalah pemegang tahap saat ini, isi bagian kamu → submit untuk lanjut ke tahap berikutnya</span><span class="lang-en">If you own the current stage, fill in your part → submit to move to the next stage</span></div></div>
+
+                <div class="docs-callout docs-callout-info" style="margin-top:14px;">
+                    ℹ️ <span class="lang-id">Ini adalah dashboard <strong>monitoring seluruh perusahaan</strong>. Pengajuan e-Form milikmu sendiri lebih mudah dilihat lewat menu <strong>My e-Forms</strong>.</span>
+                    <span class="lang-en">This is a <strong>company-wide monitoring</strong> dashboard. Your own e-Form submissions are easier to browse under the <strong>My e-Forms</strong> menu.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #projects — Project Management                         -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="projects" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📈 Projects
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Kelola proyek terpisah dari alur tiket — cocok untuk pekerjaan yang butuh timeline, cover image, lampiran, dan pengikut (followers) tersendiri, bukan sekadar satu tiket.</p>
+                <p class="lang-en" style="margin-bottom:14px;">Manage projects separately from the ticket flow — suited for work that needs its own timeline, cover image, attachments, and followers, rather than a single ticket.</p>
+
+                <div class="docs-callout docs-callout-info" style="margin-bottom:14px;">
+                    ℹ️ <span class="lang-id">Daftar Projects bersifat <strong>pribadi</strong> — kamu hanya melihat project yang kamu buat sendiri, atau yang kamu ikuti (follow), bukan milik semua staf.</span>
+                    <span class="lang-en">The Projects list is <strong>personal</strong> — you only see projects you created yourself, or that you follow, not every staff member's projects.</span>
+                </div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Membuat Project Baru:</span><span class="lang-en">Creating a New Project:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Projects di sidebar → Buat Project Baru</span><span class="lang-en">Open the Projects menu in the sidebar → Create New Project</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Isi Nama, Deskripsi, Cover Image (opsional), dan tenggat waktu jika ada</span><span class="lang-en">Fill in Name, Description, Cover Image (optional), and a deadline if applicable</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Tambahkan lampiran pendukung dan undang staf lain sebagai follower agar mereka menerima update</span><span class="lang-en">Add supporting attachments and invite other staff as followers so they receive updates</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Perbarui progres dari waktu ke waktu — follower akan melihat perubahan terbaru</span><span class="lang-en">Update progress over time — followers will see the latest changes</span></div></div>
+
+                <div class="docs-callout docs-callout-tip" style="margin-top:14px;">
+                    💡 <span class="lang-id">Gunakan Projects untuk inisiatif jangka panjang (mis. migrasi server, rollout aplikasi baru) yang tidak cocok direpresentasikan sebagai satu tiket tunggal.</span>
+                    <span class="lang-en">Use Projects for longer-running initiatives (e.g. server migration, new app rollout) that don't fit well as a single ticket.</span>
+                </div>
             </div>
         </section>
 
@@ -1005,6 +1071,43 @@
                         <div style="font-size:12.5px;"><span class="lang-id">Jumlah klik ditampilkan di daftar link</span><span class="lang-en">Click count is shown in the link list</span></div>
                     </div>
                 </div>
+
+                <div class="docs-callout docs-callout-info" style="margin-top:12px;">
+                    ℹ️ <span class="lang-id">Daftar Short Link bersifat <strong>pribadi</strong> — kamu hanya melihat link yang kamu buat sendiri, bukan milik staf lain. Role Auditor menjadi pengecualian: tetap bisa melihat semua link untuk keperluan audit.</span>
+                    <span class="lang-en">The Short Link list is <strong>personal</strong> — you only see links you created yourself, not other staff members'. The Auditor role is the exception: it can still see all links for audit purposes.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #esign — E-Sign Documents                              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="esign" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    ✒️ E-Sign
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Kirim dokumen untuk ditandatangani secara digital — bisa oleh sesama pengguna internal, atau (jika diizinkan SuperAdmin) oleh penanda tangan eksternal via email tanpa akun.</p>
+                <p class="lang-en" style="margin-bottom:14px;">Send documents for digital signature — either by internal users, or (if allowed by SuperAdmin) by external signers via email with no account required.</p>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Membuat Dokumen E-Sign:</span><span class="lang-en">Creating an E-Sign Document:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu E-Sign di sidebar → Upload Dokumen (PDF)</span><span class="lang-en">Open the E-Sign menu in the sidebar → Upload Document (PDF)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Tambahkan penanda tangan (Internal User atau External Email — tergantung konfigurasi)</span><span class="lang-en">Add signers (Internal User or External Email — depends on configuration)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Buka mode "Atur Posisi Tanda Tangan" → drag-and-drop kotak tanda tangan ke halaman PDF untuk tiap penanda tangan</span><span class="lang-en">Open "Adjust Signature Placement" mode → drag-and-drop each signer's signature box onto the PDF page</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Klik Kirim — setiap penanda tangan menerima link untuk menandatangani sesuai urutannya</span><span class="lang-en">Click Send — each signer receives a link to sign in their turn order</span></div></div>
+
+                <div class="docs-callout docs-callout-info" style="margin-top:14px;">
+                    ℹ️ <span class="lang-id"><strong>Internal vs External:</strong> Opsi untuk mengundang penanda tangan eksternal (via email, tanpa akun) diatur oleh SuperAdmin. Jika dinonaktifkan, semua penanda tangan harus berupa pengguna internal terdaftar.</span>
+                    <span class="lang-en"><strong>Internal vs External:</strong> The option to invite external signers (via email, no account needed) is controlled by SuperAdmin. If disabled, all signers must be registered internal users.</span>
+                </div>
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Jika link tanda tangan penanda tangan eksternal hilang/kedaluwarsa, gunakan tombol <strong>Regenerate Link</strong> di halaman detail dokumen untuk membuat link baru.</span>
+                    <span class="lang-en">If an external signer's link is lost or expired, use the <strong>Regenerate Link</strong> button on the document detail page to create a new one.</span>
+                </div>
+                <p class="lang-id" style="margin-top:10px;">Staf melihat semua dokumen yang mereka kelola di menu <strong>E-Sign</strong>; pengguna (termasuk portal user) melihat dokumen yang perlu <em>mereka</em> tanda tangani di menu <strong>My Signatures</strong>.</p>
+                <p class="lang-en" style="margin-top:10px;">Staff see all documents they manage under the <strong>E-Sign</strong> menu; users (including portal users) see documents <em>they</em> need to sign under the <strong>My Signatures</strong> menu.</p>
             </div>
         </section>
 
@@ -1021,6 +1124,11 @@
                 <p class="lang-id" style="margin-bottom:14px;">Form Builder memungkinkan staf membuat formulir dinamis yang dapat diisi oleh pemohon.</p>
                 <p class="lang-en" style="margin-bottom:14px;">Form Builder allows staff to create dynamic forms that can be filled by requesters.</p>
 
+                <div class="docs-callout docs-callout-info" style="margin-bottom:14px;">
+                    ℹ️ <span class="lang-id">Daftar formulir bersifat <strong>pribadi</strong> — kamu hanya melihat formulir yang kamu buat sendiri di menu Form Creator, bukan milik staf lain.</span>
+                    <span class="lang-en">The form list is <strong>personal</strong> — you only see forms you created yourself under Form Creator, not other staff members'.</span>
+                </div>
+
                 <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Melihat Respons Formulir:</span><span class="lang-en">Viewing Form Responses:</span></div>
                 <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Form Creator di sidebar</span><span class="lang-en">Open Form Creator menu in sidebar</span></div></div>
                 <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Pilih formulir dari daftar</span><span class="lang-en">Select a form from the list</span></div></div>
@@ -1030,6 +1138,37 @@
                 <div class="docs-callout docs-callout-tip" style="margin-top:14px;">
                     💡 <span class="lang-id">Respons formulir juga dapat dilihat di panel detail tiket terkait.</span>
                     <span class="lang-en">Form responses are also viewable in the related ticket detail panel.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #shared-docs — Shared Docs                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="shared-docs" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📂 Shared Docs
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Buat halaman dokumen yang bisa dibagikan lewat link publik — bisa berupa Markdown/rich-text, atau embed HTML mentah (mis. embed Canva, Google Slides, dashboard eksternal).</p>
+                <p class="lang-en" style="margin-bottom:14px;">Create document pages shareable via a public link — either Markdown/rich-text, or a raw HTML embed (e.g. embedding Canva, Google Slides, an external dashboard).</p>
+
+                <div class="docs-callout docs-callout-info" style="margin-bottom:14px;">
+                    ℹ️ <span class="lang-id">Daftar Shared Docs bersifat <strong>pribadi</strong> — kamu hanya melihat dokumen yang kamu buat sendiri. Dokumen yang sudah dibuat tetap hanya bisa diedit/dihapus oleh pembuatnya, meskipun oleh Manager atau SuperAdmin.</span>
+                    <span class="lang-en">The Shared Docs list is <strong>personal</strong> — you only see documents you created yourself. An existing document can only be edited/deleted by its creator, even by a Manager or SuperAdmin.</span>
+                </div>
+
+                <div style="font-weight:600;font-size:13px;color:var(--jk-text);margin-bottom:8px;"><span class="lang-id">Membuat Shared Doc:</span><span class="lang-en">Creating a Shared Doc:</span></div>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu Shared Docs di sidebar → + Buat Dokumen</span><span class="lang-en">Open the Shared Docs menu in the sidebar → + Create Document</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Pilih mode: Markdown/Rich Text (tulis konten biasa) atau Raw HTML (untuk embed pihak ketiga)</span><span class="lang-en">Choose a mode: Markdown/Rich Text (write regular content) or Raw HTML (for third-party embeds)</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Simpan — dapatkan link publik yang bisa dibagikan ke siapa pun, tanpa perlu login</span><span class="lang-en">Save — get a public link that can be shared with anyone, no login required</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Nonaktifkan (toggle) dokumen kapan saja untuk menghentikan akses publik tanpa menghapusnya</span><span class="lang-en">Toggle the document off at any time to stop public access without deleting it</span></div></div>
+
+                <div class="docs-callout docs-callout-warn" style="margin-top:14px;">
+                    ⚠️ <span class="lang-id">Karena bersifat publik, jangan tempelkan data sensitif (mis. kredensial, data pribadi pelanggan) ke dalam Shared Docs.</span>
+                    <span class="lang-en">Because it's public, never paste sensitive data (e.g. credentials, customer personal data) into a Shared Doc.</span>
                 </div>
             </div>
         </section>
@@ -1113,6 +1252,8 @@
 
     </div>{# end main content #}
 </div>{# end grid #}
+
+{% include "docs/_docs_search_modal.html" %}
 
 {% endblock %}
 

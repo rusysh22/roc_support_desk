@@ -1,0 +1,57 @@
+{% comment %}
+Fit-to-screen helper for Task Management (table + kanban).
+
+Both the table and the board scroll sideways (overflow-x), and a sticky header only sticks
+inside its nearest scrolling box — not the page. So instead of letting the page scroll, each
+element marked [data-fit-viewport] gets its own scroll area sized to the space left below the
+sticky toolbar (exposed as --fit-h). Headers inside then stay put while rows/cards scroll.
+Desktop only: on phones the table becomes cards and the page scrolls normally.
+{% endcomment %}
+<style>
+    @media (min-width: 769px) {
+        /* Table: own scroll box, header row pinned */
+        .jk-case-list-wrapper[data-fit-viewport] { max-height: var(--fit-h, calc(100dvh - 280px)); overflow: auto; }
+        .jk-case-list-wrapper[data-fit-viewport] thead th {
+            position: sticky; top: 0; z-index: 3;
+            background: var(--jk-surface-alt, #f8fafc);
+            box-shadow: inset 0 -1px 0 var(--jk-border, #e2e8f0);
+        }
+        /* Kanban: columns fill the space; each column's cards scroll under its header */
+        #kanban-board[data-fit-viewport] { min-height: 0; height: var(--fit-h, auto); }
+        #kanban-board[data-fit-viewport] .kanban-column { max-height: 100%; }
+        #kanban-board[data-fit-viewport] .kanban-body { max-height: none; min-height: 0; }
+        /* Portal My Tickets: table already scrolls internally with a sticky header — just size it exactly */
+        .jk-my-tickets-table[data-fit-viewport] { max-height: var(--fit-h, 70vh); }
+    }
+</style>
+<script>
+(function () {
+    if (window.jkFitViewport) { window.jkFitViewport(); return; }
+    var MIN_H = 320;
+
+    function fit() {
+        if (window.innerWidth <= 768) return;
+        document.querySelectorAll('[data-fit-viewport]').forEach(function (el) {
+            var gap = parseInt(el.getAttribute('data-fit-gap') || '32', 10);
+            var top = el.getBoundingClientRect().top + window.scrollY;  // position in the page, independent of scroll
+            el.style.setProperty('--fit-h', Math.max(MIN_H, Math.floor(window.innerHeight - top - gap)) + 'px');
+        });
+    }
+    window.jkFitViewport = fit;
+
+    var raf;
+    function schedule() { cancelAnimationFrame(raf); raf = requestAnimationFrame(fit); }
+    window.addEventListener('resize', schedule);
+    document.addEventListener('DOMContentLoaded', schedule);
+    window.addEventListener('load', schedule);
+    // Filter/sort/page changes swap the results via htmx; the toolbar can grow (saved filters, chips)
+    document.addEventListener('htmx:afterSettle', schedule);
+    if (window.ResizeObserver) {
+        document.addEventListener('DOMContentLoaded', function () {
+            var ro = new ResizeObserver(schedule);
+            document.querySelectorAll('.jk-content .sticky, .jk-my-tickets-toolbar').forEach(function (bar) { ro.observe(bar); });
+        });
+    }
+    schedule();
+})();
+</script>

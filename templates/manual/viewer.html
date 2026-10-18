@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if page %}{{ page.title }} | {% endif %}{{ manual.title }} | User Manual</title>
+    {% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
+    <link rel="canonical" href="{{ canonical_url }}">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="{% if page %}{{ page.title }} | {% endif %}{{ manual.title }}">
+    {% if meta_description %}<meta property="og:description" content="{{ meta_description }}">{% endif %}
+    <meta property="og:url" content="{{ canonical_url }}">
     {% if site_config.favicon %}<link rel="icon" type="image/x-icon" href="{{ site_config.favicon.url }}" />{% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -13,6 +19,13 @@
         body { background: #f8fafc; }
 
         /* Sidebar nav tree */
+        [x-cloak] { display: none !important; }
+        /* Sidebar labels: ellipsis at rest, scroll the full title on hover
+           (marquee-truncate.js slides .jk-marquee-inner by its overflow). */
+        .nav-label.jk-marquee { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+        .nav-label .jk-marquee-inner { will-change: transform; }
+        .nav-item-row:hover .nav-label.jk-marquee { text-overflow: clip; }
+        .nav-item-row:hover .nav-label .jk-marquee-inner { display: inline-block; }
         .nav-tree { font-size: 13.5px; }
         .nav-item { border-radius: 8px; transition: background .15s; }
         .nav-item-row { display: flex; align-items: center; border-radius: 8px; }
@@ -208,12 +221,8 @@
 
     {# ─── Top bar ─── #}
     <header class="bg-white border-b border-slate-200 sticky top-0 z-20 h-14 flex items-center">
-        <div class="max-w-[1200px] mx-auto px-3 sm:px-4 flex items-center gap-2 sm:gap-3 w-full">
-            <a href="{% url 'manual:landing' %}" class="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0" title="All Manuals">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-            </a>
+        <div class="max-w-[1680px] mx-auto px-3 sm:px-4 flex items-center gap-2 sm:gap-3 w-full">
+            {% url 'manual:landing' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
             <span class="text-slate-200 flex-shrink-0">|</span>
             <span class="text-sm font-black text-slate-800 truncate min-w-0">{{ manual.icon }} {{ manual.title }}</span>
 
@@ -223,14 +232,14 @@
 
             {# Center: search bar — sm and above #}
             <div class="flex-1 hidden sm:flex justify-center px-3" id="viewerSearchWrap">
-                <div class="relative w-full max-w-xs">
+                <div class="relative w-full max-w-md">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
                     </svg>
-                    <input id="viewerSearchInput" type="text" placeholder="Search…"
+                    <input id="viewerSearchInput" type="search" placeholder="Cari menu, proses, atau kode (mis. FA01)…"
                            autocomplete="off"
                            class="w-full border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50">
-                    <div id="viewerSearchDropdown" class="search-dropdown absolute top-full mt-1.5 left-0 right-0" style="min-width:300px;">
+                    <div id="viewerSearchDropdown" class="search-dropdown absolute top-full mt-1.5 left-0 right-0" style="min-width:420px;max-height:70vh;overflow-y:auto;">
                         <div id="viewerSearchResults"></div>
                     </div>
                 </div>
@@ -291,10 +300,10 @@
         </div>
     </div>
 
-    <div class="max-w-[1200px] mx-auto flex min-h-[calc(100vh-56px)]">
+    <div class="max-w-[1680px] mx-auto flex min-h-[calc(100vh-56px)]">
 
         {# ─── Sidebar Tree Nav ─── #}
-        <aside class="hidden lg:block w-64 flex-shrink-0 border-r border-slate-200 bg-white overflow-y-auto"
+        <aside class="hidden lg:block w-80 xl:w-[22rem] flex-shrink-0 border-r border-slate-200 bg-white overflow-y-auto"
                style="position: sticky; top: 56px; max-height: calc(100vh - 56px);">
             <div class="p-4 nav-tree">
                 {% if can_edit %}
@@ -303,7 +312,7 @@
                     ＋ New Page
                 </a>
                 {% endif %}
-                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit depth=1 open_ids=open_ids %}
                 {% if not root_pages %}
                 <p class="text-xs text-slate-400 italic px-2">No pages yet.</p>
                 {% endif %}
@@ -334,7 +343,7 @@
                     ＋ New Page
                 </a>
                 {% endif %}
-                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit %}
+                {% include "manual/_tree_nav.html" with pages=root_pages current_page=page manual=manual can_edit=can_edit depth=1 open_ids=open_ids %}
             </div>
         </div>
 
@@ -435,6 +444,8 @@
 
     {{ page_content|json_script:"page-content-data" }}
 
+    <script src="{% static 'js/marquee-truncate.js' %}"></script>
+    <script src="{% static 'js/manual-search.js' %}"></script>
     <script src="{% static 'vendor/alpine-3.14.8.min.js' %}" defer></script>
     <script>
     const PAGE_CONTENT = JSON.parse(document.getElementById('page-content-data').textContent || 'null');
@@ -477,7 +488,10 @@
                 return `<h${lvl}>${renderNodes(node.content)}</h${lvl}>`;
             }
             case 'bulletList': return `<ul>${renderNodes(node.content)}</ul>`;
-            case 'orderedList': return `<ol>${renderNodes(node.content)}</ol>`;
+            case 'orderedList': {
+                const start = parseInt(node.attrs?.start, 10);
+                return `<ol${start > 1 ? ` start="${start}"` : ''}>${renderNodes(node.content)}</ol>`;
+            }
             case 'listItem': return `<li>${renderNodes(node.content)}</li>`;
             case 'blockquote': return `<blockquote>${renderNodes(node.content)}</blockquote>`;
             case 'codeBlock': return `<pre><code>${escHtml(node.content?.[0]?.text || '')}</code></pre>`;
@@ -665,74 +679,20 @@
                 el.innerHTML = renderTipTap(PAGE_CONTENT);
             }
         }
+        // Opened from a search result (?hl=...): stabilo-highlight the searched
+        // words in the page title + content and scroll to the first match.
+        const hl = new URLSearchParams(location.search).get('hl');
+        if (hl && window.ManualSearch) {
+            const area = document.querySelector('main') || el;
+            ManualSearch.highlightPage(area, hl);
+        }
     });
 
-    // ─── Viewer search (desktop) ───
+    // ─── Search (shared: static/js/manual-search.js) ───
     (function () {
         const SEARCH_URL = "{% url 'manual:search' %}";
-
-        function setupSearch(inputId, resultsId, dropdownId, wrapperId) {
-            const input = document.getElementById(inputId);
-            const dropdown = document.getElementById(dropdownId);
-            const resultsEl = document.getElementById(resultsId);
-            if (!input) return;
-
-            let timer = null, activeIdx = -1;
-
-            function renderItems(results, query) {
-                if (!results.length) {
-                    resultsEl.innerHTML = `<div style="padding:14px;text-align:center;font-size:12px;color:#94a3b8">No results for "<strong>${query}</strong>"</div>`;
-                } else {
-                    resultsEl.innerHTML = results.slice(0, 8).map((r, i) => `
-                        <a class="sd-item" href="${r.url}" style="display:flex;align-items:flex-start;gap:8px;padding:9px 12px;text-decoration:none;color:inherit;transition:background .1s;" data-idx="${i}">
-                            <span style="font-size:16px;flex-shrink:0">${r.icon || r.manual_icon || '📄'}</span>
-                            <div style="flex:1;min-width:0">
-                                <div style="font-size:12px;font-weight:600;color:#1e293b">${r.title}</div>
-                                ${r.subtitle ? `<div style="font-size:11px;color:#64748b;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px">${r.subtitle}</div>` : ''}
-                            </div>
-                        </a>
-                    `).join('');
-                    if (results.length > 8) {
-                        resultsEl.innerHTML += `<div onclick="location.href='${SEARCH_URL}?q=${encodeURIComponent(query)}'" style="padding:7px 12px;font-size:11px;color:#94a3b8;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;cursor:pointer">View all results →</div>`;
-                    }
-                }
-                dropdown.style.display = 'block';
-                resultsEl.querySelectorAll('.sd-item').forEach(el => {
-                    el.addEventListener('mouseenter', () => el.style.background = '#f0f4ff');
-                    el.addEventListener('mouseleave', () => el.style.background = '');
-                });
-            }
-
-            input.addEventListener('input', () => {
-                const q = input.value.trim();
-                clearTimeout(timer);
-                activeIdx = -1;
-                if (!q) { dropdown.style.display = 'none'; return; }
-                timer = setTimeout(async () => {
-                    try {
-                        const res = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                        const data = await res.json();
-                        renderItems(data.results, q);
-                    } catch (_) {}
-                }, 280);
-            });
-
-            input.addEventListener('keydown', (e) => {
-                const items = dropdown.querySelectorAll('.sd-item');
-                if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx-1, -1); items.forEach((el,i) => el.style.background = i===activeIdx ? '#f0f4ff' : ''); }
-                else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0 && items[activeIdx]) location.href = items[activeIdx].href; else if (input.value.trim()) location.href = SEARCH_URL + '?q=' + encodeURIComponent(input.value.trim()); }
-                else if (e.key === 'Escape') { dropdown.style.display = 'none'; input.blur(); }
-            });
-
-            document.addEventListener('click', (e) => {
-                const wrapper = wrapperId ? document.getElementById(wrapperId) : input.parentElement;
-                if (wrapper && !wrapper.contains(e.target)) dropdown.style.display = 'none';
-            });
-        }
-
-        setupSearch('viewerSearchInput', 'viewerSearchResults', 'viewerSearchDropdown', 'viewerSearchWrap');
-        setupSearch('viewerMobileSearchInput', 'viewerMobileSearchResults', 'viewerMobileSearchDropdown', 'viewerMobileSearchWrap');
+        ManualSearch.initBox({ input: 'viewerSearchInput', results: 'viewerSearchResults', dropdown: 'viewerSearchDropdown', wrap: 'viewerSearchWrap', searchUrl: SEARCH_URL });
+        ManualSearch.initBox({ input: 'viewerMobileSearchInput', results: 'viewerMobileSearchResults', dropdown: 'viewerMobileSearchDropdown', wrap: 'viewerMobileSearchWrap', searchUrl: SEARCH_URL });
     })();
     </script>
 </body>

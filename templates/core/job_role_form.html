@@ -8,12 +8,7 @@
 <div class="max-w-lg mx-auto">
 
     <div class="mb-6">
-        <a href="{% url 'desk:job_role_list' %}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back to Job Roles
-        </a>
+        {% url 'desk:job_role_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
     </div>
 
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -21,7 +16,7 @@
             {% if object %}Edit "{{ object.name }}"{% else %}Create New Job Role{% endif %}
         </h2>
 
-        <form method="post" class="space-y-5">
+        <form data-unsaved-guard method="post" class="space-y-5">
             {% csrf_token %}
 
             <div class="jk-form-group">
