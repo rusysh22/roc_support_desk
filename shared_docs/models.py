@@ -13,7 +13,7 @@ class SharedDocument(AuditableModel):
     title = models.CharField(
         max_length=255,
         verbose_name="Title",
-        help_text="Document title (e.g. D365 Architecture Overview)",
+        help_text="Document title (e.g. Application Architecture Overview)",
     )
     editor_mode = models.CharField(
         max_length=20,

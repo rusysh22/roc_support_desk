@@ -8,16 +8,24 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
+from django.db import models
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from ipware import get_client_ip
 
-from core.models import User
+from core.excel_utils import export_queryset_xlsx, safe_cell
+from core.list_actions import bulk_delete, bulk_set_archived, get_selected
+from core.list_pagination import paginate
+from core.models import SiteConfig, User
 from .forms import DocumentUploadForm
 from .models import Signer, SignatureDocument, SignaturePlacement, SignatureFlowTemplate
 from .services import (
+    _request_signature,
     cancel_document,
+    compact_orders,
+    next_remind_at,
     remind_signer,
     reopen_document,
     send_document,
@@ -25,12 +33,35 @@ from .services import (
 
 
 # ---------------------------------------------------------------------------
+# Status pill meta map for the standardized list view (core/templatetags/
+# custom_tags.py {% status_pill %}). Badge classes reuse the existing
+# jk-badge-* palette already defined in static/css/jokoui.css.
+# ---------------------------------------------------------------------------
+STATUS_META = {
+    SignatureDocument.Status.DRAFT: {"label": "Draft", "badge_class": "jk-badge-cancelled"},
+    SignatureDocument.Status.PENDING: {"label": "Pending Signatures", "badge_class": "jk-badge-pending"},
+    SignatureDocument.Status.COMPLETED: {"label": "Completed", "badge_class": "jk-badge-resolved"},
+    SignatureDocument.Status.REJECTED: {"label": "Rejected", "badge_class": "jk-badge-rejected"},
+    SignatureDocument.Status.CANCELLED: {"label": "Cancelled", "badge_class": "jk-badge-cancelled"},
+}
+
+
+# ---------------------------------------------------------------------------
 # Role guard helpers
 # ---------------------------------------------------------------------------
 
 def _is_staff(user):
-    """PortalUser cannot access e-sign management."""
-    return user.is_authenticated and user.role_access != "PortalUser"
+    """Staff roles always allowed; PortalUser allowed only with the 'esign' module grant."""
+    if not user.is_authenticated:
+        return False
+    if user.role_access != "PortalUser":
+        return True
+    return "esign" in user.get_accessible_modules()
+
+
+def _can_view(doc, user):
+    """The owner, or a contributor the owner added (read-only)."""
+    return doc.created_by_id == user.pk or doc.contributors.filter(pk=user.pk).exists()
 
 
 def _staff_required(view_func):
@@ -53,17 +84,230 @@ from licensing.decorators import feature_required
 @_staff_required
 @feature_required('esign')
 def document_list(request):
+    show_archived = request.GET.get("show_archived") == "1"
     documents = (
         SignatureDocument.objects
-        .filter(created_by=request.user)
+        .filter(models.Q(created_by=request.user) | models.Q(contributors=request.user))
+        .distinct()
         .prefetch_related("signers")
         .order_by("-created_at")
     )
-    pending_count = documents.filter(status=SignatureDocument.Status.PENDING).count()
-    return render(request, "esign/document_list.html", {
+    if not show_archived:
+        documents = documents.filter(is_archived=False)
+
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        documents = documents.filter(
+            models.Q(title__icontains=search_query)
+            | models.Q(document_code__icontains=search_query)
+        )
+
+    status_filter = request.GET.get("status", "").strip()
+    if status_filter:
+        documents = documents.filter(status=status_filter)
+
+    context = {
         "documents": documents,
-        "pending_count": pending_count,
-    })
+        "search_query": search_query,
+        "status_filter": status_filter,
+        "show_archived": show_archived,
+        "has_active_filters": bool(status_filter or show_archived),
+        "STATUS_META": STATUS_META,
+        "status_choices": SignatureDocument.Status.choices,
+    }
+    context.update(paginate(request, documents))
+    context["documents"] = context["object_list"]
+    return render(request, "esign/document_list.html", context)
+
+
+def _purge_document_files(doc):
+    for signer in doc.signers.all():
+        if signer.signature_image:
+            signer.signature_image.delete(save=False)
+    for field_name in ("original_pdf", "signed_pdf", "preview_pdf"):
+        f = getattr(doc, field_name)
+        if f:
+            f.delete(save=False)
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_delete(request, pk):
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+    if doc.status != SignatureDocument.Status.DRAFT:
+        messages.error(request, "Only draft documents can be deleted.")
+        return redirect("esign:document_list")
+    title = doc.title
+    _purge_document_files(doc)
+    doc.delete()
+    messages.success(request, f'Document "{title}" deleted.')
+    return redirect("esign:document_list")
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_bulk_delete(request):
+    # Only DRAFT documents may be hard-deleted. Non-draft rows among the
+    # selection are silently skipped (with a message) rather than rejecting
+    # the whole batch — this mirrors the row-click-to-open / bulk-bar UX
+    # where a mixed selection is expected and the ineligible rows just
+    # don't get bulk_delete()'d.
+    own_selected = get_selected(
+        request,
+        SignatureDocument.objects.filter(created_by=request.user),
+    )
+    selected_ids = request.POST.getlist("selected_ids")
+    if not selected_ids:
+        messages.warning(request, "No documents selected for deletion.")
+        return redirect("esign:document_list")
+
+    draft_qs = own_selected.filter(status=SignatureDocument.Status.DRAFT).prefetch_related("signers")
+    skipped = own_selected.exclude(status=SignatureDocument.Status.DRAFT).count()
+    for doc in draft_qs:
+        _purge_document_files(doc)
+    count = bulk_delete(draft_qs)
+
+    if count:
+        messages.success(request, f"Deleted {count} draft document(s).")
+    if skipped:
+        messages.warning(request, f"Skipped {skipped} document(s) that are not drafts.")
+    if not count and not skipped:
+        messages.warning(request, "No draft documents were deleted.")
+    return redirect("esign:document_list")
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_bulk_archive(request):
+    qs = get_selected(
+        request,
+        SignatureDocument.objects.filter(created_by=request.user),
+    )
+    count = bulk_set_archived(qs, value=True)
+    if count:
+        messages.success(request, f"Archived {count} document(s).")
+    else:
+        messages.warning(request, "No documents selected to archive.")
+    return redirect("esign:document_list")
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_bulk_unarchive(request):
+    qs = get_selected(
+        request,
+        SignatureDocument.objects.filter(created_by=request.user),
+    )
+    count = bulk_set_archived(qs, value=False)
+    if count:
+        messages.success(request, f"Unarchived {count} document(s).")
+    else:
+        messages.warning(request, "No documents selected to unarchive.")
+    return redirect("esign:document_list")
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_bulk_duplicate(request):
+    # The bulk bar only enables "Duplicate" when exactly one row is checked
+    # (see canDuplicate in static/js/list-table.js), but selected_ids is a
+    # generic multi-value field, so guard here too: if more than one id is
+    # somehow submitted, duplicate only the first and ignore the rest rather
+    # than silently duplicating N documents from one click.
+    selected_ids = request.POST.getlist("selected_ids")
+    if not selected_ids:
+        messages.warning(request, "No document selected to duplicate.")
+        return redirect("esign:document_list")
+
+    original_doc = get_object_or_404(
+        SignatureDocument, pk=selected_ids[0], created_by=request.user
+    )
+
+    new_doc = SignatureDocument(
+        title=f"Copy of {original_doc.title}",
+        message=original_doc.message,
+        routing_mode=original_doc.routing_mode,
+        due_at=original_doc.due_at,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    if original_doc.original_pdf:
+        original_doc.original_pdf.open("rb")
+        try:
+            new_doc.original_pdf.save(
+                original_doc.original_pdf.name.rsplit("/", 1)[-1],
+                ContentFile(original_doc.original_pdf.read()),
+                save=False,
+            )
+        finally:
+            original_doc.original_pdf.close()
+    new_doc.page_count = original_doc.page_count
+    new_doc.save()
+
+    try:
+        new_doc.compute_hash()
+        new_doc.save(update_fields=["document_hash"])
+    except Exception:
+        pass
+
+    for orig_signer in original_doc.signers.all():
+        new_signer = Signer.objects.create(
+            document=new_doc,
+            user=orig_signer.user,
+            external_name=orig_signer.external_name,
+            external_email=orig_signer.external_email,
+            job_title=orig_signer.job_title,
+            company=orig_signer.company,
+            order=orig_signer.order,
+            role=orig_signer.role,
+            notes="",
+            status=Signer.Status.WAITING,
+        )
+        for orig_placement in orig_signer.placements.all():
+            SignaturePlacement.objects.create(
+                document=new_doc,
+                signer=new_signer,
+                field_type=orig_placement.field_type,
+                page_number=orig_placement.page_number,
+                x=orig_placement.x,
+                y=orig_placement.y,
+                width=orig_placement.width,
+                height=orig_placement.height,
+                required=orig_placement.required,
+            )
+
+    if len(selected_ids) > 1:
+        messages.warning(request, "Only the first selected document was duplicated.")
+    messages.success(request, f'Document duplicated as "{new_doc.title}".')
+    return redirect("esign:document_configure", pk=new_doc.pk)
+
+
+@_staff_required
+@feature_required('esign')
+@require_POST
+def document_bulk_export(request):
+    qs = get_selected(
+        request,
+        SignatureDocument.objects.filter(created_by=request.user).prefetch_related("signers"),
+    )
+    columns = [
+        ("Document Code", lambda d: safe_cell(d.document_code)),
+        ("Title", lambda d: safe_cell(d.title)),
+        ("Status", lambda d: d.get_status_display()),
+        ("Routing Mode", lambda d: d.get_routing_mode_display()),
+        ("Created At", lambda d: d.created_at.strftime("%Y-%m-%d %H:%M") if d.created_at else ""),
+        ("Due At", lambda d: d.due_at.strftime("%Y-%m-%d %H:%M") if d.due_at else ""),
+        ("Signed / Total", lambda d: f"{d.signed_count}/{d.total_count}"),
+        ("Archived", lambda d: "Yes" if d.is_archived else "No"),
+    ]
+    return export_queryset_xlsx(qs, columns, "esign_documents.xlsx", sheet_title="Documents")
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +319,19 @@ def document_create(request):
     if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
         if form.is_valid():
+            # Terms & Conditions must be accepted (and still within its 1-year
+            # validity window) before a document can be uploaded for signing.
+            if not request.user.esign_tnc_is_valid:
+                if request.POST.get("accept_tnc") != "1":
+                    messages.error(request, "You must accept the E-Sign Terms & Conditions to continue.")
+                    return render(request, "esign/document_create.html", {
+                        "form": form,
+                        "tnc_required": True,
+                    })
+                from django.utils import timezone
+                request.user.esign_tnc_accepted_at = timezone.now()
+                request.user.save(update_fields=["esign_tnc_accepted_at"])
+
             doc = form.save(commit=False)
             doc.created_by = request.user
             doc.updated_by = request.user
@@ -103,7 +360,11 @@ def document_create(request):
     else:
         form = DocumentUploadForm()
 
-    return render(request, "esign/document_create.html", {"form": form})
+    return render(request, "esign/document_create.html", {
+        "form": form,
+        "tnc_required": not request.user.esign_tnc_is_valid,
+        "max_upload_mb": getattr(SiteConfig.get_solo(), "max_upload_size_mb", 10) or 10,
+    })
 
 @_staff_required
 def document_duplicate(request, pk):
@@ -203,24 +464,22 @@ def document_replace_pdf(request, pk):
         messages.error(request, "No file selected.")
         return redirect_back()
 
-    # Validate MIME type
-    try:
-        import magic as _magic
-        mime = _magic.from_buffer(new_pdf.read(2048), mime=True)
-        new_pdf.seek(0)
-        if mime != "application/pdf" and not new_pdf.name.lower().endswith(".pdf"):
-            messages.error(request, f"Only PDF files are accepted. (Detected: {mime})")
-            return redirect_back()
-    except Exception:
-        pass  # python-magic unavailable — skip mime check, trust extension
+    from core.models import SiteConfig
+    from core.upload_security import validate_upload
+
+    max_mb = SiteConfig.get_solo().max_upload_size_mb
+    is_valid, error, _mime = validate_upload(new_pdf, max_mb, {"application/pdf"})
+    if not is_valid:
+        messages.error(request, error)
+        return redirect_back()
 
     # Delete old file and save new one
     if doc.original_pdf:
         doc.original_pdf.delete(save=False)
-    
-    # Prepend a random string to the filename to break browser cache
+
+    # Random filename (also breaks browser cache on the replaced file)
     import uuid
-    new_pdf.name = f"{uuid.uuid4().hex[:8]}_{new_pdf.name}"
+    new_pdf.name = f"{uuid.uuid4().hex}.pdf"
     doc.original_pdf = new_pdf
 
     # Recount pages
@@ -305,7 +564,7 @@ def document_configure(request, pk):
     flow_templates = SignatureFlowTemplate.objects.filter(is_active=True)
     available_users = User.objects.filter(
         is_active=True,
-    ).exclude(role_access="PortalUser").order_by("first_name", "last_name")
+    ).exclude(email="").order_by("first_name", "last_name", "email")
 
     signers = list(doc.signers.order_by("order").select_related("user"))
     placements = list(doc.placements.order_by("page_number", "signer__order").select_related("signer"))
@@ -337,10 +596,21 @@ def document_configure(request, pk):
         for p in placements
     ]
 
+    me = request.user
+    current_user = {
+        "id": str(me.pk), "name": me.get_full_name() or me.username, "email": me.email,
+    } if me.email else None
+    contributors = [
+        {"id": str(u.pk), "name": u.get_full_name() or u.username, "email": u.email}
+        for u in doc.contributors.order_by("first_name", "last_name")
+    ]
+
     return render(request, "esign/document_configure.html", {
         "doc": doc,
         "signers": signers,
         "placements": placements,
+        "current_user": current_user,
+        "initial_contributors": contributors,
         "flow_templates": flow_templates,
         "available_users": available_users,
         "page_range": range(1, doc.page_count + 1),
@@ -424,10 +694,24 @@ def save_configuration(request, pk):
     if not signer_data:
         return JsonResponse({"ok": False, "error": "At least one signer is required."}, status=400)
 
+    from core.models import SiteConfig
+    if not SiteConfig.get_solo().esign_allow_external_signers:
+        if any(entry.get("type") != "user" for entry in signer_data):
+            return JsonResponse({
+                "ok": False,
+                "error": "External Email signers are disabled by the Super Admin. Only Internal (System) Users are allowed.",
+            }, status=403)
+
+    # Sign orders always run 1, 2, 3... - gaps left by removed signers are closed (ties kept).
+    for entry, order in zip(signer_data, compact_orders([_order_of(e) for e in signer_data])):
+        entry["order"] = order
+
     doc.placements.all().delete()
     doc.signers.all().delete()
     doc.routing_mode = routing_mode
     doc.save(update_fields=["routing_mode"])
+    if "contributors" in data:
+        _set_contributors(doc, data.get("contributors") or [])
 
     created_signers = []
     for entry in signer_data:
@@ -475,6 +759,19 @@ def save_configuration(request, pk):
         )
 
     return JsonResponse({"ok": True, "signer_count": len(created_signers)})
+
+
+def _order_of(entry):
+    try:
+        return max(1, int(entry.get("order", 1)))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _set_contributors(doc, user_ids):
+    """Contributors are active system users with an email; signers can be contributors too."""
+    users = User.objects.filter(pk__in=[u for u in user_ids if u], is_active=True).exclude(email="")
+    doc.contributors.set(users.exclude(pk=doc.created_by_id))
 
 
 # ---------------------------------------------------------------------------
@@ -525,8 +822,12 @@ def document_adjust_placements(request, pk):
         for p in placements
     ]
 
+    me = request.user
     return render(request, "esign/document_adjust_placements.html", {
         "doc": doc,
+        "current_user": {
+            "id": str(me.pk), "name": me.get_full_name() or me.username, "email": me.email,
+        } if me.email else None,
         "signers": signers,
         "placements": placements,
         "page_range": range(1, doc.page_count + 1),
@@ -553,6 +854,17 @@ def save_placements(request, pk):
 
     placement_data = data.get("placements", [])
     signer_data = data.get("signers", [])
+
+    from core.models import SiteConfig
+    if not SiteConfig.get_solo().esign_allow_external_signers:
+        if any(not s.get("id") and s.get("type") != "user" for s in signer_data):
+            return JsonResponse({
+                "ok": False,
+                "error": "External Email signers are disabled by the Super Admin. Only Internal (System) Users are allowed.",
+            }, status=403)
+
+    for entry, order in zip(signer_data, compact_orders([_order_of(e) for e in signer_data])):
+        entry["order"] = order
 
     frontend_signer_ids = [s.get("id") for s in signer_data if s.get("id")]
     
@@ -616,7 +928,6 @@ def save_placements(request, pk):
 
     # Handle state transitions for new signers
     from .services import _assign_token
-    from .tasks import send_signature_request_task
 
     # Assign tokens to new signers (those without an expiration date)
     for signer in doc.signers.filter(token_expires_at__isnull=True):
@@ -627,7 +938,7 @@ def save_placements(request, pk):
         for signer in doc.signers.filter(status=Signer.Status.WAITING):
             signer.status = Signer.Status.PENDING
             signer.save(update_fields=["status"])
-            send_signature_request_task.delay(str(signer.id))
+            _request_signature(signer)
     else:
         # Sequential: Check if there's any PENDING signer. If not, advance to the first WAITING.
         if not doc.signers.filter(status=Signer.Status.PENDING).exists():
@@ -635,7 +946,7 @@ def save_placements(request, pk):
             if next_signer:
                 next_signer.status = Signer.Status.PENDING
                 next_signer.save(update_fields=["status"])
-                send_signature_request_task.delay(str(next_signer.id))
+                _request_signature(next_signer)
 
     if doc.status == SignatureDocument.Status.COMPLETED and not doc.is_complete:
         doc.status = SignatureDocument.Status.PENDING
@@ -674,10 +985,19 @@ def document_send(request, pk):
     ip, _ = get_client_ip(request)
     try:
         send_document(doc, actor_user=request.user, ip=ip)
-        messages.success(request, "Document sent to signers.")
     except ValueError as exc:
         messages.error(request, str(exc))
+        return redirect("esign:document_detail", pk=doc.pk)
 
+    # Sender is (one of) the first signers: go straight to the signing page.
+    mine = doc.signers.filter(user=request.user, status=Signer.Status.PENDING).first()
+    if mine:
+        others = doc.signers.exclude(pk=mine.pk).exists()
+        messages.success(
+            request, "Document sent. It's your turn - please sign below." if others else "Ready - please sign below.",
+        )
+        return redirect("esign_public:sign", token=mine.token)
+    messages.success(request, "Document sent to signers.")
     return redirect("esign:document_detail", pk=doc.pk)
 
 
@@ -688,19 +1008,45 @@ def document_send(request, pk):
 @_staff_required
 def document_detail(request, pk):
     doc = get_object_or_404(SignatureDocument, pk=pk)
-    if doc.created_by != request.user:
+    if not _can_view(doc, request.user):
         return HttpResponseForbidden()
 
-    signers    = doc.signers.order_by("order").select_related("user")
+    signers    = list(doc.signers.order_by("order").select_related("user"))
     placements = doc.placements.order_by("page_number", "signer__order").select_related("signer")
     events     = doc.events.order_by("-created_at")[:50]
+    for signer in signers:
+        signer.next_remind_at = next_remind_at(signer)
 
     return render(request, "esign/document_detail.html", {
         "doc": doc,
         "signers": signers,
         "placements": placements,
         "events": events,
+        "is_owner": doc.created_by_id == request.user.pk,
+        "my_pending_signer": next(
+            (s for s in signers if s.user_id == request.user.pk and s.status == Signer.Status.PENDING), None,
+        ),
+        "contributors": doc.contributors.order_by("first_name", "last_name"),
     })
+
+
+@_staff_required
+@require_POST
+def document_contributors(request, pk):
+    """Owner adds or removes a contributor from the detail page."""
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+    user = User.objects.filter(pk=request.POST.get("user_id"), is_active=True).exclude(email="").first()
+    if user is None or user.pk == doc.created_by_id:
+        messages.error(request, "Select an active system user other than yourself.")
+    elif request.POST.get("action") == "remove":
+        doc.contributors.remove(user)
+        messages.success(request, f"{user.get_full_name() or user.username} is no longer a contributor.")
+    else:
+        doc.contributors.add(user)
+        messages.success(request, f"{user.get_full_name() or user.username} added as a contributor.")
+    return redirect("esign:document_detail", pk=doc.pk)
 
 
 # ---------------------------------------------------------------------------
@@ -721,6 +1067,21 @@ def signer_remind(request, pk, signer_pk):
     except ValueError as exc:
         messages.error(request, str(exc))
 
+    return redirect("esign:document_detail", pk=doc.pk)
+
+
+@require_POST
+@_staff_required
+def document_regenerate_progress_link(request, pk):
+    """Rotate the public progress-page token, revoking any previously shared link."""
+    import uuid
+    doc = get_object_or_404(SignatureDocument, pk=pk)
+    if doc.created_by != request.user:
+        return HttpResponseForbidden()
+
+    doc.progress_token = uuid.uuid4()
+    doc.save(update_fields=["progress_token"])
+    messages.success(request, "Progress link regenerated — the old link no longer works.")
     return redirect("esign:document_detail", pk=doc.pk)
 
 
@@ -751,13 +1112,38 @@ def signer_reassign(request, pk, signer_pk):
     if doc.created_by != request.user:
         return HttpResponseForbidden()
 
+    signer_type = request.POST.get("signer_type", "external").strip()
     new_name = request.POST.get("name", "").strip()
     new_email = request.POST.get("email", "").strip()
     new_job_title = request.POST.get("job_title", "").strip()
     new_company = request.POST.get("company", "").strip()
+    new_user = None
 
-    if not new_name or not new_email:
-        messages.error(request, "Name and Email are required to reassign a signer.")
+    from core.models import SiteConfig
+    if signer_type != "user" and not SiteConfig.get_solo().esign_allow_external_signers:
+        messages.error(request, "External Email signers are disabled by the Super Admin. Only Internal (System) Users are allowed.")
+        return redirect("esign:document_detail", pk=doc.pk)
+
+    if signer_type == "user":
+        try:
+            new_user = User.objects.filter(
+                pk=request.POST.get("user_id"),
+                is_active=True,
+            ).exclude(email="").first()
+        except (TypeError, ValueError):
+            new_user = None
+        if not new_user:
+            messages.error(request, "Please select an active system user.")
+            return redirect("esign:document_detail", pk=doc.pk)
+        new_name = new_user.get_full_name() or new_user.username
+        new_email = new_user.email
+        new_job_title = ""
+        new_company = ""
+    elif signer_type != "external":
+        messages.error(request, "Invalid signer type.")
+        return redirect("esign:document_detail", pk=doc.pk)
+    elif not new_name or not new_email:
+        messages.error(request, "Name and Email are required for an external signer.")
         return redirect("esign:document_detail", pk=doc.pk)
 
     ip, _ = get_client_ip(request)
@@ -768,6 +1154,7 @@ def signer_reassign(request, pk, signer_pk):
             new_email=new_email, 
             new_job_title=new_job_title, 
             new_company=new_company, 
+            new_user=new_user,
             actor_user=request.user, 
             ip=ip
         )
@@ -898,13 +1285,14 @@ def user_search(request):
     users = (
         User.objects
         .filter(is_active=True)
-        .exclude(role_access="PortalUser")
+        .exclude(email="")
         .filter(
             Q(first_name__icontains=q) |
             Q(last_name__icontains=q) |
             Q(email__icontains=q) |
             Q(username__icontains=q)
         )
+        .order_by("first_name", "last_name", "email")
         .values("id", "first_name", "last_name", "email", "role_access")[:20]
     )
     results = [

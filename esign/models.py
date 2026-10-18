@@ -116,6 +116,23 @@ class SignatureDocument(AuditableModel):
         verbose_name="Document SHA-256",
         help_text="SHA-256 hash of the original PDF bytes for tamper-evidence.",
     )
+    progress_token = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name="Progress Link Token",
+        help_text=(
+            "Separate secret from the document's own ID, required to view the public "
+            "progress page. Regenerating it revokes any previously shared progress link."
+        ),
+    )
+    is_archived = models.BooleanField(default=False, db_index=True, verbose_name="Archived")
+    contributors = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="esign_contributions",
+        verbose_name="Contributors",
+        help_text="System users who can open this document (read-only) and get an email on every update.",
+    )
 
 
     class Meta:
@@ -254,6 +271,12 @@ class Signer(AuditableModel):
         verbose_name="Token Expires At",
     )
     acted_at = models.DateTimeField(null=True, blank=True, verbose_name="Acted At")
+    last_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Last Request Sent",
+        help_text="When the signing request email was last sent (initial request or reminder).",
+    )
     signature_image = models.ImageField(
         upload_to=_signature_image_path,
         max_length=255,

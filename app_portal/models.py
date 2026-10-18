@@ -5,6 +5,7 @@ ROLE_CHOICES = [
     ("SuperAdmin", "Super Admin"),
     ("Manager", "Manager"),
     ("SupportDesk", "Support Desk"),
+    ("Engineer", "Engineer"),
     ("Auditor", "Auditor"),
     ("PortalUser", "Portal User"),
 ]

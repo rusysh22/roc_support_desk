@@ -3,7 +3,26 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
+from core.models import SiteConfig
+from core.upload_security import validate_upload, safe_filename, ALLOWED_IMAGE_MIME_TYPES
 from .models import ACCENT_CHOICES, AppPortalEntry
+
+
+def _validated_icon_image(request):
+    """
+    Returns ``(icon_file_or_none, error_or_none)`` for the optional
+    ``icon_image`` upload — validates size/real content type and assigns
+    a random safe filename before it's saved.
+    """
+    f = request.FILES.get("icon_image")
+    if not f:
+        return None, None
+    max_mb = SiteConfig.get_solo().max_upload_size_mb
+    is_valid, error, mime = validate_upload(f, max_mb, ALLOWED_IMAGE_MIME_TYPES)
+    if not is_valid:
+        return None, error
+    f.name = safe_filename(f.name, mime)
+    return f, None
 
 
 def _is_superadmin(request):
@@ -50,6 +69,10 @@ def entry_create(request):
     if accent_color not in valid_colors:
         accent_color = "indigo"
 
+    icon_file, icon_error = _validated_icon_image(request)
+    if icon_error:
+        return JsonResponse({"success": False, "error": icon_error})
+
     entry = AppPortalEntry(
         name=name,
         description=request.POST.get("description", "").strip(),
@@ -61,8 +84,8 @@ def entry_create(request):
         order=_safe_int(request.POST.get("order", 0)),
         is_active=bool(request.POST.get("is_active")),
     )
-    if request.FILES.get("icon_image"):
-        entry.icon_image = request.FILES["icon_image"]
+    if icon_file:
+        entry.icon_image = icon_file
     entry.save()
     return JsonResponse({"success": True})
 
@@ -88,6 +111,10 @@ def entry_update(request, pk):
     if accent_color not in valid_colors:
         accent_color = "indigo"
 
+    icon_file, icon_error = _validated_icon_image(request)
+    if icon_error:
+        return JsonResponse({"success": False, "error": icon_error})
+
     entry.name = name
     entry.description = request.POST.get("description", "").strip()
     entry.url = url
@@ -97,8 +124,8 @@ def entry_update(request, pk):
     entry.accessible_roles = request.POST.get("accessible_roles", "all") or "all"
     entry.order = _safe_int(request.POST.get("order", 0))
     entry.is_active = bool(request.POST.get("is_active"))
-    if request.FILES.get("icon_image"):
-        entry.icon_image = request.FILES["icon_image"]
+    if icon_file:
+        entry.icon_image = icon_file
     entry.save()
     return JsonResponse({"success": True})
 

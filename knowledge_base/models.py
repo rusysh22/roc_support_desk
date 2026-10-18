@@ -135,9 +135,18 @@ class Article(AuditableModel):
 
     # Comments
     allow_comments = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="Allow Comments",
-        help_text="Allow logged-in users to post comments on this article.",
+        help_text="Allow logged-in users to post comments on this article. Off unless switched on here.",
+    )
+
+    # People credited on the article (several allowed). Created from a ticket: its requester.
+    contributors = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="kb_contributions",
+        verbose_name="Contributors",
+        help_text="User accounts credited for this article. Shown on the article page.",
     )
 
     # Tags
@@ -184,6 +193,12 @@ class Article(AuditableModel):
     rejection_reason = models.TextField(
         blank=True,
         verbose_name="Rejection Reason",
+    )
+    is_archived = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Archived",
+        help_text="Hides the article from the working list without affecting its workflow status.",
     )
 
     class Meta:
@@ -266,6 +281,39 @@ class ArticleAttachment(AuditableModel):
         return f"{size:.1f} GB"
 
 
+class ArticleView(models.Model):
+    """One row per user account that has opened an article: the "views" count is the number of rows,
+    so reading an article again — or from another device — does not count again."""
+
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="views")
+    user = models.ForeignKey("core.User", on_delete=models.CASCADE, related_name="kb_article_views")
+    first_viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Article View"
+        verbose_name_plural = "Article Views"
+        constraints = [models.UniqueConstraint(fields=["article", "user"], name="kb_one_view_per_user")]
+
+    def __str__(self):
+        return f"{self.user} viewed '{self.article.title}'"
+
+
+class ArticleLike(models.Model):
+    """One like per user account and article; liking again removes it (a toggle)."""
+
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="likes")
+    user = models.ForeignKey("core.User", on_delete=models.CASCADE, related_name="kb_article_likes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Article Like"
+        verbose_name_plural = "Article Likes"
+        constraints = [models.UniqueConstraint(fields=["article", "user"], name="kb_one_like_per_user")]
+
+    def __str__(self):
+        return f"{self.user} likes '{self.article.title}'"
+
+
 class ArticleComment(AuditableModel):
     """
     User comment on a published KB article.
@@ -293,3 +341,34 @@ class ArticleComment(AuditableModel):
 
     def __str__(self):
         return f"{self.user.username} on '{self.article.title}': {self.body[:50]}"
+
+
+class ArticleChangeLog(models.Model):
+    """Who did what to an article and when: edits (which fields), the review workflow, featuring."""
+
+    class Action(models.TextChoices):
+        CREATED = "created", "Created"
+        EDITED = "edited", "Edited"
+        SUBMITTED = "submitted", "Submitted for review"
+        APPROVED = "approved", "Approved & published"
+        REJECTED = "rejected", "Rejected"
+        UNPUBLISHED = "unpublished", "Unpublished"
+        FEATURED = "featured", "Added to featured"
+        UNFEATURED = "unfeatured", "Removed from featured"
+
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="change_logs", verbose_name="Article")
+    action = models.CharField(max_length=20, choices=Action.choices, verbose_name="Action")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="By",
+    )
+    actor_name = models.CharField(max_length=150, blank=True, default="", verbose_name="By (name)")
+    detail = models.TextField(blank=True, default="", verbose_name="Detail")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="When")
+
+    class Meta:
+        verbose_name = "Article Change Log"
+        verbose_name_plural = "Article Change Log"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.article} — {self.get_action_display()} by {self.actor_name}"

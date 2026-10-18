@@ -17,6 +17,7 @@ import string
 import uuid
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils import timezone
 
 from .models import Signer, SignatureDocument, SignatureEvent
@@ -25,6 +26,24 @@ from .models import Signer, SignatureDocument, SignatureEvent
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# Reminders to the same signer are limited to one per this window (counted from the
+# last signing request email, so a fresh request also starts the window).
+REMIND_COOLDOWN = timedelta(hours=6)
+
+# Events that contributors are emailed about (views and reminders are left out).
+CONTRIBUTOR_EVENTS = {
+    SignatureEvent.Event.SENT,
+    SignatureEvent.Event.SIGNED,
+    SignatureEvent.Event.REJECTED,
+    SignatureEvent.Event.COMPLETED,
+    SignatureEvent.Event.REOPENED,
+    SignatureEvent.Event.CANCELLED,
+    SignatureEvent.Event.AMENDED,
+    SignatureEvent.Event.REASSIGNED,
+    SignatureEvent.Event.FORCE_COMPLETED,
+}
+
 
 def _log(document, event, *, actor_user=None, actor_label="", ip=None, detail=""):
     SignatureEvent.objects.create(
@@ -35,6 +54,67 @@ def _log(document, event, *, actor_user=None, actor_label="", ip=None, detail=""
         ip=ip,
         detail=detail,
     )
+    if event in CONTRIBUTOR_EVENTS:
+        notify_contributors(document, event, actor_user=actor_user, actor_label=actor_label, detail=detail)
+
+
+def notify_contributors(document, event, *, actor_user=None, actor_label="", detail=""):
+    """Email every contributor (except whoever did it) that the document changed."""
+    recipients = list(
+        document.contributors.filter(is_active=True).exclude(email="").exclude(
+            pk=getattr(actor_user, "pk", None),
+        ).values_list("pk", flat=True)
+    )
+    if not recipients:
+        return
+    actor = (actor_user.get_full_name() or actor_user.username) if actor_user else (actor_label or "System")
+    from .tasks import send_contributor_update_task
+    send_contributor_update_task.delay(
+        str(document.pk), [str(pk) for pk in recipients],
+        SignatureEvent.Event(event).label, actor, detail,
+    )
+
+
+def _request_signature(signer, *, notify=True):
+    """Mark a signing request as sent now and email it (unless ``notify`` is False)."""
+    signer.last_requested_at = timezone.now()
+    signer.save(update_fields=["last_requested_at"])
+    if notify:
+        from .tasks import send_signature_request_task
+        send_signature_request_task.delay(str(signer.id))
+
+
+def next_remind_at(signer):
+    """When a reminder to this signer is allowed again (None = now)."""
+    if not signer.last_requested_at:
+        return None
+    allowed = signer.last_requested_at + REMIND_COOLDOWN
+    return allowed if allowed > timezone.now() else None
+
+
+def compact_orders(orders):
+    """Renumber sign orders to 1..n keeping ties: [1, 3, 3, 7] → [1, 2, 2, 3]."""
+    ranks = {value: rank for rank, value in enumerate(sorted(set(orders)), start=1)}
+    return [ranks[value] for value in orders]
+
+
+def default_job_role(signer):
+    """Job role to pre-fill on the signing page: the signer's last choice, the external
+    signer's job title, else the Employee record linked to the user (free text either way)."""
+    if signer.stamp_job_role_text:
+        return signer.stamp_job_role_text
+    if signer.job_title:
+        return signer.job_title
+    if signer.user_id:
+        from django.db.models import Q
+        from core.models import Employee
+        match = Q(user_id=signer.user_id)
+        if signer.user.email:
+            match |= Q(email__iexact=signer.user.email)
+        employee = Employee.objects.filter(match).exclude(job_role="").order_by("-user_id").first()
+        if employee:
+            return employee.job_role
+    return ""
 
 
 def _token_expiry(days=30):
@@ -100,9 +180,8 @@ def send_document(document, actor_user=None, ip=None):
     _log(document, SignatureEvent.Event.SENT, actor_user=actor_user, ip=ip)
 
     # Fire email tasks (imported here to avoid circular imports)
-    from .tasks import send_signature_request_task
     for signer in pending_signers:
-        send_signature_request_task.delay(str(signer.id))
+        _request_signature(signer, notify=not (actor_user and signer.user_id == actor_user.pk))
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +198,16 @@ def record_signature(signer, signature_image_file, ip=None, user_agent="", actor
 
     Raises ValueError if the signer is not currently PENDING.
     """
-    if signer.status != Signer.Status.PENDING:
-        raise ValueError("This signer is not waiting for action.")
+    # Atomically claim the PENDING -> SIGNED transition under a row lock so two
+    # concurrent submits for the same signer can't both succeed. The lock is
+    # released immediately after — the slower image/PDF work below runs
+    # unlocked since only one caller can ever reach it per signer.
+    with transaction.atomic():
+        locked = Signer.objects.select_for_update().get(pk=signer.pk)
+        if locked.status != Signer.Status.PENDING:
+            raise ValueError("This signer is not waiting for action.")
+        locked.status = Signer.Status.SIGNED
+        locked.save(update_fields=["status"])
 
     from django.core.files.base import ContentFile
     from PIL import Image
@@ -179,7 +266,7 @@ def _update_preview_pdf(document):
 
 def _advance_or_finalize(document):
     """After a signing action, move the workflow forward or complete it."""
-    from .tasks import send_signature_request_task, send_signature_completed_task
+    from .tasks import send_signature_completed_task
 
     if document.routing_mode == SignatureDocument.RoutingMode.SEQUENTIAL:
         # Find the next WAITING signer with the lowest order
@@ -193,7 +280,7 @@ def _advance_or_finalize(document):
             _assign_token(next_signer)
             next_signer.status = Signer.Status.PENDING
             next_signer.save(update_fields=["status"])
-            send_signature_request_task.delay(str(next_signer.id))
+            _request_signature(next_signer)
             return
 
     # All done (sequential exhausted, or parallel all signed)?
@@ -238,9 +325,11 @@ def force_complete_document(document, actor_user=None, ip=None):
     if document.status != SignatureDocument.Status.PENDING:
         raise ValueError("Only in-progress documents can be force completed.")
         
-    # Clear tokens for remaining signers so they can't access it anymore
+    # Rotate tokens for remaining signers so their old links stop working.
+    # `token` is unique+not-null, so it's regenerated (never set to None) —
+    # the new value is simply never sent to anyone.
     for signer in document.signers.filter(status__in=[Signer.Status.WAITING, Signer.Status.PENDING]):
-        signer.token = None
+        signer.token = uuid.uuid4()
         signer.save(update_fields=['token'])
         
     _log(document, SignatureEvent.Event.FORCE_COMPLETED, actor_user=actor_user, ip=ip,
@@ -259,10 +348,15 @@ def reject_signature(signer, notes, ip=None, actor_user=None):
 
     Raises ValueError if notes is empty or the signer is not PENDING.
     """
-    if signer.status != Signer.Status.PENDING:
-        raise ValueError("This signer is not waiting for action.")
     if not notes or not notes.strip():
         raise ValueError("A rejection reason is required.")
+
+    with transaction.atomic():
+        locked = Signer.objects.select_for_update().get(pk=signer.pk)
+        if locked.status != Signer.Status.PENDING:
+            raise ValueError("This signer is not waiting for action.")
+        locked.status = Signer.Status.REJECTED
+        locked.save(update_fields=["status"])
 
     signer.status   = Signer.Status.REJECTED
     signer.notes    = notes.strip()
@@ -355,18 +449,17 @@ def reopen_document(document, actor_user=None, ip=None):
     _log(document, SignatureEvent.Event.REOPENED, actor_user=actor_user, ip=ip)
 
     # Trigger the first/all signers depending on mode
-    from .tasks import send_signature_request_task
     if document.routing_mode == SignatureDocument.RoutingMode.SEQUENTIAL:
         first = signers[0] if signers else None
         if first:
             first.status = Signer.Status.PENDING
             first.save(update_fields=["status"])
-            send_signature_request_task.delay(str(first.id))
+            _request_signature(first)
     else:
         for signer in signers:
             signer.status = Signer.Status.PENDING
             signer.save(update_fields=["status"])
-            send_signature_request_task.delay(str(signer.id))
+            _request_signature(signer)
 
 
 # ---------------------------------------------------------------------------
@@ -374,34 +467,122 @@ def reopen_document(document, actor_user=None, ip=None):
 # ---------------------------------------------------------------------------
 
 def remind_signer(signer, actor_user=None):
-    """Re-send the signing request email to a PENDING signer."""
+    """Re-send the signing request email to a PENDING signer (at most once per REMIND_COOLDOWN)."""
     if signer.status != Signer.Status.PENDING:
         raise ValueError("Reminders can only be sent to pending signers.")
+    allowed_at = next_remind_at(signer)
+    if allowed_at:
+        local = timezone.localtime(allowed_at)
+        raise ValueError(
+            f"{signer.display_name} was notified less than 6 hours ago. "
+            f"You can send the next reminder after {local:%d %b %Y %H:%M}."
+        )
 
     _log(
         signer.document, SignatureEvent.Event.REMINDED,
         actor_user=actor_user,
         detail=f"Reminder sent to {signer.display_name} ({signer.email})",
     )
+    _request_signature(signer)
 
-    from .tasks import send_signature_request_task
-    send_signature_request_task.delay(str(signer.id))
+
+# ---------------------------------------------------------------------------
+# auto-remind — every ESIGN_AUTO_REMIND_HOURS to internal users who still have to sign
+# ---------------------------------------------------------------------------
+
+def auto_remind_interval():
+    from django.conf import settings
+
+    hours = int(getattr(settings, "ESIGN_AUTO_REMIND_HOURS", 24) or 0)
+    return timedelta(hours=hours) if hours > 0 else None
+
+
+def signers_due_for_auto_reminder(now=None):
+    """Internal users whose turn it is, on a live document, not asked for ESIGN_AUTO_REMIND_HOURS."""
+    interval = auto_remind_interval()
+    if interval is None:
+        return Signer.objects.none()
+    now = now or timezone.now()
+    return (
+        Signer.objects.filter(
+            status=Signer.Status.PENDING,
+            user__isnull=False,
+            user__is_active=True,
+            document__status=SignatureDocument.Status.PENDING,
+            document__is_archived=False,
+            last_requested_at__isnull=False,
+            last_requested_at__lte=now - interval,
+        )
+        .select_related("user", "document")
+        .order_by("last_requested_at")
+    )
+
+
+def auto_remind_signer(signer):
+    """Remind one signer by e-mail and Teams (each follows their notification preferences).
+    The clock restarts only when at least one channel went out, so a signer in quiet hours
+    or with a failed channel is retried on the next hourly run. Returns the channels used."""
+    from core.models import UserNotificationPreference
+
+    from .tasks import queue_signature_reminder_teams, send_signature_request_task
+
+    pref = UserNotificationPreference.objects.filter(user=signer.user).first()
+    channels = []
+    if signer.user.email and (pref is None or pref.email_enabled):
+        send_signature_request_task.delay(str(signer.id), reminder=True)
+        channels.append("e-mail")
+    if queue_signature_reminder_teams(signer, pref):
+        channels.append("Teams")
+    if not channels:
+        return channels
+    signer.last_requested_at = timezone.now()
+    signer.save(update_fields=["last_requested_at"])
+    _log(
+        signer.document, SignatureEvent.Event.REMINDED,
+        actor_label="System",
+        detail=f"Automatic reminder sent to {signer.display_name} via {' and '.join(channels)}",
+    )
+    return channels
 
 
 # ---------------------------------------------------------------------------
 # reassign — change signer info and resend
 # ---------------------------------------------------------------------------
 
-def reassign_signer(signer, new_name, new_email, new_job_title="", new_company="", actor_user=None, ip=None):
+def reassign_signer(
+    signer,
+    new_name="",
+    new_email="",
+    new_job_title="",
+    new_company="",
+    new_user=None,
+    actor_user=None,
+    ip=None,
+):
     if signer.status not in (Signer.Status.WAITING, Signer.Status.PENDING):
         raise ValueError("Only WAITING or PENDING signers can be reassigned.")
     
     old_email = signer.email
     
-    # Update signer details
-    signer.user = None
-    signer.external_name = new_name
-    signer.external_email = new_email
+    if new_user:
+        if not new_user.is_active or not new_user.email:
+            raise ValueError("The selected system user is not available.")
+        if Signer.objects.filter(
+            document=signer.document,
+            user=new_user,
+        ).exclude(pk=signer.pk).exists():
+            raise ValueError("The selected system user is already a signer on this document.")
+        signer.user = new_user
+        signer.external_name = ""
+        signer.external_email = ""
+        new_name = new_user.get_full_name() or new_user.username
+        new_email = new_user.email
+    else:
+        if not new_name or not new_email:
+            raise ValueError("Name and email are required for an external signer.")
+        signer.user = None
+        signer.external_name = new_name
+        signer.external_email = new_email
     signer.job_title = new_job_title
     signer.company = new_company
     
@@ -415,8 +596,7 @@ def reassign_signer(signer, new_name, new_email, new_job_title="", new_company="
          
     # If the signer was PENDING (it's their turn), notify the new person immediately.
     if signer.status == Signer.Status.PENDING:
-        from .tasks import send_signature_request_task
-        send_signature_request_task.delay(str(signer.id))
+        _request_signature(signer)
 
 # ---------------------------------------------------------------------------
 # cancel

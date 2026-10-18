@@ -10,11 +10,15 @@ import io
 from datetime import timedelta
 
 from django.contrib import messages
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 from ipware import get_client_ip
+
+VERIFY_MAX_ATTEMPTS = 5
+VERIFY_LOCKOUT_SECONDS = 15 * 60
 
 from .forms import SignerSignForm
 from .models import MobileDrawSession, Signer, SignatureEvent, UserSavedSignature, SignatureDocument
@@ -59,18 +63,31 @@ def sign(request, token):
     # External signers must verify email + code before accessing the signing page.
     if not signer.user_id and not _is_identity_verified(request, signer):
         error = False
+        locked_out = False
+        attempts_key = f"esign_verify_attempts_{signer.pk}"
+        attempts = cache.get(attempts_key, 0)
+
         if request.method == "POST" and request.POST.get("action") == "verify":
-            email_input = request.POST.get("verify_email", "").strip().lower()
-            code_input  = request.POST.get("verify_code", "").strip().upper()
-            if (
-                email_input == signer.external_email.lower()
-                and code_input == signer.verify_code
-            ):
-                _mark_identity_verified(request, signer)
-                return redirect(request.path)
-            error = True
+            if attempts >= VERIFY_MAX_ATTEMPTS:
+                locked_out = True
+            else:
+                email_input = request.POST.get("verify_email", "").strip().lower()
+                code_input  = request.POST.get("verify_code", "").strip().upper()
+                if (
+                    email_input == signer.external_email.lower()
+                    and code_input == signer.verify_code
+                ):
+                    cache.delete(attempts_key)
+                    _mark_identity_verified(request, signer)
+                    return redirect(request.path)
+                cache.set(attempts_key, attempts + 1, VERIFY_LOCKOUT_SECONDS)
+                error = True
+                locked_out = (attempts + 1) >= VERIFY_MAX_ATTEMPTS
+        elif attempts >= VERIFY_MAX_ATTEMPTS:
+            locked_out = True
+
         return render(request, "esign/sign_verify.html", {
-            "signer": signer, "document": document, "error": error,
+            "signer": signer, "document": document, "error": error, "locked_out": locked_out,
         })
 
     if signer.status in (Signer.Status.SIGNED, Signer.Status.REJECTED):
@@ -201,14 +218,19 @@ def sign(request, token):
                     messages.error(request, f"Failed to save signature: {exc}")
 
     pdf_url = (
-        f"{document.preview_pdf.url}?v={int(document.updated_at.timestamp())}"
+        _cache_busted(document.preview_pdf.url, document.updated_at)
         if document.preview_pdf
         else document.original_pdf.url
     )
 
+    from core.models import JobRole
+    from .services import default_job_role
+
     return render(request, "esign/sign.html", {
         "signer": signer,
         "document": document,
+        "default_job_role": default_job_role(signer),
+        "job_role_suggestions": list(JobRole.objects.filter(is_active=True).values_list("name", flat=True)),
         "placements": placements,
         "placements_json": _placements_json(placements),
         "form": form,
@@ -281,6 +303,13 @@ def saved_signature_api(request):
         return JsonResponse({"has_saved": False})
 
 
+def _cache_busted(url, updated_at):
+    """Append a ``v=`` cache-buster. Azure Blob URLs already carry a SAS
+    query string, so a second ``?`` would corrupt the ``sig`` value (403)."""
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}v={int(updated_at.timestamp())}"
+
+
 def _placements_json(placements):
     import json
     data = [
@@ -293,19 +322,21 @@ def _placements_json(placements):
     ]
     return json.dumps(data)
 
-def document_progress_public(request, pk):
+def document_progress_public(request, pk, token):
     """
     Publicly accessible page to view the progress of a signature document.
-    Does not require login. Displays signers status and the latest PDF.
+    Does not require login, but the URL must carry the document's
+    ``progress_token`` (a separate secret from its own ID) — staff can
+    regenerate that token to revoke a previously shared progress link.
     """
-    doc = get_object_or_404(SignatureDocument, pk=pk)
+    doc = get_object_or_404(SignatureDocument, pk=pk, progress_token=token)
     signers = doc.signers.order_by("order")
     
     pdf_url = None
     if doc.status == 'completed' and doc.signed_pdf:
         pdf_url = doc.signed_pdf.url
     elif doc.preview_pdf:
-        pdf_url = f"{doc.preview_pdf.url}?v={int(doc.updated_at.timestamp())}"
+        pdf_url = _cache_busted(doc.preview_pdf.url, doc.updated_at)
     elif doc.original_pdf:
         pdf_url = doc.original_pdf.url
         

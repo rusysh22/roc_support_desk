@@ -13,6 +13,13 @@ urlpatterns = [
     path("<uuid:pk>/edit/", views.kb_article_edit, name="article_edit"),
     path("<uuid:pk>/delete/", views.kb_article_delete, name="article_delete"),
 
+    # Bulk actions (standardized list-view toolbar)
+    path("bulk-archive/", views.kb_article_bulk_archive, name="article_bulk_archive"),
+    path("bulk-unarchive/", views.kb_article_bulk_unarchive, name="article_bulk_unarchive"),
+    path("bulk-delete/", views.kb_article_bulk_delete, name="article_bulk_delete"),
+    path("bulk-duplicate/", views.kb_article_bulk_duplicate, name="article_bulk_duplicate"),
+    path("bulk-export/", views.kb_article_bulk_export, name="article_bulk_export"),
+
     # Approval workflow
     path("<uuid:pk>/submit/", views.kb_article_submit_review, name="article_submit"),
     path("<uuid:pk>/approve/", views.kb_article_approve, name="article_approve"),
