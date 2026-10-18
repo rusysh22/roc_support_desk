@@ -130,3 +130,12 @@ class CreateCaseViewTests(RequesterInfoTestCase):
         resp = self.client.get(reverse("cases:create_case"))
         self.assertContains(resp, "requester-name-search")
         self.assertContains(resp, 'id="category-contact-data"')
+
+    def test_contact_map_is_a_json_object_not_a_string(self):
+        import json
+        import re
+
+        self.set_requirement(CaseCategory.RequesterContact.PHONE)
+        html = self.client.get(reverse("cases:create_case")).content.decode()
+        raw = re.search(r'<script id="category-contact-data" type="application/json">(.*?)</script>', html, re.S).group(1)
+        self.assertEqual(json.loads(raw)[str(self.category.pk)], "phone")

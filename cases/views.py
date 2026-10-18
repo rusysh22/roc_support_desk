@@ -1613,9 +1613,10 @@ def create_case(request, slug=None):
         .exclude(slug__in=["whatsapp-general", "email-general"])
         .exclude(id__in=parent_ids)
     )
-    category_contact_json = json.dumps({
+    # A dict, not a JSON string: the template's json_script does the encoding.
+    category_contact_json = {
         str(c.id): c.requester_contact for c in categories_qs
-    })
+    }
     job_role_options = (
         list(JobRoleModel.objects.filter(is_active=True).values_list("name", flat=True))
         if _job_role_mode == "master" else []
@@ -4374,18 +4375,27 @@ def apps_connection_view(request):
         from django.core.exceptions import PermissionDenied
         raise PermissionDenied
 
+    from django.conf import settings
     from core.models import TeamsConfig, NotificationConfig
     from gateways.services import EvolutionAPIService
     teams_cfg = TeamsConfig.get_solo()
     notif_cfg = NotificationConfig.get_solo()
 
-    try:
-        svc = EvolutionAPIService()
-        state_data = svc.get_instance_state()
-        wa_state = state_data.get("instance", {}).get("state") if state_data else None
-        wa_connected = wa_state in ("open", "connected")
-    except Exception:
+    # Status badge only: a short timeout and a 30 s cache keep this page fast
+    # even when the Evolution API is slow or unreachable.
+    wa_connected = cache.get("apps_connection_wa_connected")
+    if wa_connected is None:
         wa_connected = False
+        if settings.WA_ENABLED:
+            try:
+                svc = EvolutionAPIService()
+                svc.timeout = 3
+                state_data = svc.get_instance_state()
+                wa_state = state_data.get("instance", {}).get("state") if state_data else None
+                wa_connected = wa_state in ("open", "connected")
+            except Exception:
+                wa_connected = False
+        cache.set("apps_connection_wa_connected", wa_connected, 30)
 
     return render(request, 'desk/apps_connection.html', {
         'teams_cfg': teams_cfg,
