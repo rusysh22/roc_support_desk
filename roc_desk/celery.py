@@ -4,6 +4,7 @@ RoC Desk — Celery Application
 Auto-discovers tasks from all registered Django apps.
 """
 import os
+import ssl
 
 from celery import Celery
 
@@ -11,6 +12,17 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "roc_desk.settings")
 
 app = Celery("roc_desk")
 app.config_from_object("django.conf:settings", namespace="CELERY")
+
+# TLS Redis URLs (e.g. managed Redis services) use the rediss:// scheme, which celery's
+# redis transport/backend refuses to connect to without an explicit
+# ssl_cert_reqs — otherwise it raises "A rediss:// URL must have parameter
+# ssl_cert_reqs ..." at worker startup. Plain redis:// (local Docker Desktop)
+# is untouched since neither string starts with "rediss://".
+if str(app.conf.broker_url).startswith("rediss://"):
+    app.conf.broker_use_ssl = {"ssl_cert_reqs": ssl.CERT_NONE}
+if str(app.conf.result_backend).startswith("rediss://"):
+    app.conf.redis_backend_use_ssl = {"ssl_cert_reqs": ssl.CERT_NONE}
+
 app.autodiscover_tasks()
 
 

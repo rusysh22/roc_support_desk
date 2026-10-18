@@ -63,3 +63,9 @@ seed_*.py
 
 # Claude Code local settings (machine-specific, not for the repo)
 .claude/settings.local.json
+
+#Script Power Shell
+*.ps1
+# Seed data tests & SOP documents (local only, not for the repo)
+core/tests/test_seed_dev_data.py
+docs/SOP/

@@ -16,4 +16,5 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libgdk-pixbuf-2.0-0 \
     libcairo2 \
     shared-mime-info \
-    fonts-liberation
+    fonts-liberation \
+    ffmpeg

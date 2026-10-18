@@ -19,6 +19,9 @@ django-storages[azure,boto3]>=1.14
 azure-storage-blob>=12.19
 boto3>=1.34
 
+# Optional Azure AD (Service Principal) auth for Azure Blob Storage
+azure-identity>=1.19
+
 # HTTP client (Evolution API)
 requests>=2.32
 qrcode>=7.4
@@ -38,11 +41,19 @@ channels-redis>=4.2
 openpyxl>=3.1
 
 # Admin Theme
-django-unfold
+# 0.96.0 is the last release compatible with Django<5.2 (see the Django pin
+# above) — every later release requires Django>=5.2, so this is already the
+# effective ceiling even unpinned. Pinned explicitly so a future Django bump
+# doesn't silently jump several major unfold releases at once. Its bundled
+# app.js has a script-load-order bug ("SimpleBar is not defined") that drops
+# the change-form Save button — worked around in templates/admin/base.html
+# rather than here, since no compatible release fixes it.
+django-unfold==0.96.0
 dnspython
 
 # Security
 django-encrypted-model-fields>=0.6
+cryptography>=42
 python-magic>=0.4
 django-ipware>=7.0
 
