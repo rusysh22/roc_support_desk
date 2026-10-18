@@ -3,21 +3,37 @@ Core App — Views
 ===================
 """
 import secrets
+from urllib.parse import quote
+
 from django.conf import settings
 from ipware import get_client_ip as _get_client_ip
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.views import LoginView as DjangoLoginView, LogoutView
 from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views import View
 
+from core.list_pagination import LIST_PAGE_SIZE, PageSizeMixin
+from .auth_forms import CustomAuthenticationForm
 from .forms import ForgotPasswordForm, ResetPasswordOTPForm
 from .models import OTPToken
 
 from licensing.decorators import FeatureRequiredMixin
 
 User = get_user_model()
+
+
+class RoleAwareLoginView(DjangoLoginView):
+    authentication_form = CustomAuthenticationForm
+    redirect_authenticated_user = True
+
+    def get_success_url(self):
+        user = self.request.user
+        if user.is_authenticated and getattr(user, "role_access", None) == "PortalUser":
+            return reverse("cases:dashboard")
+        return super().get_success_url()
 
 
 class ForgotPasswordView(View):
@@ -168,6 +184,11 @@ class ForceChangePasswordView(View):
     def get(self, request):
         if not request.user.is_authenticated:
             return redirect(reverse("login"))
+        from .adapters import user_has_sso_account
+        if user_has_sso_account(request.user):
+            request.user.must_change_password = False
+            request.user.save(update_fields=["must_change_password"])
+            return redirect(settings.LOGIN_REDIRECT_URL)
         if not getattr(request.user, "must_change_password", False):
             return redirect(settings.LOGIN_REDIRECT_URL)
         return render(request, self.template_name)
@@ -175,6 +196,11 @@ class ForceChangePasswordView(View):
     def post(self, request):
         if not request.user.is_authenticated:
             return redirect(reverse("login"))
+        from .adapters import user_has_sso_account
+        if user_has_sso_account(request.user):
+            request.user.must_change_password = False
+            request.user.save(update_fields=["must_change_password"])
+            return redirect(settings.LOGIN_REDIRECT_URL)
         new_password = request.POST.get("new_password", "").strip()
         confirm_password = request.POST.get("confirm_password", "").strip()
         if len(new_password) < 8:
@@ -258,6 +284,7 @@ class RequestAccountView(View):
                 "description": description,
             })
 
+        from django.utils import timezone
         from cases.models import CaseRecord, Message
         category = self._get_or_create_category()
 
@@ -269,8 +296,9 @@ class RequestAccountView(View):
             subject=subject,
             problem_description=description,
             source=CaseRecord.Source.WEBFORM,
-            status=CaseRecord.Status.OPEN,
+            status=CaseRecord.Status.NEW,
             has_unread_messages=True,
+            last_user_reply_at=timezone.now(),
         )
         Message.objects.create(
             case=case,
@@ -311,7 +339,7 @@ def custom_csrf_failure_view(request, reason=""):
 # Help & About
 # =====================================================================
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.http import HttpResponseForbidden
 
@@ -327,6 +355,7 @@ import django
 def profile_view(request):
     """Current user's profile — view and edit own info + change password."""
     from .models import UserNotificationPreference
+    from .adapters import user_has_sso_account
     user = request.user
 
     # Get or create notification preferences
@@ -357,12 +386,16 @@ def profile_view(request):
         elif action == 'notifications':
             # Channel toggles
             notif_pref.email_enabled = request.POST.get('email_enabled') == 'on'
-            notif_pref.whatsapp_enabled = request.POST.get('whatsapp_enabled') == 'on'
-            notif_pref.teams_enabled = request.POST.get('teams_enabled') == 'on'
-
-            # Contact overrides
-            notif_pref.whatsapp_number = request.POST.get('whatsapp_number', '').strip()
-            notif_pref.teams_webhook_url = request.POST.get('teams_webhook_url', '').strip()
+            if _whatsapp_notifications_available():
+                notif_pref.whatsapp_enabled = request.POST.get('whatsapp_enabled') == 'on'
+                notif_pref.whatsapp_number = request.POST.get('whatsapp_number', '').strip()
+            else:
+                notif_pref.whatsapp_enabled = False
+            # Teams (personal chat with the Workflows bot) — only offered when the
+            # admin enabled it and this user's email is in the Microsoft 365 tenant
+            if _teams_personal_available(user):
+                notif_pref.teams_enabled = request.POST.get('teams_enabled') == 'on'
+            notif_pref.teams_webhook_url = ""
 
             # Event toggles
             notif_pref.on_new_message = request.POST.get('on_new_message') == 'on'
@@ -396,6 +429,9 @@ def profile_view(request):
             return redirect('profile')
 
         elif action == 'password':
+            if user_has_sso_account(user):
+                messages.error(request, "Password is managed by your SSO provider and cannot be changed here.")
+                return redirect('profile')
             current = request.POST.get('current_password', '')
             new_pw  = request.POST.get('new_password', '')
             confirm = request.POST.get('confirm_password', '')
@@ -440,21 +476,105 @@ def profile_view(request):
         'profile_user': user,
         'timezone_choices': timezone_choices,
         'notif_pref': notif_pref,
+        'is_sso_user': user_has_sso_account(user),
+        'teams_personal_available': _teams_personal_available(user),
+        'whatsapp_notifications_available': _whatsapp_notifications_available(),
     })
+
+
+def _whatsapp_notifications_available():
+    """Personal WhatsApp notifications are allowed by the admin and the gateway is on."""
+    return settings.WA_ENABLED and SiteConfig.get_solo().allow_whatsapp_notifications
+
+
+def _teams_personal_available(user):
+    """Personal Teams notifications are switched on and this user's email is in the tenant."""
+    from gateways.teams_notify import allowed_teams_email, personal_enabled
+    try:
+        return personal_enabled() and allowed_teams_email(user.email)
+    except Exception:
+        return False
 
 
 def help_and_about(request):
     """Help & About page — accessible by anyone."""
     config = SiteConfig.get_solo()
-    superadmins = User.objects.filter(
-        role_access=User.RoleAccess.SUPERADMIN, is_active=True
-    ).values("username", "email", "initials")
+    email = (config.developer_contact_email or "").strip()
+    if email:
+        # A dedicated contact is configured — show only that one.
+        name = (config.developer_contact_name or "").strip() or "IT Support"
+        parts = name.split()
+        if len(parts) >= 2:
+            initials = (parts[0][0] + parts[-1][0]).upper()
+        else:
+            initials = (name[:3] if len(name) >= 3 else name[:2] or "IT").upper()
+        developer_contacts = [{"username": name, "email": email, "initials": initials}]
+    else:
+        developer_contacts = User.objects.filter(
+            role_access=User.RoleAccess.SUPERADMIN, is_active=True
+        ).values("username", "email", "initials")
     return render(request, "help_and_about.html", {
         "config": config,
         "django_version": django.get_version(),
         "feedback_types": Feedback.FeedbackType.choices,
-        "superadmins": superadmins,
+        "superadmins": developer_contacts,
     })
+
+
+def _send_feedback_to_it_support(request, feedback_type, subject, message_text):
+    import logging
+    from django.core.mail import EmailMultiAlternatives
+    from .models import EmailConfig
+    from .utils.email_branding import attach_logo, render_branded_from_template
+
+    try:
+        config = SiteConfig.get_solo()
+        to_email = (config.developer_contact_email or "").strip()
+        if not to_email:
+            # No dedicated contact configured: feedback is only stored, as before.
+            return
+        site_name = config.site_name or "Support Desk"
+        sender_name = request.user.get_full_name() or request.user.username
+        sender_email = (request.user.email or "").strip()
+        email_config = EmailConfig.get_solo()
+        from_email = (
+            email_config.default_from_email
+            or email_config.smtp_user
+            or getattr(settings, "DEFAULT_FROM_EMAIL", "")
+            or "noreply@rocdesk.local"
+        )
+        html_body = render_branded_from_template(
+            "emails/bodies/feedback.html",
+            {
+                "sender_name": sender_name,
+                "sender_email": sender_email or "—",
+                "feedback_type": feedback_type,
+                "subject": subject,
+                "message_text": message_text,
+                "site_name": site_name,
+            },
+            site_name=site_name,
+            title="New user feedback",
+            eyebrow=f"{site_name} · Help & About",
+            footer_note="Submitted from Help & About. Reply to this email to reach the sender.",
+        )
+        mail = EmailMultiAlternatives(
+            subject=f"[{site_name}] Feedback: {subject}",
+            body=(
+                f"New feedback from {sender_name} ({sender_email or 'no email'}).\n"
+                f"Type: {feedback_type}\n"
+                f"Subject: {subject}\n\n"
+                f"{message_text}"
+            ),
+            from_email=from_email,
+            to=[to_email],
+            reply_to=[sender_email] if sender_email else None,
+        )
+        mail.attach_alternative(html_body, "text/html")
+        attach_logo(mail)
+        mail.send(fail_silently=True)
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to email feedback to IT Support")
 
 
 @login_required
@@ -477,6 +597,7 @@ def submit_feedback(request):
         created_by=request.user,
         updated_by=request.user,
     )
+    _send_feedback_to_it_support(request, feedback_type, subject, message_text)
     messages.success(request, "Thank you! Your feedback has been submitted.")
     return redirect("help_about")
 
@@ -498,6 +619,7 @@ def docs_support_desk(request):
         User.RoleAccess.SUPERADMIN,
         User.RoleAccess.MANAGER,
         User.RoleAccess.SUPPORTDESK,
+        User.RoleAccess.ENGINEER,
         User.RoleAccess.AUDITOR,
     }
     if getattr(request.user, "role_access", None) not in STAFF_ROLES:
@@ -554,19 +676,52 @@ class CompanyUnitForm(forms.ModelForm):
         if instance and instance.pk:
             self.fields['parent'].queryset = CompanyUnit.objects.exclude(pk=instance.pk)
 
-class CompanyUnitListView(FeatureRequiredMixin, SuperAdminRequiredMixin, ListView):
+class CompanyUnitListView(FeatureRequiredMixin, SuperAdminRequiredMixin, PageSizeMixin, ListView):
     feature_required = 'company_units'
     model = CompanyUnit
     template_name = 'core/company_unit_list.html'
     context_object_name = 'company_units'
-    paginate_by = 50
+    paginate_by = LIST_PAGE_SIZE
+
+    def get_filterable_fields(self):
+        return {
+            "parent": {
+                "label": "Parent Unit", "type": "choice", "lookup": "parent_id",
+                "choices": [
+                    (str(u.pk), f"{u.code} — {u.name}")
+                    for u in CompanyUnit.objects.filter(parent__isnull=True).order_by('code')
+                ],
+            },
+            "is_archived": {
+                "label": "Status", "type": "choice", "lookup": "is_archived",
+                "choices": [("false", "Active"), ("true", "Archived")],
+                "python_type": "bool",
+            },
+        }
 
     def get_queryset(self):
+        from core.dynamic_filters import apply_dynamic_filters
+
         qs = CompanyUnit.objects.select_related('parent').order_by('code')
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(name__icontains=q) | qs.filter(code__icontains=q)
+        qs, self.active_filters = apply_dynamic_filters(qs, self.request, self.get_filterable_fields())
         return qs
+
+    def get_context_data(self, **kwargs):
+        from core.dynamic_filters import active_filters_json, fields_json
+
+        context = super().get_context_data(**kwargs)
+        fields = self.get_filterable_fields()
+        context['active_filters'] = self.active_filters
+        context['active_filters_json'] = active_filters_json(self.active_filters)
+        context['dynamic_fields_json'] = fields_json(fields)
+        context['has_active_filters'] = bool(self.active_filters)
+        context['viewing_archived_only'] = any(
+            af["field_key"] == "is_archived" and af["value"] == "true" for af in self.active_filters
+        )
+        return context
 
 class CompanyUnitCreateView(FeatureRequiredMixin, SuperAdminRequiredMixin, SuccessMessageMixin, CreateView):
     feature_required = 'company_units'
@@ -604,6 +759,96 @@ class CompanyUnitDeleteView(FeatureRequiredMixin, SuperAdminRequiredMixin, Delet
         return super().delete(request, *args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# Company Units — standardized bulk actions
+# ---------------------------------------------------------------------------
+from django.views.decorators.http import require_POST as _require_POST_cu
+from .list_actions import get_selected as _get_selected_cu, bulk_set_archived as _bulk_set_archived_cu, bulk_delete as _bulk_delete_cu
+from .excel_utils import export_queryset_xlsx as _export_queryset_xlsx_cu
+
+
+def _superadmin_only(u):
+    return u.is_authenticated and u.role_access == 'SuperAdmin'
+
+
+@login_required
+@user_passes_test(_superadmin_only)
+@_require_POST_cu
+def company_unit_bulk_archive(request):
+    qs = _get_selected_cu(request, CompanyUnit.objects.all())
+    count = _bulk_set_archived_cu(qs, field_name="is_archived", value=True)
+    messages.success(request, f"Archived {count} entity(ies).")
+    return HttpResponseRedirect(reverse_lazy('desk:company_unit_list'))
+
+
+@login_required
+@user_passes_test(_superadmin_only)
+@_require_POST_cu
+def company_unit_bulk_unarchive(request):
+    qs = _get_selected_cu(request, CompanyUnit.objects.all())
+    count = _bulk_set_archived_cu(qs, field_name="is_archived", value=False)
+    messages.success(request, f"Unarchived {count} entity(ies).")
+    return HttpResponseRedirect(reverse_lazy('desk:company_unit_list'))
+
+
+@login_required
+@user_passes_test(_superadmin_only)
+@_require_POST_cu
+def company_unit_bulk_delete(request):
+    qs = _get_selected_cu(request, CompanyUnit.objects.all())
+    count = _bulk_delete_cu(qs)
+    messages.success(request, f"Deleted {count} entity(ies).")
+    return HttpResponseRedirect(reverse_lazy('desk:company_unit_list'))
+
+
+@login_required
+@user_passes_test(_superadmin_only)
+@_require_POST_cu
+def company_unit_bulk_duplicate(request):
+    ids = request.POST.getlist("selected_ids")
+    if len(ids) != 1:
+        messages.warning(request, "Select exactly one entity to duplicate.")
+        return HttpResponseRedirect(reverse_lazy('desk:company_unit_list'))
+    original = get_object_or_404(CompanyUnit, pk=ids[0])
+    base_code = f"{original.code}-COPY"
+    new_code = base_code
+    suffix = 2
+    while CompanyUnit.objects.filter(code=new_code).exists():
+        new_code = f"{base_code}{suffix}"
+        suffix += 1
+    CompanyUnit.objects.create(
+        parent=original.parent,
+        name=f"{original.name} (copy)",
+        code=new_code,
+        address=original.address,
+        city=original.city,
+        province=original.province,
+        latitude=original.latitude,
+        longitude=original.longitude,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    messages.success(request, f'Duplicated "{original.name}" as "{new_code}".')
+    return HttpResponseRedirect(reverse_lazy('desk:company_unit_list'))
+
+
+@login_required
+@user_passes_test(_superadmin_only)
+@_require_POST_cu
+def company_unit_bulk_export(request):
+    qs = _get_selected_cu(request, CompanyUnit.objects.select_related('parent'))
+    if not qs.exists():
+        qs = CompanyUnit.objects.select_related('parent').all()
+    columns = [
+        ("Code", lambda o: o.code),
+        ("Name", lambda o: o.name),
+        ("Parent Unit", lambda o: o.parent.code if o.parent else ""),
+        ("Geocoded", lambda o: "Yes" if (o.latitude and o.longitude) else "No"),
+        ("Archived", lambda o: "Yes" if o.is_archived else "No"),
+    ]
+    return _export_queryset_xlsx_cu(qs.order_by('code'), columns, "company_units_export.xlsx", sheet_title="Company Units")
+
+
 # =====================================================================
 # Job Role Master Data (SuperAdmin / Manager only)
 # =====================================================================
@@ -631,18 +876,42 @@ class JobRoleForm(forms.ModelForm):
         }
 
 
-class JobRoleListView(ManagerOrSuperAdminMixin, ListView):
+class JobRoleListView(ManagerOrSuperAdminMixin, PageSizeMixin, ListView):
     model = JobRole
     template_name = 'core/job_role_list.html'
     context_object_name = 'job_roles'
-    paginate_by = 50
+    paginate_by = LIST_PAGE_SIZE
+
+    JOB_ROLE_FILTERABLE_FIELDS = {
+        "is_active": {
+            "label": "Status", "type": "choice", "lookup": "is_active",
+            "choices": [("true", "Active"), ("false", "Inactive")],
+            "python_type": "bool",
+        },
+    }
 
     def get_queryset(self):
+        from core.dynamic_filters import apply_dynamic_filters
+
         qs = JobRole.objects.all()
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(name__icontains=q)
+        qs, self.active_filters = apply_dynamic_filters(qs, self.request, self.JOB_ROLE_FILTERABLE_FIELDS)
         return qs
+
+    def get_context_data(self, **kwargs):
+        from core.dynamic_filters import active_filters_json, fields_json
+
+        context = super().get_context_data(**kwargs)
+        context['active_filters'] = self.active_filters
+        context['active_filters_json'] = active_filters_json(self.active_filters)
+        context['dynamic_fields_json'] = fields_json(self.JOB_ROLE_FILTERABLE_FIELDS)
+        context['has_active_filters'] = bool(self.active_filters)
+        context['viewing_inactive_only'] = any(
+            af["field_key"] == "is_active" and af["value"] == "false" for af in self.active_filters
+        )
+        return context
 
 
 class JobRoleCreateView(ManagerOrSuperAdminMixin, SuccessMessageMixin, CreateView):
@@ -671,15 +940,92 @@ class JobRoleDeleteView(ManagerOrSuperAdminMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
+# ---------------------------------------------------------------------------
+# Job Role — standardized bulk actions (Archive / Unarchive / Delete /
+# Duplicate / Export). is_active doubles as the archive flag.
+# ---------------------------------------------------------------------------
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import user_passes_test
+from django.shortcuts import get_object_or_404
+from .list_actions import get_selected, bulk_set_archived, bulk_delete
+from .excel_utils import export_queryset_xlsx, safe_cell
+
+
+@login_required
+@user_passes_test(lambda u: u.is_authenticated and u.role_access in ('SuperAdmin', 'Manager'))
+@require_POST
+def job_role_bulk_archive(request):
+    qs = get_selected(request, JobRole.objects.all())
+    count = bulk_set_archived(qs, field_name="is_active", value=False)
+    messages.success(request, f"Deactivated {count} job role(s).")
+    return HttpResponseRedirect(reverse_lazy('desk:job_role_list'))
+
+
+@login_required
+@user_passes_test(lambda u: u.is_authenticated and u.role_access in ('SuperAdmin', 'Manager'))
+@require_POST
+def job_role_bulk_unarchive(request):
+    qs = get_selected(request, JobRole.objects.all())
+    count = bulk_set_archived(qs, field_name="is_active", value=True)
+    messages.success(request, f"Activated {count} job role(s).")
+    return HttpResponseRedirect(reverse_lazy('desk:job_role_list'))
+
+
+@login_required
+@user_passes_test(lambda u: u.is_authenticated and u.role_access in ('SuperAdmin', 'Manager'))
+@require_POST
+def job_role_bulk_delete(request):
+    qs = get_selected(request, JobRole.objects.all())
+    count = bulk_delete(qs)
+    messages.success(request, f"Deleted {count} job role(s).")
+    return HttpResponseRedirect(reverse_lazy('desk:job_role_list'))
+
+
+@login_required
+@user_passes_test(lambda u: u.is_authenticated and u.role_access in ('SuperAdmin', 'Manager'))
+@require_POST
+def job_role_bulk_duplicate(request):
+    ids = request.POST.getlist("selected_ids")
+    if len(ids) != 1:
+        messages.warning(request, "Select exactly one job role to duplicate.")
+        return HttpResponseRedirect(reverse_lazy('desk:job_role_list'))
+    original = get_object_or_404(JobRole, pk=ids[0])
+    base_name = f"{original.name} (copy)"
+    new_name = base_name
+    suffix = 2
+    while JobRole.objects.filter(name=new_name).exists():
+        new_name = f"{base_name} {suffix}"
+        suffix += 1
+    JobRole.objects.create(name=new_name, is_active=original.is_active, order=original.order)
+    messages.success(request, f'Duplicated "{original.name}" as "{new_name}".')
+    return HttpResponseRedirect(reverse_lazy('desk:job_role_list'))
+
+
+@login_required
+@user_passes_test(lambda u: u.is_authenticated and u.role_access in ('SuperAdmin', 'Manager'))
+@require_POST
+def job_role_bulk_export(request):
+    qs = get_selected(request, JobRole.objects.all())
+    if not qs.exists():
+        qs = JobRole.objects.all()
+    config = SiteConfig.get_solo()
+    columns = [
+        ("Name", lambda o: safe_cell(o.name)),
+        ("Status", lambda o: "Active" if o.is_active else "Inactive"),
+        ("Order", lambda o: o.order),
+        ("Job Role Input Mode", lambda o: config.job_role_mode),
+    ]
+    return export_queryset_xlsx(qs.order_by('order', 'name'), columns, "job_roles_export.xlsx", sheet_title="Job Roles")
+
+
 # =====================================================================
 # SSO Pending Whitelist View
 # =====================================================================
 
 def sso_pending_view(request):
     """
-    Shown after a new SSO user logs in for the first time.
-    Their account is created as inactive; a whitelist ticket is auto-generated.
-    This page confirms the status and shows the ticket number.
+    Legacy page for inactive SSO accounts that still have a whitelist ticket.
+    New SSO users are activated as Portal Users and no longer land here.
     """
     email = request.session.get("sso_pending_email", "")
     name = request.session.get("sso_pending_name", "")
@@ -694,3 +1040,52 @@ def sso_pending_view(request):
         "pending_name": name,
         "pending_ticket": ticket,
     })
+
+
+
+def _absolute_login_url(request) -> str:
+    from core.models import SiteConfig
+
+    try:
+        site_url = (SiteConfig.get_solo().site_url or "").rstrip("/")
+    except Exception:
+        site_url = ""
+    if site_url:
+        return f"{site_url}/auth/login/"
+    return request.build_absolute_uri("/auth/login/")
+
+
+class SSOAwareLogoutView(LogoutView):
+    next_page = "/auth/login/"
+
+    def dispatch(self, request, *args, **kwargs):
+        self._sso_providers = set()
+        if getattr(request.user, "is_authenticated", False):
+            try:
+                from allauth.socialaccount.models import SocialAccount
+
+                self._sso_providers = set(
+                    SocialAccount.objects.filter(user=request.user).values_list(
+                        "provider", flat=True
+                    )
+                )
+            except Exception:
+                self._sso_providers = set()
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        login_url = _absolute_login_url(self.request)
+        encoded = quote(login_url, safe="")
+        if "microsoft" in self._sso_providers:
+            try:
+                from core.models import SSOConfig
+                tenant = SSOConfig.get_solo().microsoft_tenant_id or "organizations"
+            except Exception:
+                tenant = "organizations"
+            return (
+                f"https://login.microsoftonline.com/{quote(tenant, safe='')}/oauth2/v2.0/logout"
+                f"?post_logout_redirect_uri={encoded}"
+            )
+        if "google" in self._sso_providers:
+            return f"https://accounts.google.com/Logout?continue={encoded}"
+        return super().get_success_url()

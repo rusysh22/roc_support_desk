@@ -4,11 +4,20 @@ User Management URL Configuration
 """
 from django.urls import path
 
+from . import views_roles
 from . import views_user
+from . import views_employee
 
 app_name = "users_desk"
 
 urlpatterns = [
+    path("portal-modules/", views_user.portal_modules_settings, name="portal_modules_settings"),
+    path("roles/", views_roles.role_list, name="role_list"),
+    path("roles/create/", views_roles.role_create, name="role_create"),
+    path("roles/<uuid:pk>/edit/", views_roles.role_edit, name="role_edit"),
+    path("roles/<uuid:pk>/delete/", views_roles.role_delete, name="role_delete"),
+    path("roles/bulk-delete/", views_roles.role_bulk_delete, name="role_bulk_delete"),
+    path("roles/bulk-export/", views_roles.role_bulk_export, name="role_bulk_export"),
     path("", views_user.user_list, name="user_list"),
     path("create/", views_user.user_create, name="user_create"),
     path("<int:pk>/edit/", views_user.user_edit, name="user_edit"),
@@ -17,8 +26,10 @@ urlpatterns = [
     path("import/template/", views_user.user_import_template, name="user_import_template"),
     path("import/", views_user.user_import, name="user_import"),
     path("bulk-delete/", views_user.user_bulk_delete, name="user_bulk_delete"),
+    path("bulk-duplicate/", views_user.user_bulk_duplicate, name="user_bulk_duplicate"),
     path("bulk-archive/", views_user.user_bulk_archive, name="user_bulk_archive"),
     path("bulk-unarchive/", views_user.user_bulk_unarchive, name="user_bulk_unarchive"),
+    path("bulk-grant-modules/", views_user.user_bulk_grant_modules, name="user_bulk_grant_modules"),
     path("<int:pk>/archive/", views_user.user_archive, name="user_archive"),
     path("<int:pk>/unarchive/", views_user.user_unarchive, name="user_unarchive"),
     # Password reset
@@ -36,4 +47,9 @@ urlpatterns = [
     path("employees/<uuid:pk>/delete/", __import__("core.views_employee", fromlist=["views_employee"]).employee_delete, name="employee_delete"),
     path("employees/import/template/", __import__("core.views_employee", fromlist=["views_employee"]).employee_export_template, name="employee_export_template"),
     path("employees/import/", __import__("core.views_employee", fromlist=["views_employee"]).employee_import, name="employee_import"),
+    path("employees/bulk-archive/", views_employee.employee_bulk_archive, name="employee_bulk_archive"),
+    path("employees/bulk-unarchive/", views_employee.employee_bulk_unarchive, name="employee_bulk_unarchive"),
+    path("employees/bulk-delete/", views_employee.employee_bulk_delete, name="employee_bulk_delete"),
+    path("employees/bulk-duplicate/", views_employee.employee_bulk_duplicate, name="employee_bulk_duplicate"),
+    path("employees/bulk-export/", views_employee.employee_bulk_export, name="employee_bulk_export"),
 ]

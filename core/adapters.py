@@ -23,6 +23,16 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect
 
 
+def user_has_sso_account(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    try:
+        from allauth.socialaccount.models import SocialAccount
+        return SocialAccount.objects.filter(user=user).exists()
+    except Exception:
+        return False
+
+
 class AccountAdapter(DefaultAccountAdapter):
     """Disable regular signup through allauth; handle inactive SSO redirect."""
 
@@ -35,6 +45,15 @@ class AccountAdapter(DefaultAccountAdapter):
         if user.is_authenticated and getattr(user, "role_access", None) == "PortalUser":
             return reverse("cases:dashboard")
         return super().get_login_redirect_url(request)
+
+    def get_next_redirect_url(self, request, redirect_field_name="next"):
+        url = super().get_next_redirect_url(request, redirect_field_name=redirect_field_name)
+        if url:
+            return url
+        from django.urls import reverse
+        if request.user.is_authenticated and getattr(request.user, "role_access", None) == "PortalUser":
+            return reverse("cases:dashboard")
+        return url
 
     def respond_user_inactive(self, request, user):
         try:
@@ -138,7 +157,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             case_type=CaseRecord.Type.REQUEST,
             source=CaseRecord.Source.WEBFORM,
             priority=CaseRecord.Priority.MEDIUM,
-            status=CaseRecord.Status.OPEN,
+            status=CaseRecord.Status.NEW,
             tags="sso-whitelist,new-access",
         )
         return ticket
@@ -257,8 +276,40 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         return user
 
+    def get_connect_redirect_url(self, request, socialaccount):
+        from django.urls import reverse
+        from django.conf import settings
+
+        user = request.user
+        if user.is_authenticated and getattr(user, "role_access", None) == "PortalUser":
+            return reverse("cases:dashboard")
+        return settings.LOGIN_REDIRECT_URL
+
     def is_open_for_signup(self, request, sociallogin):
         return True
 
     def is_auto_signup_allowed(self, request, sociallogin):
         return True
+
+    def on_authentication_error(self, request, provider, error=None, exception=None, extra_context=None):
+        parts = []
+        if error:
+            parts.append(str(error))
+        if exception:
+            parts.append(str(exception))
+        if extra_context:
+            for key in ("error", "error_description", "error_reason"):
+                value = extra_context.get(key)
+                if value:
+                    parts.append(f"{key}={value}")
+        detail = " — ".join(parts).strip()
+        if detail:
+            request.session["sso_auth_error"] = detail[:800]
+            messages.error(request, f"SSO authentication failed: {detail[:300]}")
+        return super().on_authentication_error(
+            request,
+            provider,
+            error=error,
+            exception=exception,
+            extra_context=extra_context,
+        )
