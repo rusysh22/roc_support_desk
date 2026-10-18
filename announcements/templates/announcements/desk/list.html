@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Announcements | {{ site_config.site_name }}{% endblock %}
+{% block nav_announcements %}active{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include "partials/_messages.html" %}
+
+    {% url 'announcements_desk:create' as create_url_val %}
+    {% include "partials/list/_toolbar.html" with result_noun="announcement(s)" title="Announcements" subtitle="General announcements shown at the bottom of the Ticket Portal. Knowledge Base announcements post here automatically." create_url=create_url_val create_label="New Announcement" search_query=search_query search_placeholder="Search title or summary…" clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="partials/list/_dynamic_filter_builder.html" %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto min-h-[40vh]"
+             x-data="jkListTable([{% for a in announcements %}'{{ a.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}])">
+            <table class="jk-table">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-bind:checked="allSelected" @change="toggleAll()">
+                        </th>
+                        <th>Title</th>
+                        <th>Source</th>
+                        <th>Audience</th>
+                        <th>Publish At</th>
+                        <th class="text-center">Read / Ack</th>
+                        <th class="w-28 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for announcement in announcements %}
+                    <tr class="hover:bg-slate-50/70 transition-colors cursor-pointer" @click="openRow('{% url 'announcements_desk:edit' announcement.pk %}')">
+                        <td @click.stop>
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-model="selectedIds" value="{{ announcement.pk }}">
+                        </td>
+                        <td>
+                            <div class="text-sm font-medium text-slate-700">{% if announcement.is_pinned %}📌 {% endif %}{{ announcement.title }}</div>
+                            {% if announcement.summary %}<div class="text-xs text-slate-400 truncate max-w-md">{{ announcement.summary }}</div>{% endif %}
+                        </td>
+                        <td>{% include "announcements/_badge.html" %}</td>
+                        <td class="text-xs text-slate-600">
+                            {{ announcement.get_visibility_display }}
+                            {% if announcement.visibility == 'TARGETED' %}
+                            <div class="text-slate-400">{% for e in announcement.target_entities.all %}{{ e.code }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-slate-500 whitespace-nowrap">
+                            {{ announcement.publish_at|date:"d M Y H:i" }}
+                            {% if announcement.expires_at %}<div class="text-slate-400">until {{ announcement.expires_at|date:"d M Y" }}</div>{% endif %}
+                        </td>
+                        <td class="text-center text-sm text-slate-600 tabular-nums">
+                            {{ announcement.read_count }}{% if announcement.require_acknowledgement %} / {{ announcement.ack_count }}{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if announcement.status == 'PUBLISHED' %}
+                            <span class="jk-badge jk-badge-resolved">Published</span>
+                            {% elif announcement.status == 'ARCHIVED' %}
+                            <span class="jk-badge jk-badge-cancelled">Archived</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">Draft</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-500 text-sm">
+                            {% if search_query or has_active_filters %}
+                            No announcements match your search.
+                            {% else %}
+                            No announcements yet. <a href="{% url 'announcements_desk:create' %}" class="text-indigo-600 hover:underline">Create one →</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% include "partials/list/_pagination.html" %}
+
+            {% url 'announcements_desk:bulk_archive' as bulk_archive_url %}
+            {% url 'announcements_desk:bulk_export' as bulk_export_url %}
+            {% url 'announcements_desk:bulk_delete' as bulk_delete_url %}
+            {% include "partials/list/_bulk_bar.html" with archive_url=bulk_archive_url export_url=bulk_export_url delete_url=bulk_delete_url %}
+            {% include "partials/_confirm_modal.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

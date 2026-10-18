@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Announcements | {{ site_config.site_name }}{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="pt-4">
+        <h2 class="text-lg font-bold text-slate-900">Announcements</h2>
+        <p class="text-sm text-slate-600 mt-1">Updates from Human Capital, the Knowledge Base and the support team.</p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+        {% with base="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" on="bg-indigo-600 text-white shadow-sm" off="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50" %}
+        <a href="{% url 'announcements:list' %}" class="{{ base }} {% if not source %}{{ on }}{% else %}{{ off }}{% endif %}">All</a>
+        {% for value, label in source_choices %}
+        <a href="?source={{ value }}" class="{{ base }} {% if source == value %}{{ on }}{% else %}{{ off }}{% endif %}">{{ label }}</a>
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {% if announcements %}
+        {% include "announcements/_items.html" %}
+        {% include "partials/list/_pagination.html" %}
+        {% else %}
+        <p class="px-6 py-10 text-center text-sm text-slate-500">No announcements right now.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

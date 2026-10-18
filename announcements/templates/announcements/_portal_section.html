@@ -1,0 +1,12 @@
+{% comment %}Announcements block at the bottom of the Ticket Portal. Hidden when there is nothing to show.{% endcomment %}
+{% if portal_announcements %}
+<div id="announcements-section" class="mb-12 max-w-5xl mx-auto">
+    <div class="flex items-center justify-between gap-3 mb-6 pb-2 border-b border-slate-100">
+        <h3 class="text-xl font-bold text-slate-800 tracking-tight">Announcements</h3>
+        <a href="{% url 'announcements:list' %}" class="text-sm font-semibold text-indigo-600 hover:underline">See all →</a>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {% include "announcements/_items.html" with announcements=portal_announcements %}
+    </div>
+</div>
+{% endif %}

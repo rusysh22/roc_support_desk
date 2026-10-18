@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if announcement %}Edit{% else %}New{% endif %} Announcement | {{ site_config.site_name }}{% endblock %}
+{% block nav_announcements %}active{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
+<script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
+<div class="max-w-3xl mx-auto space-y-6" x-data="{ visibility: '{{ form.visibility.value|default:'AUTHENTICATED' }}' }">
+    <div>
+        {% url 'announcements_desk:list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
+
+    {% include "partials/form_errors.html" %}
+
+    {% if announcement and announcement.source_type != 'MANUAL' %}
+    <div class="px-4 py-3 rounded-xl bg-sky-50 border border-sky-200 text-sm text-sky-800">
+        Posted automatically by {{ announcement.get_source_type_display }}. You can still edit, pin or archive it.
+    </div>
+    {% endif %}
+
+    <form data-unsaved-guard method="post" id="announcement-form">
+        {% csrf_token %}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">
+                {% if announcement %}Edit Announcement{% else %}New Announcement{% endif %}
+            </h3>
+
+            <div>
+                <label class="jk-label">Title <span class="text-red-500">*</span></label>
+                {{ form.title }}
+            </div>
+            <div>
+                <label class="jk-label">Summary</label>
+                {{ form.summary }}
+                <p class="text-xs text-slate-500 mt-1">{{ form.summary.help_text }}</p>
+            </div>
+            <div>
+                <label class="jk-label">Body</label>
+                {{ form.body }}
+                <div id="announcement-body-editor" class="bg-white" style="min-height: 180px;"></div>
+            </div>
+            <div>
+                <label class="jk-label">Link</label>
+                {{ form.link_url }}
+                <p class="text-xs text-slate-500 mt-1">{{ form.link_url.help_text }}</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 mt-6">
+            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2">Audience &amp; Schedule</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="jk-label">Audience</label>
+                    <select name="{{ form.visibility.html_name }}" class="jk-select" x-model="visibility">
+                        {% for value, label in form.visibility.field.choices %}
+                        <option value="{{ value }}" {% if form.visibility.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="jk-label">Priority</label>
+                    {{ form.priority }}
+                </div>
+            </div>
+            <div x-show="visibility === 'TARGETED'" x-cloak>
+                <label class="jk-label">Target Company Units</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm text-slate-700">
+                    {% for checkbox in form.target_entities %}
+                    <label class="flex items-center gap-2 cursor-pointer">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                    {% endfor %}
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Employees of these company units.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="jk-label">Status</label>
+                    {{ form.status }}
+                </div>
+                <div>
+                    <label class="jk-label">Publish At</label>
+                    {{ form.publish_at }}
+                </div>
+                <div>
+                    <label class="jk-label">Expires At</label>
+                    {{ form.expires_at }}
+                </div>
+            </div>
+            <div class="flex items-start gap-2.5">
+                {{ form.is_pinned }}
+                <label for="{{ form.is_pinned.id_for_label }}" class="text-sm font-medium text-slate-700">Pin to the top</label>
+            </div>
+            <div class="flex items-start gap-2.5">
+                {{ form.require_acknowledgement }}
+                <label for="{{ form.require_acknowledgement.id_for_label }}" class="text-sm font-medium text-slate-700">Ask readers to acknowledge</label>
+            </div>
+            <div class="flex items-start gap-2.5">
+                {{ form.send_email }}
+                <div>
+                    <label for="{{ form.send_email.id_for_label }}" class="text-sm font-medium text-slate-700">{{ form.send_email.label }}</label>
+                    <p class="text-xs text-slate-500">Sent once per announcement, only while it is Published. Users who turned off e-mail notifications are skipped.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 mt-6">
+            <button type="submit" class="jk-btn jk-btn-primary px-6 py-2 text-sm font-semibold">Save Announcement</button>
+            <a href="{% url 'announcements_desk:list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-5 py-2 text-sm">Cancel</a>
+        </div>
+    </form>
+
+    {% if announcement %}
+    <form method="post" action="{% url 'announcements_desk:delete' announcement.pk %}"
+          onsubmit="return confirm('Delete this announcement? This cannot be undone.');">
+        {% csrf_token %}
+        <button type="submit" class="text-sm font-medium text-rose-600 hover:text-rose-700 hover:underline">Delete this announcement</button>
+    </form>
+    {% endif %}
+</div>
+<script>
+(function () {
+    const hidden = document.getElementById('{{ form.body.id_for_label }}');
+    const quill = new Quill('#announcement-body-editor', {
+        theme: 'snow',
+        modules: { toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['link'], ['clean']] },
+    });
+    if (hidden.value) quill.clipboard.dangerouslyPasteHTML(hidden.value);
+    document.getElementById('announcement-form').addEventListener('submit', () => {
+        hidden.value = quill.getText().trim() ? quill.root.innerHTML : '';
+    });
+})();
+</script>
+{% endblock %}
