@@ -15,23 +15,19 @@
 <script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
 <style>
   .cr-field-editor .ql-editor { min-height: 130px; }
+  /* Requestor summary badges: center text while static (fits, no scroll needed).
+     Only the non-overflow state — centering text that's actively running as a
+     marquee would fight the left-to-right scroll animation. */
+  .jk-badge-marquee:not(.is-overflow) .jk-marquee-track span:first-child { text-align: center; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto">
 
-    <!-- Back Link -->
-    <a href="{% url 'cases:dashboard' %}" class="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-indigo-600 mb-6 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        Back to Service Portal
-    </a>
-
     <!-- Form Card -->
     <div class="jk-card">
-        <div class="jk-card-header flex justify-between items-center"
+        <div class="jk-card-header" style="flex-direction: column; align-items: stretch; gap: 0.25rem;"
              @cr-enabled-change.window="crEnabled = $event.detail.enabled; if (!$event.detail.enabled) crHasContent = false"
              @cr-content-changed.window="crHasContent = $event.detail.hasContent"
              x-data="{
@@ -169,39 +165,53 @@
                 }
             }
         }">
-            <div class="flex items-center gap-2">
-                {% if selected_category %}
-                <span class="text-lg">{{ selected_category.icon|default:"📝" }}</span>
-                <span>{{ selected_category.name }}</span>
-                {% else %}
-                <span class="text-lg">📝</span>
-                <span>New Support Request</span>
-                {% endif %}
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    {% if selected_category and selected_category.parent %}{% url 'cases:category_children' slug=selected_category.parent.slug as back_fallback %}{% else %}{% url 'cases:dashboard' as back_fallback %}{% endif %}
+                    {% include "partials/back_button.html" with fallback=back_fallback %}
+                    <span class="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" aria-hidden="true"></span>
+                    {% if selected_category %}
+                    <span class="text-lg">{{ selected_category.icon|default:"📝" }}</span>
+                    <span class="truncate">{{ selected_category.name }}</span>
+                    {% else %}
+                    <span class="text-lg">📝</span>
+                    <span>New Support Request</span>
+                    {% endif %}
+                </div>
+
+                <!-- Action buttons (right side) -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <!-- Change Request Button (shown only when selected category supports it) -->
+                    <button type="button" id="cr-modal-trigger-btn" x-show="crEnabled" style="display:none" title="Approval Ticket"
+                            @click="window.dispatchEvent(new CustomEvent('open-cr-modal-btn'))"
+                            class="w-8 h-8 flex items-center justify-center flex-shrink-0 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors relative">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span x-show="crHasContent"
+                              class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"
+                              title="Supporting letter attached"></span>
+                    </button>
+
+                    <!-- QR Code Button & Modal -->
+                    <button type="button" @click="openModal()" title="QR Code Link"
+                            class="w-8 h-8 flex items-center justify-center flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                    </button>
+                </div>
             </div>
-            
-            <!-- Action buttons (right side) -->
-            <div class="flex items-center gap-2">
 
-            <!-- Change Request Button (shown only when selected category supports it) -->
-            <button type="button" id="cr-modal-trigger-btn" x-show="crEnabled" style="display:none"
-                    @click="window.dispatchEvent(new CustomEvent('open-cr-modal-btn'))"
-                    class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium relative">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                Supporting Letter
-                <span x-show="crHasContent"
-                      class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"
-                      title="Supporting letter attached"></span>
-            </button>
+            {% if selected_category and selected_category.parent %}
+            <div class="flex flex-wrap items-center gap-1 text-[11px] font-normal text-slate-500 mt-1"
+                 title="{{ selected_category.get_path_display }}">
+                {% for part in selected_category.get_path_parts %}
+                {% if not forloop.first %}<span class="text-slate-400">&rarr;</span>{% endif %}
+                <span class="max-w-[110px] sm:max-w-[240px] truncate" title="{{ part }}">{{ part }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
 
-            <!-- QR Code Button & Modal -->
-            <button type="button" @click="openModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-                QR Code Link
-            </button>
-            
             <!-- QR Modal -->
             <div x-show="qrOpen" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" x-transition.opacity>
                 <div @click.away="qrOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden" x-transition.scale.origin.bottom>
@@ -242,12 +252,10 @@
                     </div>
                 </div>
             </div>
-
-            </div><!-- end action buttons wrapper -->
         </div>
 
         <div class="jk-card-body">
-            <form id="main-ticket-form" method="post" enctype="multipart/form-data">
+            <form data-unsaved-guard id="main-ticket-form" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
 
                 <!-- Requester Info Section -->
@@ -290,6 +298,11 @@
                                 that.suggestion = '';
                                 Mailcheck.run({
                                     email: input.value,
+                                    // 'id' (Indonesia ccTLD) isn't in Mailcheck's default list, so
+                                    // e.g. 'company.co.id' was being 'corrected' to the nearest TLD, 'co.il'.
+                                    topLevelDomains: Mailcheck.defaultTopLevelDomains.concat([
+                                        'co.id', 'ac.id', 'go.id', 'or.id', 'net.id', 'web.id', 'id'
+                                    ]),
                                     suggested: function(suggestion) { that.suggestion = suggestion.full; },
                                     empty: function() { that.suggestion = ''; }
                                 });
@@ -513,9 +526,34 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% if site_config.require_ticket_location or ticket_locations %}
+                    <div class="jk-form-group mb-0 mt-3"
+                         x-data="{
+                            selected: '{{ form.location.value|default_if_none:"" }}',
+                            requiresMap: {
+                                {% for loc in ticket_locations %}
+                                '{{ loc.pk }}': {{ loc.requires_detail|yesno:"true,false" }}{% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                            },
+                            get showDetail() { return !!this.requiresMap[this.selected]; }
+                         }">
+                        <label for="id_location" class="jk-label">Location{% if site_config.require_ticket_location %} *{% else %} <span class="text-slate-400 font-normal">(optional)</span>{% endif %}</label>
+                        {{ form.location }}
+                        {% if form.location.errors %}
+                        <div class="jk-form-error">{{ form.location.errors.0 }}</div>
+                        {% endif %}
+                        <div x-show="showDetail" x-cloak class="mt-3">
+                            <label for="id_location_detail" class="jk-label">Specify Location *</label>
+                            {{ form.location_detail }}
+                            {% if form.location_detail.errors %}
+                            <div class="jk-form-error">{{ form.location_detail.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
-                <hr class="jk-divider">
+                <hr class="jk-divider" style="margin: 1rem 0;">
 
                 <!-- Ticket Details Section -->
                 <div class="mb-2">
@@ -523,7 +561,13 @@
                         📋 Ticket Details
                     </h3>
 
-                    <!-- Category -->
+                    <!-- Category (already shown in the header above when preselected via URL) -->
+                    {% if selected_category %}
+                    <input type="hidden" name="category" id="id_category" value="{{ selected_category.pk }}">
+                    {% if form.category.errors %}
+                    <div class="jk-form-error mb-4">{{ form.category.errors.0 }}</div>
+                    {% endif %}
+                    {% else %}
                     <div class="jk-form-group">
                         <label for="id_category" class="jk-label">Category *</label>
                         {{ form.category }}
@@ -531,8 +575,10 @@
                         <div class="jk-form-error">{{ form.category.errors.0 }}</div>
                         {% endif %}
                     </div>
+                    {% endif %}
 
                     <!-- Subject -->
+                    {% if site_config.show_generate_template_button %}
                     <script type="application/json" id="category_templates_data">
                         {{ category_templates_json|safe|default:'{}' }}
                     </script>
@@ -552,12 +598,12 @@
                                  if (catId && (this.templates[catId] || this.subjectTemplates[catId])) {
                                      const pField = document.getElementById('id_problem_description');
                                      const sField = document.getElementById('id_subject');
-                                     
+
                                      let proceed = true;
                                      if ((pField && pField.value.trim() !== '') || (sField && sField.value.trim() !== '')) {
                                          proceed = confirm('This will overwrite your current subject and problem description. Continue?');
                                      }
-                                     
+
                                      if (proceed) {
                                          if (sField && this.subjectTemplates[catId]) {
                                              sField.value = this.subjectTemplates[catId];
@@ -578,6 +624,10 @@
                                 🪄 Generate Template
                             </button>
                         </div>
+                    {% else %}
+                    <div class="jk-form-group">
+                        <label for="id_subject" class="jk-label">Subject *</label>
+                    {% endif %}
                         {{ form.subject }}
                         {% if form.subject.errors %}
                         <div class="jk-form-error">{{ form.subject.errors.0 }}</div>
@@ -586,29 +636,132 @@
 
                     <!-- Problem Description -->
                     <div class="jk-form-group">
-                        <label for="id_problem_description" class="jk-label">Problem Description *</label>
+                        <label for="id_problem_description" class="jk-label">Description *</label>
                         {{ form.problem_description }}
                         {% if form.problem_description.errors %}
                         <div class="jk-form-error">{{ form.problem_description.errors.0 }}</div>
                         {% endif %}
-                        <p class="text-xs text-slate-600 mt-1">Describe the issue in as much detail as possible.</p>
                     </div>
 
-                    <!-- Link -->
-                    <div class="jk-form-group">
-                        <label for="id_link" class="jk-label">Reference Link (optional)</label>
-                        {{ form.link }}
-                        {% if form.link.errors %}
-                        <div class="jk-form-error">{{ form.link.errors.0 }}</div>
+                    <!-- Link / CC Emails / Followers — collapsed behind a horizontal row of "+ Add" toggles -->
+                    <div class="jk-form-group" x-data="{
+                        showLink: {% if form.link.value or form.link.errors %}true{% else %}false{% endif %},
+                        showCc: {% if form.cc_emails.value or form.cc_emails.errors %}true{% else %}false{% endif %},
+                        showFollowers: false
+                    }">
+                        <div class="flex flex-wrap items-center gap-2"
+                             x-show="!showLink || !showCc{% if user.is_authenticated %} || !showFollowers{% endif %}">
+                            <button type="button" x-show="!showLink" @click="showLink = true"
+                                    class="inline-flex items-center gap-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Reference Link
+                            </button>
+                            <button type="button" x-show="!showCc" @click="showCc = true"
+                                    class="inline-flex items-center gap-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                CC Emails
+                            </button>
+                            {% if user.is_authenticated %}
+                            <button type="button" x-show="!showFollowers" @click="showFollowers = true"
+                                    class="inline-flex items-center gap-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Followers
+                            </button>
+                            {% endif %}
+                        </div>
+
+                        <div x-show="showLink" x-cloak class="mt-3">
+                            <label for="id_link" class="jk-label">Reference Link (optional)</label>
+                            {{ form.link }}
+                            {% if form.link.errors %}
+                            <div class="jk-form-error">{{ form.link.errors.0 }}</div>
+                            {% endif %}
+                            <p class="text-xs text-slate-600 mt-1">Any related URL (error page, document link, etc.).</p>
+                        </div>
+
+                        <div x-show="showCc" x-cloak class="mt-3">
+                            <label for="id_cc_emails" class="jk-label">CC Emails (optional)</label>
+                            {{ form.cc_emails }}
+                            {% if form.cc_emails.errors %}
+                            <div class="jk-form-error">{{ form.cc_emails.errors.0 }}</div>
+                            {% endif %}
+                            <p class="text-xs text-slate-600 mt-1">e.g. your manager — they'll stay CC'd on every email update for this ticket.</p>
+                        </div>
+
+                        {% if user.is_authenticated %}
+                        <div x-show="showFollowers" x-cloak class="mt-3" x-data="{
+                            allStaff: JSON.parse(document.getElementById('cr_approvers_data')?.textContent || '[]'),
+                            selectedFollowers: [],
+                            followerSearch: '',
+                            followerDropOpen: false,
+                            get filteredFollowers() {
+                                const q = this.followerSearch.toLowerCase();
+                                return this.allStaff.filter(a =>
+                                    !this.selectedFollowers.find(s => s.id === a.id) &&
+                                    (!q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+                                );
+                            },
+                            addFollower(a) { this.selectedFollowers.push(a); this.followerSearch = ''; this.followerDropOpen = false; },
+                            removeFollower(id) { this.selectedFollowers = this.selectedFollowers.filter(a => a.id !== id); }
+                        }">
+                            <label class="jk-label">Followers (optional)</label>
+                            <p class="text-xs text-slate-600 mb-2">Add a colleague or manager so they can track this ticket and get notified on updates.</p>
+                            <div x-show="selectedFollowers.length > 0" class="flex flex-wrap gap-2 mb-2.5">
+                                <template x-for="follower in selectedFollowers" :key="follower.id">
+                                    <div class="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg pl-2.5 pr-2 py-1">
+                                        <span class="text-xs font-medium text-slate-800 max-w-[140px] truncate" x-text="follower.name"></span>
+                                        <button type="button" @click="removeFollower(follower.id)"
+                                                class="flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors">
+                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="relative">
+                                <input type="text" x-model="followerSearch"
+                                       @focus="followerDropOpen = true" @input="followerDropOpen = true"
+                                       @click.outside="followerDropOpen = false"
+                                       placeholder="Search by name or email..." autocomplete="off"
+                                       class="jk-input w-full text-sm pr-8">
+                                <div x-show="followerDropOpen && filteredFollowers.length > 0" x-transition
+                                     class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                    <template x-for="follower in filteredFollowers" :key="follower.id">
+                                        <button type="button" @click="addFollower(follower)"
+                                                class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 transition-colors border-b border-slate-100 last:border-0 flex items-center gap-3">
+                                            <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0"
+                                                 x-text="follower.name.charAt(0).toUpperCase()"></div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium text-slate-800 truncate" x-text="follower.name"></p>
+                                                <p class="text-xs text-slate-500 truncate" x-text="follower.email"></p>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <template x-for="follower in selectedFollowers" :key="follower.id">
+                                <input type="hidden" name="followers" :value="follower.id">
+                            </template>
+                        </div>
                         {% endif %}
-                        <p class="text-xs text-slate-600 mt-1">Any related URL (error page, document link, etc.).</p>
                     </div>
 
                     <!-- Attachments (multi-file with preview) -->
                     <div class="jk-form-group"
+                         tabindex="0"
+                         @paste="handlePasteData($event.clipboardData)"
+                         @case-form-paste-image.window="handlePasteData($event.detail.clipboardData)"
                          x-data="{
                             previews: [],
                             rawFiles: [],
+                            justPasted: false,
                             handleFiles(e) {
                                 this.rawFiles = Array.from(e.target.files);
                                 this.buildPreviews();
@@ -631,13 +784,36 @@
                                     this.previews.push(item);
                                 });
                             },
-                            removeFile(index) {
-                                this.rawFiles.splice(index, 1);
-                                this.buildPreviews();
+                            syncInput() {
                                 // Sync native file input via DataTransfer
                                 const dt = new DataTransfer();
                                 this.rawFiles.forEach(f => dt.items.add(f));
                                 this.$refs.fileInput.files = dt.files;
+                            },
+                            removeFile(index) {
+                                this.rawFiles.splice(index, 1);
+                                this.buildPreviews();
+                                this.syncInput();
+                            },
+                            handlePasteData(clipboardData) {
+                                if (!clipboardData) return;
+                                let pastedAny = false;
+                                Array.from(clipboardData.items || []).forEach((item) => {
+                                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                                        const file = item.getAsFile();
+                                        if (!file) return;
+                                        const ext = (item.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                                        const named = new File([file], `pasted-image-${Date.now()}.${ext}`, { type: item.type });
+                                        this.rawFiles.push(named);
+                                        pastedAny = true;
+                                    }
+                                });
+                                if (pastedAny) {
+                                    this.buildPreviews();
+                                    this.syncInput();
+                                    this.justPasted = true;
+                                    setTimeout(() => { this.justPasted = false }, 2000);
+                                }
                             },
                             fileIcon(type) {
                                 if (type.startsWith('image/')) return '🖼️';
@@ -660,6 +836,11 @@
                             <span class="text-rose-500 font-black text-sm leading-none" title="Attachment is required">*</span>
                             <span class="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md uppercase tracking-wide">Required</span>
                             {% endif %}
+                            <span class="text-[10px] font-medium text-slate-600 normal-case">— or paste a screenshot (Ctrl+V)</span>
+                            <span x-show="justPasted" x-transition x-cloak
+                                  class="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                                ✓ Image pasted
+                            </span>
                         </label>
                         <input type="file"
                                name="attachments"
@@ -720,8 +901,11 @@
                 </div>
 
                 {% if user.is_authenticated and user.role_access == 'PortalUser' %}
-                <!-- My Tickets live-chat tracking opt-in — portal users only -->
-                <div class="mb-5 flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl transition-colors"
+                <!-- My Tickets live-chat tracking opt-in — portal users only.
+                     Hidden from view (every ticket is already considered tracked); the
+                     hidden input + Alpine state stay so the CR workflow's forced-tracking
+                     wiring (cr-tracking-required event, track_via_chat POST value) keeps working. -->
+                <div class="hidden mb-5 items-center justify-between gap-4 px-4 py-3.5 rounded-xl transition-colors"
                      :class="crRequired ? 'bg-green-50 border border-green-200' : 'bg-indigo-50 border border-indigo-100'"
                      x-data="{ tracked: false, crRequired: false }"
                      @cr-tracking-required.window="crRequired = true; tracked = true;"
@@ -770,7 +954,7 @@
                 <!-- Dynamic field inputs injected by Alpine when user attaches the letter -->
                 <div id="cr_dynamic_inputs"></div>
 
-                <hr class="jk-divider">
+                <hr class="jk-divider" style="margin: 1rem 0;">
 
                 <!-- Submit -->
                 <button type="submit" class="jk-btn jk-btn-primary jk-btn-lg jk-btn-block">
@@ -1001,7 +1185,7 @@
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                         </svg>
-                        Back to template selection
+                        Back
                     </button>
                 </template>
 
@@ -1092,7 +1276,7 @@
                 Cancel
             </button>
             <button type="button" x-show="step === 'fill'" @click="attachAndClose()"
-                    class="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                    class="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center gap-2">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -1104,6 +1288,36 @@
 </div>
 
 <script>
+// Same overflow-detection approach as the .jk-marquee cards elsewhere in the
+// app (see category_children.html / dashboard.html): only animate when the
+// text actually overflows its pill, otherwise leave it static.
+function initBadgeMarquees(container) {
+    if (!container) return;
+    container.querySelectorAll('.jk-marquee').forEach(el => {
+        const first = el.querySelector('.jk-marquee-track span');
+        if (!first || el.clientWidth < 8) return;
+        el.classList.remove('is-overflow');
+        // inline-block (not inline) — a plain inline element's scrollWidth is
+        // unreliable/0 in Chromium since it has no single measurable box.
+        first.style.display = 'inline-block';
+        first.style.whiteSpace = 'nowrap';
+        first.style.paddingRight = '0';
+        // el.clientWidth includes el's own left/right padding (px-2), so the
+        // text's available space is smaller than that — compare against the
+        // padding-adjusted width, not the raw clientWidth, or slightly-too-long
+        // text gets misjudged as "fits" and silently clips instead of scrolling.
+        const elStyle = getComputedStyle(el);
+        const availableWidth = el.clientWidth - parseFloat(elStyle.paddingLeft || 0) - parseFloat(elStyle.paddingRight || 0);
+        const overflowing = first.scrollWidth > availableWidth + 2;
+        first.removeAttribute('style');
+        el.classList.toggle('is-overflow', overflowing);
+        if (overflowing) {
+            const duration = Math.max(8, Math.min(18, Math.round(first.scrollWidth / 18)));
+            el.style.setProperty('--jk-marquee-duration', duration + 's');
+        }
+    });
+}
+
 (function () {
     const categorySelect = document.getElementById('id_category');
     if (!categorySelect) return;
@@ -1139,6 +1353,23 @@
     if (categorySelect.value) {
         updateChangeRequestSection(categorySelect.value);
     }
+})();
+
+// Paste-to-upload: pasting a screenshot into Problem Description also
+// attaches it, same as pasting directly on the Attachments box — forwarded
+// via a window event since the two live in separate Alpine components.
+(function () {
+    const textarea = document.getElementById('id_problem_description');
+    if (!textarea) return;
+    textarea.addEventListener('paste', function (e) {
+        const hasImage = Array.from((e.clipboardData && e.clipboardData.items) || [])
+            .some(item => item.kind === 'file' && item.type.startsWith('image/'));
+        if (hasImage) {
+            window.dispatchEvent(new CustomEvent('case-form-paste-image', {
+                detail: { clipboardData: e.clipboardData }
+            }));
+        }
+    });
 })();
 </script>
 {% endblock %}

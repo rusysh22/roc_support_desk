@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% load static %}
+{% load category_tree %}
+{% load static custom_tags %}
 
 {% block title %}Dashboard | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
@@ -42,12 +43,10 @@
             </div>
             <div class="flex-1 min-w-[140px]">
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Category</label>
-                <select name="category" class="jk-select text-sm w-full">
-                    <option value="">All Categories</option>
-                    {% for cat in categories %}
-                    <option value="{{ cat.slug }}" {% if filter_category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
-                    {% endfor %}
-                </select>
+                <select name="category" class="jk-select text-sm w-full" data-category-cascade data-allow-group>
+                        <option value="">All Categories</option>
+                        {% category_options "slug" filter_category %}
+                    </select>
             </div>
             <div class="flex-1 min-w-[120px]">
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Source</label>
@@ -62,10 +61,10 @@
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Priority</label>
                 <select name="priority" class="jk-select text-sm w-full">
                     <option value="">All Priorities</option>
-                    <option value="Low" {% if filter_priority == "Low" %}selected{% endif %}>Low</option>
-                    <option value="Medium" {% if filter_priority == "Medium" %}selected{% endif %}>Medium</option>
-                    <option value="High" {% if filter_priority == "High" %}selected{% endif %}>High</option>
-                    <option value="Critical" {% if filter_priority == "Critical" %}selected{% endif %}>Critical</option>
+                    <option value="P1" {% if filter_priority == "P1" %}selected{% endif %}>P1</option>
+                    <option value="P2" {% if filter_priority == "P2" %}selected{% endif %}>P2</option>
+                    <option value="P3" {% if filter_priority == "P3" %}selected{% endif %}>P3</option>
+                    <option value="P4" {% if filter_priority == "P4" %}selected{% endif %}>P4</option>
                 </select>
             </div>
             <div class="flex-1 min-w-[150px]">
@@ -102,47 +101,79 @@
 <!-- ============================================================= -->
 <!-- SUMMARY CARDS                                                  -->
 <!-- ============================================================= -->
+<style>
+    /* Summary cards: the whole card is a link to the tickets behind its number. */
+    .dash-card { position: relative; transition: transform .15s ease, box-shadow .15s ease; }
+    .dash-card:hover { transform: translateY(-2px); }
+    .dash-card__link { display: block; color: inherit; text-decoration: none; }
+    .dash-card__link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+    .dash-card__link:focus-visible { outline: none; }
+    .dash-card__link:focus-visible::after { outline: 2px solid #4f46e5; outline-offset: 2px; }
+    .dash-card__sub { position: relative; z-index: 1; }
+    .dash-card__sublink { font-weight: 700; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color .15s; }
+    .dash-card__sublink:hover { text-decoration-color: currentColor; }
+    @media (prefers-reduced-motion: reduce) { .dash-card { transition: none; } .dash-card:hover { transform: none; } }
+</style>
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
     <!-- Total Tickets -->
-    <div class="jk-card jk-card-body p-4 flex flex-col">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Total Tickets</div>
-        <div class="text-2xl font-extrabold text-slate-800 mt-1">{{ total_in_range }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">In selected range</div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card">
+        <a href="{{ card_urls.total }}" class="dash-card__link" aria-label="Total Tickets: {{ total_in_range }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Total Tickets</div>
+            <div class="text-2xl font-extrabold text-slate-800 mt-1">{{ total_in_range }}</div>
+        </a>
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">In selected range</div>
     </div>
 
     <!-- Active -->
-    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(99,102,241,0.15), 0 4px 12px rgba(99,102,241,0.12);">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Active</div>
-        <div class="text-2xl font-extrabold text-indigo-600 mt-1">{{ total_active }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">Open + Investigating + Pending</div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card" style="box-shadow: 0 0 0 1px rgba(99,102,241,0.15), 0 4px 12px rgba(99,102,241,0.12);">
+        <a href="{{ card_urls.active }}" class="dash-card__link" aria-label="Active tickets: {{ total_active }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Active</div>
+            <div class="text-2xl font-extrabold text-indigo-600 mt-1">{{ total_active }}</div>
+        </a>
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">Open + Investigating + Pending</div>
     </div>
 
     <!-- Unassigned -->
-    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(245,158,11,0.15), 0 4px 12px rgba(245,158,11,0.12);">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unassigned</div>
-        <div class="text-2xl font-extrabold text-amber-600 mt-1">{{ total_unassigned }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">Need attention</div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card" style="box-shadow: 0 0 0 1px rgba(245,158,11,0.15), 0 4px 12px rgba(245,158,11,0.12);">
+        {% if card_urls.unassigned %}
+        <a href="{{ card_urls.unassigned }}" class="dash-card__link" aria-label="Unassigned tickets: {{ total_unassigned }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unassigned</div>
+            <div class="text-2xl font-extrabold text-amber-600 mt-1">{{ total_unassigned }}</div>
+        </a>
+        {% else %}
+        <div>
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unassigned</div>
+            <div class="text-2xl font-extrabold text-amber-600 mt-1">{{ total_unassigned }}</div>
+        </div>
+        {% endif %}
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">Need attention</div>
     </div>
 
     <!-- Resolved -->
-    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(16,185,129,0.15), 0 4px 12px rgba(16,185,129,0.12);">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Resolved</div>
-        <div class="text-2xl font-extrabold text-emerald-600 mt-1">{{ resolved_in_range }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">Today: <span class="font-bold text-emerald-600">{{ resolved_today }}</span></div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card" style="box-shadow: 0 0 0 1px rgba(16,185,129,0.15), 0 4px 12px rgba(16,185,129,0.12);">
+        <a href="{{ card_urls.resolved }}" class="dash-card__link" aria-label="Resolved tickets: {{ resolved_in_range }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Resolved</div>
+            <div class="text-2xl font-extrabold text-emerald-600 mt-1">{{ resolved_in_range }}</div>
+        </a>
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">Today: <a href="{{ card_urls.resolved_today }}" class="dash-card__sublink text-emerald-600" aria-label="Resolved today: {{ resolved_today }}. Show these tickets">{{ resolved_today }}</a></div>
     </div>
 
     <!-- SLA Breached -->
-    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 4px 12px rgba(239,68,68,0.12);">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">SLA Breached</div>
-        <div class="text-2xl font-extrabold text-red-600 mt-1">{{ sla_breached }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">At risk: <span class="font-bold text-orange-500">{{ sla_at_risk }}</span></div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card" style="box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 4px 12px rgba(239,68,68,0.12);">
+        <a href="{{ card_urls.sla_breached }}" class="dash-card__link" aria-label="SLA breached tickets: {{ sla_breached }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">SLA Breached</div>
+            <div class="text-2xl font-extrabold text-red-600 mt-1">{{ sla_breached }}</div>
+        </a>
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">At risk: <a href="{{ card_urls.sla_at_risk }}" class="dash-card__sublink text-orange-500" aria-label="SLA at risk: {{ sla_at_risk }}. Show these tickets">{{ sla_at_risk }}</a></div>
     </div>
 
     <!-- Unread -->
-    <div class="jk-card jk-card-body p-4 flex flex-col" style="box-shadow: 0 0 0 1px rgba(244,63,94,0.15), 0 4px 12px rgba(244,63,94,0.12);">
-        <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unread Messages</div>
-        <div class="text-2xl font-extrabold text-rose-600 mt-1">{{ unread_count }}</div>
-        <div class="text-xs text-slate-600 mt-auto pt-1">Awaiting response</div>
+    <div class="jk-card jk-card-body p-4 flex flex-col dash-card" style="box-shadow: 0 0 0 1px rgba(244,63,94,0.15), 0 4px 12px rgba(244,63,94,0.12);">
+        <a href="{{ card_urls.unread }}" class="dash-card__link" aria-label="Tickets with unread messages: {{ unread_count }}. Show these tickets">
+            <div class="text-xs font-bold text-slate-700 uppercase tracking-wider">Unread Messages</div>
+            <div class="text-2xl font-extrabold text-rose-600 mt-1">{{ unread_count }}</div>
+        </a>
+        <div class="dash-card__sub text-xs text-slate-600 mt-auto pt-1">Awaiting response</div>
     </div>
 </div>
 
@@ -423,7 +454,7 @@
         <div class="jk-card-body p-4">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-slate-800">Agent Workload (Active)</h3>
-                <a href="{% url 'desk:case_list' %}?status=Open,Investigating,PendingInfo" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
+                <a href="{% url 'desk:case_list' %}?status=New,Assigned,InProgress,PendingUser,PendingExternal" class="text-xs text-indigo-700 hover:text-indigo-800 font-semibold">View All &rarr;</a>
             </div>
             <div style="max-height: 300px; overflow-y: auto; position: relative;">
                 <div id="agentChartWrap"><canvas id="agentChart"></canvas></div>
@@ -590,12 +621,7 @@
                             </td>
                             <td class="py-2 pr-3 max-w-[200px] truncate text-slate-700">{{ case.subject|truncatechars:40 }}</td>
                             <td class="py-2 pr-3">
-                                {% if case.status == "Open" %}<span class="jk-badge jk-badge-open">Open</span>
-                                {% elif case.status == "Investigating" %}<span class="jk-badge jk-badge-investigating">Investigating</span>
-                                {% elif case.status == "PendingInfo" %}<span class="jk-badge jk-badge-pending">Pending</span>
-                                {% elif case.status == "Resolved" %}<span class="jk-badge jk-badge-resolved">Resolved</span>
-                                {% elif case.status == "Closed" %}<span class="jk-badge jk-badge-closed">Closed</span>
-                                {% endif %}
+                                {% include "partials/status_badge.html" with case_status=case.status %}
                             </td>
                             <td class="py-2 pr-3 text-slate-600 truncate max-w-[120px]">{{ case.requester.full_name|default:"—" }}</td>
                             <td class="py-2 text-slate-600 whitespace-nowrap">{{ case.created_at|date:"d M, H:i" }}</td>
@@ -698,10 +724,7 @@
                         </td>
                         <td class="py-2 pr-3 max-w-[200px] truncate text-slate-700">{{ case.subject|truncatechars:40 }}</td>
                         <td class="py-2 pr-3">
-                            {% if case.status == "Open" %}<span class="jk-badge jk-badge-open">Open</span>
-                            {% elif case.status == "Investigating" %}<span class="jk-badge jk-badge-investigating">Investigating</span>
-                            {% elif case.status == "PendingInfo" %}<span class="jk-badge jk-badge-pending">Pending</span>
-                            {% endif %}
+                            {% include "partials/status_badge.html" with case_status=case.status %}
                         </td>
                         <td class="py-2 pr-3 text-slate-600">{{ case.assigned_to.username|default:"Unassigned" }}</td>
                         <td class="py-2 pr-3 text-slate-500 whitespace-nowrap">{{ case.created_at|timesince }}</td>

@@ -4,10 +4,15 @@ Cases — Chat Portal URL Configuration (public + login-required).
 from django.urls import path
 
 from . import views_chat
+from .views import notification_bell, notification_read_all
 
 app_name = "chat"
 
 urlpatterns = [
+    # Shared authenticated polling must stay outside the staff-only desk namespace.
+    path("notifications/", notification_bell, name="notifications"),
+    path("notifications/read-all/", notification_read_all, name="notifications_read_all"),
+
     # JSON API for the widget category and unit pickers
     path("categories/", views_chat.chat_categories, name="categories"),
     path("units/", views_chat.chat_units, name="units"),
@@ -28,10 +33,12 @@ urlpatterns = [
     path("<uuid:case_uuid>/poll/", views_chat.chat_poll, name="poll"),
     path("<uuid:case_uuid>/resolve/", views_chat.chat_resolve, name="resolve"),
     path("<uuid:case_uuid>/reopen/", views_chat.chat_reopen, name="reopen"),
+    path("<uuid:case_uuid>/follow-up/", views_chat.chat_follow_up, name="follow_up"),
 
     # My Tickets (login required)
     path("my-tickets/", views_chat.my_tickets, name="my_tickets"),
     path("my-tickets/status/", views_chat.my_tickets_status, name="my_tickets_status"),
+    path("tickets/search/", views_chat.ticket_search, name="ticket_search"),
 
     # My Approvals — outstanding approval requests assigned to the logged-in user
     path("my-approvals/", views_chat.my_approvals, name="my_approvals"),

@@ -1,13 +1,12 @@
 {% extends "base.html" %}
+{% load category_tree %}
 {% load static custom_tags %}
 
 {% block title %}{{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}
-<div class="flex items-center gap-2">
-    <a href="javascript:history.back()" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100" title="Back">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-    </a>
-    <span>{{ case.case_number }}</span>
+<div class="flex items-center gap-3 min-w-0">
+    {% include "partials/back_button.html" with fallback=back_url mode="task" %}
+    <span class="truncate">{{ case.case_number }}</span>
 </div>
 {% endblock %}
 {% block nav_cases %}active{% endblock %}
@@ -23,10 +22,6 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     </span>
     {% endif %}
-    <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm" title="Back to Tickets">
-        <span class="hidden sm:inline">← Back to Tickets</span>
-        <svg class="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </a>
     {% if next_case_id %}
     <a href="{% url 'desk:case_detail' next_case_id %}" class="jk-btn jk-btn-secondary jk-btn-sm px-2" title="Next Ticket">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -106,33 +101,14 @@
             </div>
             <div class="flex flex-wrap items-center gap-2 jk-detail-badges">
                 <!-- Status Badge -->
-                {% if case.status == "Open" %}
-                <div class="jk-badge-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Open
+                {% with meta=case.status|status_meta %}
+                <div class="jk-badge-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5"
+                     style="background:{{ meta.color }}1a;color:{{ meta.color }};border:1px solid {{ meta.color }}55;">
+                    <span class="text-base leading-none">{{ meta.icon }}</span>
+                    {{ meta.label }}
                 </div>
-                {% elif case.status == "Investigating" %}
-                <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    Investigating
-                </div>
-                {% elif case.status == "PendingInfo" %}
-                <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Pending Info
-                </div>
-                {% elif case.status == "Resolved" %}
-                <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Resolved
-                </div>
-                {% elif case.status == "Closed" %}
-                <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    Closed
-                </div>
-                {% endif %}
-                
+                {% endwith %}
+
                 {% if case.amendment_count > 0 %}
                 <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-sm font-semibold text-sm transition-transform hover:-translate-y-0.5" title="This closed ticket has been amended {{ case.amendment_count }} time(s).">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -184,10 +160,8 @@
                       action="{% url 'desk:case_update_category' case.id %}" method="post">
                     {% csrf_token %}
                     <select name="category_id" class="text-xs sm:text-xs border border-slate-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
-                            onchange="this.form.submit()">
-                        {% for cat in all_categories %}
-                        <option value="{{ cat.id }}" {% if cat.id == case.category_id %}selected{% endif %}>{{ cat.name }}</option>
-                        {% endfor %}
+                            onchange="this.form.submit()" data-category-cascade>
+                        {% category_options "id" case.category_id %}
                     </select>
                     <button type="button" @click="editingCat = false" class="text-slate-600 hover:text-slate-600 transition-colors p-0.5 rounded" title="Cancel">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -204,6 +178,12 @@
             <div>
                 <span class="font-medium text-slate-600">Company Unit:</span>
                 <span class="text-indigo-600 font-medium">{{ case.requester_unit_name }}</span>
+            </div>
+            {% endif %}
+            {% if case.location_display %}
+            <div>
+                <span class="font-medium text-slate-600">Location:</span>
+                <span class="text-indigo-600 font-medium">{{ case.location_display }}</span>
             </div>
             {% endif %}
             <div>
@@ -246,7 +226,7 @@
             bg-slate-50 text-slate-600 border-slate-200/60 hover:bg-slate-100 hover:text-slate-700
        {% endif %}"
        x-data="{ showMenu: false }">
-        
+
         <a href="{% url 'desk:case_detail' case_id=r_case.id %}" class="flex items-center gap-2 outline-none">
         {% if r_case.id == master_case.id %}
         <svg class="w-4 h-4 {% if r_case.id == case.id %}text-indigo-500{% else %}text-slate-600{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
@@ -399,7 +379,7 @@
                         get filteredEmployees() {
                             if (this.empSearch === '') return this.employees;
                             const q = this.empSearch.toLowerCase();
-                            return this.employees.filter(e => e.name.toLowerCase().includes(q) || e.unit.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) || e.phone.includes(q));
+                            return this.employees.filter(e => (e.name || '').toLowerCase().includes(q) || (e.unit || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q) || (e.phone || '').toLowerCase().includes(q) || (e.role || '').toLowerCase().includes(q));
                         },
                         selectEmployee(emp) {
                             this.selectedEmployeeId = emp.id;
@@ -484,7 +464,7 @@
                                 <button type="button" @click="open = !open"
                                         class="jk-select w-full text-left flex items-center justify-between"
                                         :class="{'border-indigo-500 ring-1 ring-indigo-500': open}">
-                                    <span x-text="selectedText || 'Select a Company Unit...'" :class="{'text-slate-600': !selectedValue}" class="truncate"></span>
+                                    <span x-text="selectedText || 'Select a Unit...'" :class="{'text-slate-600': !selectedValue}" class="truncate"></span>
                                     <svg class="w-4 h-4 text-slate-600 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="{'rotate-180': open}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
 
@@ -576,7 +556,7 @@
                                         <div @click="selectEmployee(emp)"
                                              class="cursor-pointer px-3 py-2.5 border-b border-slate-100 last:border-b-0 transition-all"
                                              :class="{'hover:bg-slate-50': selectedEmployeeId !== emp.id}"
-                                             :style="selectedEmployeeId === emp.id ? 'background: rgba(245,158,11,0.06); box-shadow: inset 0 0 0 1px rgba(245,158,11,0.2), 0 2px 8px rgba(245,158,11,0.10);' : ''"
+                                             :style="selectedEmployeeId === emp.id ? 'background: rgba(245,158,11,0.06); box-shadow: inset 0 0 0 1px rgba(245,158,11,0.2), 0 2px 8px rgba(245,158,11,0.10);' : ''">
                                             <div class="flex items-center gap-3">
                                                 <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0"
                                                      :class="{'bg-amber-200 text-amber-700': selectedEmployeeId === emp.id}"
@@ -685,16 +665,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-2">Escalate Via</label>
                                 <div class="grid grid-cols-2 gap-3">
-                                    <label @click="if(escalateChannel !== 'EMAIL') { escalateChannel = 'EMAIL'; $refs.forwardTo.value = ''; }" 
-                                           class="cursor-pointer flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
-                                           :class="escalateChannel === 'EMAIL' ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'">
-                                        <input type="radio" name="channel" value="EMAIL" x-model="escalateChannel" class="hidden">
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                                             :class="escalateChannel === 'EMAIL' ? 'bg-indigo-100' : 'bg-slate-100'">
-                                            📧
-                                        </div>
-                                        <span class="text-sm font-semibold" :class="escalateChannel === 'EMAIL' ? 'text-indigo-700' : 'text-slate-600'">Email</span>
-                                    </label>
+
                                     <label @click="if(escalateChannel !== 'WHATSAPP') { escalateChannel = 'WHATSAPP'; $refs.forwardTo.value = ''; }" 
                                            class="cursor-pointer flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
                                            :class="escalateChannel === 'WHATSAPP' ? 'border-green-500 bg-green-50 shadow-sm shadow-green-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'">
@@ -858,12 +829,12 @@
                     this.showScrollBtn = (el.scrollHeight - el.scrollTop - el.clientHeight) > 150;
                 }
              }">
-             
+
             <!-- Chat Messages (HTMX polling every 5s, paused during interactions) -->
             <div id="chat-thread"
                  class="jk-chat-panel__body"
                  hx-get="{% url 'desk:chat_thread' case_id=case.id %}"
-                 hx-trigger="every 5s[!window._chatInteracting]"
+                 hx-trigger="every 5s[!document.hidden && !window._chatInteracting]"
                  hx-indicator="#thread-spinner"
                  @scroll.debounce.100ms="updateScroll()">
                 {% include "partials/chat_thread.html" %}
@@ -895,9 +866,55 @@
             <form id="reply-form" hx-post="{% url 'desk:case_send_reply' case_id=case.id %}" hx-target="#chat-thread"
                 hx-swap="innerHTML" hx-indicator="#reply-spinner" enctype="multipart/form-data"
                 x-data="{
-                    replyText: '', fileName: '', showCc: false, ccText: '', isSubmitting: false,
+                    replyText: '', _files: [], fileNames: [], filePreviews: [], showCc: false, ccText: '', isSubmitting: false,
                     isRecording: false, recordingDuration: 0, _recTimer: null, _mediaRecorder: null, _audioChunks: [], _stream: null,
                     formatDuration(s) { return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); },
+                    formatSize(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; },
+                    fileKind(ext, type) {
+                        if (/^image\//.test(type)) return 'image';
+                        if (/^video\//.test(type)) return 'video';
+                        if (/^audio\//.test(type)) return 'audio';
+                        if (ext === 'pdf') return 'pdf';
+                        if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet';
+                        if (['doc', 'docx', 'rtf', 'odt'].includes(ext)) return 'doc';
+                        if (['ppt', 'pptx'].includes(ext)) return 'slide';
+                        if (['zip', 'rar', '7z'].includes(ext)) return 'archive';
+                        return 'file';
+                    },
+                    addFiles(fileList) {
+                        const incoming = Array.from(fileList || []);
+                        let rejected = false;
+                        for (const f of incoming) {
+                            if (this._files.length >= 10) { rejected = true; break; }
+                            this._files.push(f);
+                            const ext = f.name.includes('.') ? f.name.split('.').pop().toLowerCase() : '';
+                            this.filePreviews.push({
+                                name: f.name, type: f.type, ext, size: this.formatSize(f.size), kind: this.fileKind(ext, f.type),
+                                url: /^(image|video)\//.test(f.type) ? URL.createObjectURL(f) : null,
+                            });
+                        }
+                        this._syncFileInput();
+                        if (rejected) alert('Maksimal 10 file per pesan.');
+                    },
+                    removeFileAt(index) {
+                        if (this.filePreviews[index]?.url) URL.revokeObjectURL(this.filePreviews[index].url);
+                        this.filePreviews.splice(index, 1);
+                        this._files.splice(index, 1);
+                        this._syncFileInput();
+                    },
+                    clearFiles() {
+                        this.filePreviews.forEach(p => p.url && URL.revokeObjectURL(p.url));
+                        this.filePreviews = [];
+                        this._files = [];
+                        this._syncFileInput();
+                    },
+                    _syncFileInput() {
+                        const dt = new DataTransfer();
+                        this._files.forEach(f => dt.items.add(f));
+                        this.$refs.fileInput.files = dt.files;
+                        this.fileNames = this._files.map(f => f.name);
+                    },
+                    destroy() { this.filePreviews.forEach(p => p.url && URL.revokeObjectURL(p.url)); this.cancelRecording(); },
                     async startRecording() {
                         try {
                             this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -910,10 +927,8 @@
                                 const blob = new Blob(this._audioChunks, { type: this._mediaRecorder.mimeType });
                                 const ext = this._mediaRecorder.mimeType.includes('webm') ? 'webm' : this._mediaRecorder.mimeType.includes('ogg') ? 'ogg' : 'm4a';
                                 const file = new File([blob], 'voice-note.' + ext, { type: this._mediaRecorder.mimeType });
-                                const dt = new DataTransfer();
-                                dt.items.add(file);
-                                this.$refs.fileInput.files = dt.files;
-                                this.fileName = file.name;
+                                this.clearFiles();
+                                this.addFiles([file]);
                                 this._stream.getTracks().forEach(t => t.stop());
                                 this._stream = null;
                                 this.$nextTick(() => this.$el.requestSubmit());
@@ -939,14 +954,14 @@
                     }
                 }"
                 @submit="isSubmitting = true"
-                @htmx:after-request="isSubmitting = false; replyText = ''; fileName = ''; ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.fileInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto'; window._clearQuoteReply();">
+                @htmx:after-request="isSubmitting = false; if ($event.detail.successful && $event.detail.elt === $el) { replyText = ''; clearFiles(); ccText = ''; showCc = false; $refs.replyInput.value = ''; $refs.ccInput.value = ''; $refs.replyInput.style.height = 'auto'; window._clearQuoteReply(); }">
                 {% csrf_token %}
                 <input type="hidden" name="quoted_message_id" id="quotedMessageId" value="">
 
                 <div class="mb-2 px-2 flex justify-end items-center gap-4">
                     {% if case.source == "WebForm" and case.requester.email or case.source == "WebForm" and case.requester_email %}
                     <label class="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-600 hover:text-indigo-600 select-none transition-colors">
-                        <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" checked>
+                        <input type="checkbox" name="send_as_email" value="true" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                         <span>Send Reply via Email</span>
                     </label>
                     {% elif case.source == "WebChat" and case.requester.email or case.source == "WebChat" and case.requester_email %}
@@ -955,7 +970,7 @@
                         <span>Send Reply via Email</span>
                     </label>
                     {% endif %}
-                    
+
                     <button type="button" @click="showCc = !showCc; if(showCc) $nextTick(() => $refs.ccInput.focus())" class="text-xs font-medium text-slate-600 hover:text-indigo-600 transition-colors">
                         <span x-text="showCc ? '- Remove CC' : '+ Add CC'"></span>
                     </button>
@@ -976,6 +991,26 @@
                     </button>
                 </div>
 
+                <div class="jk-chat-upload-previews" x-show="filePreviews.length" x-cloak>
+                    <template x-for="(preview, index) in filePreviews" :key="index">
+                        <div class="jk-chat-upload-preview" :title="preview.name + ' (' + preview.size + ')'">
+                            <div class="jk-chat-upload-preview__thumb" :class="'is-' + preview.kind">
+                                <template x-if="preview.kind === 'image'"><img :src="preview.url" :alt="preview.name"></template>
+                                <template x-if="preview.kind === 'video'"><video :src="preview.url" preload="metadata" muted></video></template>
+                                <template x-if="preview.kind !== 'image' && preview.kind !== 'video'">
+                                    <span x-text="(preview.ext || 'file').slice(0, 4)"></span>
+                                </template>
+                            </div>
+                            <div class="jk-chat-upload-preview__meta">
+                                <span class="jk-chat-upload-preview__name" x-text="preview.name"></span>
+                                <span class="jk-chat-upload-preview__size" x-text="preview.size"></span>
+                            </div>
+                            <button type="button" class="jk-chat-upload-preview__remove" @click="removeFileAt(index)" :aria-label="'Remove ' + preview.name">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
                 {% if case.status != 'Closed' %}
                 <div class="jk-reply-bar">
                     <!-- Attach button -->
@@ -983,8 +1018,8 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                         </svg>
-                        <input type="file" name="attachment" class="hidden" x-ref="fileInput"
-                               @change="fileName = $refs.fileInput.files[0]?.name || ''">
+                        <input type="file" name="attachments" multiple class="hidden" x-ref="fileInput"
+                               @change="addFiles($refs.fileInput.files)">
                     </label>
 
                     <!-- Text input -->
@@ -992,29 +1027,23 @@
                         <textarea name="body" x-ref="replyInput" x-model="replyText"
                                   class="jk-reply-bar__input" rows="1"
                                   placeholder="Type a message... (Ctrl+V to paste image)"
+                                  aria-label="Chat message" title="Enter to send; Shift+Enter or Ctrl+Enter for a new line"
                                   @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
-                                  @keydown.enter.prevent="if(!event.shiftKey && replyText.trim()) { $el.closest('form').requestSubmit(); } else if (event.shiftKey) { replyText += '\n'; $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'; }"
+                                  @keydown.enter="if (!$event.isComposing) { if ($event.shiftKey || $event.ctrlKey || $event.metaKey) { $event.preventDefault(); $el.setRangeText('\n', $el.selectionStart, $el.selectionEnd, 'end'); $el.dispatchEvent(new Event('input', { bubbles: true })); } else { $event.preventDefault(); if (!isSubmitting && (replyText.trim() || fileNames.length)) $el.closest('form').requestSubmit(); } }"
                                   @paste="
-                                    const items = event.clipboardData?.items;
+                                    const items = $event.clipboardData?.items;
                                     if (items) {
                                       for (const item of items) {
                                         if (item.type.startsWith('image/')) {
-                                          event.preventDefault();
-                                          const file = item.getAsFile();
-                                          const dt = new DataTransfer();
-                                          dt.items.add(file);
-                                          $refs.fileInput.files = dt.files;
-                                          fileName = file.name || 'pasted-image.png';
+                                          $event.preventDefault();
+                                          const raw = item.getAsFile();
+                                          const file = raw.name ? raw : new File([raw], 'pasted-image.png', { type: raw.type });
+                                          addFiles([file]);
                                           break;
                                         }
                                       }
                                     }
                                   "></textarea>
-                        <div class="jk-reply-bar__file-tag" x-show="fileName" x-cloak>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                            <span x-text="fileName"></span>
-                            <button type="button" @click="fileName = ''; $refs.fileInput.value = ''" class="jk-reply-bar__file-remove">×</button>
-                        </div>
                     </div>
 
                     <!-- Voice Recorder: Recording UI (replaces input area when recording) -->
@@ -1041,7 +1070,7 @@
                     <!-- Send button -->
                     <button x-show="!isRecording" type="submit"
                             class="jk-reply-bar__send"
-                            :disabled="(!replyText.trim() && !fileName) || isSubmitting"
+                            :disabled="(!replyText.trim() && !fileNames.length) || isSubmitting"
                             title="Send Reply" aria-label="Send message">
                         <svg x-show="!isSubmitting" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -1075,7 +1104,7 @@
                     {% for file in message.attachments.all %}
                         <a href="{{ file.file.url }}" target="_blank" rel="noopener noreferrer" 
                            class="flex items-center gap-2 p-2 px-3 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm rounded-lg transition-all group max-w-full">
-                            
+
                             <div class="w-8 h-8 rounded shrink-0 bg-slate-100 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-500 flex items-center justify-center">
                                 <!-- Generic File Icon -->
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1086,7 +1115,7 @@
                                     <polyline points="10 9 9 9 8 9"></polyline>
                                 </svg>
                             </div>
-                            
+
                             <div class="flex flex-col min-w-0">
                                 <span class="text-xs font-semibold text-slate-700 truncate max-w-[150px]" title="{{ file.original_filename }}">
                                     {{ file.original_filename|default:"Attachment" }}
@@ -1194,7 +1223,7 @@
         <div class="jk-card" x-data="{
             shareTicket() {
                 const title = `Ticket: {{ case.case_number|escapejs }}`;
-                const text = `🎫 Ticket: {{ case.case_number|escapejs }}\n👤 Requester: {{ case.requester.full_name|escapejs }}\n🏢 Role/Unit: {{ case.requester.job_role|default:'-'|escapejs }} @ {{ case.requester.unit.name|default:case.requester_unit_name|default:'-'|escapejs }}\n---------------------------\n📌 Subject: {{ case.subject|escapejs }}\n📝 Problem Detail:\n{{ case.problem_description|escapejs }}`;
+                const text = `🎫 Ticket: {{ case.case_number|escapejs }}\n👤 Requester: {{ case.requester.full_name|escapejs }}\n🏢 Role/Unit: {{ case.requester.job_role|default:'-'|escapejs }} @ {{ case.requester.unit.name|default:case.requester_unit_name|default:'-'|escapejs }}\n📍 Location: {{ case.location_display|default:'-'|escapejs }}\n---------------------------\n📌 Subject: {{ case.subject|escapejs }}\n📝 Problem Detail:\n{{ case.problem_description|escapejs }}`;
                 const url = window.location.href;
                 const fullShareText = `${text}\n---------------------------\n🔗 Link: ${url}`;
 
@@ -1229,14 +1258,32 @@
         }">
             <div class="jk-card-header flex items-center justify-between">
                 <span>📄 Problem Description</span>
-                <button type="button" @click="shareTicket()" class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100 transition-all shadow-sm" title="Copy ticket summary to clipboard">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
-                    Share
-                </button>
+                <div class="flex items-center gap-2">
+                    {% if is_sso_whitelist_case and sso_whitelist_user %}
+                        {% if not sso_whitelist_user.is_active %}
+                        <form method="post" action="{% url 'desk:case_activate_sso_user' case.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 transition-all shadow-sm" title="Activate this SSO user account">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Activate User
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            User Active
+                        </span>
+                        {% endif %}
+                    {% endif %}
+                    <button type="button" @click="shareTicket()" class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100 transition-all shadow-sm" title="Copy ticket summary to clipboard">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                        Share
+                    </button>
+                </div>
             </div>
             <div class="jk-card-body max-h-96 overflow-y-auto">
                 <p class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{{ case.problem_description }}</p>
-                
+
                 {% if case.link %}
                 <div class="mt-4 pt-3 border-t border-slate-100 text-sm">
                     <span class="font-semibold text-slate-600">Link:</span> 
@@ -1306,6 +1353,38 @@
     }
 </style>
 <script src="{% static 'vendor/tributejs-5.1.3.min.js' %}"></script>
+<script id="chat-dropzone-js" src="{% static 'js/chat-dropzone.js' %}"></script>
+<script>
+    // Drag & drop files anywhere on the chat panel → reply form's attachment
+    // queue (same path as the Attach button / paste, so the 10-file cap and
+    // previews apply). Disabled when replies are (closed ticket / Auditor).
+    // On an htmx-boosted navigation the external script above loads async
+    // while this inline one runs immediately, so wait for it to be defined.
+    (function () {
+        const setup = () => {
+            if (typeof window.initChatDropzone !== 'function') return;
+            const panel = document.querySelector('.jk-chat-panel');
+            const form = document.getElementById('reply-form');
+            if (!panel || !form) return;
+            window.initChatDropzone(panel, (files) => {
+                const data = window.Alpine && Alpine.$data(form);
+                if (data && data.addFiles) {
+                    data.addFiles(files);
+                    const input = form.querySelector('textarea[name="body"]');
+                    if (input) input.focus();
+                }
+            }, {
+                enabled: () => !!form.querySelector('input[type="file"][name="attachments"]'),
+                hint: 'Up to 10 files per message',
+            });
+        };
+        if (typeof window.initChatDropzone === 'function' && document.readyState !== 'loading') { setup(); return; }
+        const tag = document.getElementById('chat-dropzone-js');
+        if (tag) tag.addEventListener('load', setup, { once: true });
+        document.addEventListener('DOMContentLoaded', setup, { once: true });
+        window.addEventListener('load', setup, { once: true });
+    })();
+</script>
 
 <script>
     // ── Quote Reply Helpers ─────────────────────────────────────
@@ -1334,7 +1413,7 @@
                 // detatch existing to prevent duplicates
                 tributeInstance.detach(document.querySelectorAll('#internal-comment-textarea'));
             }
-            
+
             tributeInstance = new Tribute({
                 values: data,
                 trigger: '@',
@@ -1346,7 +1425,7 @@
                     return '<div class="px-3 py-2 text-sm border-b border-slate-50 last:border-0"><span class="font-semibold text-slate-700">' + item.original.key + '</span> <span class="text-slate-600 text-xs ml-1">@' + item.original.value + '</span></div>';
                 }
             });
-            
+
             const textarea = document.getElementById('internal-comment-textarea');
             if (textarea) {
                 tributeInstance.attach(textarea);
@@ -1387,12 +1466,50 @@
                     container.scrollTop = container.scrollHeight;
                 }
             }
+            notifyOnNewInboundMessage(e.detail.target);
         }
 
         if (e.detail.target.id === 'internal-comments') {
             initTribute();
         }
     });
+
+    // Browser popup when a new customer (inbound) message lands while this
+    // ticket is open — the sidebar bell already covers "elsewhere in desk",
+    // this covers the page the agent is actually looking at. Only fires when
+    // the tab isn't the one in focus, so an agent watching the thread live
+    // doesn't get a redundant popup for a message they can already see.
+    window._lastInboundMsgId = null;
+    (function seedLastInboundMsgId() {
+        const thread = document.getElementById('chat-thread');
+        if (!thread) return;
+        const inbound = thread.querySelectorAll('[data-direction="IN"]');
+        if (inbound.length) window._lastInboundMsgId = inbound[inbound.length - 1].dataset.msgId;
+    })();
+
+    function notifyOnNewInboundMessage(threadEl) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const inbound = threadEl.querySelectorAll('[data-direction="IN"]');
+        if (!inbound.length) return;
+        const latest = inbound[inbound.length - 1];
+        const latestId = latest.dataset.msgId;
+        if (window._lastInboundMsgId === null) {
+            window._lastInboundMsgId = latestId;
+            return;
+        }
+        if (latestId === window._lastInboundMsgId) return;
+        window._lastInboundMsgId = latestId;
+
+        if (document.hidden || !document.hasFocus()) {
+            const preview = (latest.querySelector('.jk-msg__text')?.textContent || '').trim().slice(0, 100);
+            const notif = new Notification('New reply — {{ case.case_number|escapejs }}', {
+                body: preview,
+                icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% else %}/static/img/favicon.png{% endif %}",
+                tag: 'case-{{ case.id }}',
+            });
+            notif.onclick = function () { window.focus(); notif.close(); };
+        }
+    }
 
     // Set flag before reply form submit so afterSwap knows to scroll
     document.addEventListener('htmx:beforeRequest', function (e) {

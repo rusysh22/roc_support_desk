@@ -5,16 +5,11 @@
 {% block page_title %}{% if is_edit %}Edit Category{% else %}New Category{% endif %}{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto space-y-6" x-data="categoryFormApp('{{ form.icon.value|default:"📂" }}')">
+<div class="max-w-5xl mx-auto space-y-6" x-data="categoryFormApp('{{ form.icon.value|default:"📂" }}')">
 
     <!-- Back link -->
     <div>
-        <a href="{% url 'desk:category_list' %}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back to Categories
-        </a>
+        {% url 'desk:category_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
     </div>
 
     {% if form.errors %}
@@ -27,12 +22,15 @@
     </div>
     {% endif %}
 
-    <form method="post">
+    <form data-unsaved-guard method="post">
         {% csrf_token %}
         <!-- Hidden icon value submitted with form -->
         <input type="hidden" name="icon" :value="selectedIcon">
 
-        <div class="space-y-5">
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <!-- Left column -->
+            <div class="space-y-6">
 
             <!-- Core Details -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
@@ -97,12 +95,38 @@
                 <div class="jk-form-group" style="max-width:120px;">
                     <label class="jk-label">Prefix Code <span class="text-red-500">*</span></label>
                     {{ form.prefix_code }}
-                    <p class="text-xs text-slate-400 mt-1">2-char prefix for ticket IDs (e.g. RQ, IT, HR).</p>
+                    <p class="text-xs text-slate-400 mt-1">Unique 2-char prefix for ticket IDs (e.g. RQ, IT, HR). Category names may be duplicated.</p>
                     {% if form.prefix_code.errors %}
                     <div class="jk-form-error">{{ form.prefix_code.errors.0 }}</div>
                     {% endif %}
                 </div>
+
+                <!-- Default Ticket Type + Default Tags row -->
+                <div class="flex items-start gap-4">
+                    <div class="jk-form-group flex-1">
+                        <label class="jk-label">Default Ticket Type</label>
+                        {{ form.default_case_type }}
+                        <p class="text-xs text-slate-400 mt-1">If set, tickets in this category will default to this type (Request, Incident, Question).</p>
+                        {% if form.default_case_type.errors %}
+                        <div class="jk-form-error">{{ form.default_case_type.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="jk-form-group flex-1">
+                        <label class="jk-label">Default Tags</label>
+                        {{ form.default_tags }}
+                        <p class="text-xs text-slate-400 mt-1">Comma-separated tags automatically applied to new tickets.</p>
+                        {% if form.default_tags.errors %}
+                        <div class="jk-form-error">{{ form.default_tags.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
+            </div>
+            <!-- /Left column -->
+
+            <!-- Right column -->
+            <div class="space-y-6">
 
             <!-- Behaviour Flags -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
@@ -214,6 +238,10 @@
                     {% endif %}
                 </div>
             </div>
+            </div>
+            <!-- /Right column -->
+            </div>
+            <!-- /grid -->
 
             <!-- Actions -->
             <div class="flex items-center gap-3">

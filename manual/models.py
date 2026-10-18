@@ -37,7 +37,7 @@ class ManualLandingConfig(models.Model):
 
 
 class Manual(models.Model):
-    """Top-level application manual (e.g. D365, HR System)."""
+    """Top-level application manual (e.g. Finance System, HR System)."""
     title = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
     description = models.TextField(blank=True)

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 12px;font-family:{{ font }};">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e8f0;font-family:{{ font }};">
+          <tr>
+            <td style="padding:24px 28px 8px;">
+              <p style="margin:0 0 4px;font-size:12px;letter-spacing:0.02em;color:{{ eyebrow_color }};font-weight:500;">{{ eyebrow }}</p>
+              <p style="margin:0 0 18px;font-family:{{ display_font }};font-size:24px;line-height:1.25;color:#0f172a;font-weight:600;letter-spacing:-0.02em;">{{ title }}</p>
+              {{ body_html|safe }}
+              {% if cta_url %}
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
+                <tr>
+                  <td style="background:{{ cta_bg }};border-radius:8px;">
+                    <a href="{{ cta_url }}" style="display:inline-block;padding:11px 20px;color:{{ cta_fg }};text-decoration:none;font-size:14px;font-weight:600;letter-spacing:-0.01em;">{{ cta_label }}</a>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#170130;padding:18px 28px;">
+              {% if logo_cid %}
+              <img src="cid:{{ logo_cid }}" alt="{{ site_name }}" width="132" height="auto" style="display:block;width:132px;max-width:50%;height:auto;border:0;margin-bottom:10px;">
+              {% endif %}
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;font-weight:400;">{{ footer_note }}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

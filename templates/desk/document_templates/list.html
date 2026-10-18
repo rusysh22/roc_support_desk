@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_tags %}
 
 {% block title %}Document Templates | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block nav_doc_templates %}active{% endblock %}
@@ -24,55 +24,35 @@
     </div>
     {% endif %}
 
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">Document Templates</h2>
-            <p class="text-sm text-slate-600 mt-1">Manage supporting letter templates (surat kronologi, dsb.) used in ticket submission.</p>
-        </div>
-        {% if request.user.role_access in 'SuperAdmin,Manager' %}
-        <a href="{% url 'desk:document_template_create' %}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap shrink-0">
-            <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            New Template
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- Search -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-        <form method="get" class="flex flex-col sm:flex-row gap-3">
-            <div class="flex-1 relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </div>
-                <input type="text" name="q" value="{{ search_query }}" placeholder="Search templates…" class="jk-input w-full pl-10">
-            </div>
-            <button type="submit" class="jk-btn jk-btn-secondary px-5 whitespace-nowrap">Filter</button>
-            {% if search_query %}
-            <a href="{% url 'desk:document_template_list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 whitespace-nowrap">Clear</a>
-            {% endif %}
-        </form>
-    </div>
+    <!-- Header & Toolbar -->
+    {% if request.user.role_access in 'SuperAdmin,Manager' %}
+    {% url 'desk:document_template_create' as create_url_val %}
+    {% endif %}
+    {% include "partials/list/_toolbar.html" with result_noun="template(s)" title="Document Templates" subtitle="Manage supporting letter templates (surat kronologi, dsb.) used in ticket submission." create_url=create_url_val create_label="New Template" search_query=request.GET.q search_placeholder="Search templates…" clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="desk/document_templates/_filter_fields.html" %}
 
     <!-- Table -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="overflow-x-auto min-h-[40vh]">
+        <div class="overflow-x-auto min-h-[40vh]"
+             x-data="jkListTable([{{ templates|length|default:0 }} ? [{% for tmpl in templates %}'{{ tmpl.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}] : []])">
             <table class="jk-table">
                 <thead>
                     <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-bind:checked="allSelected" @change="toggleAll()">
+                        </th>
                         <th>Template</th>
                         <th class="text-center w-20">Fields</th>
                         <th>Applicable Categories</th>
-                        <th class="text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for tmpl in templates %}
-                    <tr class="hover:bg-slate-50/50 transition-colors">
+                    <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer" @click="openRow('{% url 'desk:document_template_edit' tmpl.id %}')">
+                        <td @click.stop>
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-model="selectedIds" value="{{ tmpl.pk }}">
+                        </td>
                         <td>
                             <div class="font-medium text-slate-900">{{ tmpl.title }}</div>
                             {% if tmpl.description %}
@@ -97,29 +77,6 @@
                                 {% endfor %}
                             </div>
                         </td>
-                        <td class="text-right">
-                            <div class="flex items-center justify-end gap-2 pr-4">
-                                {% if request.user.role_access in 'SuperAdmin,Manager' %}
-                                <a href="{% url 'desk:document_template_edit' tmpl.id %}"
-                                   class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                    </svg>
-                                </a>
-                                {% endif %}
-                                {% if request.user.role_access == 'SuperAdmin' %}
-                                <form method="post" action="{% url 'desk:document_template_delete' tmpl.id %}"
-                                      onsubmit="return confirm('Delete template \'{{ tmpl.title|escapejs }}\'? This cannot be undone.')">
-                                    {% csrf_token %}
-                                    <button type="submit" class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                        </svg>
-                                    </button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </td>
                     </tr>
                     {% empty %}
                     <tr>
@@ -130,9 +87,9 @@
                                 </svg>
                             </div>
                             <p class="text-sm font-medium text-slate-700">
-                                {% if search_query %}No templates match your search.{% else %}No document templates yet.{% endif %}
+                                {% if search_query or has_active_filters %}No templates match your search.{% else %}No document templates yet.{% endif %}
                             </p>
-                            {% if not search_query and request.user.role_access in 'SuperAdmin,Manager' %}
+                            {% if not search_query and not has_active_filters and request.user.role_access in 'SuperAdmin,Manager' %}
                             <a href="{% url 'desk:document_template_create' %}" class="mt-4 inline-flex jk-btn jk-btn-primary px-5 py-2 text-sm">Create Template</a>
                             {% endif %}
                         </td>
@@ -140,6 +97,21 @@
                     {% endfor %}
                 </tbody>
             </table>
+
+            {% include "partials/list/_pagination.html" %}
+
+            {% if request.user.role_access in 'SuperAdmin,Manager' %}
+            {% url 'desk:document_template_bulk_archive' as bulk_archive_url %}
+            {% url 'desk:document_template_bulk_duplicate' as bulk_duplicate_url %}
+            {% url 'desk:document_template_bulk_export' as bulk_export_url %}
+            {% url 'desk:document_template_bulk_delete' as bulk_delete_url %}
+            {% comment %}
+            Delete is enforced SuperAdmin-only server-side (document_template_bulk_delete); Managers see the
+            button but a 403 is returned if clicked, matching the single-item delete gate below the fold.
+            {% endcomment %}
+            {% include "partials/list/_bulk_bar.html" with archive_url=bulk_archive_url duplicate_url=bulk_duplicate_url export_url=bulk_export_url delete_url=bulk_delete_url %}
+            {% include "partials/_confirm_modal.html" %}
+            {% endif %}
         </div>
     </div>
 

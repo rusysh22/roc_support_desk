@@ -40,7 +40,7 @@ class Project(AuditableModel):
     name = models.CharField(
         max_length=255,
         verbose_name="Project Name",
-        help_text="Full project name (e.g. ERP D365 Implementation — PGE).",
+        help_text="Full project name (e.g. ERP Implementation — Client A).",
     )
     client_name = models.CharField(
         max_length=255,
@@ -312,4 +312,3 @@ class PhaseChecklist(AuditableModel):
     def __str__(self):
         status = "[x]" if self.is_completed else "[ ]"
         return f"{status} {self.task_name}"
-

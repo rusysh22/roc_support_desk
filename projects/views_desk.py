@@ -54,9 +54,12 @@ from licensing.decorators import feature_required
 @feature_required('project_management')
 def project_list(request):
     """
-    List all projects.
+    List projects — personal per-user: only projects the user created
+    themselves or was explicitly added to as a follower/editor.
     """
-    projects = Project.objects.all().order_by("-created_at")
+    projects = Project.objects.filter(
+        Q(created_by=request.user) | Q(followers=request.user)
+    ).distinct().order_by("-created_at")
     
     q = request.GET.get("q", "").strip()
     status_filter = request.GET.get("status", "")

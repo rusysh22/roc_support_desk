@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ document.title }} — My Signatures{% endblock %}
+{% block title %}{{ document.title }} | My Signatures{% endblock %}
 {% block nav_my_signatures %}active{% endblock %}
 {% block page_title %}{{ document.title }}{% endblock %}
 
@@ -52,19 +52,15 @@
 {% endif %}
 
 <!-- Page Header -->
+<div class="jk-back-row">
+    {% url 'esign:my_signatures' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+</div>
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">My Signatures</p>
         <h2 class="text-xl font-bold text-slate-900 truncate max-w-xl">{{ document.title }}</h2>
     </div>
     <div class="flex gap-2 flex-wrap flex-shrink-0">
-        <a href="{% url 'esign:my_signatures' %}"
-           class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back
-        </a>
         {% if document.status == 'completed' and document.signed_pdf %}
         <button @click="pdfOpen = true"
                 class="inline-flex items-center gap-2 jk-btn jk-btn-outline">

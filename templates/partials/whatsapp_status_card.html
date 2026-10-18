@@ -1,4 +1,5 @@
 {% load static %}
+{% if whatsapp_ui_enabled %}
 
 <div id="whatsapp-state-container" {% if instance_state != 'open' and instance_state != 'connected' or force_poll %}hx-get="{% url 'desk:whatsapp_status' %}" hx-trigger="every 5s" hx-swap="outerHTML"{% endif %}>
     <!-- Connection Status Header -->
@@ -62,3 +63,6 @@
         </div>
     {% endif %}
 </div>
+{% else %}
+<div id="whatsapp-state-container" class="text-sm text-slate-600">This channel is currently unavailable.</div>
+{% endif %}

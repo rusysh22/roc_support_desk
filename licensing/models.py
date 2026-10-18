@@ -7,6 +7,8 @@ Data models for the RoC Support Desk license system.
 - TrialRecord    : One row per calendar day of trial usage.
 - LicenseAuditLog: Append-only event log; never updated or deleted.
 """
+import uuid
+
 from django.db import models
 from django.utils import timezone
 
@@ -44,13 +46,18 @@ class LicenseRecord(models.Model):
     )
     issued_to = models.CharField(max_length=255, blank=True, help_text="Company name or email.")
     plan_tier = models.CharField(max_length=30, choices=PLAN_CHOICES, default='trial')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='trial')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unlicensed')
 
     # --- Timestamps ---
     issued_at        = models.DateTimeField(null=True, blank=True)
     expires_at       = models.DateTimeField(
         null=True, blank=True,
-        help_text="Null = perpetual license.",
+        help_text="Commercial license/subscription expiry from the Marketplace. Null = perpetual.",
+    )
+    token_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Activation-token refresh deadline. This never controls the commercial license expiry.",
     )
     last_verified_at = models.DateTimeField(
         null=True, blank=True,
@@ -70,12 +77,23 @@ class LicenseRecord(models.Model):
     # --- Binding ---
     install_fingerprint = models.CharField(
         max_length=64, blank=True,
-        help_text="SHA-256(domain + INSTALL_KEY + product_id) — binds license to this server.",
+        help_text="SHA-256(installation_id + product_id) — binds license to this installation.",
+    )
+    installation_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        help_text="Stable random identifier created once for this installation.",
     )
     marketplace_endpoint = models.URLField(
         blank=True,
         help_text="Marketplace base URL used for re-verification.",
     )
+
+    # A trial can only be started once for an installation. These fields remain
+    # intact when a paid license is activated or later deactivated.
+    trial_started_at = models.DateTimeField(null=True, blank=True)
+    trial_consumed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = "License Record"
@@ -91,7 +109,7 @@ class LicenseRecord(models.Model):
     def get_current(cls):
         """Return (or create) the singleton license record (pk=1)."""
         obj, _ = cls.objects.get_or_create(pk=1, defaults={
-            'status': 'trial',
+            'status': 'unlicensed',
             'plan_tier': 'trial',
         })
         return obj
@@ -235,6 +253,7 @@ class LicenseAuditLog(models.Model):
         ('trial_ended',        'Trial Ended'),
         ('verification_ok',    'Online Verification Succeeded'),
         ('verification_failed','Online Verification Failed'),
+        ('verification_requested', 'Online Verification Requested'),
         ('fraud_attempt',      'Fraud Attempt Detected'),
         ('disconnected_wa',    'WhatsApp Disconnected (License)'),
         ('disconnected_email', 'Email Disconnected (License)'),

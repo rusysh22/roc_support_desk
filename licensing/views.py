@@ -16,6 +16,7 @@ from ipware import get_client_ip as _ipware_get_client_ip
 from django.conf import settings
 from django.contrib import messages
 from django.core.management import call_command
+from django.core.cache import cache
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core import signing
 from django.http import JsonResponse
@@ -269,6 +270,13 @@ def start_trial(request):
     record = LicenseRecord.get_current()
     allowed_statuses = ('unlicensed', 'trial', 'expired')
 
+    if record.trial_consumed_at:
+        messages.error(
+            request,
+            "This installation has already used its one-time trial. Please activate a license to continue."
+        )
+        return redirect('licensing:activate')
+
     effective = record.get_effective_status()
     if effective not in allowed_statuses:
         messages.error(
@@ -289,11 +297,11 @@ def start_trial(request):
     record.expires_at       = None
     record.features_json    = {}
     record.last_verified_at = None
+    record.activation_token = ''
     record.max_agents       = trial_max_agents
+    record.trial_started_at = timezone.now()
+    record.trial_consumed_at = record.trial_started_at
     record.save()
-
-    # Reset trial usage counters so user gets fresh quota
-    TrialRecord.objects.all().delete()
 
     LicenseAuditLog.objects.create(
         event='trial_started',
@@ -383,6 +391,36 @@ def license_status(request):
         'trial_duration_sec': cfg.get('TRIAL_DURATION_SECONDS', 900),
     }
     return render(request, 'licensing/status.html', context)
+
+
+@login_required
+@require_POST
+def verify_license_now(request):
+    """Queue a SuperAdmin-requested Marketplace verification."""
+    if not _is_superadmin(request.user):
+        messages.error(request, "Access restricted to SuperAdmin.")
+        return redirect('desk:case_list')
+
+    license_obj = LicenseRecord.get_current()
+    if not license_obj.license_key:
+        messages.error(request, "No installed license is available to verify.")
+        return redirect('licensing:status')
+
+    cooldown_key = f"license_manual_verify_{license_obj.pk}"
+    if not cache.add(cooldown_key, True, timeout=60):
+        messages.warning(request, "A license verification was requested recently. Please wait one minute.")
+        return redirect('licensing:status')
+
+    LicenseAuditLog.objects.create(
+        event='verification_requested',
+        payload={'requested_by': request.user.username, 'trigger': 'manual'},
+        source_ip=_get_client_ip(request),
+        signature_valid=None,
+    )
+    from .tasks import verify_license_periodic
+    verify_license_periodic.delay(force=True, trigger='manual')
+    messages.info(request, "License verification has been queued. Refresh this page shortly to view the result.")
+    return redirect('licensing:status')
 
 
 # ---------------------------------------------------------------------------

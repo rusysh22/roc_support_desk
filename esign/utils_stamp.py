@@ -59,9 +59,10 @@ def _fetch_site_branding():
         cfg = SiteConfig.objects.first()
         if cfg:
             site_name = (cfg.site_name or site_name)[:30]
-            if cfg.logo:
-                cfg.logo.seek(0)
-                logo_reader = ImageReader(cfg.logo)
+            logo_field = cfg.company_logo or cfg.logo
+            if logo_field:
+                logo_field.seek(0)
+                logo_reader = ImageReader(logo_field)
     except Exception:
         pass
     return site_name, logo_reader

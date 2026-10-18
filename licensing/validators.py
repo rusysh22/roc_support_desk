@@ -1,412 +1,332 @@
-"""
-licensing/validators.py
-========================
-Core cryptographic and verification utilities.
-
-Layer 1: HMAC Webhook Signature verification
-Layer 2: Installation Fingerprint (domain binding)
-Layer 5: Periodic Online Verification
-"""
+"""Marketplace activation, heartbeat, and entitlement utilities."""
 import hashlib
 import hmac
 import json
 import logging
-import uuid
-from typing import Optional
 
 import requests
-
-logger = logging.getLogger(__name__)
 from django.conf import settings
 from django.core import signing
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from .entitlements import (
+    EntitlementSignatureError,
+    verify_entitlement_binding,
+    verify_entitlement_signature,
+)
 
-# ---------------------------------------------------------------------------
-# Default feature flags per plan tier
-# Used when marketplace doesn't explicitly send features_json
-# ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
+
+
 TIER_DEFAULT_FEATURES: dict[str, dict] = {
     'trial': {
-        'whatsapp':       False,
-        'email_settings': False,
-        'form_builder':   False,
-        'kb_manage':      False,
-        'short_links':    False,
-        'analytics':      False,
-        'company_units':  False,
-        'sla_reports':    False,
-        'audit_export':   False,
-        'api_access':     False,
-        'esign':          False,
-        'shared_docs':    False,
+        'whatsapp': False, 'email_settings': False, 'form_builder': False,
+        'kb_manage': False, 'short_links': False, 'analytics': False,
+        'company_units': False, 'sla_reports': False, 'audit_export': False,
+        'api_access': False, 'esign': False, 'shared_docs': False,
         'project_management': False,
     },
     'starter': {
-        'whatsapp':       True,
-        'email_settings': True,
-        'form_builder':   True,
-        'kb_manage':      True,
-        'short_links':    True,
-        'analytics':      False,
-        'company_units':  False,
-        'sla_reports':    False,
-        'audit_export':   False,
-        'api_access':     False,
-        'esign':          False,
-        'shared_docs':    False,
+        'whatsapp': True, 'email_settings': True, 'form_builder': True,
+        'kb_manage': True, 'short_links': True, 'analytics': False,
+        'company_units': False, 'sla_reports': False, 'audit_export': False,
+        'api_access': False, 'esign': False, 'shared_docs': False,
         'project_management': False,
     },
     'professional': {
-        'whatsapp':       True,
-        'email_settings': True,
-        'form_builder':   True,
-        'kb_manage':      True,
-        'short_links':    True,
-        'analytics':      True,
-        'company_units':  True,
-        'sla_reports':    True,
-        'audit_export':   True,
-        'api_access':     False,
-        'esign':          True,
-        'shared_docs':    True,
+        'whatsapp': True, 'email_settings': True, 'form_builder': True,
+        'kb_manage': True, 'short_links': True, 'analytics': True,
+        'company_units': True, 'sla_reports': True, 'audit_export': True,
+        'api_access': False, 'esign': True, 'shared_docs': True,
         'project_management': True,
     },
     'business': {
-        'whatsapp':       True,
-        'email_settings': True,
-        'form_builder':   True,
-        'kb_manage':      True,
-        'short_links':    True,
-        'analytics':      True,
-        'company_units':  True,
-        'sla_reports':    True,
-        'audit_export':   True,
-        'api_access':     True,
-        'esign':          True,
-        'shared_docs':    True,
+        'whatsapp': True, 'email_settings': True, 'form_builder': True,
+        'kb_manage': True, 'short_links': True, 'analytics': True,
+        'company_units': True, 'sla_reports': True, 'audit_export': True,
+        'api_access': True, 'esign': True, 'shared_docs': True,
         'project_management': True,
     },
     'enterprise': {
-        'whatsapp':       True,
-        'email_settings': True,
-        'form_builder':   True,
-        'kb_manage':      True,
-        'short_links':    True,
-        'analytics':      True,
-        'company_units':  True,
-        'sla_reports':    True,
-        'audit_export':   True,
-        'api_access':     True,
-        'esign':          True,
-        'shared_docs':    True,
+        'whatsapp': True, 'email_settings': True, 'form_builder': True,
+        'kb_manage': True, 'short_links': True, 'analytics': True,
+        'company_units': True, 'sla_reports': True, 'audit_export': True,
+        'api_access': True, 'esign': True, 'shared_docs': True,
         'project_management': True,
     },
 }
 
 
-# ---------------------------------------------------------------------------
-# Layer 1 — HMAC Webhook Signature
-# ---------------------------------------------------------------------------
-
 def verify_webhook_signature(request_body: bytes, signature_header: str, secret: str) -> bool:
-    """
-    Verify HMAC-SHA256 signature from the marketplace webhook.
-
-    The marketplace signs the raw request body using the shared WEBHOOK_SECRET
-    and sends: X-Webhook-Signature: sha256=<hex_digest>
-
-    Uses hmac.compare_digest to prevent timing attacks.
-    """
-    if not signature_header or not signature_header.startswith('sha256='):
+    """Legacy helper retained only for audit compatibility; no route exposes it."""
+    if not signature_header or not signature_header.startswith('sha256=') or not secret:
         return False
-    if not secret:
-        return False
-
-    received = signature_header[7:]  # strip "sha256=" prefix
-    expected = hmac.new(
-        secret.encode('utf-8'),
-        request_body,
-        hashlib.sha256,
-    ).hexdigest()
-
+    received = signature_header[7:]
+    expected = hmac.new(secret.encode('utf-8'), request_body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(received, expected)
 
 
-# ---------------------------------------------------------------------------
-# Layer 2 — Installation Fingerprint
-# ---------------------------------------------------------------------------
-
 def generate_fingerprint() -> str:
-    """
-    Generate a unique fingerprint for this installation.
+    """Return a stable fingerprint for the marketplace installation seat."""
+    from .models import LicenseRecord
 
-    Composed of: hostname + INSTALL_KEY + product_id
-    This fingerprint is sent to the marketplace to bind a license key to
-    a specific server/domain. Changing the domain or INSTALL_KEY will
-    invalidate the fingerprint.
-    """
-    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
-
-    # Try to get the current site domain, fall back to ALLOWED_HOSTS
-    try:
-        from django.contrib.sites.models import Site
-        hostname = Site.objects.get_current().domain
-    except Exception:
-        allowed = getattr(settings, 'ALLOWED_HOSTS', ['localhost'])
-        hostname = allowed[0] if allowed else 'localhost'
-
-    install_key = getattr(settings, 'INSTALL_KEY', '') or settings.SECRET_KEY[:12]
-    raw = f"{hostname}:{install_key}:{cfg.get('PRODUCT_ID', 'roc-support-desk')}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    product_id = getattr(settings, 'LICENSE_SETTINGS', {}).get('PRODUCT_ID', 'roc-support-desk')
+    installation_id = LicenseRecord.get_current().installation_id
+    return hashlib.sha256(f"{installation_id}:{product_id}".encode()).hexdigest()
 
 
-# ---------------------------------------------------------------------------
-# Layer 5 — Periodic Online Verification
-# ---------------------------------------------------------------------------
+def _activation_headers() -> dict:
+    secret = getattr(settings, 'LICENSE_SETTINGS', {}).get('ACTIVATION_API_SECRET', '')
+    return {'X-Berlanggan-Secret': secret} if secret else {}
 
-def verify_license_online(license_obj) -> bool:
-    """
-    Re-verify the license against the marketplace API.
 
-    Returns True if valid (and updates local record).
-    Returns False if invalid (suspends local record) or if marketplace
-    is unreachable beyond the grace period.
-
-    Called by:
-    - manage.py verify_license (manual)
-    - licensing.verify_license_periodic Celery Beat task (every VERIFY_INTERVAL_HOURS)
-    """
-    from .models import LicenseAuditLog
+def _marketplace_url() -> str:
     from core.models import SiteConfig
 
-    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
     try:
-        marketplace_url = SiteConfig.get_solo().marketplace_url.rstrip('/')
+        return SiteConfig.get_solo().marketplace_url.rstrip('/')
     except Exception:
-        marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com').rstrip('/')
+        return getattr(settings, 'LICENSE_SETTINGS', {}).get(
+            'MARKETPLACE_URL', 'https://tokowebjaya.com',
+        ).rstrip('/')
 
-    # Decode the stored signed key
+
+def _trusted_marketplace_response(data: dict, fingerprint: str) -> dict:
+    """Use only signed entitlement fields once a Marketplace key is configured.
+
+    Marketplace responses retain the short-lived activation token at the top
+    level, while the signed entitlement is the authority for status, expiry,
+    plan limits, and feature grants.
+    """
+    cfg = getattr(settings, 'LICENSE_SETTINGS', {})
+    public_key = cfg.get('ENTITLEMENT_PUBLIC_KEY', '')
+    require_signature = cfg.get('REQUIRE_SIGNED_ENTITLEMENT', False) or bool(public_key)
+    if not require_signature:
+        return data
+
+    entitlement = data.get('entitlement')
+    signature = data.get('entitlement_signature')
+    verified = verify_entitlement_signature(entitlement, signature, public_key)
+    verify_entitlement_binding(
+        verified,
+        fingerprint=fingerprint,
+        product_id=cfg.get('PRODUCT_ID', 'roc-support-desk'),
+    )
+    if data.get('status') != verified['status']:
+        raise EntitlementSignatureError('response status does not match the signed entitlement.')
+
+    # Do not trust duplicate unsigned fields supplied beside the signature.
+    trusted = dict(data)
+    trusted['status'] = verified['status']
+    trusted['license_expires_at'] = verified.get(
+        'license_expires_at', verified.get('expires_at'),
+    )
+    trusted['token_expires_at'] = verified.get('token_expires_at')
+    trusted['entitlements'] = verified['entitlements']
+    return trusted
+
+
+def _sync_entitlements(license_obj, data: dict, status: str) -> None:
+    """Persist a successful Marketplace response as the local source of truth."""
+    # Marketplace separates the commercial end date from the short-lived
+    # activation token. `expires_at` is accepted only as a legacy fallback.
+    if 'license_expires_at' in data:
+        license_obj.expires_at = (
+            parse_datetime(data['license_expires_at'])
+            if data['license_expires_at'] else None
+        )
+    elif 'expires_at' in data:
+        license_obj.expires_at = parse_datetime(data['expires_at']) if data['expires_at'] else None
+    if 'token_expires_at' in data:
+        license_obj.token_expires_at = (
+            parse_datetime(data['token_expires_at'])
+            if data['token_expires_at'] else None
+        )
+    if data.get('token'):
+        license_obj.activation_token = data['token']
+
+    entitlements = data.get('entitlements', {})
+    plan = entitlements.get('PLAN_TIER') or entitlements.get('plan') or license_obj.plan_tier or 'starter'
+    license_obj.plan_tier = str(plan).lower()
+    max_agents = entitlements.get('MAX_AGENTS') or entitlements.get('max_agents')
+    if max_agents is not None and str(max_agents).isdigit():
+        license_obj.max_agents = int(max_agents)
+
+    features = {}
+    for key, value in entitlements.items():
+        if str(value).lower() == 'true':
+            features[key.lower()] = True
+        elif str(value).lower() == 'false':
+            features[key.lower()] = False
+        else:
+            features[key.lower()] = value
+    license_obj.features_json = features or TIER_DEFAULT_FEATURES.get(license_obj.plan_tier, {})
+    license_obj.status = status
+    license_obj.install_fingerprint = generate_fingerprint()
+    license_obj.last_verified_at = timezone.now()
+    license_obj.save()
+
+
+def _marketplace_unavailable(license_obj, reason: str, **details) -> bool:
+    """Apply offline grace only to transport failures, never business statuses."""
+    from .models import LicenseAuditLog
+
+    payload = {'reason': reason, **details}
+    if license_obj.last_verified_at:
+        hours_since = (timezone.now() - license_obj.last_verified_at).total_seconds() / 3600
+        payload['hours_since'] = hours_since
+        grace_hours = getattr(settings, 'LICENSE_SETTINGS', {}).get('GRACE_PERIOD_HOURS', 48)
+        if hours_since > grace_hours:
+            license_obj.status = 'suspended'
+            license_obj.save(update_fields=['status'])
+    LicenseAuditLog.objects.create(event='verification_failed', payload=payload, signature_valid=None)
+    return False
+
+
+def verify_license_online(license_obj) -> bool:
+    """Heartbeat a license and map every documented Marketplace status explicitly."""
+    from .models import LicenseAuditLog
+
     try:
         raw_key = signing.loads(license_obj.license_key, salt='roc-license-v1')
     except signing.BadSignature:
         LicenseAuditLog.objects.create(
+            event='fraud_attempt', payload={'reason': 'license_key_bad_signature'}, signature_valid=False,
+        )
+        return False
+    if not license_obj.activation_token:
+        LicenseAuditLog.objects.create(
+            event='verification_failed', payload={'reason': 'activation_token_missing'}, signature_valid=False,
+        )
+        return False
+
+    fingerprint = generate_fingerprint()
+    try:
+        response = requests.post(
+            f"{_marketplace_url()}/v1/validate",
+            json={
+                'license_key': raw_key,
+                'fingerprint': fingerprint,
+                'token': license_obj.activation_token,
+            },
+            headers=_activation_headers(),
+            timeout=10,
+        )
+    except requests.RequestException:
+        return _marketplace_unavailable(license_obj, 'marketplace_unreachable')
+
+    if response.status_code != 200:
+        return _marketplace_unavailable(
+            license_obj, 'marketplace_http_error', status_code=response.status_code,
+        )
+    try:
+        data = response.json()
+    except (json.JSONDecodeError, ValueError):
+        logger.error('[License] Invalid JSON from marketplace (%s)', response.status_code)
+        return _marketplace_unavailable(license_obj, 'marketplace_invalid_json')
+    if not isinstance(data, dict):
+        return _marketplace_unavailable(license_obj, 'marketplace_invalid_payload')
+    remote_status = data.get('status')
+    if remote_status == 'rate_limited':
+        # A rate limit is transient: retain the last valid entitlement and retry later.
+        LicenseAuditLog.objects.create(event='verification_failed', payload=data, signature_valid=None)
+        return False
+    if remote_status == 'expired':
+        # Per the Marketplace contract this means the activation token expired. The
+        # same fingerprint is idempotent at /activate and does not consume a new seat.
+        result = activate_license_with_marketplace(raw_key)
+        if result.get('success'):
+            return True
+        license_obj.status = 'unlicensed'
+    elif remote_status in ('suspended', 'revoked'):
+        license_obj.status = 'suspended'
+    elif remote_status not in ('active', 'grace'):
+        # invalid, deactivated, or an unknown business status
+        license_obj.status = 'unlicensed'
+
+    if remote_status not in ('active', 'grace'):
+        # Marketplace error states do not carry an entitlement/signature. They
+        # are a normal part of the protocol and must not be reported as a
+        # forged signed response.
+        license_obj.save(update_fields=['status'])
+        LicenseAuditLog.objects.create(event='verification_failed', payload=data, signature_valid=None)
+        return False
+
+    try:
+        data = _trusted_marketplace_response(data, fingerprint)
+    except EntitlementSignatureError as exc:
+        license_obj.status = 'suspended'
+        license_obj.save(update_fields=['status'])
+        LicenseAuditLog.objects.create(
             event='fraud_attempt',
-            payload={'reason': 'license_key_bad_signature'},
+            payload={'reason': 'invalid_signed_entitlement', 'detail': str(exc)},
             signature_valid=False,
         )
         return False
 
-    if not license_obj.activation_token:
-        # If there's no activation token yet, we can't do a fast heartbeat validation.
-        # But we still try activating or just let it fail.
-        # Returning false directly because without token it's not a complete activation
-        return False
+    _sync_entitlements(license_obj, data, remote_status)
+    LicenseAuditLog.objects.create(event='verification_ok', payload=data, signature_valid=True)
+    return True
 
-    try:
-        resp = requests.post(
-            f"{marketplace_url}/v1/validate",
-            json={
-                'license_key': raw_key,
-                'fingerprint': generate_fingerprint(),
-                'token': license_obj.activation_token,
-            },
-            timeout=10,
-        )
-        
-        if resp.status_code != 200:
-            LicenseAuditLog.objects.create(
-                event='verification_failed',
-                payload={'reason': 'marketplace_http_error', 'status_code': resp.status_code},
-                signature_valid=False,
-            )
-            return False
-
-        try:
-            data = resp.json()
-        except (json.JSONDecodeError, ValueError):
-            snippet = resp.text[:100] if resp.text else "Empty response"
-            logger.error(f"[License] Invalid JSON from marketplace ({resp.status_code}): {snippet}")
-            return False
-
-        if data.get('status') == 'active' or data.get('status') == 'grace':
-            # Sync marketplace data to local record
-            if data.get('expires_at'):
-                license_obj.expires_at = parse_datetime(data['expires_at'])
-            
-            # Save the refreshed token
-            if data.get('token'):
-                license_obj.activation_token = data['token']
-            
-            entitlements = data.get('entitlements', {})
-            
-            # Extract Plan Tier (Estalatree usually sends PLAN_TIER or plan)
-            plan_tier = entitlements.get('PLAN_TIER') or entitlements.get('plan') or 'starter'
-            license_obj.plan_tier = str(plan_tier).lower()
-            
-            # Extract Max Agents
-            max_agents_str = entitlements.get('MAX_AGENTS') or entitlements.get('max_agents')
-            if max_agents_str and str(max_agents_str).isdigit():
-                license_obj.max_agents = int(max_agents_str)
-
-            # Map remaining entitlements as features (boolean/string)
-            features = {}
-            for k, v in entitlements.items():
-                k_lower = k.lower()
-                if str(v).lower() == 'true':
-                    features[k_lower] = True
-                elif str(v).lower() == 'false':
-                    features[k_lower] = False
-                else:
-                    features[k_lower] = v
-            
-            # Fallback to defaults if no features provided
-            if not features:
-                features = TIER_DEFAULT_FEATURES.get(license_obj.plan_tier, {})
-                
-            license_obj.features_json = features
-
-            license_obj.last_verified_at = timezone.now()
-            license_obj.save()
-
-            LicenseAuditLog.objects.create(
-                event='verification_ok',
-                payload=data,
-                signature_valid=True,
-            )
-            return True
-        else:
-            # Marketplace says invalid, expired, revoked, suspended, deactivated
-            license_obj.status = 'suspended'
-            license_obj.save()
-            LicenseAuditLog.objects.create(
-                event='verification_failed',
-                payload=data,
-                signature_valid=False,
-            )
-            return False
-
-    except requests.RequestException:
-        # Marketplace unreachable — apply grace period
-        if license_obj.last_verified_at:
-            hours_since = (timezone.now() - license_obj.last_verified_at).total_seconds() / 3600
-            grace_hours = cfg.get('GRACE_PERIOD_HOURS', 48)
-            if hours_since > grace_hours:
-                license_obj.status = 'suspended'
-                license_obj.save()
-                LicenseAuditLog.objects.create(
-                    event='verification_failed',
-                    payload={'reason': 'marketplace_unreachable', 'hours_since': hours_since},
-                )
-        return False
-
-
-# ---------------------------------------------------------------------------
-# Manual activation — verify key with marketplace before activating
-# ---------------------------------------------------------------------------
 
 def activate_license_with_marketplace(license_key_raw: str) -> dict:
-    """
-    Validate and activate a license key provided manually.
-
-    Returns:
-        {'success': True, 'plan': '...', 'expires_at': '...', ...}
-        {'success': False, 'error': 'Reason string'}
-    """
+    """Activate this installation through the documented Marketplace API."""
     from .models import LicenseAuditLog, LicenseRecord
-    from core.models import SiteConfig
 
     cfg = getattr(settings, 'LICENSE_SETTINGS', {})
-    try:
-        marketplace_url = SiteConfig.get_solo().marketplace_url.rstrip('/')
-    except Exception:
-        marketplace_url = cfg.get('MARKETPLACE_URL', 'https://tokowebjaya.com').rstrip('/')
+    marketplace_url = _marketplace_url()
     fingerprint = generate_fingerprint()
-
     try:
-        resp = requests.post(
+        response = requests.post(
             f"{marketplace_url}/v1/activate",
             json={
                 'license_key': license_key_raw,
                 'fingerprint': fingerprint,
                 'machine_name': cfg.get('PRODUCT_ID', 'roc-support-desk'),
             },
+            headers=_activation_headers(),
             timeout=10,
         )
-        
-        if resp.status_code != 200:
-            return {
-                'success': False, 
-                'error': f"Marketplace returned an error (HTTP {resp.status_code}). Please verify your MARKETPLACE_URL or try again later."
-            }
-
-        try:
-            data = resp.json()
-        except (json.JSONDecodeError, ValueError):
-            content_type = resp.headers.get('Content-Type', 'unknown')
-            snippet = resp.text[:100] if resp.text else "Empty response"
-            return {
-                'success': False,
-                'error': f"Invalid response format from marketplace. Expected JSON but got {content_type}. (Preview: {snippet}...)"
-            }
-
-        if data.get('status') not in ('active', 'grace'):
-            reason = data.get('message', 'invalid_key')
-            LicenseAuditLog.objects.create(
-                event='fraud_attempt',
-                payload={'reason': reason, 'key_provided': license_key_raw[:8] + '...'},
-                signature_valid=False,
-            )
-            return {'success': False, 'error': f"License key rejected by marketplace: {reason}"}
-
-        # Key is valid — store and activate
-        signed_key = signing.dumps(license_key_raw, salt='roc-license-v1')
-        
-        entitlements = data.get('entitlements', {})
-        plan_tier = entitlements.get('PLAN_TIER') or entitlements.get('plan') or 'starter'
-        
-        max_agents_str = entitlements.get('MAX_AGENTS') or entitlements.get('max_agents')
-        parsed_max_agents = int(max_agents_str) if max_agents_str and str(max_agents_str).isdigit() else 5
-        
-        features = {}
-        for k, v in entitlements.items():
-            k_lower = k.lower()
-            if str(v).lower() == 'true':
-                features[k_lower] = True
-            elif str(v).lower() == 'false':
-                features[k_lower] = False
-            else:
-                features[k_lower] = v
-                
-        if not features:
-            features = TIER_DEFAULT_FEATURES.get(str(plan_tier).lower(), {})
-
-        record = LicenseRecord.get_current()
-        record.license_key          = signed_key
-        record.activation_token     = data.get('token', '')
-        record.plan_tier            = str(plan_tier).lower()
-        record.status               = 'active'
-        record.expires_at           = parse_datetime(data['expires_at']) if data.get('expires_at') else None
-        record.issued_at            = timezone.now()
-        record.max_agents           = parsed_max_agents
-        record.features_json        = features
-        record.install_fingerprint  = fingerprint
-        record.marketplace_endpoint = marketplace_url
-        record.last_verified_at     = timezone.now()
-        record.save()
-
-        LicenseAuditLog.objects.create(
-            event='activated',
-            payload=data,
-            signature_valid=True,
-        )
-
-        return {'success': True, **data}
-
     except requests.RequestException as exc:
+        return {'success': False, 'status': 'transport_error', 'error': f'Could not reach marketplace: {exc}'}
+
+    if response.status_code != 200:
         return {
             'success': False,
-            'error': f"Could not reach marketplace: {exc}. Please try again later.",
+            'status': 'transport_error',
+            'error': f'Marketplace returned an error (HTTP {response.status_code}).',
         }
+    try:
+        data = response.json()
+    except (json.JSONDecodeError, ValueError):
+        return {'success': False, 'status': 'invalid_response', 'error': 'Marketplace returned invalid JSON.'}
+    if not isinstance(data, dict):
+        return {'success': False, 'status': 'invalid_response', 'error': 'Marketplace returned an invalid payload.'}
+    remote_status = data.get('status')
+    if remote_status not in ('active', 'grace'):
+        reason = data.get('message', remote_status or 'invalid_key')
+        LicenseAuditLog.objects.create(
+            event='fraud_attempt',
+            payload={'reason': reason, 'key_provided': license_key_raw[:8] + '...'},
+            signature_valid=False,
+        )
+        return {'success': False, 'status': remote_status or 'invalid', 'error': f'License key rejected: {reason}'}
 
+    try:
+        data = _trusted_marketplace_response(data, fingerprint)
+    except EntitlementSignatureError as exc:
+        LicenseAuditLog.objects.create(
+            event='fraud_attempt',
+            payload={'reason': 'invalid_signed_entitlement', 'detail': str(exc)},
+            signature_valid=False,
+        )
+        return {'success': False, 'status': 'invalid_signature', 'error': 'Marketplace entitlement signature is invalid.'}
+
+    record = LicenseRecord.get_current()
+    record.license_key = signing.dumps(license_key_raw, salt='roc-license-v1')
+    record.issued_at = timezone.now()
+    record.marketplace_endpoint = marketplace_url
+    _sync_entitlements(record, data, remote_status)
+    LicenseAuditLog.objects.create(event='activated', payload=data, signature_valid=True)
+    return {'success': True, **data}

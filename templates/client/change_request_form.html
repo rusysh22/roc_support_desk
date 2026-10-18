@@ -15,13 +15,10 @@
 <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'cases:dashboard' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'cases:dashboard' %}"
-           class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-        </a>
         <div>
             <p class="text-xs font-semibold text-slate-400 tracking-wide uppercase mb-0.5">{{ case.case_number }}</p>
             <h1 class="text-xl font-bold text-slate-900">
@@ -81,7 +78,7 @@
 
     {% else %}
 
-    <form method="post" x-data="crForm()" class="space-y-5">
+    <form data-unsaved-guard method="post" x-data="crForm()" class="space-y-5">
         {% csrf_token %}
         <input type="hidden" name="token" value="{{ guest_token }}">
         {% if selected_template %}
@@ -95,7 +92,7 @@
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
             </svg>
-            Back to document selection
+            Back
         </a>
         {% endif %}
 
@@ -178,7 +175,7 @@
                 Cancel
             </a>
             <button type="submit" @click="beforeSubmit"
-                    class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                    class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm">
                 {% if is_revision %}Submit Revised Letter{% else %}Submit Supporting Letter{% endif %}
             </button>
         </div>

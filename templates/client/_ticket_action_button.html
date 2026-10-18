@@ -1,0 +1,38 @@
+{% comment %}
+Primary CTA for one ticket row/card. Expects `item` (one entry from the
+`tickets` list built in cases.views_chat.my_tickets) and `compact` (bool —
+icon-only on very small screens if needed later).
+{% endcomment %}
+{# Wrapper anchors the unread badge to the button's top-right corner #}
+<span class="relative inline-flex">
+{% if item.progress.action_label == "Revise & Resubmit" and item.active_cr_doc %}
+<a href="{% url 'cases:portal_change_request_revise' item.active_cr_doc.id %}"
+   class="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap">
+    Revise
+</a>
+{% elif item.progress.action_label == "Reply" and item.can_chat %}
+<a href="/portal/chat/{{ item.case.id }}/"
+   class="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap">
+    Reply
+</a>
+{% elif item.progress.action_label == "Review Solution" and item.can_chat %}
+<a href="/portal/chat/{{ item.case.id }}/"
+   class="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors whitespace-nowrap">
+    Review
+</a>
+{% elif item.can_chat %}
+<a href="/portal/chat/{{ item.case.id }}/"
+   class="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors whitespace-nowrap">
+    View
+</a>
+{% else %}
+<a href="/portal/chat/{{ item.case.id }}/"
+   class="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors whitespace-nowrap">
+    View
+</a>
+{% endif %}
+{% if item.unread_count > 0 %}
+<span class="absolute -top-3 -right-3 min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold leading-none ring-2 ring-white shadow-sm pointer-events-none whitespace-nowrap"
+      title="{{ item.unread_count }} new update{{ item.unread_count|pluralize }}">{{ item.unread_count }} new</span>
+{% endif %}
+</span>

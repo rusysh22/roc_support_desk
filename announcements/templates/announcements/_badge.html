@@ -1,0 +1,8 @@
+{% comment %}Source badge. Expects `announcement`.{% endcomment %}
+{% if announcement.source_type == 'KNOWLEDGE_BASE' %}
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">Knowledge Base</span>
+{% elif announcement.source_type == 'SYSTEM' %}
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-700">System</span>
+{% else %}
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">General</span>
+{% endif %}

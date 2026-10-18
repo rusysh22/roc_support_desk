@@ -19,6 +19,19 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def _resolved_from_email() -> str:
+    from django.conf import settings
+    from core.models import EmailConfig
+
+    email_config = EmailConfig.get_solo()
+    return (
+        email_config.default_from_email
+        or email_config.smtp_user
+        or getattr(settings, "DEFAULT_FROM_EMAIL", "")
+        or "noreply@rocdesk.local"
+    )
+
+
 @shared_task(
     bind=True,
     name="gateways.process_evolution_webhook_task",
@@ -246,9 +259,11 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                     requester=employee,
                     source=CaseRecord.Source.EVOLUTION_WA,
                     status__in=[
-                        CaseRecord.Status.OPEN,
-                        CaseRecord.Status.INVESTIGATING,
-                        CaseRecord.Status.PENDING_INFO,
+                        CaseRecord.Status.NEW,
+                        CaseRecord.Status.ASSIGNED,
+                        CaseRecord.Status.IN_PROGRESS,
+                        CaseRecord.Status.PENDING_USER,
+                        CaseRecord.Status.PENDING_EXTERNAL,
                     ],
                     updated_at__gte=session_window,
                 )
@@ -287,7 +302,7 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 category=default_category,
                 subject=f"WhatsApp: {message_body[:80]}" if message_body else "WhatsApp media message",
                 problem_description=message_body or "[Media attachment received]",
-                status=CaseRecord.Status.OPEN,
+                status=CaseRecord.Status.NEW,
                 source=CaseRecord.Source.EVOLUTION_WA,
                 requester_name=employee.full_name,
                 requester_email=employee.email or "",
@@ -324,9 +339,10 @@ def process_evolution_webhook_task(self, payload: dict[str, Any]) -> str:
                 external_id,
             )
             return f"skipped:integrity_error:{external_id}"
-            
+
         case.has_unread_messages = True
-        case.save(update_fields=["has_unread_messages"])
+        case.last_user_reply_at = timezone.now()
+        case.save(update_fields=["has_unread_messages", "last_user_reply_at"])
 
         # ---------------------------------------------------------
         # 6. Download and save media attachment
@@ -532,6 +548,8 @@ def _download_and_save_attachment(
                     ``mime_type``, ``filename``.
     """
     from cases.models import Attachment
+    from core.models import SiteConfig
+    from core.upload_security import validate_upload, safe_filename
 
     try:
         content_file = svc.download_media(
@@ -541,17 +559,27 @@ def _download_and_save_attachment(
         )
 
         if content_file:
+            max_mb = SiteConfig.get_solo().max_upload_size_mb
+            is_valid, error, mime = validate_upload(content_file, max_mb)
+            if not is_valid:
+                logger.warning(
+                    "Rejected WhatsApp media '%s' for message %s: %s",
+                    media_info.get("filename"), msg.id, error,
+                )
+                return
+
+            content_file.name = safe_filename(media_info.get("filename", "attachment"), mime)
             Attachment.objects.create(
                 message=msg,
                 file=content_file,
                 original_filename=media_info.get("filename", "attachment"),
-                mime_type=media_info.get("mime_type", ""),
+                mime_type=mime,
                 file_size=content_file.size,
             )
             logger.info(
                 "Saved attachment '%s' (%s, %d bytes) for message %s.",
                 media_info.get("filename"),
-                media_info.get("mime_type"),
+                mime,
                 content_file.size,
                 msg.id,
             )
@@ -691,20 +719,24 @@ def poll_imap_emails_task(self) -> str:
                 importance = str(email_data.get("importance", "")).lower()
                 x_priority = str(email_data.get("x_priority", "")).lower()
                 
-                priority = CaseRecord.Priority.MEDIUM
+                impact = CaseRecord.Impact.MEDIUM
+                severity = CaseRecord.Severity.SEV2
                 if "high" in importance or "urgent" in importance or "1" in x_priority or "2" in x_priority:
-                    priority = CaseRecord.Priority.HIGH
+                    impact = CaseRecord.Impact.HIGH
+                    severity = CaseRecord.Severity.SEV1
                 elif "low" in importance or "4" in x_priority or "5" in x_priority:
-                    priority = CaseRecord.Priority.LOW
+                    impact = CaseRecord.Impact.LOW
+                    severity = CaseRecord.Severity.SEV3
                 
                 case = CaseRecord.objects.create(
                     requester=employee,
                     category=default_category,
                     subject=subject[:500] or "Email Inquiry",
                     problem_description=body_text,
-                    status=CaseRecord.Status.OPEN,
+                    status=CaseRecord.Status.NEW,
                     source=CaseRecord.Source.EMAIL,
-                    priority=priority,
+                    impact=impact,
+                    severity=severity,
                     requester_email=employee.email,
                     requester_name=employee.full_name,
                     requester_unit_name=employee.unit.name if employee.unit else "",
@@ -712,7 +744,7 @@ def poll_imap_emails_task(self) -> str:
                     is_spam=is_spam,
                 )
                 is_new_case = True
-                logger.info("Created new case %s from Email for %s with Priority %s.", case.id, employee.full_name, priority)
+                logger.info("Created new case %s from Email for %s with Impact %s Severity %s.", case.id, employee.full_name, impact, severity)
                 if not is_spam:
                     _dispatch_new_ticket_notifs(str(case.id))
 
@@ -726,23 +758,35 @@ def poll_imap_emails_task(self) -> str:
                 channel=Message.Channel.EMAIL,
                 external_id=email_message_id or "",
             )
-            
+
             case.has_unread_messages = True
-            case.save(update_fields=["has_unread_messages"])
+            case.last_user_reply_at = timezone.now()
+            case.save(update_fields=["has_unread_messages", "last_user_reply_at"])
 
             # 4. Process Attachments
+            from core.models import SiteConfig
+            from core.upload_security import validate_bytes, safe_filename
+
+            max_mb = SiteConfig.get_solo().max_upload_size_mb
             for att in email_data.get("attachments", []):
                 filename = att.get("filename", "attachment")
                 content = att.get("content")
-                mime_type = att.get("mime_type", "application/octet-stream")
 
                 if content:
-                    content_file = ContentFile(content, name=filename)
+                    is_valid, error, mime = validate_bytes(content, max_mb)
+                    if not is_valid:
+                        logger.warning(
+                            "Rejected email attachment '%s' for message %s: %s",
+                            filename, msg.id, error,
+                        )
+                        continue
+
+                    content_file = ContentFile(content, name=safe_filename(filename, mime))
                     Attachment.objects.create(
                         message=msg,
                         file=content_file,
                         original_filename=filename,
-                        mime_type=mime_type,
+                        mime_type=mime,
                         file_size=len(content),
                     )
 
@@ -863,101 +907,52 @@ def send_outbound_email_task(self, message_id: str) -> str:
                 plain_history += f"On {h_date_str}, {sender_name} wrote:\n> {plain_body_part.replace(chr(10), chr(10)+'> ')}\n\n"
                 
                 html_history += f"""
-              <div style="margin-bottom: 16px; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #cbd5e1;">
-                <p style="margin: 0 0 4px; font-size: 12px; color: #475569;">
-                  <strong>{html_mod.escape(sender_name)}</strong> <span style="color:#94a3b8;">on {h_date_str}</span>
+              <div style="margin-bottom:12px;background:#f4f8fa;padding:12px 14px;border:1px solid #dbe7ec;border-left:3px solid #c5d0d4;">
+                <p style="margin:0 0 4px;font-size:12px;color:#64748b;">
+                  <strong style="color:#0f172a;">{html_mod.escape(sender_name)}</strong> <span style="color:#94a3b8;">on {h_date_str}</span>
                 </p>
-                <div style="color: #334155; font-size: 14px; line-height: 1.5;">
+                <div style="color:#334155;font-size:14px;line-height:1.5;">
                   {html_body_part}
                 </div>
               </div>
                 """
             html_history += "</div>"
 
-        # Plain text fallback
+        ticket_url = _case_portal_url(case.id)
+
         plain_body = (
             f"{msg.body}\n"
             f"{plain_history}\n"
             f"---\n"
+            f"Open ticket: {ticket_url}\n"
             f"{site_name} · Ticket {case_number}\n"
             f"Please reply to this email to add a comment or reopen the ticket."
         )
 
-        # HTML email
+        from core.utils.email_branding import attach_logo, render_branded_from_template
+
         safe_body = html_mod.escape(msg.body).replace("\n", "<br>")
-        html_body = f"""\
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e2e8f0;">
-
-        <!-- Header -->
-        <tr>
-          <td style="background:#ffffff;padding:24px 32px;border-bottom:2px solid #6366f1;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td>
-                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ {html_mod.escape(site_name)}</span>
-                </td>
-                <td align="right">
-                  <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">Ticket {case_number}</span>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Body -->
-        <tr>
-          <td style="padding:40px 32px 32px;">
-            <div style="color:#334155;font-size:15px;line-height:1.7;">
-              {safe_body}
-            </div>
-            {html_history}
-          </td>
-        </tr>
-
-        <!-- Divider -->
-        <tr>
-          <td style="padding:0 32px;">
-            <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="padding:16px 28px 20px;">
-            <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
-              Reply to this email to continue the conversation regarding ticket <strong>{case_number}</strong>.<br>
-              Your message will automatically be routed to our system.
-            </p>
-          </td>
-        </tr>
-
-      </table>
-
-      <!-- Sub-footer -->
-      <p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;">
-        © {html_mod.escape(site_name)} · Powered by JokoUI
-      </p>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+        html_body = render_branded_from_template(
+            "emails/bodies/staff_outbound.html",
+            {
+                "message_body": safe_body,
+                "history_html": html_history,
+                "case_number": case_number,
+            },
+            site_name=site_name,
+            title=f"Ticket {case_number}",
+            footer_note="Reply to this email to continue the conversation. Your message will be routed to the support desk.",
+            cta_url=ticket_url,
+            cta_label="Open Ticket",
+        )
 
         from core.models import EmailConfig
         email_config = EmailConfig.get_solo()
         from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
         
-        # Build a deterministic Message-ID for this case so all
-        # emails about the same case form a thread.
         from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
         case_thread_id = f'<case-{case.id}@{from_domain}>'
 
-        # Find the original inbound Message-ID (if stored)
         inbound_msg = (
             Message.objects.filter(
                 case=case,
@@ -968,18 +963,19 @@ def send_outbound_email_task(self, message_id: str) -> str:
             .order_by('sent_at')
             .first()
         )
-        # Build References chain: original inbound + case thread ID
         ref_ids = []
         if inbound_msg and inbound_msg.external_id:
             ref_ids.append(inbound_msg.external_id)
         ref_ids.append(case_thread_id)
         references_str = ' '.join(ref_ids)
-        reply_to_id = ref_ids[0]  # Reply to the first (original) message
+        reply_to_id = ref_ids[0]
 
-        # Parse CC emails if provided
-        cc_list = []
+        cc_set = set()
+        if case.cc_emails:
+            cc_set.update(e.strip().lower() for e in case.cc_emails.split(',') if e.strip())
         if msg.cc_emails:
-            cc_list = [email.strip() for email in msg.cc_emails.split(',') if email.strip()]
+            cc_set.update(e.strip().lower() for e in msg.cc_emails.split(',') if e.strip())
+        cc_list = sorted(cc_set)
 
         email = EmailMultiAlternatives(
             subject=subject,
@@ -994,15 +990,15 @@ def send_outbound_email_task(self, message_id: str) -> str:
             },
         )
         email.attach_alternative(html_body, 'text/html')
+        attach_logo(email)
 
-        # Handle Attachments
-        attachments = msg.attachments.all()[:10]  # Max 10 files
+        attachments = msg.attachments.all()[:10]
         total_size = 0
         limit_exceeded = False
         
         for att in attachments:
             total_size += att.file_size
-            if total_size > 10 * 1024 * 1024:  # 10MB limit
+            if total_size > 10 * 1024 * 1024:
                 limit_exceeded = True
                 break
                 
@@ -1281,121 +1277,67 @@ def send_outbound_whatsapp_task(self, message_id: str) -> str:
 )
 def send_case_acknowledgment_task(self, case_id: str) -> str:
     """
-    Sends an auto-acknowledgment email when a new case is created from an
-    inbound email. Includes the ticket number so the user can reference it
-    and future replies are threaded automatically.
+    Sends an auto-acknowledgment email when a new case is created.
     """
     from cases.models import CaseRecord, Message
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
     from core.models import SiteConfig
-    import html as html_mod
 
     site_name = SiteConfig.get_solo().site_name
 
     try:
         case = CaseRecord.objects.select_related("requester").get(id=case_id)
-        requester = case.requester
-        if not requester or not requester.email:
+        requester_name = case.requester_name or "there"
+        to_email = ""
+        if case.requester and case.requester.email:
+            to_email = case.requester.email.strip()
+            requester_name = case.requester.full_name or requester_name
+        elif case.requester_email:
+            to_email = case.requester_email.strip()
+        if not to_email:
             return "skipped:no_requester_email"
 
-        case_number = case.case_number  # e.g. CASE-E38BBD1F
+        case_number = case.case_number
+        ticket_url = _case_portal_url(case.id)
         subject = f"[{case_number}] Request Received — {case.subject}"
-        safe_name = html_mod.escape(requester.full_name)
-        safe_subject = html_mod.escape(case.subject)
 
         plain_body = (
-            f"Hello {requester.full_name},\n\n"
+            f"Hello {requester_name},\n\n"
             f"Thank you for contacting us.\n\n"
             f"Your request has been received and is being reviewed by our support staff.\n"
             f"Here are your ticket details:\n"
             f"Ticket Number: {case_number}\n"
-            f"Subject: {case.subject}\n\n"
-            f"You will receive an update from us shortly.\n"
-            f"To add additional comments, simply reply to this email.\n\n"
+            f"Subject: {case.subject}\n"
+            f"Open ticket: {ticket_url}\n\n"
+            f"You will receive an update from us shortly.\n\n"
             f"---\n"
             f"{site_name}\n"
         )
 
-        html_body = f"""\
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e2e8f0;">
+        from core.utils.email_branding import attach_logo, render_branded_from_template
 
-        <!-- Header -->
-        <tr>
-          <td style="background:#ffffff;padding:24px 32px;border-bottom:2px solid #6366f1;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td>
-                  <span style="color:#1e293b;font-size:20px;font-weight:800;letter-spacing:-0.5px;">🛠️ {html_mod.escape(site_name)}</span>
-                </td>
-                <td align="right">
-                  <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;">{case_number}</span>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Body -->
-        <tr>
-          <td style="padding:40px 32px 12px;">
-            <p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.7;">Hello <strong style="color:#1e293b;">{safe_name}</strong>,</p>
-            <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">Thank you for reaching out to us. We have received your request and our support team will review it shortly. For your reference, here are the details of your ticket:</p>
-
-            <!-- Ticket Details Card -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:0 0 24px;">
-              <tr>
-                <td style="padding:16px 20px;">
-                  <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Ticket Number</p>
-                  <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#1e293b;letter-spacing:0.5px;">{case_number}</p>
-                  <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Subject</p>
-                  <p style="margin:0;font-size:15px;color:#334155;">{safe_subject}</p>
-                </td>
-              </tr>
-            </table>
-
-            <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.6;">To add additional comments or provide more information, please <strong>reply to this email</strong> directly.</p>
-          </td>
-        </tr>
-
-        <!-- Divider -->
-        <tr>
-          <td style="padding:0 32px;">
-            <hr style="border:none;border-top:1px solid #f1f5f9;margin:0;">
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="padding:20px 32px;background:#f8fafc;text-align:center;">
-            <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
-              © {html_mod.escape(site_name)}<br>
-              This is an automated message, but replies to this thread will be logged to your ticket.
-            </p>
-          </td>
-        </tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+        html_body = render_branded_from_template(
+            "emails/bodies/ticket_ack.html",
+            {
+                "requester_name": requester_name,
+                "case_number": case_number,
+                "case_subject": case.subject,
+                "ticket_url": ticket_url,
+            },
+            site_name=site_name,
+            title="Request received",
+            cta_url=ticket_url,
+            cta_label="Open ticket",
+        )
 
         from core.models import EmailConfig
         email_config = EmailConfig.get_solo()
         from_email_addr = email_config.default_from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@rocdesk.local")
 
-        # Deterministic Message-ID for threading
         from_domain = from_email_addr.split('@')[-1] if '@' in from_email_addr else 'rocdesk.local'
         case_thread_id = f'<case-{case.id}@{from_domain}>'
 
-        # Find the original inbound Message-ID (if stored)
         inbound_msg = (
             Message.objects.filter(
                 case=case,
@@ -1413,11 +1355,16 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
         references_str = ' '.join(ref_ids)
         reply_to_id = ref_ids[0]
 
+        cc_list = []
+        if case.cc_emails:
+            cc_list = [e.strip() for e in case.cc_emails.split(',') if e.strip()]
+
         email = EmailMultiAlternatives(
             subject=subject,
             body=plain_body,
             from_email=from_email_addr,
-            to=[requester.email],
+            to=[to_email],
+            cc=cc_list if cc_list else None,
             headers={
                 'In-Reply-To': reply_to_id,
                 'References': references_str,
@@ -1425,9 +1372,10 @@ def send_case_acknowledgment_task(self, case_id: str) -> str:
             },
         )
         email.attach_alternative(html_body, 'text/html')
+        attach_logo(email)
         email.send(fail_silently=False)
 
-        logger.info("Sent acknowledgment email for case %s to %s", case.id, requester.email)
+        logger.info("Sent acknowledgment email for case %s to %s", case.id, to_email)
         return "success"
 
     except CaseRecord.DoesNotExist:
@@ -1452,8 +1400,8 @@ def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url:
     """
     from cases.models import CaseRecord
     from core.models import SiteConfig
+    from core.utils.email_branding import attach_logo, render_branded_from_template
     from django.core.mail import EmailMultiAlternatives
-    from django.template.loader import render_to_string
     import logging
 
     try:
@@ -1480,16 +1428,25 @@ def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url:
             "case_url": case_url,
         }
 
-        html_body = render_to_string("emails/ticket_assigned.html", context)
+        html_body = render_branded_from_template(
+            "emails/bodies/ticket_assigned.html",
+            context,
+            site_name=site_name,
+            title="Ticket assigned to you",
+            cta_url=case_url,
+            cta_label="Open ticket",
+        )
         
         subject = f"[{site_name}] Ticket Assigned: {case.case_number} - {case.subject}"
         
         email_msg = EmailMultiAlternatives(
             subject=subject,
             body=f"Ticket {case.case_number} has been assigned to you by {assigner_name}. View here: {case_url}",
+            from_email=_resolved_from_email(),
             to=[case.assigned_to.email],
         )
         email_msg.attach_alternative(html_body, "text/html")
+        attach_logo(email_msg)
         email_msg.send(fail_silently=False)
         
         return "success:email_sent"
@@ -1497,6 +1454,117 @@ def send_assignment_email_task(self, case_id: str, assigner_name: str, case_url:
     except CaseRecord.DoesNotExist:
         return "error:case_not_found"
     except Exception as exc:
+        try:
+            self.retry(exc=exc)
+        except self.MaxRetriesExceededError:
+            return "error:max_retries"
+
+
+def queue_requester_status_email(case_id, status_value: str) -> None:
+    from cases.models import CaseRecord
+
+    if status_value not in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED):
+        return
+    send_requester_ticket_status_email_task.delay(str(case_id), status_value)
+
+
+@shared_task(
+    bind=True,
+    name="gateways.send_requester_ticket_status_email_task",
+    max_retries=2,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def send_requester_ticket_status_email_task(self, case_id: str, status_value: str) -> str:
+    """
+    Always email the ticket requester when a case is Resolved or Closed.
+    Uses requester.email / requester_email directly (does not require a User
+    account or notification preferences).
+    """
+    from cases.models import CaseRecord
+    from core.models import SiteConfig
+    from core.utils.email_branding import attach_logo, render_branded_from_template
+    from django.core.mail import EmailMultiAlternatives
+
+    try:
+        case = CaseRecord.objects.select_related("requester").get(id=case_id)
+        to_email = ""
+        requester_name = case.requester_name or "there"
+        if case.requester and case.requester.email:
+            to_email = case.requester.email.strip()
+            requester_name = case.requester.full_name or requester_name
+        elif case.requester_email:
+            to_email = case.requester_email.strip()
+        if not to_email:
+            return "skipped:no_requester_email"
+
+        site_name = SiteConfig.get_solo().site_name
+        status_label = dict(CaseRecord.Status.choices).get(status_value, status_value)
+        case_number = case.case_number
+
+        if status_value == CaseRecord.Status.RESOLVED:
+            headline = "Your ticket has been resolved"
+            detail = (
+                "Our support team has marked your ticket as resolved. "
+                "If the issue is not fully fixed, you can reopen it from the portal "
+                "or reply to this email."
+            )
+        else:
+            headline = "Your ticket has been closed"
+            detail = (
+                "Your ticket has been closed. If you need further help, "
+                "please submit a new ticket or reply to this email."
+            )
+
+        subject = f"[{case_number}] {status_label} — {case.subject}"
+        plain_body = (
+            f"Hello {requester_name},\n\n"
+            f"{headline}.\n\n"
+            f"Ticket Number: {case_number}\n"
+            f"Subject: {case.subject}\n"
+            f"Status: {status_label}\n\n"
+            f"{detail}\n\n"
+            f"---\n{site_name}\n"
+        )
+        html_body = render_branded_from_template(
+            "emails/bodies/ticket_status.html",
+            {
+                "requester_name": requester_name,
+                "case_number": case_number,
+                "case_subject": case.subject or "",
+                "status_label": status_label,
+                "detail": detail,
+            },
+            site_name=site_name,
+            title=headline,
+        )
+
+        cc_list = []
+        if case.cc_emails:
+            cc_list = [e.strip() for e in case.cc_emails.split(',') if e.strip()]
+
+        email_msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_body,
+            from_email=_resolved_from_email(),
+            to=[to_email],
+            cc=cc_list if cc_list else None,
+        )
+        email_msg.attach_alternative(html_body, "text/html")
+        attach_logo(email_msg)
+        email_msg.send(fail_silently=False)
+        logger.info(
+            "Sent requester %s email for case %s to %s",
+            status_value, case.case_number, to_email,
+        )
+        return "success:email_sent"
+    except CaseRecord.DoesNotExist:
+        return "error:case_not_found"
+    except Exception as exc:
+        logger.exception(
+            "Failed requester status email for case %s (%s): %s",
+            case_id, status_value, exc,
+        )
         try:
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
@@ -1807,8 +1875,6 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                     f"Reply to this email to add your response directly to ticket {case_number}."
                 )
 
-            from django.template.loader import render_to_string
-
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=plain_body,
@@ -1865,8 +1931,16 @@ def escalate_case_task(self, case_id: str, forward_to: str, channel: str, custom
                 "site_name": site_name,
                 "limit_exceeded": limit_exceeded,
             }
-            html_body = render_to_string("emails/escalate.html", html_context)
+            from core.utils.email_branding import attach_logo, render_branded_from_template
+            html_body = render_branded_from_template(
+                "emails/bodies/escalate.html",
+                html_context,
+                site_name=site_name,
+                title="Ticket escalation request",
+                footer_note="Automated escalation. Reply to this email to respond.",
+            )
             email.attach_alternative(html_body, "text/html")
+            attach_logo(email)
 
             email.send(fail_silently=False)
 
@@ -2037,15 +2111,43 @@ def react_whatsapp_message_task(self, message_id: str, emoji: str) -> str:
 def _get_site_base_url() -> str:
     """Return the base URL for building absolute case links inside tasks."""
     from django.conf import settings
-    trusted = getattr(settings, "CSRF_TRUSTED_ORIGINS", [])
+
+    try:
+        from core.models import SiteConfig
+
+        site_url = (SiteConfig.get_solo().site_url or "").strip().rstrip("/")
+        if site_url:
+            return site_url
+    except Exception:
+        pass
+
+    site_url = (getattr(settings, "SITE_URL", "") or "").strip().rstrip("/")
+    if site_url:
+        return site_url
+
+    trusted = getattr(settings, "CSRF_TRUSTED_ORIGINS", []) or []
     for origin in trusted:
         if origin.startswith("https://") and "*" not in origin:
             return origin.rstrip("/")
-    hosts = getattr(settings, "ALLOWED_HOSTS", [])
+    hosts = getattr(settings, "ALLOWED_HOSTS", []) or []
     for host in hosts:
         if host not in ("localhost", "127.0.0.1", "*"):
             return f"https://{host}"
     return "http://localhost"
+
+
+def _case_desk_url(case_id) -> str:
+    from django.urls import reverse
+
+    path = reverse("desk:case_detail", kwargs={"case_id": case_id})
+    return f"{_get_site_base_url()}{path}"
+
+
+def _case_portal_url(case_id) -> str:
+    from django.urls import reverse
+
+    path = reverse("chat:room", kwargs={"case_uuid": case_id})
+    return f"{_get_site_base_url()}{path}"
 
 
 def _dispatch_new_ticket_notifs(case_id: str) -> None:
@@ -2091,8 +2193,7 @@ def send_teams_notification_task(self, case_id: str) -> str:
 
         case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
         site_name = SiteConfig.get_solo().site_name
-        base_url = _get_site_base_url()
-        case_url = f"{base_url}/desk/cases/{case.id}/"
+        case_url = _case_desk_url(case.id)
 
         requester_display = (
             case.requester.full_name if case.requester else (case.requester_name or "—")
@@ -2100,10 +2201,10 @@ def send_teams_notification_task(self, case_id: str) -> str:
         category_display = case.category.name if case.category else "—"
 
         priority_emoji = {
-            "Critical": "🔴",
-            "High": "🟠",
-            "Medium": "🟡",
-            "Low": "🟢",
+            "P1": "🔴",
+            "P2": "🟠",
+            "P3": "🟡",
+            "P4": "🟢",
         }.get(case.priority, "⚪")
 
         source_emoji = {
@@ -2161,7 +2262,7 @@ def send_teams_notification_task(self, case_id: str) -> str:
             timeout=10,
         )
 
-        if response.status_code == 200:
+        if 200 <= response.status_code < 300:  # Workflows webhooks reply 202 Accepted
             logger.info("Teams notification sent for case %s", case.case_number)
             return "success"
 
@@ -2208,8 +2309,7 @@ def send_new_ticket_wa_notif_task(self, case_id: str) -> str:
 
         case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
         site_name = SiteConfig.get_solo().site_name
-        base_url = _get_site_base_url()
-        case_url = f"{base_url}/desk/cases/{case.id}/"
+        case_url = _case_desk_url(case.id)
 
         requester_display = (
             case.requester.full_name if case.requester else (case.requester_name or "—")
@@ -2307,9 +2407,9 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
     Send an email notification to internal recipients (agents/admins)
     when a new support ticket is created.
     """
-    import html as html_mod
     from cases.models import CaseRecord
     from core.models import NotificationConfig, SiteConfig
+    from core.utils.email_branding import attach_logo, render_branded_from_template
     from django.core.mail import EmailMultiAlternatives
 
     try:
@@ -2318,100 +2418,61 @@ def send_new_ticket_email_notif_task(self, case_id: str) -> str:
         if not recipients:
             return "skipped:no_email_recipients"
 
-        case = CaseRecord.objects.select_related("requester", "category").get(id=case_id)
-        site_name = SiteConfig.get_solo().site_name
-        base_url = _get_site_base_url()
-        case_url = f"{base_url}/desk/cases/{case.id}/"
+        case = CaseRecord.objects.select_related("requester", "category", "location").get(id=case_id)
+        site_cfg = SiteConfig.get_solo()
+        site_name = site_cfg.site_name
+        case_url = _case_desk_url(case.id)
 
         requester_display = (
             case.requester.full_name if case.requester else (case.requester_name or "—")
         )
+        location_display = case.location_display or "—"
         priority_colors = {
-            "critical": "#ef4444", "high": "#f97316",
-            "medium": "#eab308", "low": "#22c55e",
+            "P1": "#b91c1c",
+            "P2": "#c2410c",
+            "P3": "#b45309",
+            "P4": "#166534",
         }
-        priority_color = priority_colors.get(case.priority, "#6b7280")
+        priority_label = case.get_priority_display()
 
-        safe_subject = html_mod.escape(case.subject)
-        safe_requester = html_mod.escape(requester_display)
-        safe_site = html_mod.escape(site_name)
-        safe_case_number = html_mod.escape(case.case_number)
-
-        subject = f"[{safe_site}] New Ticket: {safe_case_number} — {safe_subject}"
-
+        subject = f"[{site_name}] New Ticket: {case.case_number} — {case.subject}"
         plain_body = (
             f"A new support ticket has been submitted in {site_name}.\n\n"
             f"Ticket #  : {case.case_number}\n"
             f"From      : {requester_display}\n"
+            f"Location  : {location_display}\n"
             f"Subject   : {case.subject}\n"
-            f"Priority  : {case.get_priority_display()}\n"
+            f"Priority  : {priority_label}\n"
             f"Source    : {case.get_source_display()}\n\n"
             f"Open ticket: {case_url}\n"
         )
-
-        html_body = f"""\
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-        <tr>
-          <td style="background:#1e293b;padding:20px 28px;">
-            <span style="color:#ffffff;font-size:16px;font-weight:700;">{safe_site}</span>
-            <span style="color:#94a3b8;font-size:13px;margin-left:8px;">Support Desk</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:28px;">
-            <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a;">🎫 New Ticket Received</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-              <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;width:110px;">Ticket #</td>
-                <td style="padding:10px 14px;font-size:13px;font-weight:700;color:#0f172a;font-family:monospace;">{safe_case_number}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">From</td>
-                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_requester}</td>
-              </tr>
-              <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subject</td>
-                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_subject}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Priority</td>
-                <td style="padding:10px 14px;border-top:1px solid #e2e8f0;">
-                  <span style="background:{priority_color};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">{html_mod.escape(case.get_priority_display())}</span>
-                </td>
-              </tr>
-              <tr style="background:#f8fafc;">
-                <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Source</td>
-                <td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #e2e8f0;">{html_mod.escape(case.get_source_display())}</td>
-              </tr>
-            </table>
-            <div style="margin-top:20px;text-align:center;">
-              <a href="{case_url}" style="display:inline-block;background:#1e293b;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 24px;border-radius:6px;">Open Ticket →</a>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
-            <span style="font-size:11px;color:#94a3b8;">Automated notification from {safe_site} — do not reply to this email</span>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+        html_body = render_branded_from_template(
+            "emails/bodies/new_ticket_staff.html",
+            {
+                "site_name": site_name,
+                "case_number": case.case_number,
+                "requester_name": requester_display,
+                "location": location_display,
+                "case_subject": case.subject,
+                "priority": priority_label,
+                "priority_fg": priority_colors.get(case.priority, "#475569"),
+                "source": case.get_source_display(),
+                "case_url": case_url,
+            },
+            site_name=site_name,
+            title="New support ticket",
+            cta_url=case_url,
+            cta_label="Open ticket",
+        )
 
         email_msg = EmailMultiAlternatives(
             subject=subject,
             body=plain_body,
+            from_email=_resolved_from_email(),
             to=recipients,
         )
         email_msg.attach_alternative(html_body, "text/html")
+        attach_logo(email_msg)
         email_msg.send(fail_silently=False)
 
         logger.info(
@@ -2450,11 +2511,11 @@ def notify_staff_chat_reply_task(self, message_id: str) -> str:
     - The ticket has not been viewed by staff in the last 2 minutes
       (avoids flooding when a staff member is actively watching the thread)
     """
-    import html as html_mod
     from datetime import timedelta
 
     from cases.models import CaseRecord, Message
     from core.models import NotificationConfig, SiteConfig
+    from core.utils.email_branding import attach_logo, render_branded_from_template
     from django.core.mail import EmailMultiAlternatives
     from django.utils import timezone
 
@@ -2472,95 +2533,53 @@ def notify_staff_chat_reply_task(self, message_id: str) -> str:
         if not notif_cfg.notify_new_ticket_email:
             return "skipped:email_notif_disabled"
 
-        # Skip if staff has been on this ticket in the last 2 min
         if case.last_viewed_at and (timezone.now() - case.last_viewed_at) < timedelta(minutes=2):
             return "skipped:staff_active"
 
         recipients = notif_cfg.get_email_recipients_list()
-        # Prefer assigned staff's email if set
         if case.assigned_to and case.assigned_to.email:
             recipients = [case.assigned_to.email]
         if not recipients:
             return "skipped:no_recipients"
 
         site_name = SiteConfig.get_solo().site_name
-        base_url = _get_site_base_url()
-        case_url = f"{base_url}/desk/cases/{case.id}/"
+        case_url = _case_desk_url(case.id)
 
-        safe_site = html_mod.escape(site_name)
-        safe_num = html_mod.escape(case.case_number)
-        safe_subj = html_mod.escape(case.subject)
-        safe_from = html_mod.escape(case.requester_name or case.requester_email or "Portal User")
-        safe_body = html_mod.escape((msg.body or "")[:300])
+        from_name = case.requester_name or case.requester_email or "Portal User"
+        preview = (msg.body or "")[:300]
 
-        email_subject = f"[{safe_site}] New chat message in {safe_num}"
+        email_subject = f"[{site_name}] New chat message in {case.case_number}"
 
         plain = (
             f"A portal user sent a new message in ticket {case.case_number}.\n\n"
-            f"From   : {safe_from}\n"
+            f"From   : {from_name}\n"
             f"Ticket : {case.subject}\n"
-            f"Message: {msg.body[:300]}\n\n"
+            f"Message: {msg.body[:300] if msg.body else ''}\n\n"
             f"Open ticket: {case_url}\n"
         )
 
-        html = f"""\
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
-    <tr><td align="center">
-      <table width="540" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-        <tr>
-          <td style="background:#4f46e5;padding:20px 28px;">
-            <span style="color:#fff;font-size:15px;font-weight:700;">{safe_site}</span>
-            <span style="color:#a5b4fc;font-size:12px;margin-left:8px;">Chat Notification</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 28px;">
-            <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#0f172a;">💬 New Portal Chat Message</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:16px;">
-              <tr style="background:#f8fafc;">
-                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;width:80px;">Ticket</td>
-                <td style="padding:8px 12px;font-size:12px;font-weight:700;color:#0f172a;font-family:monospace;">{safe_num}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">From</td>
-                <td style="padding:8px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_from}</td>
-              </tr>
-              <tr style="background:#f8fafc;">
-                <td style="padding:8px 12px;font-size:11px;font-weight:600;color:#64748b;border-top:1px solid #e2e8f0;">Subject</td>
-                <td style="padding:8px 12px;font-size:12px;color:#0f172a;border-top:1px solid #e2e8f0;">{safe_subj}</td>
-              </tr>
-            </table>
-            <div style="background:#f1f5f9;border-left:3px solid #4f46e5;border-radius:4px;padding:12px 14px;font-size:13px;color:#334155;line-height:1.5;">
-              {safe_body}
-            </div>
-            <div style="margin-top:20px;text-align:center;">
-              <a href="{case_url}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;">
-                Open in Support Desk →
-              </a>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">
-            {safe_site} — automated notification. Do not reply to this email.
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+        html = render_branded_from_template(
+            "emails/bodies/chat_reply_staff.html",
+            {
+                "case_number": case.case_number,
+                "from_name": from_name,
+                "case_subject": case.subject,
+                "message_preview": preview,
+            },
+            site_name=site_name,
+            title="New portal chat message",
+            cta_url=case_url,
+            cta_label="Open ticket",
+        )
 
         email_msg = EmailMultiAlternatives(
             subject=email_subject,
             body=plain,
+            from_email=_resolved_from_email(),
             to=recipients,
         )
         email_msg.attach_alternative(html, "text/html")
+        attach_logo(email_msg)
         email_msg.send(fail_silently=False)
         return f"success:{len(recipients)}_recipients"
 
@@ -2582,6 +2601,11 @@ def wa_circuit_health_check_task() -> str:
     Periodically test the WA instance state and auto-reset the circuit breaker
     if the instance is back online. Scheduled every 30 minutes via Celery Beat.
     """
+    from django.conf import settings as dj_settings
+
+    if not dj_settings.WA_ENABLED:
+        return "disabled:WA_ENABLED=false"
+
     from gateways.services import EvolutionAPIService
     from gateways.throttle import is_circuit_open, record_disconnect, reset_circuit
 
@@ -2618,6 +2642,11 @@ def wa_set_online_task() -> str:
     Set WhatsApp presence to 'available' at the start of business hours.
     Schedule this via Celery beat at 07:00 WIB Mon-Fri.
     """
+    from django.conf import settings as dj_settings
+
+    if not dj_settings.WA_ENABLED:
+        return "disabled:WA_ENABLED=false"
+
     import random
     import time
     from gateways.services import EvolutionAPIService
@@ -2643,6 +2672,11 @@ def wa_set_offline_task() -> str:
     Set WhatsApp presence to 'unavailable' at end of business hours.
     Schedule this via Celery beat at 20:00 WIB Mon-Fri.
     """
+    from django.conf import settings as dj_settings
+
+    if not dj_settings.WA_ENABLED:
+        return "disabled:WA_ENABLED=false"
+
     import random
     import time
     from gateways.services import EvolutionAPIService
@@ -2849,9 +2883,11 @@ def process_teams_webhook_task(self, payload: dict, auth_token: str = "") -> str
             CaseRecord.objects.filter(
                 source=CaseRecord.Source.TEAMS_BOT,
                 status__in=[
-                    CaseRecord.Status.OPEN,
-                    CaseRecord.Status.INVESTIGATING,
-                    CaseRecord.Status.PENDING_INFO,
+                    CaseRecord.Status.NEW,
+                    CaseRecord.Status.ASSIGNED,
+                    CaseRecord.Status.IN_PROGRESS,
+                    CaseRecord.Status.PENDING_USER,
+                    CaseRecord.Status.PENDING_EXTERNAL,
                 ],
                 updated_at__gte=session_window,
             )
@@ -2874,7 +2910,7 @@ def process_teams_webhook_task(self, payload: dict, auth_token: str = "") -> str
                 category=default_category,
                 subject=f"Teams: {text[:80]}",
                 problem_description=text,
-                status=CaseRecord.Status.OPEN,
+                status=CaseRecord.Status.NEW,
                 source=CaseRecord.Source.TEAMS_BOT,
                 requester_name=teams_user_name,
                 requester_email=(employee.email if employee else ""),
@@ -2908,7 +2944,8 @@ def process_teams_webhook_task(self, payload: dict, auth_token: str = "") -> str
 
         # Mark case as having unread messages
         case.has_unread_messages = True
-        case.save(update_fields=["has_unread_messages"])
+        case.last_user_reply_at = timezone.now()
+        case.save(update_fields=["has_unread_messages", "last_user_reply_at"])
 
         if is_new_case:
             _dispatch_new_ticket_notifs(str(case.id))
@@ -2921,3 +2958,8 @@ def process_teams_webhook_task(self, payload: dict, auth_token: str = "") -> str
             self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             return "error:max_retries"
+
+
+# Register the Teams activity tasks (they live in gateways/teams_notify.py,
+# which Celery's autodiscovery of tasks.py would otherwise miss).
+from gateways.teams_notify import flush_teams_events_task, post_teams_payload_task  # noqa: E402,F401

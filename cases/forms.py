@@ -3,6 +3,8 @@ Cases App — Forms
 ==================
 Forms for public case submission and internal staff RCA updates.
 """
+import json
+
 import magic
 
 from django import forms
@@ -10,7 +12,7 @@ from django.core.exceptions import ValidationError
 import dns.resolver
 
 from core.models import CompanyUnit, JobRole, normalize_phone_e164, phone_regex
-from .models import CaseCategory, CaseRecord, DocumentTemplate
+from .models import CaseCategory, CaseRecord, DocumentTemplate, TicketLocation
 
 
 # =====================================================================
@@ -86,6 +88,25 @@ class CaseCreateForm(forms.Form):
             ":class": "locked ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''",
         }),
     )
+    location = forms.ModelChoiceField(
+        queryset=TicketLocation.objects.none(),
+        label="Location",
+        empty_label="— Select Location —",
+        widget=forms.Select(attrs={
+            "class": "jk-select",
+            "x-model": "selected",
+        }),
+    )
+    location_detail = forms.CharField(
+        required=False,
+        max_length=255,
+        label="Specify Location",
+        widget=forms.TextInput(attrs={
+            "class": "jk-input",
+            "placeholder": "Enter location",
+            ":required": "showDetail",
+        }),
+    )
 
     # Overridden to 'master' mode in __init__ when site_config.job_role_mode == 'master'
     _job_role_mode = 'freetext'
@@ -127,6 +148,10 @@ class CaseCreateForm(forms.Form):
             .exclude(id__in=parent_ids)
         )
         self.fields["category"].label_from_instance = lambda obj: obj.name
+        self.fields["location"].queryset = TicketLocation.objects.filter(is_active=True)
+        self.fields["location"].label_from_instance = lambda obj: obj.name
+        from core.models import SiteConfig
+        self.fields["location"].required = SiteConfig.get_solo().require_ticket_location
     subject = forms.CharField(
         max_length=500,
         label="Subject",
@@ -140,7 +165,7 @@ class CaseCreateForm(forms.Form):
         widget=forms.Textarea(attrs={
             "class": "jk-textarea",
             "rows": 5,
-            "placeholder": "Describe the problem in detail...",
+            "placeholder": "Describe the problem in detail or paste a screenshot (Ctrl+V)...",
         }),
     )
     link = forms.URLField(
@@ -151,6 +176,16 @@ class CaseCreateForm(forms.Form):
             "placeholder": "https://example.com/relevant-page",
         }),
         help_text="Any URL/link related to this issue.",
+    )
+    cc_emails = forms.CharField(
+        required=False,
+        max_length=500,
+        label="CC Emails (optional)",
+        widget=forms.TextInput(attrs={
+            "class": "jk-input",
+            "placeholder": "e.g. manager@company.com, lead@company.com",
+        }),
+        help_text="Comma-separated. These addresses stay CC'd on every email update for this ticket.",
     )
     # Note: attachments are handled via raw HTML <input type="file" multiple>
     # in the template. Django 6 file widgets don't support multiple uploads.
@@ -221,6 +256,18 @@ class CaseCreateForm(forms.Form):
             )
         return digits
 
+    def clean_cc_emails(self):
+        from django.core.validators import validate_email
+
+        raw = self.cleaned_data.get("cc_emails", "")
+        addresses = [a.strip() for a in raw.split(",") if a.strip()]
+        for address in addresses:
+            try:
+                validate_email(address)
+            except ValidationError:
+                raise ValidationError(f'"{address}" is not a valid email address.')
+        return ", ".join(addresses)
+
     def clean(self):
         """
         Exactly one of requester_email / requester_phone is authoritative,
@@ -238,6 +285,15 @@ class CaseCreateForm(forms.Form):
             cleaned["requester_phone"] = ""
             if not cleaned.get("requester_email"):
                 self.add_error("requester_email", "Work email is required.")
+
+        location = cleaned.get("location")
+        detail = (cleaned.get("location_detail") or "").strip()
+        if location and location.requires_detail and not detail:
+            self.add_error("location_detail", "Please specify the location.")
+        if location and not location.requires_detail:
+            cleaned["location_detail"] = ""
+        else:
+            cleaned["location_detail"] = detail
 
         return cleaned
 
@@ -303,7 +359,8 @@ class CaseRCAForm(forms.ModelForm):
     class Meta:
         model = CaseRecord
         fields = [
-            "priority",
+            "impact",
+            "severity",
             "case_type",
             "tags",
             "followers",
@@ -316,7 +373,16 @@ class CaseRCAForm(forms.ModelForm):
             "resolution_due_at",
         ]
         widgets = {
-            "priority": forms.Select(attrs={"class": "jk-select"}),
+            "impact": forms.Select(attrs={
+                "class": "jk-select",
+                "id": "id_impact",
+                "x-model": "impact",
+            }),
+            "severity": forms.Select(attrs={
+                "class": "jk-select",
+                "id": "id_severity",
+                "x-model": "severity",
+            }),
             "case_type": forms.Select(attrs={"class": "jk-select"}),
             "tags": forms.TextInput(attrs={
                 "class": "jk-input",
@@ -360,7 +426,7 @@ class CaseRCAForm(forms.ModelForm):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        # Scope the assigned_to field — only SupportDesk, Manager, SuperAdmin
+        # Scope the assigned_to field — SupportDesk, Manager, SuperAdmin, Engineer
         if "assigned_to" in self.fields:
             self.fields["assigned_to"].queryset = User.objects.filter(
                 is_active=True,
@@ -368,8 +434,15 @@ class CaseRCAForm(forms.ModelForm):
                     User.RoleAccess.SUPPORTDESK,
                     User.RoleAccess.MANAGER,
                     User.RoleAccess.SUPERADMIN,
+                    User.RoleAccess.ENGINEER,
                 ],
             ).order_by("first_name", "username")
+
+        # Restrict the status dropdown to the current status plus its
+        # valid next statuses (CaseRecord.STATUS_META), so staff can never
+        # even select an invalid transition from the UI.
+        if "status" in self.fields and self.instance and self.instance.pk:
+            self.fields["status"].choices = CaseRecord.status_choices_from(self.instance.status)
 
         # If the case is already Closed, make all fields read-only
         # UNLESS the edit permission status is 'Approved'
@@ -382,38 +455,48 @@ class CaseRCAForm(forms.ModelForm):
                 field.disabled = True
                 field.widget.attrs["class"] += " bg-slate-100 opacity-80 cursor-not-allowed"
 
+    # Fields that must be filled before a ticket may sit in a status. Also sent
+    # to the page (required_by_status_json) so the Submit button can flag the
+    # same fields before the progress-update pop-up opens.
+    _SLA_FIELDS = {
+        "assigned_to": "Assigned To",
+        "response_due_at": "Response SLA",
+        "resolution_due_at": "Resolution SLA",
+        "root_cause_analysis": "Root Cause Analysis",
+        "solving_steps": "Solving Steps",
+    }
+    REQUIRED_BY_STATUS = {
+        # A ticket can't sit in Assigned without a PIC.
+        CaseRecord.Status.ASSIGNED: {"assigned_to": "Assigned To"},
+        CaseRecord.Status.IN_PROGRESS: {"assigned_to": "Assigned To", "response_due_at": "Response SLA"},
+        CaseRecord.Status.RESOLVED: _SLA_FIELDS,
+        CaseRecord.Status.CLOSED: _SLA_FIELDS,
+    }
+
+    @property
+    def required_by_status_json(self):
+        return json.dumps({str(status): fields for status, fields in self.REQUIRED_BY_STATUS.items()})
+
     def clean(self):
-        """Enforce SLA details completion before Resolved or Closed status."""
+        """Enforce valid status transitions, then the fields the target status
+        requires (REQUIRED_BY_STATUS)."""
         cleaned = super().clean()
         status = cleaned.get("status")
 
-        if status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
-            required_fields = {
-                "assigned_to": "Assigned To",
-                "response_due_at": "Response SLA",
-                "resolution_due_at": "Resolution SLA",
-                "root_cause_analysis": "Root Cause Analysis",
-                "solving_steps": "Solving Steps",
-            }
-            
-            for field, label in required_fields.items():
-                if not cleaned.get(field):
-                    self.add_error(
-                        field,
-                        f"This field is required before marking as {status}."
-                    )
-        elif status == CaseRecord.Status.INVESTIGATING:
-            required_fields = {
-                "assigned_to": "Assigned To",
-                "response_due_at": "Response SLA",
-            }
-            
-            for field, label in required_fields.items():
-                if not cleaned.get(field):
-                    self.add_error(
-                        field,
-                        f"This field is required before marking as {status}."
-                    )
+        if status and self.instance and self.instance.pk and not self.instance.can_transition_to(status):
+            self.add_error(
+                "status",
+                f"Cannot move this ticket from {self.instance.get_status_display()} "
+                f"to {dict(CaseRecord.Status.choices).get(status, status)}."
+            )
+            return cleaned
+
+        for field in self.REQUIRED_BY_STATUS.get(status, {}):
+            if not cleaned.get(field):
+                self.add_error(
+                    field,
+                    f"This field is required before marking as {status}."
+                )
         return cleaned
 
 
@@ -441,43 +524,44 @@ class StaffReplyForm(forms.Form):
             "placeholder": "e.g. manager@domain.com, lead@domain.com",
         }),
     )
-    attachment = forms.FileField(
-        required=False,
-        label="Attachment",
-        widget=forms.ClearableFileInput(attrs={"class": "jk-file-input"}),
-    )
+    # Attachments are handled outside the form (request.FILES.getlist) since a
+    # plain Django FileField only ever binds to one file — see
+    # validate_staff_reply_attachment() below, used per-file in the view.
 
-    def clean_attachment(self):
-        f = self.cleaned_data.get("attachment")
-        if not f:
-            return f
+    MAX_ATTACHMENTS = 10
 
-        # Validate file size
-        from core.models import SiteConfig
-        site_config = SiteConfig.get_solo()
-        max_bytes = site_config.max_upload_size_mb * 1024 * 1024
 
-        if f.size > max_bytes:
-            size_mb = round(f.size / (1024 * 1024), 1)
-            raise forms.ValidationError(
-                f'File "{f.name}" is {size_mb} MB. Maximum allowed size is {site_config.max_upload_size_mb} MB.'
-            )
+def validate_staff_reply_attachment(f):
+    """
+    Validate a single staff-reply attachment (size + real MIME type).
+    Used per-file in case_send_reply's multi-file loop. Raises
+    forms.ValidationError on failure.
+    """
+    from core.models import SiteConfig
+    site_config = SiteConfig.get_solo()
+    max_bytes = site_config.max_upload_size_mb * 1024 * 1024
 
-        # Validate actual file content via magic bytes
-        try:
-            header = f.read(2048)
-            f.seek(0)
-            detected_mime = magic.from_buffer(header, mime=True)
-        except Exception:
-            raise forms.ValidationError(f'File "{f.name}": could not determine file type.')
+    if f.size > max_bytes:
+        size_mb = round(f.size / (1024 * 1024), 1)
+        raise forms.ValidationError(
+            f'File "{f.name}" is {size_mb} MB. Maximum allowed size is {site_config.max_upload_size_mb} MB.'
+        )
 
-        if detected_mime not in CaseCreateForm.ALLOWED_MIME_TYPES:
-            raise forms.ValidationError(
-                f'File "{f.name}" has a disallowed type ({detected_mime}). '
-                f"Accepted types: PDF, images, Word, Excel, PowerPoint, plain text, CSV, ZIP."
-            )
+    try:
+        header = f.read(2048)
+        f.seek(0)
+        detected_mime = magic.from_buffer(header, mime=True)
+    except Exception:
+        raise forms.ValidationError(f'File "{f.name}": could not determine file type.')
 
-        return f
+    media_types = {"video/mp4", "video/webm", "video/quicktime", "video/ogg",
+                   "audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav"}
+    if detected_mime not in CaseCreateForm.ALLOWED_MIME_TYPES | media_types:
+        raise forms.ValidationError(
+            f'File "{f.name}" has a disallowed type ({detected_mime}). '
+            f"Accepted types: PDF, images, video, audio, Word, Excel, PowerPoint, plain text, CSV, ZIP."
+        )
+    return detected_mime
 
 
 # =====================================================================
@@ -518,6 +602,7 @@ class CaseCategoryForm(forms.ModelForm):
         model = CaseCategory
         fields = [
             'name', 'parent', 'icon', 'description', 'prefix_code',
+            'default_case_type', 'default_tags',
             'template_subject', 'template_text',
             'is_confidential', 'is_attachment_mandatory', 'enable_change_request',
             'is_use_routing_approval', 'is_need_admin_approval',
@@ -541,6 +626,11 @@ class CaseCategoryForm(forms.ModelForm):
                 'placeholder': 'RQ',
                 'style': 'text-transform:uppercase;',
             }),
+            'default_case_type': forms.Select(attrs={'class': 'jk-select'}),
+            'default_tags': forms.TextInput(attrs={
+                'class': 'jk-input',
+                'placeholder': 'e.g. sso, access-request, urgent',
+            }),
             'template_subject': forms.TextInput(attrs={
                 'class': 'jk-input',
                 'placeholder': 'e.g. [Issue] Brief description of the problem',
@@ -559,10 +649,81 @@ class CaseCategoryForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        parent_qs = CaseCategory.objects.filter(parent__isnull=True).order_by('name')
+        exclude_ids = set()
         if self.instance and self.instance.pk:
-            parent_qs = parent_qs.exclude(pk=self.instance.pk)
-        self.fields['parent'].queryset = parent_qs
-        self.fields['parent'].empty_label = '— Root Category (Main) —'
-        self.fields['parent'].required = False
-        self.fields['icon'].required = False
+            exclude_ids.add(self.instance.pk)
+            exclude_ids.update(self.instance.get_descendant_ids())
+        options = CaseCategory.parent_select_options(exclude_pks=exclude_ids)
+        allowed_ids = [opt["id"] for opt in options]
+        label_map = {opt["id"]: opt["label"] for opt in options}
+        self.fields["parent"].queryset = CaseCategory.objects.filter(pk__in=allowed_ids)
+        self.fields["parent"].choices = [("", "— Root Category (Main) —")] + [
+            (opt["id"], opt["label"]) for opt in options
+        ]
+        self.fields["parent"].empty_label = "— Root Category (Main) —"
+        self.fields["parent"].required = False
+        self.fields["icon"].required = False
+        self.fields["default_case_type"].required = False
+        self.fields["default_case_type"].empty_label = "— No Default —"
+
+    def clean_parent(self):
+        parent = self.cleaned_data.get("parent")
+        if parent and self.instance and self.instance.pk:
+            if parent.pk == self.instance.pk:
+                raise forms.ValidationError("A category cannot be its own parent.")
+            if parent.pk in self.instance.get_descendant_ids():
+                raise forms.ValidationError("A category cannot be nested under one of its sub-categories.")
+        return parent
+
+    def clean_prefix_code(self):
+        code = (self.cleaned_data.get("prefix_code") or "").strip().upper()[:2]
+        if not code:
+            raise forms.ValidationError("Prefix code is required.")
+        qs = CaseCategory.objects.filter(prefix_code__iexact=code)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(f'Prefix code "{code}" is already in use.')
+        return code
+
+
+# =====================================================================
+# Ticket Location Form (Admin — Master Data)
+# =====================================================================
+
+class TicketLocationForm(forms.ModelForm):
+    """
+    Form for creating/editing a TicketLocation from the desk admin UI.
+    ``slug`` is deliberately excluded — it's auto-generated from ``name``
+    in the view (mirrors CaseCategory's own slug auto-generation), since
+    it's just an internal identifier nothing else looks it up by.
+    """
+
+    class Meta:
+        model = TicketLocation
+        fields = ['name', 'requires_detail', 'is_active', 'order']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'jk-input',
+                'placeholder': 'e.g. Head Office - Jakarta',
+            }),
+            'requires_detail': forms.CheckboxInput(attrs={
+                'class': 'w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 shrink-0',
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 shrink-0',
+            }),
+            'order': forms.NumberInput(attrs={'class': 'jk-input'}),
+        }
+
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not name:
+            raise forms.ValidationError("Location name is required.")
+        qs = TicketLocation.objects.filter(name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(f'A location named "{name}" already exists.')
+        return name
+        return code

@@ -22,6 +22,12 @@ class DocumentUploadForm(forms.ModelForm):
                 "class": "jk-input",
                 "placeholder": "e.g. Approval Letter — June 2026",
             }),
+            "original_pdf": forms.ClearableFileInput(attrs={
+                "class": "hidden",
+                "accept": "application/pdf,.pdf",
+                "x-ref": "pdfInput",
+                "@change": "pick($refs.pdfInput.files)",
+            }),
             "routing_mode": forms.Select(attrs={"class": "jk-select"}),
             "message": forms.Textarea(attrs={
                 "class": "jk-input",
@@ -38,6 +44,9 @@ class DocumentUploadForm(forms.ModelForm):
         pdf = self.cleaned_data.get("original_pdf")
         if not pdf:
             return pdf
+
+        if not pdf.name.lower().endswith(".pdf"):
+            raise ValidationError("Only PDF files are accepted.")
 
         site_config = SiteConfig.get_solo()
         max_mb = getattr(site_config, "max_upload_size_mb", 10) or 10

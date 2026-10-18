@@ -10,6 +10,7 @@ from django.utils.html import strip_tags
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task(
     bind=True,
     name="core.send_password_reset_otp_task",
@@ -27,55 +28,21 @@ def send_password_reset_otp_task(self, user_email: str, otp_code: str, username:
     site_name = getattr(site_config, 'site_name', 'Support Desk')
 
     subject = f"[{site_name}] Password Reset Verification Code"
+
+    from core.utils.email_branding import attach_logo, render_branded_from_template
+
+    html_content = render_branded_from_template(
+        "emails/bodies/otp.html",
+        {
+            "username": username,
+            "site_name": site_name,
+            "otp_code": otp_code,
+        },
+        site_name=site_name,
+        title="Password reset verification",
+        footer_note="Automated security message. Do not reply to this email.",
+    )
     
-    # Modern, clean HTML template for the email
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-w: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #f8fafc; padding: 20px; border-radius: 8px 8px 0 0; border-bottom: 2px solid #e2e8f0; text-align: center; }}
-            .body {{ background-color: #ffffff; padding: 30px 20px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; }}
-            .otp-box {{ background-color: #f1f5f9; border: 1px dashed #cbd5e1; padding: 15px; text-align: center; margin: 25px 0; border-radius: 6px; }}
-            .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4338ca; }}
-            .footer {{ margin-top: 30px; font-size: 12px; color: #64748b; text-align: center; }}
-        </style>
-    </head>
-    <body style="background-color: #f1f5f9; padding: 20px;">
-        <div class="container">
-            <div class="header">
-                <h2 style="margin: 0; color: #1e293b;">{site_name}</h2>
-            </div>
-            <div class="body">
-                <p>Hello <strong>{username}</strong>,</p>
-                <p>We received a request to reset the password for your {site_name} account. Please use the following One-Time Password (OTP) to proceed with resetting your password:</p>
-                
-                <div class="otp-box">
-                    <div class="otp-code">{otp_code}</div>
-                </div>
-                
-                <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 15px; margin: 20px 0; border-radius: 4px;">
-                    <p style="margin: 0; color: #b91c1c; font-size: 14px;"><strong>⚠️ Security Warning:</strong></p>
-                    <p style="margin: 5px 0 0 0; color: #7f1d1d; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. Do not share this OTP with anyone, including our support team. We will never ask for your password or OTP.</p>
-                </div>
-                
-                <p><em>If you did not request a password reset, please ignore this email and your password will remain unchanged.</em></p>
-                
-                <p>Best regards,<br>The {site_name} Team</p>
-            </div>
-            <div class="footer">
-                &copy; 2026 {site_name}. All rights reserved.<br>
-                This is an automated message, please do not reply.
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    # Generate plain text alternative
     text_content = strip_tags(html_content).replace('    ', '').replace('\n\n\n', '\n\n')
 
     try:
@@ -93,7 +60,6 @@ def send_password_reset_otp_task(self, user_email: str, otp_code: str, username:
             from_email,
         )
 
-        # Build explicit SMTP connection with timeout (same pattern as gateway tasks)
         from django.core.mail import get_connection
         connection = get_connection(
             host=email_config.smtp_host,
@@ -113,6 +79,7 @@ def send_password_reset_otp_task(self, user_email: str, otp_code: str, username:
             connection=connection,
         )
         email.attach_alternative(html_content, "text/html")
+        attach_logo(email)
         email.send(fail_silently=False)
 
         logger.info("Password reset OTP sent to %s", user_email)

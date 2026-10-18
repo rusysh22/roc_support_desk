@@ -18,6 +18,45 @@
     z-index: 2;
 }
 
+#services-grid.services-view-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+#services-grid.services-view-list .jk-category-card {
+    flex-direction: row;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+#services-grid.services-view-list .services-card-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    flex: 1 1 0;
+    min-width: 0;
+}
+#services-grid.services-view-list .services-card-icon {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+#services-grid.services-view-list .services-card-body h3 {
+    margin-bottom: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#services-grid.services-view-list .services-card-footer {
+    flex: 0 0 auto;
+    min-width: 11rem;
+    border-top: none;
+    border-left: 1px solid #f1f5f9;
+}
+#services-grid.services-view-list .jk-sub-category-list {
+    flex: 1 1 100%;
+}
+
 /* Border Spotlight Glow */
 .spotlight-card::before {
     content: "";
@@ -27,7 +66,7 @@
     padding: 1.5px; /* Border thickness */
     background: radial-gradient(
         500px circle at var(--mouse-x, 0) var(--mouse-y, 0), 
-        rgba(99, 102, 241, 0.4), /* Indigo glow */
+        rgba(79, 70, 229, 0.4), /* Blue glow */
         transparent 40%
     );
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -47,7 +86,7 @@
     border-radius: inherit;
     background: radial-gradient(
         600px circle at var(--mouse-x, 0) var(--mouse-y, 0), 
-        rgba(99, 102, 241, 0.05), /* Soft Indigo background glow */
+        rgba(79, 70, 229, 0.05), /* Soft Blue background glow */
         transparent 40%
     );
     z-index: 0;
@@ -101,7 +140,7 @@
             </svg>
         </div>
         <input type="text" id="portal-search"
-               placeholder="Search services or topics..."
+               placeholder="Search categories, sub-categories, or descriptions..."
                class="w-full py-4 px-2 text-base text-slate-700 bg-transparent border-none focus:ring-0 outline-none placeholder:text-slate-400"
                autocomplete="off">
         <button id="portal-search-clear"
@@ -117,14 +156,31 @@
             </kbd>
         </div>
     </div>
+    <p id="search-relaxed-note" class="hidden mt-3 text-center text-xs text-slate-500">
+        No exact match for "<span class="font-semibold text-slate-600" id="search-relaxed-query"></span>" — showing the closest results.
+    </p>
 </div>
 
 <!-- ===== SERVICES SECTION ===== -->
 {% if categories or user.role_access == "SuperAdmin" %}
+{{ category_search_tree|json_script:"category-search-tree" }}
 <div id="services-section" class="mb-12 max-w-5xl mx-auto">
-    <div class="flex items-center justify-between mb-6 pb-2 border-b border-slate-100">
+    <div class="flex items-center justify-between mb-6 pb-2 border-b border-slate-100 gap-3 flex-wrap">
         <div class="flex items-center gap-3">
             <h3 class="text-xl font-bold text-slate-800 tracking-tight">Services</h3>
+            <div class="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5" role="group" aria-label="Services view">
+                <button type="button" id="services-view-grid"
+                        class="px-2.5 py-1.5 rounded-md text-slate-500 hover:text-slate-700"
+                        title="Grid view" aria-pressed="true">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                </button>
+                <button type="button" id="services-view-list"
+                        class="px-2.5 py-1.5 rounded-md text-slate-500 hover:text-slate-700"
+                        title="List view" aria-pressed="false">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+            {% include "client/_service_toolbar.html" %}
         </div>
         {% if user.role_access == "SuperAdmin" %}
         <button onclick="document.getElementById('createCategoryModal').style.display='flex'"
@@ -134,36 +190,70 @@
         </button>
         {% endif %}
     </div>
-    <div id="services-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div id="services-grid" class="services-view-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {% for category in categories %}
-        <div class="spotlight-card group bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 jk-category-card flex flex-col overflow-hidden"
+        <div class="spotlight-card group bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg hover:border-indigo-200 transition-all duration-300 jk-category-card flex flex-col overflow-hidden relative"
+             data-id="{{ category.id }}"
+             data-slug="{{ category.slug }}"
              data-name="{{ category.name }}"
-             data-desc="{{ category.description|default:'' }}">
+             data-desc="{{ category.description|default:'' }}"
+             data-tags="{{ category.default_tags|default:'' }}"
+             data-code="{{ category.prefix_code|default:'' }}"
+             data-fav="{{ category.is_favorite|yesno:'1,0' }}"
+             data-uses="{{ category.use_count|default:0 }}"
+             data-last="{{ category.last_used|default:0 }}">
+            {% include "client/_service_star.html" %}
+
+            <!-- Stretched full-card link — catches clicks anywhere on the card
+                 (including the blind spots between the content block and the
+                 footer's action link/badges). The content link, footer action
+                 link, and admin buttons below all get position:relative so
+                 they stay layered above this and remain independently
+                 clickable (same destination for the two links; a distinct
+                 action for the admin buttons). -->
+            <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+               style="position:absolute; inset:0; z-index:1;" tabindex="-1" aria-hidden="true"></a>
 
             <!-- Main content area — full-card link -->
             <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
-               class="flex-1 flex flex-col p-5 pb-4 focus:outline-none">
+               class="relative flex-1 flex flex-col p-5 pb-4 focus:outline-none services-card-body">
 
-                <div class="mb-4">
+                <div class="mb-4 services-card-icon">
                     <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-indigo-50/80 text-2xl shadow-sm border border-indigo-100/50">
                         {{ category.icon|default:"📝" }}
                     </span>
                 </div>
 
-                <h3 class="text-[17px] font-bold text-slate-800 mb-2 group-hover:text-indigo-700 transition-colors">{{ category.name }}</h3>
-                <p class="text-sm text-slate-500 line-clamp-2 flex-1">{{ category.description|default:"Submit a request for this service." }}</p>
+                {% with desc=category.description|default:"Submit a request for this service." %}
+                <div class="jk-category-copy min-w-0 flex-1">
+                    <h3 class="text-[17px] font-bold text-slate-800 mb-1.5 group-hover:text-indigo-700 transition-colors">{{ category.name }}</h3>
+                    <div class="jk-marquee" title="{{ desc }}">
+                        <div class="jk-marquee-track">
+                            <span class="text-sm text-slate-500">{{ desc }}</span>
+                            <span class="text-sm text-slate-500" aria-hidden="true">{{ desc }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
             </a>
 
             <!-- Footer row — outside the main <a> so admin buttons sit cleanly beside the action link -->
-            <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-2 services-card-footer">
+                <!-- Fills this footer row's own empty space (between/after its
+                     children) — the card-level stretched link above can't reach
+                     in here since .spotlight-card > * forces this footer div
+                     itself onto a higher stacking layer. -->
+                <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+                   style="position:absolute; inset:0; z-index:0;" tabindex="-1" aria-hidden="true"></a>
                 <!-- Navigation action -->
                 <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
                    tabindex="-1"
-                   class="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 group-hover:gap-2.5 transition-all">
+                   class="relative flex items-center gap-1.5 text-sm font-semibold text-indigo-600 whitespace-nowrap">
                     {% if category.children.all %}
-                    <span>View {{ category.children.count }} Services</span>
+                    <span>See options</span>
+                    <span class="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-md text-xs">{{ category.children.count }}</span>
                     {% else %}
-                    <span>Submit Request</span>
+                    <span>Create ticket</span>
                     {% endif %}
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -171,7 +261,7 @@
                 </a>
 
                 <!-- Right side: confidential badge + admin actions -->
-                <div class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="relative flex items-center gap-1.5 flex-shrink-0">
                     {% if category.is_confidential %}
                     <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200 uppercase tracking-wide">Private</span>
                     {% endif %}
@@ -193,29 +283,55 @@
                 </div>
             </div>
 
-            {% if category.children.all %}
             <div class="jk-sub-category-list hidden px-5 pb-5 pt-3 border-t border-slate-100">
                 <p class="text-[11px] font-bold text-indigo-500 mb-2 uppercase tracking-wider">Matched Services</p>
-                <div class="space-y-1.5">
-                    {% for child in category.children.all %}
-                    <a href="{% url 'cases:create_case_category' slug=child.slug %}"
-                       class="jk-sub-category-item hidden items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 transition-colors"
-                       data-name="{{ child.name }}" data-desc="{{ child.description|default:'' }}">
-                        <span class="text-sm font-medium text-slate-700 flex items-center gap-2">
-                            <span class="text-base">{{ child.icon|default:'📝' }}</span>
-                            {{ child.name }}
-                        </span>
-                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                    </a>
-                    {% endfor %}
-                </div>
+                <div class="jk-sub-category-matches space-y-1.5"></div>
             </div>
-            {% endif %}
+        </div>
+        {% endfor %}
+        {% for category in starred_children %}
+        <div class="spotlight-card group bg-white border border-amber-200 rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 jk-category-card flex flex-col overflow-hidden relative svc-fav-hidden"
+             data-extra="1"
+             data-id="{{ category.id }}"
+             data-slug="{{ category.slug }}"
+             data-name="{{ category.name }}"
+             data-desc="{{ category.description|default:'' }} {{ category.path_label }}"
+             data-tags="{{ category.default_tags|default:'' }}"
+             data-code="{{ category.prefix_code|default:'' }}"
+             data-fav="1"
+             data-uses="{{ category.use_count|default:0 }}"
+             data-last="{{ category.last_used|default:0 }}">
+            <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+               style="position:absolute; inset:0; z-index:1;" tabindex="-1" aria-hidden="true"></a>
+            {% include "client/_service_star.html" %}
+            <a href="{% if category.children.all %}{% url 'cases:category_children' slug=category.slug %}{% else %}{% url 'cases:create_case_category' slug=category.slug %}{% endif %}"
+               class="relative flex-1 flex flex-col p-5 pb-4 focus:outline-none services-card-body">
+                <div class="mb-4 services-card-icon">
+                    <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-amber-50 text-2xl shadow-sm border border-amber-100">{{ category.icon|default:"📝" }}</span>
+                </div>
+                <div class="jk-category-copy min-w-0 flex-1">
+                    <p class="text-[11px] font-semibold text-amber-700 mb-1 truncate" title="{{ category.path_label }}">{{ category.path_label }} ›</p>
+                    <h3 class="text-[17px] font-bold text-slate-800 mb-1.5 group-hover:text-indigo-700 transition-colors">{{ category.name }}</h3>
+                    <p class="text-sm text-slate-500 line-clamp-2">{{ category.description|default:"Submit a request for this service." }}</p>
+                </div>
+            </a>
+            <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-2 services-card-footer">
+                <span class="relative flex items-center gap-1.5 text-sm font-semibold text-indigo-600 whitespace-nowrap">
+                    {% if category.children.all %}See options{% else %}Create ticket{% endif %}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </span>
+                <span class="relative text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200 uppercase tracking-wide">Sub-service</span>
+            </div>
         </div>
         {% endfor %}
     </div>
+    <p id="services-fav-empty" class="hidden text-center text-sm text-slate-500 py-10">
+        No favorite services yet — tap the ☆ on a service card to pin it here.
+    </p>
 </div>
 {% endif %}
+
+{% include "client/_service_favorites.html" %}
 
 <!-- ===== FORMS SECTION ===== -->
 {% if portal_forms %}
@@ -282,6 +398,9 @@
     </div>
 </div>
 
+<!-- ===== ANNOUNCEMENTS (always last) ===== -->
+{% include "announcements/_portal_section.html" %}
+
 <!-- Info Footer -->
 <div class="mt-10 text-center text-xs text-slate-600">
     <p>Need urgent help? Contact the IT Helpdesk directly via WhatsApp or email.</p>
@@ -294,64 +413,272 @@
   const svcSection = document.getElementById('services-section');
   const frmSection = document.getElementById('forms-section');
   const noResults  = document.getElementById('search-no-results');
+  const relaxedNote  = document.getElementById('search-relaxed-note');
+  const relaxedQuery = document.getElementById('search-relaxed-query');
+  const gridEl     = document.getElementById('services-grid');
+  const gridBtn    = document.getElementById('services-view-grid');
+  const listBtn    = document.getElementById('services-view-list');
+  const treeEl     = document.getElementById('category-search-tree');
+  const tree       = treeEl ? JSON.parse(treeEl.textContent) : [];
+  const treeBySlug = {};
+  tree.forEach(n => { treeBySlug[n.slug] = n; });
 
+  function nodeUrl(node) {
+    return node.has_children
+      ? '/category/' + encodeURIComponent(node.slug) + '/'
+      : '/submit/' + encodeURIComponent(node.slug) + '/';
+  }
+
+  function squash(s) {
+    return s.replace(/[^a-z0-9]+/g, '');
+  }
+
+  function queryTokens(q) {
+    return q.split(/[\s,]+/).filter(Boolean);
+  }
+
+  // Small edit-distance so a typo (e.g. "phising" for "phishing") still
+  // matches — substring/squash alone can't catch a missing/extra letter
+  // in the middle of a word.
+  function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    if (!m) return n;
+    if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, i) => i);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] : 1 + Math.min(prev[j - 1], prev[j], cur[j - 1]);
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function fuzzyHasToken(hay, token) {
+    if (token.length < 4) return false; // too short — too many false positives
+    const maxDist = token.length >= 8 ? 2 : 1;
+    const words = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    return words.some(w => Math.abs(w.length - token.length) <= maxDist && levenshtein(w, token) <= maxDist);
+  }
+
+  function hasToken(hay, token) {
+    return hay.includes(token) || squash(hay).includes(squash(token)) || fuzzyHasToken(hay, token);
+  }
+
+  function countTokens(hay, tokens) {
+    return tokens.reduce((n, t) => n + (hasToken(hay, t) ? 1 : 0), 0);
+  }
+
+  function matchTokens(hay, tokens, loose) {
+    const n = countTokens(hay, tokens);
+    return loose ? n > 0 : n === tokens.length;
+  }
+
+  function nodeHay(node) {
+    return ((node.name || '') + ' ' + (node.description || '') + ' ' +
+            (node.tags || '') + ' ' + (node.code || '')).toLowerCase();
+  }
+
+  function cardHay(card) {
+    return ((card.dataset.name || '') + ' ' + (card.dataset.desc || '') + ' ' +
+            (card.dataset.tags || '') + ' ' + (card.dataset.code || '')).toLowerCase();
+  }
+
+  const cardOrder = gridEl ? Array.from(gridEl.querySelectorAll('.jk-category-card')) : [];
+
+  // ── Favorites & sort (shared with the sub-category page: client/_service_favorites.html) ──
+  const svc = window.createServiceFilters({
+    cards: cardOrder,
+    favEmpty: document.getElementById('services-fav-empty'),
+    hasQuery: () => !!(input && input.value.trim()),
+    refresh: () => refreshServices(),
+  });
+  function favHidden(card) { return svc.favHidden(card); }
+
+  function reorderCards(scores) {
+    if (!gridEl || cardOrder.length < 2) return;
+    cardOrder
+      .slice()
+      .sort((a, b) => ((scores.get(b) || 0) - (scores.get(a) || 0)) || svc.compare(a, b))  // search relevance first
+      .forEach(card => gridEl.appendChild(card));
+  }
+
+  function refreshServices() {
+    svc.render();
+    if (input) { filter(); } else { reorderCards(new Map()); }
+  }
+  document.addEventListener('svc:favorite', refreshServices);
+
+  function collectDeep(nodes, tokens, loose, pathNames, out) {
+    (nodes || []).forEach(node => {
+      const path = pathNames.concat(node.name);
+      const self = nodeHay(node);
+      const full = path.join(' ').toLowerCase() + ' ' + self;
+      const score = countTokens((node.name || '').toLowerCase(), tokens) * 2 + countTokens(self, tokens);
+      if (score > 0 && matchTokens(full, tokens, loose)) {
+        out.push({
+          name: node.name,
+          icon: node.icon,
+          path: path.join(' › '),
+          url: nodeUrl(node),
+          score: score,
+        });
+      }
+      collectDeep(node.children || [], tokens, loose, path, out);
+    });
+  }
+
+  function matchesUnderRoot(root, tokens, loose) {
+    const out = [];
+    collectDeep(root.children || [], tokens, loose, [root.name], out);
+    return out.sort((a, b) => b.score - a.score);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function renderMatches(container, matches) {
+    container.innerHTML = '';
+    matches.forEach(m => {
+      const a = document.createElement('a');
+      a.href = m.url;
+      a.className = 'jk-sub-category-item flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 transition-colors';
+      a.innerHTML =
+        '<span class="text-sm font-medium text-slate-700 flex items-center gap-2 min-w-0">' +
+          '<span class="text-base flex-shrink-0">' + (m.icon || '📝') + '</span>' +
+          '<span class="min-w-0"><span class="block truncate">' + escapeHtml(m.name) + '</span>' +
+          (m.path ? '<span class="block text-[11px] text-slate-400 truncate">' + escapeHtml(m.path) + '</span>' : '') +
+          '</span></span>' +
+        '<svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
+      container.appendChild(a);
+    });
+  }
+
+  function initMarquees() {
+    document.querySelectorAll('.jk-marquee').forEach(el => {
+      const first = el.querySelector('.jk-marquee-track span');
+      if (!first || el.clientWidth < 8) return;
+      el.classList.remove('is-overflow');
+      first.style.display = 'inline';
+      first.style.whiteSpace = 'nowrap';
+      first.style.paddingRight = '0';
+      const overflowing = first.scrollWidth > el.clientWidth + 4;
+      first.removeAttribute('style');
+      el.classList.toggle('is-overflow', overflowing);
+      if (overflowing) {
+        const duration = Math.max(14, Math.min(42, Math.round(first.scrollWidth / 28)));
+        el.style.setProperty('--jk-marquee-duration', duration + 's');
+      }
+    });
+  }
+  function scheduleMarquees() {
+    requestAnimationFrame(() => requestAnimationFrame(initMarquees));
+  }
+
+  function setView(mode) {
+    if (!gridEl) return;
+    const isList = mode === 'list';
+    gridEl.classList.toggle('services-view-list', isList);
+    gridEl.classList.toggle('md:grid-cols-2', !isList);
+    gridEl.classList.toggle('lg:grid-cols-3', !isList);
+    if (gridBtn) {
+      gridBtn.classList.toggle('bg-indigo-50', !isList);
+      gridBtn.classList.toggle('text-indigo-700', !isList);
+      gridBtn.setAttribute('aria-pressed', String(!isList));
+    }
+    if (listBtn) {
+      listBtn.classList.toggle('bg-indigo-50', isList);
+      listBtn.classList.toggle('text-indigo-700', isList);
+      listBtn.setAttribute('aria-pressed', String(isList));
+    }
+    try { localStorage.setItem('roc_services_view', mode); } catch (e) {}
+    scheduleMarquees();
+  }
+
+  if (gridBtn) gridBtn.addEventListener('click', () => setView('grid'));
+  if (listBtn) listBtn.addEventListener('click', () => setView('list'));
+  try {
+    setView(localStorage.getItem('roc_services_view') === 'list' ? 'list' : 'grid');
+  } catch (e) { setView('grid'); }
+  window.addEventListener('resize', scheduleMarquees);
+
+  refreshServices();
   if (!input) return;
 
-  function filter() {
-    const q = input.value.trim().toLowerCase();
-    clearBtn.classList.toggle('hidden', !q);
-
+  function apply(q, tokens, loose) {
     let svcVisible = 0;
     let frmVisible = 0;
+    const scores = new Map();
 
-    // Filter category cards
     document.querySelectorAll('.jk-category-card').forEach(card => {
-      const matchParent = !q
-        || (card.dataset.name  || '').toLowerCase().includes(q)
-        || (card.dataset.desc  || '').toLowerCase().includes(q);
-        
-      let matchedSubs = 0;
-      const subListContainer = card.querySelector('.jk-sub-category-list');
-      
-      if (subListContainer) {
-          card.querySelectorAll('.jk-sub-category-item').forEach(subItem => {
-              const subMatch = q && ((subItem.dataset.name || '').toLowerCase().includes(q) || (subItem.dataset.desc || '').toLowerCase().includes(q));
-              if (subMatch) {
-                  subItem.classList.remove('hidden');
-                  subItem.classList.add('flex');
-                  matchedSubs++;
-              } else {
-                  subItem.classList.add('hidden');
-                  subItem.classList.remove('flex');
-              }
-          });
-          
-          if (matchedSubs > 0) {
-              subListContainer.classList.remove('hidden');
-          } else {
-              subListContainer.classList.add('hidden');
-          }
+      const root = treeBySlug[card.dataset.slug];
+      const matchParent = !q || matchTokens(cardHay(card), tokens, loose);
+
+      const listWrap = card.querySelector('.jk-sub-category-list');
+      const matchBox = card.querySelector('.jk-sub-category-matches');
+      let deepMatches = [];
+      if (q && root) deepMatches = matchesUnderRoot(root, tokens, loose);
+
+      if (listWrap && matchBox) {
+        if (q && deepMatches.length) {
+          renderMatches(matchBox, deepMatches);
+          listWrap.classList.remove('hidden');
+        } else {
+          matchBox.innerHTML = '';
+          listWrap.classList.add('hidden');
+        }
       }
 
-      const match = matchParent || matchedSubs > 0;
+      const match = (!q || matchParent || deepMatches.length > 0) && !favHidden(card);
       card.style.display = match ? '' : 'none';
       if (match) svcVisible++;
+
+      const selfScore = q
+        ? countTokens((card.dataset.name || '').toLowerCase(), tokens) * 2 + countTokens(cardHay(card), tokens)
+        : 0;
+      // Rank by the single most specific match: a child category that
+      // actually matches the query beats a parent group whose own name/desc
+      // just happens to share a word with the query (e.g. searching "email
+      // phishing" should surface "Laporan Email Phishing" over "Microsoft
+      // Outlook" merely because Outlook's parent is named "Email ...").
+      scores.set(card, deepMatches.length ? deepMatches[0].score : selfScore);
     });
 
-    // Filter form cards
     document.querySelectorAll('.portal-form-card').forEach(card => {
-      const match = !q
-        || (card.dataset.name  || '').toLowerCase().includes(q)
-        || (card.dataset.desc  || '').toLowerCase().includes(q);
+      const match = !q || matchTokens(cardHay(card), tokens, loose);
       card.style.display = match ? '' : 'none';
       if (match) frmVisible++;
     });
 
+    reorderCards(scores);
+
     if (svcSection) svcSection.style.display = svcVisible || !q ? '' : 'none';
     if (frmSection) frmSection.style.display = frmVisible || !q ? '' : 'none';
 
-    const totalVisible = svcVisible + frmVisible;
+    return svcVisible + frmVisible;
+  }
+
+  function filter() {
+    const q = input.value.trim().toLowerCase();
+    const tokens = queryTokens(q);
+    clearBtn.classList.toggle('hidden', !q);
+
+    let totalVisible = apply(q, tokens, false);
+    let relaxed = false;
+    if (q && tokens.length > 1 && totalVisible === 0) {
+      totalVisible = apply(q, tokens, true);
+      relaxed = totalVisible > 0;
+    }
+
+    if (relaxedNote) {
+      relaxedNote.classList.toggle('hidden', !relaxed);
+      if (relaxed && relaxedQuery) relaxedQuery.textContent = input.value.trim();
+    }
     if (noResults) noResults.classList.toggle('hidden', !q || totalVisible > 0);
+    scheduleMarquees();
   }
 
   input.addEventListener('input', filter);
@@ -362,7 +689,6 @@
     input.focus();
   });
 
-  // Keyboard shortcut: "/" focuses the search bar
   document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement !== input && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
       e.preventDefault();
@@ -448,11 +774,11 @@
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">Parent Category <span class="text-slate-600 font-normal">(optional)</span></label>
                     <select name="parent" class="jk-input text-sm w-full">
                         <option value="">-- Root Category (Main) --</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% for opt in parent_category_options %}
+                        <option value="{{ opt.id }}">{{ opt.label }}</option>
                         {% endfor %}
                     </select>
-                    <p class="text-xs text-slate-600 mt-1">Leave empty to create a main category on the portal.</p>
+                    <p class="text-xs text-slate-600 mt-1">Leave empty to create a main category on the portal. Any category can be a parent.</p>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">Category Name <span class="text-red-700">*</span></label>
@@ -625,8 +951,8 @@
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">Parent Category <span class="text-slate-600 font-normal">(optional)</span></label>
                     <select name="parent" id="editCatParent" class="jk-input text-sm w-full">
                         <option value="">-- Root Category (Main) --</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% for opt in parent_category_options %}
+                        <option value="{{ opt.id }}">{{ opt.label }}</option>
                         {% endfor %}
                     </select>
                 </div>

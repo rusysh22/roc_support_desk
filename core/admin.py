@@ -3,13 +3,29 @@ Core App — Django Admin Registration
 ======================================
 """
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.shortcuts import redirect
-from unfold.admin import ModelAdmin
+from django.urls import reverse
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .models import AuditLog, CompanyUnit, Employee, Feedback, User, SiteConfig, SSOConfig, OTPToken, LoginSlideImage, UserNotificationPreference, AIConfig
+
+
+class _APIKeyWidget(forms.TextInput):
+    """Password-style widget that never echoes the saved secret back to the browser."""
+
+    input_type = "password"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.attrs.setdefault("autocomplete", "new-password")
+        self.attrs.setdefault("placeholder", "Enter new value to replace the saved one…")
+
+    def format_value(self, value):
+        del value  # secret must never appear in HTML source
+        return ""
 
 
 # =====================================================================
@@ -58,6 +74,7 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             },
         ),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),
+        ("E-Sign", {"fields": ("esign_tnc_accepted_at",)}),
     )
 
     add_fieldsets = (
@@ -80,7 +97,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     )
 
     # Roles that consume an agent seat (mirrors core/views_user.py)
-    _AGENT_ROLES = {User.RoleAccess.SUPPORTDESK, User.RoleAccess.MANAGER}
+    _AGENT_ROLES = {
+        User.RoleAccess.SUPPORTDESK,
+        User.RoleAccess.MANAGER,
+        User.RoleAccess.ENGINEER,
+    }
 
     def _check_agent_limit(self, request, obj, change) -> bool:
         """
@@ -155,7 +176,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 class CompanyUnitAdmin(ModelAdmin):
     """Admin configuration for CompanyUnit."""
 
-    list_display = ("code", "name", "created_at", "updated_at")
+    list_display = ("code", "name", "is_archived", "created_at", "updated_at")
+    list_filter = ("is_archived",)
     search_fields = ("name", "code")
     ordering = ("code",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
@@ -178,18 +200,20 @@ class EmployeeAdmin(ModelAdmin):
 
     list_display = (
         "full_name",
+        "user",
         "email",
         "phone_number",
         "job_role",
         "unit",
         "reports_to",
+        "is_archived",
         "created_at",
     )
-    list_filter = ("unit",)
-    search_fields = ("full_name", "email", "phone_number")
+    list_filter = ("unit", "is_archived")
+    search_fields = ("full_name", "email", "phone_number", "user__nik", "user__login_username")
     ordering = ("full_name",)
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
-    autocomplete_fields = ("unit", "reports_to")
+    autocomplete_fields = ("user", "unit", "reports_to")
 
     def save_model(self, request, obj, form, change):
         """Auto-populate audit fields on save."""
@@ -203,7 +227,7 @@ class EmployeeAdmin(ModelAdmin):
 # Configuration Admin
 # =====================================================================
 
-class LoginSlideImageInline(admin.TabularInline):
+class LoginSlideImageInline(TabularInline):
     model = LoginSlideImage
     extra = 1
     fields = ("image", "order")
@@ -221,27 +245,47 @@ class SiteConfigAdmin(ModelAdmin):
     readonly_fields = ("id", "created_at", "updated_at", "created_by", "updated_by")
     fieldsets = (
         ("Branding", {
-            "fields": ("site_name", "logo", "favicon"),
+            "fields": ("site_name", "logo", "logo_light", "company_logo", "favicon"),
+            "description": (
+                "<strong>System Logo (Dark/Light Background)</strong> appears across the web app — "
+                "sidebar, login, register, forgot password, and other auth screens. Upload the variant "
+                "matching your logo file's own colors for each background type; if you only upload one, "
+                "it's used everywhere. "
+                "<strong>Company Logo</strong> is printed on generated documents — e-Signature "
+                "stamps and case letterheads (kop surat). Leave Company Logo blank to reuse the "
+                "dark-background System Logo there."
+            ),
         }),
         ("Login Page", {
-            "fields": ("login_theme", "login_image", "contact_info"),
+            "fields": ("login_theme", "login_image", "login_video", "contact_info", "developer_contact_name", "developer_contact_email"),
             "description": (
                 "Select the login page theme. "
                 "<strong>Theme 1</strong>: Classic purple split panel (default). "
                 "<strong>Theme 2</strong>: Modern — large image on the left with automatic slideshow. "
                 "<em>Login Page Image</em> is the primary image (fallback). "
-                "Add more slides via <strong>Login Slide Images</strong> below."
+                "Add more slides via <strong>Login Slide Images</strong> below. "
+                "<em>Login Page Video</em> is optional — if set, it replaces the image/slideshow with a "
+                "looping background video. Keep it short, muted and compressed (see field help text)."
+                "Developer contact fields control Help & About → Contact Developer."
             ),
         }),
         ("Portal Settings", {
-            "fields": ("require_public_login", "max_upload_size_mb"),
+            "fields": ("require_public_login", "max_upload_size_mb", "require_ticket_location", "show_generate_template_button"),
+        }),
+        ("Security", {
+            "fields": ("csp_allowed_frame_hosts", "esign_allow_external_signers"),
+            "description": (
+                "Domains allowed to be embedded via &lt;iframe&gt; across the site "
+                "(e.g. Canva, Figma), on top of YouTube and SharePoint which are always allowed. "
+                "One origin per line, e.g. https://www.youtube.com."
+            ),
         }),
         ("System URLs", {
             "fields": ("site_url", "marketplace_url"),
             "description": "Critical URLs for background tasks, webhook links, and license validation.",
         }),
         ("WhatsApp Gateway", {
-            "fields": ("wa_inbound_enabled", "wa_outbound_enabled"),
+            "fields": ("wa_inbound_enabled", "wa_outbound_enabled", "allow_whatsapp_notifications"),
             "description": "Master toggles for WhatsApp message processing.",
             "classes": ("collapse",),
         }),
@@ -454,21 +498,6 @@ class UserNotificationPreferenceAdmin(ModelAdmin):
 # =====================================================================
 # AI Assistant Configuration Admin
 # =====================================================================
-
-class _APIKeyWidget(forms.TextInput):
-    """Password-style widget that never echoes the saved key back to the browser."""
-
-    input_type = "password"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.attrs.setdefault("autocomplete", "new-password")
-        self.attrs.setdefault("placeholder", "Enter new API key to replace the saved one…")
-
-    def format_value(self, value):
-        del value  # key must never appear in HTML source
-        return ""
-
 
 class _AIConfigAdminForm(forms.ModelForm):
     ai_api_key = forms.CharField(

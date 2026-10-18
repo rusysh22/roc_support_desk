@@ -17,6 +17,7 @@ from django.shortcuts import redirect, render
 from django.urls import resolve, reverse
 from django.core.management import call_command
 from django.core.cache import cache
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,16 @@ class LicenseGateMiddleware:
             request.license_status = status
         except Exception as exc:
             logger.exception(f"[LicenseGate] Error fetching license: {exc}")
-            return self.get_response(request)
+            # A failed license lookup must never grant access to protected routes.
+            # Keep recovery and health endpoints reachable so an administrator can
+            # restore the installation without a deployment workaround.
+            if self._is_exempt(request):
+                return self.get_response(request)
+            return HttpResponse(
+                "License service is temporarily unavailable. Please contact your administrator.",
+                status=503,
+                content_type="text/plain; charset=utf-8",
+            )
 
         # Skip routing enforcement for exempt paths
         if self._is_exempt(request):
@@ -196,6 +206,15 @@ class TrialTimerMiddleware:
         max_days    = cfg.get('TRIAL_MAX_DAYS', 1)
         duration_s  = cfg.get('TRIAL_DURATION_SECONDS', 900)
         today       = date.today()
+
+        # Trial state is durable at installation level; daily records only track
+        # the quota, not whether a customer has already consumed a trial.
+        license_obj = getattr(request, 'license', None)
+        if license_obj and not license_obj.trial_consumed_at:
+            now = timezone.now()
+            license_obj.trial_started_at = license_obj.trial_started_at or now
+            license_obj.trial_consumed_at = now
+            license_obj.save(update_fields=['trial_started_at', 'trial_consumed_at'])
 
         # ------------------------------------------------------------------
         # 1. Check if today would exceed max trial days

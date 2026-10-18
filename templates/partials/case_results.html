@@ -1,0 +1,302 @@
+<!-- Ticket Count -->
+<div class="flex items-center justify-between mb-3">
+    <p class="text-sm text-slate-600">
+        <span class="font-semibold text-slate-700">{{ cases.paginator.count }}</span> case{{ cases.paginator.count|pluralize }}
+    </p>
+    <div id="filter-spinner" class="htmx-indicator text-xs text-slate-600 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        Filtering…
+    </div>
+</div>
+
+<!-- Active Filter Chips -->
+{% if active_filter_chips %}
+<div class="flex flex-wrap items-center gap-1.5 mb-4">
+    {% for chip in active_filter_chips %}
+    {% comment %}
+    Plain navigation (no hx-get): removing a filter must re-render the whole page so the
+    filter form's fields and the status-bar's Alpine toggles stay in sync with the URL —
+    an hx-get here would only refresh #case-results, leaving stale hidden inputs that
+    silently reintroduce this filter next time the form auto-submits.
+    {% endcomment %}
+    <a href="?{{ chip.remove_qs }}"
+       class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+        {{ chip.label }}
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </a>
+    {% endfor %}
+    <a href="{% url 'desk:case_list' %}"
+       class="text-xs font-medium text-slate-600 hover:text-slate-800 underline ml-1">Clear all</a>
+</div>
+{% endif %}
+
+<!-- Tickets Table with Alpine Data for Bulk Actions -->
+{% if cases %}
+<div class="jk-table-wrapper jk-case-list-wrapper select-none" data-fit-viewport x-data="{
+    selectedIds: [],
+    caseIds: {{ cases|length|default:0 }} ? [{% for c in cases %}'{{ c.id }}'{% if not forloop.last %},{% endif %}{% endfor %}] : [],
+    showMergeModal: false,
+
+    get allSelected() {
+        return this.caseIds.length > 0 && this.selectedIds.length === this.caseIds.length;
+    },
+    toggleAll() {
+        if (this.allSelected) {
+            this.selectedIds = [];
+        } else {
+            this.selectedIds = [...this.caseIds];
+        }
+    }
+}">
+    <table class="jk-table jk-case-list-table relative">
+        {# Only sorting links update the list fragment. Ticket links must open the full detail page. #}
+        <thead hx-boost="true" hx-target="#case-results" hx-select="#case-results" hx-swap="outerHTML" hx-indicator="#filter-spinner">
+            <tr>
+                <th class="w-10 hidden sm:table-cell">
+                    <input type="checkbox"
+                           class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                           x-bind:checked="allSelected"
+                           @change="toggleAll()">
+                </th>
+                <th>
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=case_number&order={% if current_sort == 'case_number' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'case_number' %}text-indigo-600 font-bold{% endif %}">
+                        Ticket # {% if current_sort == 'case_number' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=subject&order={% if current_sort == 'subject' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'subject' %}text-indigo-600 font-bold{% endif %}">
+                        Subject {% if current_sort == 'subject' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=status&order={% if current_sort == 'status' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'status' %}text-indigo-600 font-bold{% endif %}">
+                        Status {% if current_sort == 'status' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=priority&order={% if current_sort == 'priority' and current_order == 'desc' %}asc{% else %}desc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'priority' %}text-indigo-600 font-bold{% endif %}">
+                        Priority {% if current_sort == 'priority' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden md:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=case_type&order={% if current_sort == 'case_type' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'case_type' %}text-indigo-600 font-bold{% endif %}">
+                        Type {% if current_sort == 'case_type' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden md:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=source&order={% if current_sort == 'source' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'source' %}text-indigo-600 font-bold{% endif %}">
+                        Source {% if current_sort == 'source' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden lg:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=requester&order={% if current_sort == 'requester' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'requester' %}text-indigo-600 font-bold{% endif %}">
+                        Requester {% if current_sort == 'requester' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden lg:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=category&order={% if current_sort == 'category' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'category' %}text-indigo-600 font-bold{% endif %}">
+                        Category {% if current_sort == 'category' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden xl:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=assigned_to&order={% if current_sort == 'assigned_to' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'assigned_to' %}text-indigo-600 font-bold{% endif %}">
+                        Assigned To {% if current_sort == 'assigned_to' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=created_at&order={% if current_sort == 'created_at' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'created_at' %}text-indigo-600 font-bold{% endif %}">
+                        Created {% if current_sort == 'created_at' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden md:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=last_viewed_at&order={% if current_sort == 'last_viewed_at' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'last_viewed_at' %}text-indigo-600 font-bold{% endif %}">
+                        Last Viewed {% if current_sort == 'last_viewed_at' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden md:table-cell">
+                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=last_user_reply&order={% if current_sort == 'last_user_reply' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'last_user_reply' %}text-indigo-600 font-bold{% endif %}">
+                        Last User Reply {% if current_sort == 'last_user_reply' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
+                    </a>
+                </th>
+                <th class="hidden md:table-cell">Idle</th>
+                <th class="hidden md:table-cell">SLA</th>
+            </tr>
+        </thead>
+        <tbody id="case-tbody">
+            {% include "partials/case_table_rows.html" %}
+        </tbody>
+    </table>
+
+    <!-- Pagination block -->
+    {% if cases.paginator.count %}
+    <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex items-center justify-between flex-wrap gap-2 sm:gap-4"
+         hx-boost="true" hx-target="#case-results" hx-select="#case-results" hx-swap="outerHTML" hx-indicator="#filter-spinner">
+        <div class="flex items-center gap-4 flex-wrap">
+            {% include "partials/list/_page_size.html" %}
+            <div class="text-sm text-slate-600">
+                Showing <span class="font-medium text-slate-900">{{ cases.start_index }}</span> to <span class="font-medium text-slate-900">{{ cases.end_index }}</span> of <span class="font-medium text-slate-900">{{ cases.paginator.count }}</span> cases
+            </div>
+        </div>
+        {% if cases.has_other_pages %}<div class="flex items-center gap-1">
+            {% if cases.has_previous %}
+            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
+            {% else %}
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Prev</button>
+            {% endif %}
+
+            {% for i in cases.paginator.page_range %}
+                {% if cases.number == i %}
+                <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20">{{ i }}</span>
+                {% elif i > cases.number|add:'-3' and i < cases.number|add:'3' %}
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if cases.has_next %}
+            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
+            {% else %}
+            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Next</button>
+            {% endif %}
+        </div>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Floating Bulk Action Bar -->
+    <div x-show="selectedIds.length > 0"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-10"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-10"
+         style="display: none;"
+         class="jk-bulk-bar fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
+
+        <div class="px-5 py-3.5 bg-slate-800 flex items-center gap-2 border-r border-slate-700/50 font-medium">
+            <span class="flex items-center justify-center w-6 h-6 bg-indigo-500 rounded-full text-xs font-bold" x-text="selectedIds.length"></span>
+            <span class="text-sm">selected</span>
+        </div>
+
+        <div class="flex items-center px-2">
+
+            <form action="{% url 'desk:case_bulk_action' %}" method="post" class="flex" id="bulk-action-form">
+                {% csrf_token %}
+                <template x-for="id in selectedIds" :key="id">
+                    <input type="hidden" name="case_ids" :value="id">
+                </template>
+
+                {% if current_filters.folder == "spam" %}
+                <!-- Unspam Route -->
+                <button type="submit" name="action" value="unspam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-emerald-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Not Spam
+                </button>
+                {% else %}
+                <!-- Mark Spam Route -->
+                <button type="submit" name="action" value="spam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-rose-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Spam
+                </button>
+                {% endif %}
+
+                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+
+                {% if current_filters.folder == "archive" %}
+                <!-- Unarchive -->
+                <button type="submit" name="action" value="unarchive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                    Unarchive
+                </button>
+                {% else %}
+                <!-- Archive Route -->
+                <button type="submit" name="action" value="archive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                    Archive
+                </button>
+                {% endif %}
+
+                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
+
+                <!-- Merge Route (Opens Modal) -->
+                <button type="button" @click="showMergeModal = true"
+                        :disabled="selectedIds.length < 2"
+                        :class="selectedIds.length < 2 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-800'"
+                        class="px-4 py-3.5 text-sm font-medium transition-colors flex items-center gap-2 text-indigo-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Merge
+                </button>
+            </form>
+
+            <div class="w-px h-8 bg-slate-700/50 self-center mx-1"></div>
+
+            <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-600 hover:bg-slate-800 transition-colors border-l border-slate-700/50 ml-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modals inside x-data -->
+    <!-- Merge Modal -->
+    <div x-show="showMergeModal" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden" @click.outside="showMergeModal = false">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Merge Tickets
+                </h3>
+                <button @click="showMergeModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <p class="text-sm text-slate-600 mb-4">You are about to merge <strong x-text="selectedIds.length"></strong> tickets into a single view. Please select which ticket should be the <strong>Master Ticket</strong>. The others will be listed as sub-tickets inside it.</p>
+
+                <form action="{% url 'desk:case_bulk_action' %}" method="post" id="merge-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="merge">
+                    <template x-for="id in selectedIds" :key="id">
+                        <input type="hidden" name="case_ids" :value="id">
+                    </template>
+
+                    <div class="max-h-60 overflow-y-auto pr-2 space-y-2 mb-6 pointer-events-auto">
+                        {% regroup cases|dictsort:"status" by status as status_groups %}
+                        {% for group in status_groups %}
+                        <div class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 px-2 py-1 mb-1 mt-2 text-xs font-bold text-slate-600 uppercase tracking-wider rounded border border-slate-200">
+                            {{ group.grouper }}
+                        </div>
+                        {% for case in group.list %}
+                        <label class="flex items-start gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-indigo-300 transition-colors"
+                               x-show="selectedIds.includes('{{ case.id }}')">
+                            <div class="pt-0.5">
+                                <input type="radio" name="master_id" value="{{ case.id }}" required class="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium text-slate-800 text-sm truncate">{{ case.case_number }}: {{ case.subject }}</div>
+                                <div class="text-xs text-slate-600 truncate mt-0.5">👤 {{ case.requester.full_name|default:"Unknown" }} • {{ case.created_at|date:"d M Y" }}</div>
+                            </div>
+                        </label>
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button type="button" @click="showMergeModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
+                        <button type="submit" class="jk-btn jk-btn-primary">Confirm Merge</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+{% else %}
+<div class="jk-card">
+    <div class="jk-empty-state">
+        <div class="jk-empty-state-icon">📭</div>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">No Tickets Found</h3>
+        <p class="text-slate-600 text-sm">No cases match your current filters.</p>
+    </div>
+</div>
+{% endif %}

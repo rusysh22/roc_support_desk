@@ -2,7 +2,7 @@
 {% load static %}
 {% load kb_tags %}
 
-{% block title %}{% if query %}Search Results for "{{ query }}"{% else %}Search Articles{% endif %} - Knowledge Base{% endblock %}
+{% block title %}{% if query %}Search Results for "{{ query }}"{% else %}Search Articles{% endif %} | Knowledge Base{% endblock %}
 
 {% block main_class %}bg-slate-50{% endblock %}
 
@@ -12,6 +12,7 @@
     .kb-result-arrow { opacity: 0; transform: translateX(-6px); transition: all 0.2s; }
     mark { background: #fef08a; color: #713f12; padding: 0.1rem 0.25rem; border-radius: 0.25rem; font-weight: 600; }
 </style>
+<script src="{% static 'js/kb-search-suggest.js' %}" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -32,17 +33,18 @@
         <div class="absolute top-0 right-0 w-48 h-48 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 transform translate-x-1/4 -translate-y-1/4 pointer-events-none"></div>
         <div class="relative z-10">
             <h1 class="text-xl font-bold text-white mb-4">Search Knowledge Base</h1>
-            <form action="{% url 'knowledge_base:search' %}" method="get">
-                <div class="flex items-center bg-white rounded-xl shadow-lg overflow-hidden border-2 border-transparent focus-within:border-indigo-400 transition-all max-w-3xl">
+            <form action="{% url 'knowledge_base:search' %}" method="get" class="relative max-w-3xl">
+                <div class="flex items-center bg-white rounded-xl shadow-lg overflow-hidden border-2 border-transparent focus-within:border-indigo-400 transition-all">
                     <div class="pl-4 pr-2 flex items-center pointer-events-none">
                         <svg class="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     </div>
-                    <input type="text" name="q" value="{{ query }}" placeholder="Type a keyword to search..."
+                    <input type="text" name="q" id="kb-results-search-input" autocomplete="off" value="{{ query }}" placeholder="Type a keyword to search..."
                         class="flex-1 py-3.5 text-base text-slate-900 bg-transparent outline-none placeholder-slate-400">
-                    <button type="submit" class="m-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                    <button type="submit" class="m-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm whitespace-nowrap">
                         Search
                     </button>
                 </div>
+                <div id="kb-results-search-dropdown" class="hidden absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden text-left z-30"></div>
             </form>
 
             <!-- Search tips -->
@@ -122,6 +124,7 @@
                             {% for tag in article.tags.all|slice:":3" %}
                             <span class="bg-slate-100 px-2 py-0.5 rounded-full">#{{ tag.name }}</span>
                             {% endfor %}
+                            {% include "knowledge_base/_article_stats.html" with views=article.views_total likes=article.likes_total %}
                         </div>
                         <span class="kb-result-arrow flex items-center gap-1 text-xs font-semibold text-indigo-600">
                             Read article
@@ -146,6 +149,21 @@
                     We couldn't find any articles matching "<strong class="text-slate-700">{{ query }}</strong>". Try different keywords or check your spelling.
                 </p>
 
+                {% if suggestions %}
+                <!-- Closest articles on file (trigram similarity) — real, data-driven -->
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-5 max-w-md mx-auto text-left mb-6">
+                    <p class="text-sm font-semibold text-slate-700 mb-3">Did you mean one of these?</p>
+                    <div class="space-y-2">
+                        {% for article in suggestions %}
+                        <a href="{% url 'knowledge_base:article_detail' article.slug %}"
+                           class="block px-3 py-2 bg-white rounded-lg border border-indigo-100 hover:border-indigo-300 hover:shadow-sm transition-all">
+                            <span class="text-sm font-semibold text-slate-800">{{ article.title }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Suggestions -->
                 <div class="bg-slate-50 rounded-xl p-5 max-w-md mx-auto text-left mb-6">
                     <p class="text-sm font-semibold text-slate-700 mb-3">Search suggestions:</p>
@@ -166,7 +184,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center justify-center gap-3">
-                    <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm">
+                    <a href="{% url 'knowledge_base:home' %}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
                         Browse Categories
                     </a>
@@ -191,4 +209,11 @@
     </div>
 
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.initKbSearchSuggest) {
+            initKbSearchSuggest('kb-results-search-input', 'kb-results-search-dropdown', "{% url 'knowledge_base:search_suggest' %}");
+        }
+    });
+</script>
 {% endblock %}

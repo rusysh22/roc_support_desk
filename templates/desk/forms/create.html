@@ -41,10 +41,10 @@
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
 
+    <div class="jk-back-row">
+        {% url 'desk:form_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'desk:form_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-        </a>
         <div>
             <h2 class="text-lg font-bold text-slate-900">Form Settings</h2>
             <p class="text-sm text-slate-600 mt-1">Set the basic information and styling for your new form.</p>
@@ -52,7 +52,7 @@
     </div>
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <form method="post" enctype="multipart/form-data" class="p-8">
+        <form data-unsaved-guard method="post" enctype="multipart/form-data" class="p-8">
             {% csrf_token %}
             
             <div class="space-y-8">

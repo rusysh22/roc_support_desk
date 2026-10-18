@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import environ
+from licensing.marketplace_key import MARKETPLACE_ED25519_PUBLIC_KEY_B64
 
 # -----------------------------------------------------------------
 # Paths
@@ -31,6 +32,10 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost","127.0.0.1"])
 
+# Single source of truth for the version shown in the sidebar footer and the
+# Help & About changelog — bump this alongside a new changelog entry.
+APP_VERSION = "1.6.0"
+
 # -----------------------------------------------------------------
 # Custom User Model
 # -----------------------------------------------------------------
@@ -52,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "django.contrib.postgres",
 
     # SSO — allauth
     "allauth",
@@ -78,6 +84,8 @@ INSTALLED_APPS = [
     "projects.apps.ProjectsConfig",
     # Shared Docs
     "shared_docs.apps.SharedDocsConfig",
+    # Announcements (shown on the Ticket Portal)
+    "announcements.apps.AnnouncementsConfig",
     # Field-level encryption
     "encrypted_model_fields",
 
@@ -131,6 +139,10 @@ UNFOLD = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Must wrap everything below so it sees the FINAL redirect decision from
+    # every other middleware (auth, license gate, password change, etc.) —
+    # see HtmxRedirectMiddleware's docstring for why this exists.
+    "core.middleware.HtmxRedirectMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -165,6 +177,9 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.site_config",
                 "core.context_processors.user_modules",
+                "core.context_processors.my_tickets_badge",
+                "core.context_processors.pending_actions_badge",
+                "core.context_processors.widget_user_unit",
                 "licensing.context_processors.license_context",
             ],
         },
@@ -179,6 +194,12 @@ WSGI_APPLICATION = "roc_desk.wsgi.application"
 DATABASES = {
     "default": env.db("DATABASE_URL"),
 }
+
+# Optional Azure AD App Registration (Service Principal) for Azure Blob
+# Storage — used only when USE_AZURE_STORAGE is on and AZURE_ACCOUNT_KEY is blank.
+AZURE_TENANT_ID = env("AZURE_TENANT_ID", default="")
+AZURE_CLIENT_ID = env("AZURE_CLIENT_ID", default="")
+AZURE_CLIENT_SECRET = env("AZURE_CLIENT_SECRET", default="")
 
 # -----------------------------------------------------------------
 # Password validation
@@ -210,12 +231,36 @@ USE_S3_STORAGE = env.bool("USE_S3_STORAGE", default=False)
 
 if USE_AZURE_STORAGE:
     AZURE_ACCOUNT_NAME = env("AZURE_ACCOUNT_NAME")
-    AZURE_ACCOUNT_KEY = env("AZURE_ACCOUNT_KEY")
+    # Either an account key, or (when AZURE_ACCOUNT_KEY is blank) the Service
+    # Principal above with the "Storage Blob Data Contributor" role — that role
+    # also covers generateUserDelegationKey, which django-storages needs to
+    # mint SAS links without an account key.
+    AZURE_ACCOUNT_KEY = env("AZURE_ACCOUNT_KEY", default="")
     AZURE_CONTAINER = env("AZURE_CONTAINER", default="media-support-desk")
-    
+
+    _azure_storage_options = {
+        # The container holds a mix of public branding assets
+        # (SiteConfig logo/slides) and sensitive uploads (case
+        # attachments, e-signature docs) — so it stays Private
+        # rather than making the whole container publicly
+        # readable. This makes every generated file URL a
+        # time-limited SAS link instead of a bare public URL,
+        # which is what actually works against a Private container.
+        "expiration_secs": 3600,
+    }
+    if not AZURE_ACCOUNT_KEY:
+        from azure.identity import ClientSecretCredential
+
+        _azure_storage_options["token_credential"] = ClientSecretCredential(
+            tenant_id=AZURE_TENANT_ID,
+            client_id=AZURE_CLIENT_ID,
+            client_secret=AZURE_CLIENT_SECRET,
+        )
+
     STORAGES = {
         "default": {
-            "BACKEND": "storages.backends.azure_storage.AzureStorage",
+            "BACKEND": "core.storage.CachedAzureStorage",
+            "OPTIONS": _azure_storage_options,
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -285,6 +330,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=30),
         "options": {"expires": 900},
     },
+    # E-sign: hourly check; each pending internal signer is reminded once per ESIGN_AUTO_REMIND_HOURS.
+    # (Lives here because Celery loads CELERY_BEAT_SCHEDULE from settings over the dict in roc_desk/celery.py.)
+    "esign-auto-remind-hourly": {
+        "task": "esign.send_auto_reminders_task",
+        "schedule": crontab(minute=20),
+        "options": {"expires": 3000},
+    },
 }
 
 # -----------------------------------------------------------------
@@ -303,6 +355,13 @@ CHANNEL_LAYERS = {
 # -----------------------------------------------------------------
 # Gateways (Evolution API & IMAP)
 # -----------------------------------------------------------------
+DEFAULT_EMPLOYEE_UNIT_CODE = env("DEFAULT_EMPLOYEE_UNIT_CODE", default="UNMAPPED")
+
+# Master kill switch for the WhatsApp gateway. Turn it off when no Evolution API
+# instance is deployed, so the health-check task doesn't spam DNS failures and
+# trip the circuit breaker.
+WA_ENABLED = env.bool("WA_ENABLED", default=True)
+
 EVOLUTION_API_URL = env("EVOLUTION_API_URL", default="")
 EVOLUTION_API_KEY = env("EVOLUTION_API_KEY", default="")
 EVOLUTION_INSTANCE_NAME = env("EVOLUTION_INSTANCE_NAME", default="")
@@ -334,6 +393,11 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
 
 # Public base URL used for building absolute links in emails (e.g. magic-link signing URLs)
 SITE_URL = env("SITE_URL", default="http://localhost:8000")
+# E-sign: remind assigned (internal) signers again after this many hours without action; 0 turns it off.
+ESIGN_AUTO_REMIND_HOURS = env.int("ESIGN_AUTO_REMIND_HOURS", default=24)
+
+# Auto-close Resolved tickets after this many days; reopen is allowed until then
+CHAT_AUTO_CLOSE_IDLE_DAYS = env.int("CHAT_AUTO_CLOSE_IDLE_DAYS", default=5)
 
 # -----------------------------------------------------------------
 # Login / Auth redirects
@@ -353,14 +417,17 @@ IPWARE_META_PRECEDENCE_ORDER = (
     'HTTP_X_REAL_IP',
     'REMOTE_ADDR',
 )
-CSRF_TRUSTED_ORIGINS = [
-    'https://rusydani.my.id',
-    'https://*.rusydani.my.id',
-    'https://pajak-santika.my.id',
-    'https://*.pajak-santika.my.id',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-]
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=[
+        'https://rusydani.my.id',
+        'https://*.rusydani.my.id',
+        'https://pajak-santika.my.id',
+        'https://*.pajak-santika.my.id',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ],
+)
 CSRF_FAILURE_VIEW = 'core.views.custom_csrf_failure_view'
 
 # --- HTTPS & Security Headers ---
@@ -398,9 +465,8 @@ AUTHENTICATION_BACKENDS = [
 ACCOUNT_ADAPTER = "core.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "core.adapters.SocialAccountAdapter"
 
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_AUTO_SIGNUP = True
@@ -416,10 +482,12 @@ LOGGING = {
     "handlers": {
         "console": {"class": "logging.StreamHandler"},
     },
+    "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
         "allauth": {"handlers": ["console"], "level": "DEBUG", "propagate": False},
         "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
         "esign": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "celery": {"handlers": ["console"], "level": "INFO", "propagate": False},
     },
 }
 
@@ -439,6 +507,21 @@ LICENSE_SETTINGS = {
     # Dev override via .env: LICENSE_MARKETPLACE_URL=https://dev-tokowebjaya.roc.web.id
     'MARKETPLACE_URL':        env('LICENSE_MARKETPLACE_URL', default='https://tokowebjaya.com'),
     'PRODUCT_ID':             env('LICENSE_PRODUCT_ID', default='roc-support-desk'),
+    'ACTIVATION_API_SECRET':  env('LICENSE_ACTIVATION_API_SECRET', default=''),
+    # A release should embed this public key in licensing/marketplace_key.py.
+    # Environment fallback is useful for development and key-rotation staging.
+    # An environment value takes precedence for local Docker and key-rotation
+    # staging. Production releases keep the pinned public key below as the
+    # fallback; the Marketplace private key must never be present here.
+    'ENTITLEMENT_PUBLIC_KEY': (
+        env('LICENSE_ENTITLEMENT_PUBLIC_KEY', default='')
+        or MARKETPLACE_ED25519_PUBLIC_KEY_B64
+    ),
+    # A configured key automatically enables fail-closed signature verification.
+    'REQUIRE_SIGNED_ENTITLEMENT': env.bool(
+        'LICENSE_REQUIRE_SIGNED_ENTITLEMENT',
+        default=bool(env('LICENSE_ENTITLEMENT_PUBLIC_KEY', default='') or MARKETPLACE_ED25519_PUBLIC_KEY_B64),
+    ),
     'WEBHOOK_SECRET':         env('LICENSE_WEBHOOK_SECRET', default=''),
     'VERIFY_INTERVAL_HOURS':  env.int('LICENSE_VERIFY_INTERVAL_HOURS', default=24),
     'TRIAL_MAX_DAYS':         env.int('LICENSE_TRIAL_MAX_DAYS', default=1),

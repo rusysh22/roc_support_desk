@@ -13,7 +13,7 @@
         {# === Masked confidential card — subject hidden, requester visible === #}
         <div class="kanban-card opacity-50" style="cursor: default; pointer-events: none;">
             <div class="flex items-center justify-between mb-2">
-                <div class="kanban-card__id flex items-center gap-1.5">
+                <div class="kanban-card__id {% if case.has_unread_activity and case.has_confidential_access_flag %}jk-ticket-unread {% endif %}flex items-center gap-1.5">
                     <svg class="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                     {{ case.case_number }}
                 </div>
@@ -37,7 +37,7 @@
         </div>
         {% else %}
         {# === Normal card === #}
-        <div class="kanban-card {% if case.has_unread_messages %}bg-rose-50 border-rose-200 shadow-rose-100{% endif %}" draggable="true" data-case-id="{{ case.id }}"
+        <div class="kanban-card {% if case.has_unread_activity %}bg-rose-50 border-rose-200 shadow-rose-100{% endif %}" draggable="true" data-case-id="{{ case.id }}"
              ondragstart="event.dataTransfer.setData('text/plain', '{{ case.id }}'); this.classList.add('dragging')"
              ondragend="this.classList.remove('dragging')"
              hx-get="{% url 'desk:case_quick_view' case.id %}"
@@ -46,8 +46,8 @@
              style="cursor: pointer;">
 
             <div class="flex items-center justify-between mb-2">
-                <div class="kanban-card__id flex items-center gap-1.5">
-                    {% if case.has_unread_messages %}
+                <div class="kanban-card__id {% if case.has_unread_activity and case.has_confidential_access_flag %}jk-ticket-unread {% endif %}flex items-center gap-1.5">
+                    {% if case.has_unread_activity %}
                         <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Unread messages"></span>
                     {% endif %}
                     {% if case.category.is_confidential %}
@@ -55,12 +55,14 @@
                     {% endif %}
                     {{ case.case_number }}
                 </div>
-                {% if case.priority == "High" %}
-                    <span class="kanban-card__priority kanban-card__priority--high">High</span>
-                {% elif case.priority == "Medium" %}
-                    <span class="kanban-card__priority kanban-card__priority--medium">Med</span>
+                {% if case.priority == "P1" %}
+                    <span class="kanban-card__priority kanban-card__priority--high">P1</span>
+                {% elif case.priority == "P2" %}
+                    <span class="kanban-card__priority kanban-card__priority--high">P2</span>
+                {% elif case.priority == "P3" %}
+                    <span class="kanban-card__priority kanban-card__priority--medium">P3</span>
                 {% else %}
-                    <span class="kanban-card__priority kanban-card__priority--low">Low</span>
+                    <span class="kanban-card__priority kanban-card__priority--low">P4</span>
                 {% endif %}
             </div>
 

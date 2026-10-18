@@ -5,7 +5,7 @@ Provides the foundational models for the entire RoC Desk system:
 
 - ``AuditableModel``  — abstract base with UUID pk, timestamps, and audit FKs.
 - ``User``            — custom user model with login_username, NIK, role_access.
-- ``CompanyUnit``     — organisational unit (e.g. IT, FIN, HR).
+- ``CompanyUnit``     — organisational entity (e.g. a subsidiary or business unit).
 - ``Employee``        — internal staff / end-user who submits or receives cases.
 """
 import re
@@ -27,6 +27,7 @@ MODULE_REGISTRY = [
     ("form_creator",         "Form Creator",          "📝",  "Content & Docs"),
     ("shared_docs",          "Shared Docs",           "📂",  "Content & Docs"),
     ("shorten_link",         "Shorten Link",          "🔗",  "Content & Docs"),
+    ("announcement_management", "Announcements",     "📣",  "Content & Docs"),
     ("my_approvals",         "My Approvals",          "✅",  "My Workspace"),
     ("my_signatures",        "My Signatures",         "✍️",  "My Workspace"),
     ("my_eforms",            "My e-Forms",            "📝",  "My Workspace"),
@@ -41,19 +42,51 @@ _STAFF_MODULES = {
     "my_approvals", "my_signatures", "my_eforms",
 }
 
+_ENGINEER_MODULES = {
+    "dashboard", "task_management",
+}
+
 ROLE_DEFAULT_MODULES = {
     "SuperAdmin":  _STAFF_MODULES,
     "Manager":     _STAFF_MODULES,
     "SupportDesk": _STAFF_MODULES,
     "Auditor":     _STAFF_MODULES,
+    "Engineer":    _ENGINEER_MODULES,
     "PortalUser":  {"my_tickets", "my_eforms", "app_portal"},
 }
 
+DEFAULT_PORTAL_USER_MODULES = ["my_tickets", "my_eforms", "app_portal"]
+
+# Capabilities a User Role can grant. The code only ever asks "does this user have
+# <permission>?" — which roles hold which permission is data (UserRole.permissions).
+# A new feature adds its permission codes here, as (code, label, group).
+PERMISSION_REGISTRY = []
+ALL_PERMISSIONS = "*"
+
+
+def permission_codes():
+    return [code for code, _label, _group in PERMISSION_REGISTRY]
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import RegexValidator
+from django.core.validators import FileExtensionValidator, RegexValidator
 from django.db import models
 from encrypted_model_fields.fields import EncryptedCharField
+
+
+def default_portal_user_modules():
+    return list(DEFAULT_PORTAL_USER_MODULES)
+
+
+def default_role_module_defaults():
+    return {
+        role: sorted(modules)
+        for role, modules in ROLE_DEFAULT_MODULES.items()
+    }
+
+
+def _valid_module_slugs():
+    return {slug for slug, _label, _emoji, _section in MODULE_REGISTRY}
 
 
 # =====================================================================
@@ -128,6 +161,7 @@ class User(AbstractUser):
         SUPERADMIN = "SuperAdmin", "Super Admin"
         MANAGER = "Manager", "Manager"
         SUPPORTDESK = "SupportDesk", "Support Desk"
+        ENGINEER = "Engineer", "Engineer"
         AUDITOR = "Auditor", "Auditor"
         PORTALUSER = "PortalUser", "Portal User"
 
@@ -164,6 +198,15 @@ class User(AbstractUser):
         choices=RoleAccess.choices,
         default=RoleAccess.SUPPORTDESK,
         verbose_name="Role Access",
+    )
+    user_role = models.ForeignKey(
+        "core.UserRole",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="users",
+        verbose_name="User Role",
+        help_text="Role from the User Roles master data. Sets the base access level and permissions.",
     )
 
     initials = models.CharField(
@@ -205,9 +248,16 @@ class User(AbstractUser):
         default=None,
         verbose_name="Module Access",
         help_text=(
-            "List of module slugs this user can access. "
-            "Leave null to inherit role defaults."
+            "Extra module slugs on top of the role's Module Defaults. "
+            "Leave null to inherit role defaults only."
         ),
+    )
+
+    esign_tnc_accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="E-Sign Terms & Conditions Accepted At",
+        help_text="When the user last accepted the E-Sign Terms & Conditions. Re-confirmed every 12 months.",
     )
 
     # --- Auth configuration ---
@@ -222,15 +272,114 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.login_username})"
 
-    def get_accessible_modules(self):
-        """Return the set of module slugs this user can access.
+    ESIGN_TNC_VALIDITY_DAYS = 365
 
-        Returns the custom list when explicitly set, otherwise falls back
-        to the role-based defaults defined in ROLE_DEFAULT_MODULES.
+    @property
+    def esign_tnc_is_valid(self):
+        """Whether the user's E-Sign Terms & Conditions acceptance is still within the 1-year validity window."""
+        if not self.esign_tnc_accepted_at:
+            return False
+        from django.utils import timezone
+        import datetime
+        return timezone.now() - self.esign_tnc_accepted_at < datetime.timedelta(days=self.ESIGN_TNC_VALIDITY_DAYS)
+
+    # ── User Role (master data) ──
+    def save(self, *args, **kwargs):
+        self._sync_role()
+        super().save(*args, **kwargs)
+
+    def _sync_role(self):
+        """Keep ``role_access`` (the base tier most checks still read) and ``user_role`` consistent.
+
+        A custom role sets the tier from its ``base_access``; a system role always matches
+        ``role_access``, so code that changes ``role_access`` directly moves the user to the
+        matching system role.
         """
-        if self.module_access is not None:
-            return set(self.module_access)
-        return set(ROLE_DEFAULT_MODULES.get(self.role_access, set()))
+        role = self.user_role if self.user_role_id else None
+        if role is None or role.is_system:
+            if role is None or role.code != self.role_access:
+                self.user_role = UserRole.objects.filter(code=self.role_access, is_system=True).first()
+        else:
+            self.role_access = role.base_access
+
+    @property
+    def effective_role(self):
+        """The user's User Role (falls back to the system role of ``role_access``)."""
+        if not hasattr(self, "_effective_role"):
+            role = self.user_role if self.user_role_id else None
+            if role is None:
+                role = UserRole.objects.filter(code=self.role_access, is_system=True).first()
+            self._effective_role = role
+        return self._effective_role
+
+    def has_capability(self, code):
+        """Whether the user's User Role grants permission ``code`` (see PERMISSION_REGISTRY)."""
+        if not self.is_authenticated or not self.is_active:
+            return False
+        role = self.effective_role
+        return bool(role and role.is_active and role.grants(code))
+
+    @property
+    def role_label(self):
+        role = self.effective_role
+        return role.name if role else self.get_role_access_display()
+
+    def get_accessible_modules(self):
+        role_mods = SiteConfig.get_role_modules(self.role_access)
+        role = self.user_role if self.user_role_id else None
+        if role is not None and role.code != self.role_access:
+            # A custom role adds its own module defaults on top of its base tier's.
+            role_mods = role_mods | SiteConfig.get_role_modules(role.code)
+        if self.module_access is None:
+            return role_mods
+        if not isinstance(self.module_access, list):
+            return role_mods
+        override = {str(m).strip() for m in self.module_access if str(m).strip()}
+        return override | role_mods
+
+
+class UserRole(AuditableModel):
+    """User Role master data: what a role is called, which base tier it has, and which
+    permissions (PERMISSION_REGISTRY) it grants. Module defaults per role live in
+    SiteConfig.role_module_defaults, keyed by ``code``.
+
+    The six built-in roles exist as system rows (code = ``User.RoleAccess`` value) so they
+    can be given permissions too; they can't be renamed into another tier or deleted.
+    """
+
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        validators=[RegexValidator(r"^[A-Za-z][A-Za-z0-9_]*$", "Letters, digits and underscores; start with a letter.")],
+        verbose_name="Code",
+        help_text="Stable key, e.g. finance_staff. Cannot be changed later.",
+    )
+    name = models.CharField(max_length=100, unique=True, verbose_name="Role Name")
+    description = models.TextField(blank=True, default="", verbose_name="Description")
+    base_access = models.CharField(
+        max_length=20,
+        choices=User.RoleAccess.choices,
+        default=User.RoleAccess.PORTALUSER,
+        verbose_name="Base Access Level",
+        help_text="Built-in level this role behaves as in modules that do not use permissions yet "
+                  "(Portal User = portal only; the others open the Support Desk).",
+    )
+    permissions = models.JSONField(default=list, blank=True, verbose_name="Permissions")
+    is_system = models.BooleanField(default=False, editable=False, verbose_name="System Role")
+    is_active = models.BooleanField(default=True, verbose_name="Active")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="Display Order")
+
+    class Meta:
+        verbose_name = "User Role"
+        verbose_name_plural = "User Roles"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+    def grants(self, code):
+        perms = self.permissions if isinstance(self.permissions, list) else []
+        return ALL_PERMISSIONS in perms or code in perms
 
 
 # =====================================================================
@@ -298,6 +447,7 @@ class CompanyUnit(AuditableModel):
         verbose_name="Longitude",
         help_text="GPS longitude, e.g. 106.8456000",
     )
+    is_archived = models.BooleanField(default=False, db_index=True, verbose_name="Archived")
 
     class Meta:
         verbose_name = "Unit"
@@ -350,6 +500,15 @@ class Employee(AuditableModel):
     directly against WhatsApp sender IDs from Evolution API webhooks.
     """
 
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_profile",
+        verbose_name="Linked User",
+        help_text="Optional staff/portal user account. Matching uses this user's NIK.",
+    )
     full_name = models.CharField(max_length=255, verbose_name="Full Name")
     email = models.EmailField(unique=True, null=True, blank=True, verbose_name="Email")
     phone_number = models.CharField(
@@ -381,6 +540,7 @@ class Employee(AuditableModel):
         verbose_name="Reports To (Manager)",
         help_text="The direct manager or supervisor of this employee."
     )
+    is_archived = models.BooleanField(default=False, db_index=True, verbose_name="Archived")
 
     class Meta:
         verbose_name = "Employee"
@@ -461,8 +621,22 @@ class SiteConfig(AuditableModel):
         upload_to="site_config/",
         null=True,
         blank=True,
-        verbose_name="Site Logo",
-        help_text="Upload the main logo displayed in the navigation bar."
+        verbose_name="System Logo — Dark Background",
+        help_text="Used wherever the logo sits on a dark background — sidebar/navbar, dark login panels, etc. Falls back to the light-background logo below if left blank."
+    )
+    logo_light = models.ImageField(
+        upload_to="site_config/",
+        null=True,
+        blank=True,
+        verbose_name="System Logo — Light Background",
+        help_text="Used wherever the logo sits on a light/white background — login form panel, register, forgot password, and other auth screens. Falls back to the dark-background logo above if left blank."
+    )
+    company_logo = models.ImageField(
+        upload_to="site_config/",
+        null=True,
+        blank=True,
+        verbose_name="Company Logo",
+        help_text="Logo printed on generated documents — e-Signature stamps and case letterheads (kop surat). Falls back to System Logo if left blank."
     )
     max_upload_size_mb = models.PositiveIntegerField(
         default=10,
@@ -473,6 +647,14 @@ class SiteConfig(AuditableModel):
         default=False,
         verbose_name="Require Public Login",
         help_text="If enabled, all users must be logged in to access the public Ticket Portal and Knowledge Base."
+    )
+    esign_allow_external_signers = models.BooleanField(
+        default=True,
+        verbose_name="Allow External Email Signers (e-Sign)",
+        help_text=(
+            "If disabled, staff can only add Internal (System) Users as e-Signature signers — "
+            "the External Email option (public magic-link, no login) is hidden and blocked."
+        ),
     )
 
     LOGIN_THEME_CHOICES = [
@@ -493,11 +675,55 @@ class SiteConfig(AuditableModel):
         verbose_name="Login Page Image (Theme 2)",
         help_text="Primary hero image for Theme 2 left panel. Add more slides via 'Login Slide Images' below.",
     )
+    login_video = models.FileField(
+        upload_to="site_config/",
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=["mp4", "webm"])],
+        verbose_name="Login Page Video (Theme 2)",
+        help_text=(
+            "Optional looping background video for Theme 2's left panel — takes priority over "
+            "the image/slideshow above when set. Keep it short (3–8s), muted (no audio track), "
+            "H.264 MP4 or WebM, 720p is plenty since it's stretched to fill the panel. "
+            "Under ~5 MB is recommended; it's only loaded on large screens (hidden on mobile)."
+        ),
+    )
     contact_info = models.TextField(
         blank=True,
         default="",
         verbose_name="Contact Info (Narahubung)",
         help_text="Contact details (narahubung) shown on the login page footer. Supports plain text or simple HTML.",
+    )
+    developer_contact_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="IT Support",
+        verbose_name="Developer Contact Name",
+        help_text="Display name shown under Help & About → Contact Developer.",
+    )
+    developer_contact_email = models.EmailField(
+        blank=True,
+        default="",
+        verbose_name="Developer Contact Email",
+        help_text="Email shown under Help & About → Contact Developer, and the recipient for Submit Feedback. "
+                  "Leave blank to list the active SuperAdmins instead and only store feedback.",
+    )
+
+    # --- Behaviour toggles ---
+    require_ticket_location = models.BooleanField(
+        default=False,
+        verbose_name="Require Location on New Tickets",
+        help_text="If enabled, the requester must pick a Ticket Location when submitting a new ticket.",
+    )
+    show_generate_template_button = models.BooleanField(
+        default=True,
+        verbose_name="Show 'Generate Template' Button",
+        help_text="Show the Generate Template button on the new-ticket form.",
+    )
+    allow_whatsapp_notifications = models.BooleanField(
+        default=True,
+        verbose_name="Allow WhatsApp Notifications in My Profile",
+        help_text="Let users opt in to personal WhatsApp notifications from My Profile (requires the WhatsApp gateway).",
     )
 
     wa_instance_activated_at = models.DateTimeField(
@@ -678,6 +904,36 @@ class SiteConfig(AuditableModel):
         verbose_name="Terms & Privacy Policy",
         help_text="Terms of use and privacy policy text displayed on the Help & About page.",
     )
+    portal_user_modules = models.JSONField(
+        default=default_portal_user_modules,
+        blank=True,
+        verbose_name="Portal User Modules",
+        help_text=(
+            "Legacy field — kept in sync with role_module_defaults['PortalUser']. "
+            "Prefer Module Defaults (role_module_defaults)."
+        ),
+    )
+    role_module_defaults = models.JSONField(
+        default=default_role_module_defaults,
+        blank=True,
+        verbose_name="Role Module Defaults",
+        help_text=(
+            "Default module slugs per role. Users without a per-account override "
+            "inherit the list for their role_access."
+        ),
+    )
+
+    # --- Content Security Policy (CSP) Config ---
+    csp_allowed_frame_hosts = models.TextField(
+        blank=True,
+        default="https://www.youtube.com",
+        verbose_name="Allowed Embed Domains (CSP frame-src)",
+        help_text=(
+            "Extra domains allowed to be embedded via &lt;iframe&gt; (e.g. Canva, Figma), "
+            "one origin per line or space-separated, e.g. https://www.youtube.com. "
+            "Appended to the site's frame-src Content-Security-Policy directive."
+        ),
+    )
 
     class Meta:
         verbose_name = "Site Configuration"
@@ -704,6 +960,66 @@ class SiteConfig(AuditableModel):
         if not obj:
             obj = cls.objects.create(site_name="Support Desk")
         return obj
+
+    @property
+    def logo_for_dark_bg(self):
+        """Logo to use wherever it sits on a dark background — the
+        dark-background upload, falling back to the light-background one
+        if only that was uploaded."""
+        return self.logo or self.logo_light
+
+    @property
+    def logo_for_light_bg(self):
+        """Logo to use wherever it sits on a light/white background — the
+        light-background upload, falling back to the dark-background one
+        if only that was uploaded."""
+        return self.logo_light or self.logo
+
+    @classmethod
+    def get_role_modules(cls, role: str) -> set:
+        role = (role or "").strip()
+        valid = _valid_module_slugs()
+        builtin = set(ROLE_DEFAULT_MODULES.get(role, set()))
+        try:
+            config = cls.get_solo()
+            data = config.role_module_defaults
+            if isinstance(data, dict) and data:
+                if role in data and isinstance(data.get(role), list):
+                    return {
+                        str(m).strip()
+                        for m in data[role]
+                        if str(m).strip() in valid
+                    }
+                if role == "PortalUser":
+                    legacy = config.portal_user_modules
+                    if isinstance(legacy, list):
+                        return {
+                            str(m).strip()
+                            for m in legacy
+                            if str(m).strip() in valid
+                        }
+                return builtin
+            if role == "PortalUser":
+                legacy = config.portal_user_modules
+                if isinstance(legacy, list) and legacy:
+                    result = {str(m).strip() for m in legacy if str(m).strip() in valid}
+                    if result:
+                        return result
+        except Exception:
+            pass
+        return builtin
+
+    @classmethod
+    def get_portal_user_modules(cls) -> set:
+        return cls.get_role_modules("PortalUser")
+
+    def sync_portal_user_modules_from_role_defaults(self):
+        data = self.role_module_defaults if isinstance(self.role_module_defaults, dict) else {}
+        portal = data.get("PortalUser")
+        if isinstance(portal, list):
+            self.portal_user_modules = list(portal)
+        elif not self.portal_user_modules:
+            self.portal_user_modules = default_portal_user_modules()
 
     def get_wa_daily_limit(self) -> int:
         """
@@ -1022,6 +1338,25 @@ class SSOConfig(AuditableModel):
         verbose_name = "SSO Configuration"
         verbose_name_plural = "SSO Configuration"
 
+    def _readable_secret(self, attr: str) -> str:
+        """Read an encrypted field without raising when the key has rotated."""
+        try:
+            return getattr(self, attr) or ""
+        except Exception:
+            return ""
+
+    def resolved_microsoft_client_id(self) -> str:
+        return (self.microsoft_client_id or "").strip()
+
+    def resolved_microsoft_client_secret(self) -> str:
+        return self._readable_secret("microsoft_client_secret")
+
+    def microsoft_secret_configured(self) -> bool:
+        return bool(self.resolved_microsoft_client_secret())
+
+    def microsoft_credentials_configured(self) -> bool:
+        return bool(self.resolved_microsoft_client_id() and self.resolved_microsoft_client_secret())
+
     def save(self, *args, **kwargs):
         if SSOConfig.objects.exclude(pk=self.pk).exists():
             SSOConfig.objects.exclude(pk=self.pk).delete()
@@ -1039,19 +1374,20 @@ class SSOConfig(AuditableModel):
                     "TENANT": self.microsoft_tenant_id or "organizations",
                     "APP": {
                         "client_id": self.microsoft_client_id,
-                        "secret": self.microsoft_client_secret or "",
+                        "secret": self.resolved_microsoft_client_secret(),
                         "key": "",
                     },
+                    "AUTH_PARAMS": {"prompt": "select_account"},
                 }
             if self.google_enabled and self.google_client_id:
                 google_cfg = {
                     "APP": {
                         "client_id": self.google_client_id,
-                        "secret": self.google_client_secret or "",
+                        "secret": self._readable_secret("google_client_secret"),
                         "key": "",
                     },
                     "SCOPE": ["profile", "email"],
-                    "AUTH_PARAMS": {"access_type": "online"},
+                    "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
                 }
                 if self.google_allowed_domains:
                     domains = [d.strip() for d in self.google_allowed_domains.split(",") if d.strip()]
@@ -1196,6 +1532,26 @@ class TeamsConfig(AuditableModel):
         verbose_name="Enable Teams Notifications",
     )
 
+    # --- PERSONAL: one Workflows flow that DMs each user via the Flow bot ---
+    # The app POSTs {"recipient": "<user email>", "attachments": [<card>]} and
+    # the flow posts the card in that user's chat with the Workflows bot.
+    personal_webhook_url = EncryptedCharField(
+        max_length=1000, blank=True, null=True,
+        verbose_name="Personal Notifications Workflow URL",
+        help_text="Workflow: 'When a Teams webhook request is received' → "
+                  "'Post card in a chat or channel' (Flow bot → Chat with Flow bot, recipient from the request)",
+    )
+    is_personal_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Enable Personal Teams Notifications",
+    )
+    personal_allowed_domains = models.CharField(
+        max_length=500, blank=True, default="",
+        verbose_name="Microsoft 365 Email Domains",
+        help_text="Comma-separated, e.g. company.com. Only users with these email domains get "
+                  "personal Teams notifications (others aren't in your Teams tenant). Blank = everyone.",
+    )
+
     # --- 2-WAY: Bot Framework (requires Azure subscription) ---
     is_bot_enabled = models.BooleanField(
         default=False,
@@ -1268,6 +1624,29 @@ class NotificationConfig(AuditableModel):
         verbose_name="Teams Notification",
     )
 
+    # Teams channel: ticket activity after creation (gateways/teams_notify.py).
+    # Each needs TeamsConfig.is_notification_enabled + a webhook URL as well.
+    teams_on_user_reply = models.BooleanField(
+        default=True,
+        verbose_name="Teams: requester replied",
+        help_text="Post to Teams when a requester replies (portal, WhatsApp, or email).",
+    )
+    teams_on_staff_reply = models.BooleanField(
+        default=True,
+        verbose_name="Teams: support desk replied",
+        help_text="Post to Teams when a support agent replies to the requester.",
+    )
+    teams_on_status_change = models.BooleanField(
+        default=True,
+        verbose_name="Teams: status changed",
+        help_text="Post to Teams when a ticket changes status (includes the progress note).",
+    )
+    teams_on_internal_mention = models.BooleanField(
+        default=True,
+        verbose_name="Teams: @mention in Internal Chat",
+        help_text="Post to Teams when someone is @mentioned in a ticket's internal chat.",
+    )
+
     # Email: comma-separated addresses of internal recipients
     email_recipients = models.TextField(
         blank=True,
@@ -1336,6 +1715,14 @@ class DynamicForm(AuditableModel):
     
     success_message = models.TextField(default="Thank you! Your response has been submitted.", verbose_name="Success Message")
     show_on_portal = models.BooleanField(default=False, verbose_name="Show on Client Portal", help_text="Display this form as a card on the Client Portal dashboard.")
+    is_archived = models.BooleanField(default=False, db_index=True, verbose_name="Archived")
+    collaborators = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="collaborating_forms",
+        verbose_name="Collaborators",
+        help_text="Other staff who can view and edit this form in the builder, alongside the creator.",
+    )
 
     class Meta:
         verbose_name = "Dynamic Form"
@@ -1536,6 +1923,7 @@ class AuditLog(models.Model):
         TICKET_REOPEN    = 'TICKET_REOPEN',    'Ticket Reopened'
         LICENSE_OP       = 'LICENSE_OP',       'License Operation'
         ACCOUNT_REQUEST  = 'ACCOUNT_REQUEST',  'Account Request Submitted'
+        ANNOUNCEMENT_PUBLISH = 'ANNOUNCEMENT_PUBLISH', 'Announcement Published'
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1649,9 +2037,9 @@ class UserNotificationPreference(models.Model):
         help_text="Receive notifications via WhatsApp.",
     )
     teams_enabled = models.BooleanField(
-        default=False,
+        default=True,
         verbose_name="Teams Notifications",
-        help_text="Receive notifications via Microsoft Teams webhook.",
+        help_text="Receive personal notifications in Microsoft Teams (chat with the Workflows bot).",
     )
 
     # ── Contact overrides ──

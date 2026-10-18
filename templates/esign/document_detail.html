@@ -1,23 +1,44 @@
 {% extends "base.html" %}
-{% block title %}{{ doc.title }} — E-Sign{% endblock %}
+{% block title %}{{ doc.title }} | E-Sign{% endblock %}
 {% block nav_esign %}active{% endblock %}
 {% block page_title %}{{ doc.title }}{% endblock %}
 
 {% block extra_head %}
 <style>
-#share-toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px);
-    background: #1e293b; color: #f1f5f9;
-    padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 500;
-    opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 9999;
-}
-#share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .timeline-line::before {
     content: ''; position: absolute; left: 6px; top: 22px; bottom: 0;
     width: 1px; background: #e2e8f0;
 }
 </style>
 <script>
+const REASSIGN_USER_SEARCH_URL = "{% url 'esign:user_search' %}";
+
+// Contributor picker on the detail page (owner only): search system users, pick one, submit.
+function esignContributorPicker() {
+    return {
+        query: '',
+        results: [],
+        picked: null,
+        async search() {
+            this.picked = null;
+            const q = this.query.trim();
+            if (q.length < 2) { this.results = []; return; }
+            try {
+                const resp = await fetch(`${REASSIGN_USER_SEARCH_URL}?q=${encodeURIComponent(q)}`);
+                this.results = (await resp.json()).results || [];
+            } catch (error) {
+                this.results = [];
+            }
+        },
+        choose(u) {
+            this.picked = u;
+            this.query = u.name;
+            this.results = [];
+        },
+    };
+}
+const REASSIGN_EMPLOYEE_SEARCH_URL = "{% url 'esign:employee_search' %}";
+
 async function shareSigningLink(url, signerName, docTitle, docCode, email, verifyCode) {
     let shareText = `Hello ${signerName}, please help sign the document "${docTitle}" with document code ${docCode} at the following link:\nLink: ${url}\nEmail: ${email}`;
     if (verifyCode) {
@@ -44,15 +65,12 @@ async function copyText(text, label) {
     catch (_) { prompt('Copy:', text); }
 }
 function showToast(msg) {
-    const t = document.getElementById('share-toast');
-    t.textContent = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
+    window.toast('success', msg);
 }
 </script>
 {% endblock %}
 
 {% block content %}
-<div id="share-toast"></div>
 <div x-data="{
     pdfOpen: false,
     previewOpen: false,
@@ -63,13 +81,98 @@ function showToast(msg) {
     reassignEmail: '',
     reassignJobTitle: '',
     reassignCompany: '',
-    openReassign(url, name, email, job, company) {
+    reassignType: 'user',
+    reassignUserId: '',
+    reassignUserQuery: '',
+    reassignUserResults: [],
+    reassignUserLoading: false,
+    reassignUserDone: false,
+    reassignEmployeeQuery: '',
+    reassignEmployeeResults: [],
+    reassignEmployeeLoading: false,
+    openReassign(url, name, email, job, company, signerType, userId) {
         this.reassignUrl = url;
         this.reassignName = name;
         this.reassignEmail = email;
         this.reassignJobTitle = job;
         this.reassignCompany = company;
+        this.reassignType = signerType;
+        this.reassignUserId = userId;
+        this.reassignUserQuery = signerType === 'user' ? name : '';
+        this.reassignUserResults = [];
+        this.reassignUserDone = false;
+        this.reassignEmployeeQuery = '';
+        this.reassignEmployeeResults = [];
         this.reassignModal = true;
+    },
+    setReassignType(type) {
+        this.reassignType = type;
+        this.reassignUserId = '';
+        this.reassignUserQuery = '';
+        this.reassignUserResults = [];
+        this.reassignUserDone = false;
+        this.reassignEmployeeQuery = '';
+        this.reassignEmployeeResults = [];
+        this.reassignName = '';
+        this.reassignEmail = '';
+        this.reassignJobTitle = '';
+        this.reassignCompany = '';
+    },
+    async searchReassignUsers() {
+        const query = this.reassignUserQuery.trim();
+        this.reassignUserId = '';
+        this.reassignName = '';
+        this.reassignEmail = '';
+        if (query.length < 2) {
+            this.reassignUserResults = [];
+            this.reassignUserDone = false;
+            return;
+        }
+        this.reassignUserLoading = true;
+        this.reassignUserDone = false;
+        try {
+            const response = await fetch(REASSIGN_USER_SEARCH_URL + '?q=' + encodeURIComponent(query));
+            const data = await response.json();
+            this.reassignUserResults = data.results || [];
+        } catch (error) {
+            this.reassignUserResults = [];
+        } finally {
+            this.reassignUserLoading = false;
+            this.reassignUserDone = true;
+        }
+    },
+    selectReassignUser(user) {
+        this.reassignUserId = user.id;
+        this.reassignName = user.name;
+        this.reassignEmail = user.email;
+        this.reassignUserQuery = user.name;
+        this.reassignUserResults = [];
+        this.reassignUserDone = false;
+    },
+    async searchReassignEmployees() {
+        const query = this.reassignEmployeeQuery.trim();
+        if (query.length < 2) {
+            this.reassignEmployeeResults = [];
+            return;
+        }
+        this.reassignEmployeeLoading = true;
+        try {
+            const response = await fetch(REASSIGN_EMPLOYEE_SEARCH_URL + '?q=' + encodeURIComponent(query));
+            const data = await response.json();
+            this.reassignEmployeeResults = data.results || [];
+        } catch (error) {
+            this.reassignEmployeeResults = [];
+        } finally {
+            this.reassignEmployeeLoading = false;
+        }
+    },
+    selectReassignEmployee(employee) {
+        this.reassignName = employee.name || '';
+        this.reassignEmail = employee.email || '';
+        this.reassignJobTitle = employee.job_role || '';
+        this.reassignCompany = employee.unit || '';
+        this.reassignEmployeeQuery = employee.name || '';
+        this.reassignEmployeeResults = [];
     }
 }" @keydown.escape.window="pdfOpen = false; previewOpen = false; reassignModal = false; amendModal = false">
 
@@ -146,6 +249,9 @@ function showToast(msg) {
 {% endif %}
 
 <!-- ── Page Header ── -->
+<div class="jk-back-row">
+    {% url 'esign:document_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+</div>
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
@@ -161,26 +267,36 @@ function showToast(msg) {
         </div>
     </div>
     <div class="flex gap-2 flex-wrap flex-shrink-0">
-        <a href="{% url 'esign:document_list' %}"
-           class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back
-        </a>
+        {% if not is_owner %}
+        <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold" title="You can view this document and get email updates">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Contributor · view only
+        </span>
+        {% endif %}
+        {% if is_owner %}
         <a href="{% url 'esign:document_duplicate' doc.pk %}"
            class="inline-flex items-center gap-1.5 jk-btn jk-btn-outline"
            title="Duplicate Document">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             Duplicate
         </a>
-        {% if doc.status == 'pending' or doc.status == 'completed' %}
-        <button type="button" onclick="copyText('{{ request.scheme }}://{{ request.get_host }}{% url 'esign_public:document_progress_public' doc.pk %}', 'Progress link')" class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
+        {% endif %}
+        {% if is_owner and doc.status == 'pending' or is_owner and doc.status == 'completed' %}
+        <button type="button" onclick="copyText('{{ request.scheme }}://{{ request.get_host }}{% url 'esign_public:document_progress_public' doc.pk doc.progress_token %}', 'Progress link')" class="inline-flex items-center gap-2 jk-btn jk-btn-outline">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
             </svg>
             Share Progress Document
         </button>
+        <form method="post" action="{% url 'esign:document_regenerate_progress_link' doc.pk %}" onsubmit="return confirm('This will invalidate any previously shared progress link. Continue?');" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center gap-2 jk-btn jk-btn-outline" title="Revoke the old progress link and generate a new one">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Regenerate
+            </button>
+        </form>
         {% endif %}
         {% if doc.status == 'completed' and doc.signed_pdf %}
         <a href="{{ doc.signed_pdf.url }}" class="jk-btn jk-btn-primary inline-flex items-center gap-2" download>
@@ -206,6 +322,19 @@ function showToast(msg) {
     {% for msg in messages %}
     <div class="jk-alert jk-alert-{{ msg.tags }} mb-4">{{ msg }}</div>
     {% endfor %}
+{% endif %}
+
+{% if my_pending_signer %}
+<div class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 mb-4">
+    <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="font-bold text-emerald-900">It's your turn to sign</p>
+        <p class="text-xs text-emerald-700">You are signer #{{ my_pending_signer.order }} on this document.</p>
+    </div>
+    <a href="{% url 'esign_public:sign' token=my_pending_signer.token %}" class="jk-btn jk-btn-primary inline-flex items-center gap-2 justify-center">Sign Now</a>
+</div>
 {% endif %}
 
 <!-- ── Status Banner ── -->
@@ -257,6 +386,7 @@ function showToast(msg) {
         </div>
 
         <!-- Action buttons -->
+        {% if is_owner %}
         <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">
             {% if doc.status == 'draft' %}
             <a href="{% url 'esign:document_configure' pk=doc.pk %}" class="jk-btn jk-btn-sm jk-btn-outline">Configure</a>
@@ -315,7 +445,15 @@ function showToast(msg) {
                 </button>
             </form>
             {% endif %}
+            <form method="post" action="{% url 'esign:document_delete' pk=doc.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="jk-btn jk-btn-sm jk-btn-danger"
+                        onclick="return confirm('Delete \'{{ doc.title|escapejs }}\'? This cannot be undone.')">
+                    Delete
+                </button>
+            </form>
         </div>
+        {% endif %}
     </div>
 
     <!-- Signature progress bar (shown when pending) -->
@@ -457,20 +595,29 @@ function showToast(msg) {
                             {% endif %}
 
                             <!-- Actions -->
+                            {% if is_owner %}
                             <div class="mt-3.5 flex flex-wrap items-center gap-2">
                             {% if signer.status == 'pending' %}
+                            {% if signer.next_remind_at %}
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-400 whitespace-nowrap cursor-not-allowed"
+                                  title="Reminders are limited to one every 6 hours">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Remind again after {{ signer.next_remind_at|date:"d M H:i" }}
+                            </span>
+                            {% else %}
                             <form method="post" action="{% url 'esign:signer_remind' pk=doc.pk signer_pk=signer.pk %}">
                                 {% csrf_token %}
-                                <button type="submit"
+                                <button type="submit" title="Re-send the signing request (once every 6 hours)"
                                         class="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-colors whitespace-nowrap">
                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                                     Remind
                                 </button>
                             </form>
                             {% endif %}
+                            {% endif %}
                             {% if signer.status == 'pending' or signer.status == 'waiting' %}
                             <button type="button" 
-                                    @click="openReassign('{% url 'esign:signer_reassign' pk=doc.pk signer_pk=signer.pk %}', '{{ signer.display_name|escapejs }}', '{{ signer.email|escapejs }}', '{{ signer.job_title|escapejs }}', '{{ signer.company|escapejs }}')"
+                                    @click="openReassign('{% url 'esign:signer_reassign' pk=doc.pk signer_pk=signer.pk %}', '{{ signer.display_name|escapejs }}', '{{ signer.email|escapejs }}', '{{ signer.job_title|escapejs }}', '{{ signer.company|escapejs }}', '{% if signer.user_id %}user{% else %}external{% endif %}', '{{ signer.user_id|default:'' }}')"
                                     class="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-colors whitespace-nowrap">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                                 Reassign
@@ -514,6 +661,7 @@ function showToast(msg) {
                             </form>
                             {% endif %}
                             </div>
+                            {% endif %}
                         </div>
 
                     </div>
@@ -589,6 +737,60 @@ function showToast(msg) {
             </div>
         </div>
 
+        <!-- Contributors -->
+        <div class="bg-white border border-slate-200 rounded-2xl" x-data="esignContributorPicker()">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 class="font-bold text-sm text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    Contributors
+                </h2>
+                <span class="text-xs text-slate-400">{{ contributors|length }}</span>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+                <p class="text-xs text-slate-400">Can open this document (read-only) and get an email on every update.</p>
+                {% for person in contributors %}
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-[11px] font-bold flex-shrink-0">{{ person.first_name|first|upper }}{{ person.last_name|first|upper }}</span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-sm font-medium text-slate-700 truncate">{{ person.get_full_name|default:person.username }}</span>
+                        <span class="block text-[11px] text-slate-400 truncate">{{ person.email }}</span>
+                    </span>
+                    {% if is_owner %}
+                    <form method="post" action="{% url 'esign:document_contributors' doc.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove">
+                        <input type="hidden" name="user_id" value="{{ person.pk }}">
+                        <button type="submit" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-rose-500" title="Remove contributor" aria-label="Remove {{ person.get_full_name|default:person.username }}">×</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-xs text-slate-400 italic">No contributors yet.</p>
+                {% endfor %}
+                {% if is_owner %}
+                <form method="post" action="{% url 'esign:document_contributors' doc.pk %}" class="relative pt-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="user_id" :value="picked ? picked.id : ''">
+                    <div class="flex gap-2">
+                        <input type="text" x-model="query" @input.debounce.300ms="search()" class="jk-input text-sm flex-1"
+                               placeholder="Add a system user…" aria-label="Add contributor" autocomplete="off">
+                        <button type="submit" class="jk-btn jk-btn-sm jk-btn-primary" :disabled="!picked">Add</button>
+                    </div>
+                    <div x-show="results.length > 0" x-cloak @click.outside="results = []"
+                         class="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        <template x-for="u in results" :key="u.id">
+                            <button type="button" @click="choose(u)" class="block w-full text-left px-3 py-2 hover:bg-indigo-50 text-sm border-b border-slate-100 last:border-0">
+                                <span class="block font-semibold text-slate-800" x-text="u.name"></span>
+                                <span class="block text-xs text-slate-400" x-text="u.email"></span>
+                            </button>
+                        </template>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Document Metadata -->
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="px-5 py-4 border-b border-slate-100">
@@ -655,27 +857,123 @@ function showToast(msg) {
             </div>
             <form :action="reassignUrl" method="post" class="p-5 space-y-4">
                 {% csrf_token %}
-                <div class="jk-form-group">
-                    <label class="jk-label">Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="name" x-model="reassignName" required class="jk-input w-full">
+                <input type="hidden" name="signer_type" :value="reassignType">
+                <input type="hidden" name="user_id" :value="reassignUserId">
+                <input type="hidden" name="name" :value="reassignName">
+                <input type="hidden" name="email" :value="reassignEmail">
+                <input type="hidden" name="job_title" :value="reassignJobTitle">
+                <input type="hidden" name="company" :value="reassignCompany">
+
+                <div class="flex rounded-xl overflow-hidden border border-slate-200">
+                    <button type="button" @click="setReassignType('user')"
+                            :class="reassignType === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                            class="flex-1 py-2.5 text-sm font-semibold transition-colors">
+                        System User
+                    </button>
+                    {% if site_config.esign_allow_external_signers %}
+                    <button type="button" @click="setReassignType('external')"
+                            :class="reassignType === 'external' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                            class="flex-1 py-2.5 text-sm font-semibold border-l border-slate-200 transition-colors">
+                        External User
+                    </button>
+                    {% endif %}
                 </div>
-                <div class="jk-form-group">
-                    <label class="jk-label">Email <span class="text-red-500">*</span></label>
-                    <input type="email" name="email" x-model="reassignEmail" required class="jk-input w-full">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="jk-form-group">
-                        <label class="jk-label">Job Title</label>
-                        <input type="text" name="job_title" x-model="reassignJobTitle" class="jk-input w-full text-sm" placeholder="Optional">
+
+                <div x-show="reassignType === 'user'" class="space-y-3">
+                    <div class="jk-form-group relative">
+                        <label class="jk-label">Search System User <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <input type="text" x-model="reassignUserQuery"
+                                   @input.debounce.300ms="searchReassignUsers()"
+                                   class="jk-input w-full pr-9"
+                                   placeholder="Type at least 2 letters…">
+                            <svg x-show="reassignUserLoading" x-cloak
+                                 class="absolute right-3 top-3 h-4 w-4 animate-spin text-indigo-500"
+                                 fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                            </svg>
+                        </div>
+                        <div x-show="reassignUserResults.length > 0" x-cloak @click.outside="reassignUserResults = []"
+                             class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            <template x-for="user in reassignUserResults" :key="user.id">
+                                <button type="button" @click="selectReassignUser(user)"
+                                        class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 transition-colors">
+                                    <span class="block text-sm font-semibold text-slate-700" x-text="user.name"></span>
+                                    <span class="block text-xs text-slate-400" x-text="user.email + ' — ' + user.role"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <p x-show="reassignUserDone && !reassignUserLoading && reassignUserResults.length === 0 && reassignUserQuery.trim().length >= 2 && !reassignUserId"
+                           x-cloak class="mt-2 text-xs text-slate-400">No active system user found.</p>
                     </div>
-                    <div class="jk-form-group">
-                        <label class="jk-label">Company</label>
-                        <input type="text" name="company" x-model="reassignCompany" class="jk-input w-full text-sm" placeholder="Optional">
+                    <div x-show="reassignUserId" x-cloak
+                         class="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5">
+                        <svg class="h-4 w-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-slate-700 truncate" x-text="reassignName"></p>
+                            <p class="text-xs text-slate-400 truncate" x-text="reassignEmail"></p>
+                        </div>
                     </div>
                 </div>
+
+                {% if site_config.esign_allow_external_signers %}
+                <div x-show="reassignType === 'external'" class="space-y-4">
+                    <div class="jk-form-group relative">
+                        <label class="jk-label">Search Employee</label>
+                        <div class="relative">
+                            <input type="text" x-model="reassignEmployeeQuery"
+                                   @input.debounce.300ms="searchReassignEmployees()"
+                                   class="jk-input w-full pr-9"
+                                   placeholder="Search by name or email…">
+                            <svg x-show="reassignEmployeeLoading" x-cloak
+                                 class="absolute right-3 top-3 h-4 w-4 animate-spin text-indigo-500"
+                                 fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                            </svg>
+                        </div>
+                        <div x-show="reassignEmployeeResults.length > 0" x-cloak @click.outside="reassignEmployeeResults = []"
+                             class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            <template x-for="employee in reassignEmployeeResults" :key="employee.id">
+                                <button type="button" @click="selectReassignEmployee(employee)"
+                                        class="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 transition-colors">
+                                    <span class="block text-sm font-semibold text-slate-700" x-text="employee.name"></span>
+                                    <span class="block text-xs text-slate-400" x-text="[employee.email, employee.job_role, employee.unit].filter(Boolean).join(' — ')"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="jk-form-group">
+                            <label class="jk-label">Name <span class="text-red-500">*</span></label>
+                            <input type="text" x-model="reassignName" class="jk-input w-full">
+                        </div>
+                        <div class="jk-form-group">
+                            <label class="jk-label">Email <span class="text-red-500">*</span></label>
+                            <input type="email" x-model="reassignEmail" class="jk-input w-full">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="jk-form-group">
+                            <label class="jk-label">Job Title</label>
+                            <input type="text" x-model="reassignJobTitle" class="jk-input w-full text-sm" placeholder="Optional">
+                        </div>
+                        <div class="jk-form-group">
+                            <label class="jk-label">Company</label>
+                            <input type="text" x-model="reassignCompany" class="jk-input w-full text-sm" placeholder="Optional">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="pt-2 flex justify-end gap-2">
                     <button type="button" @click="reassignModal = false" class="jk-btn jk-btn-outline">Cancel</button>
-                    <button type="submit" class="jk-btn jk-btn-primary">Reassign</button>
+                    <button type="submit"
+                            :disabled="reassignType === 'user' ? !reassignUserId : (!reassignName.trim() || !reassignEmail.trim())"
+                            class="jk-btn jk-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                        Reassign
+                    </button>
                 </div>
             </form>
         </div>

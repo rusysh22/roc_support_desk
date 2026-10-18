@@ -6,11 +6,9 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth import views as auth_views
 from django.http import JsonResponse, HttpResponse
 
 from core import views as core_views
-from core.auth_forms import CustomAuthenticationForm
 
 from core.models import SiteConfig
 from django.utils.functional import lazy
@@ -35,8 +33,8 @@ urlpatterns = [
     # Docker health check — used by compose healthcheck probe
     path("health/", lambda r: JsonResponse({"status": "ok"})),
 
-    # Override Admin logout to redirect to public login
-    path("admin/logout/", auth_views.LogoutView.as_view(next_page="/auth/login/")),
+    # Override Admin logout — also clear SSO provider session when applicable
+    path("admin/logout/", core_views.SSOAwareLogoutView.as_view()),
     # Django admin
     path("admin/", admin.site.urls),
 
@@ -46,8 +44,9 @@ urlpatterns = [
     path("auth/reset-password/", core_views.ResetPasswordOTPView.as_view(), name="reset_password_otp"),
     path("auth/change-password/", core_views.ForceChangePasswordView.as_view(), name="force_change_password"),
     path("auth/sso-pending/", core_views.sso_pending_view, name="sso_pending"),
-    path("auth/login/", auth_views.LoginView.as_view(authentication_form=CustomAuthenticationForm, redirect_authenticated_user=True), name="login"),
+    path("auth/login/", core_views.RoleAwareLoginView.as_view(), name="login"),
     path("auth/", include("django.contrib.auth.urls")),
+    path("auth/logout/", core_views.SSOAwareLogoutView.as_view(), name="logout"),
 
     # SSO OAuth2 callbacks (allauth)
     path("accounts/", include("allauth.urls")),
@@ -99,6 +98,10 @@ urlpatterns = [
 
     # App Portal
     path("apps/", include("app_portal.urls", namespace="app_portal")),
+
+    # Announcements
+    path("announcements/", include("announcements.urls", namespace="announcements")),
+    path("desk/announcements/", include("announcements.urls_desk", namespace="announcements_desk")),
 
     # E-Signature
     path("esign/", include("esign.urls", namespace="esign")),

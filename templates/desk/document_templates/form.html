@@ -22,12 +22,7 @@
 
     <!-- Back -->
     <div>
-        <a href="{% url 'desk:document_template_list' %}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back to Document Templates
-        </a>
+        {% url 'desk:document_template_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
     </div>
 
     {% if form.errors %}
@@ -40,7 +35,7 @@
     </div>
     {% endif %}
 
-    <form method="post" id="template-form">
+    <form data-unsaved-guard method="post" id="template-form">
         {% csrf_token %}
         <!-- Quill syncs into this hidden textarea on submit -->
         <textarea name="body_html" id="body_html_hidden" class="hidden">{{ form.body_html.value|default:"" }}</textarea>

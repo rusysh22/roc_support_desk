@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Duplicate Document — E-Sign{% endblock %}
+{% block title %}Duplicate Document | E-Sign{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
 {% block content %}
@@ -7,13 +7,7 @@
 
     <!-- Back -->
     <div class="mb-6">
-        <a href="{% url 'esign:document_detail' original_doc.pk %}"
-           class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back to Document
-        </a>
+        {% url 'esign:document_detail' original_doc.pk as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
     </div>
 
     <!-- Step indicator -->
@@ -44,7 +38,7 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="space-y-5" id="create-form">
+        <form data-unsaved-guard method="post" enctype="multipart/form-data" class="space-y-5" id="create-form">
             {% csrf_token %}
 
             {% for field in form %}

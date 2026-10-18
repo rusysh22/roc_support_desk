@@ -4,6 +4,7 @@ import time
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.utils import timezone
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -69,6 +70,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Client acknowledged our heartbeat ping — no-op.
             return
 
+        if event_type == "activity_read":
+            await self._acknowledge_activity()
+            return
+
         if event_type == "chat_message":
             body = (data.get("body") or "").strip()
             quoted_message_id = (data.get("quoted_message_id") or "").strip() or None
@@ -121,6 +126,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         elif event_type == "messages_read":
             latest_message_id = (data.get("latest_message_id") or "").strip()
             if latest_message_id:
+                await self._mark_personal_activity_read(latest_message_id)
                 # Broadcast read receipt immediately for real-time "Read" indicator.
                 await self.channel_layer.group_send(
                     self.group_name,
@@ -237,8 +243,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 User.RoleAccess.SUPERADMIN,
                 User.RoleAccess.MANAGER,
                 User.RoleAccess.SUPPORTDESK,
+                User.RoleAccess.ENGINEER,
                 User.RoleAccess.AUDITOR,
             ):
+                if user.role_access == User.RoleAccess.ENGINEER:
+                    if case.assigned_to_id != user.id:
+                        return False
                 if getattr(case.category, 'is_confidential', False):
                     if user.role_access != User.RoleAccess.SUPERADMIN and not getattr(user, 'can_handle_confidential', False):
                         return False
@@ -272,6 +282,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except CaseRecord.DoesNotExist:
             return None
 
+        if case.status == CaseRecord.Status.CLOSED:
+            return None
+
         user = self.scope.get("user")
         is_staff = (
             user
@@ -303,10 +316,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             quoted_message_id=quoted_message_id,
         )
 
+        if is_staff:
+            case.record_first_response()
+
         if not is_staff:
-            CaseRecord.objects.filter(id=self.case_uuid).update(has_unread_messages=True)
+            CaseRecord.objects.filter(id=self.case_uuid).update(
+                has_unread_messages=True, last_user_reply_at=timezone.now(),
+            )
 
         # Dispatch user notifications (async-safe via Celery)
+        from .activity import mark_activity_read
+        mark_activity_read(case, user)
         try:
             self._dispatch_chat_notifications(case, msg, user, body)
         except Exception:
@@ -317,6 +337,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def _dispatch_chat_notifications(self, case, msg, sender_user, body):
         """Dispatch notifications to all participants except the sender."""
         from core.notifications import notify_user
+        from core.models import SiteConfig
+        from django.conf import settings
         from django.contrib.auth.models import AnonymousUser
         import re
 
@@ -332,13 +354,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             sender_name = case.requester_name or "User"
 
+        # Absolute URL — this runs outside any HTTP request (async consumer),
+        # so it can't use request.build_absolute_uri(); mirrors the convention
+        # used by cases/tasks.py's offline-notification email.
+        try:
+            site_config = SiteConfig.get_solo()
+            base_url = (site_config.site_url or getattr(settings, "SITE_URL", "")).rstrip("/")
+        except Exception:
+            base_url = getattr(settings, "SITE_URL", "").rstrip("/")
+
         # Build context
         context = {
             "ticket_id": str(case.id),
             "ticket_subject": case.subject or "",
             "sender_name": sender_name,
             "message_preview": re.sub(r"<[^>]+>", "", body or "")[:200],
-            "ticket_url": f"/portal/chat/{case.id}/",
+            "ticket_url": f"{base_url}/portal/chat/{case.id}/",
         }
 
         # Collect all participants (requester user + followers)
@@ -449,6 +480,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 User.RoleAccess.SUPERADMIN,
                 User.RoleAccess.MANAGER,
                 User.RoleAccess.SUPPORTDESK,
+                User.RoleAccess.ENGINEER,
                 User.RoleAccess.AUDITOR,
             )
         )
@@ -475,3 +507,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def _dispatch_batch_read(self, latest_message_id):
         from cases.tasks import batch_mark_messages_read
         batch_mark_messages_read.delay(str(self.case_uuid), latest_message_id)
+
+    @database_sync_to_async
+    def _acknowledge_activity(self):
+        from .activity import mark_activity_read
+        from .models import CaseRecord
+        user = self.scope.get("user")
+        if user and user.is_authenticated:
+            case = CaseRecord.objects.filter(pk=self.case_uuid).first()
+            if case:
+                mark_activity_read(case, user)
+
+    @database_sync_to_async
+    def _mark_personal_activity_read(self, latest_message_id):
+        from .activity import mark_activity_read
+        from .models import Message
+        from django.core.exceptions import ValidationError
+
+        user = self.scope.get("user")
+        if not user or not user.is_authenticated:
+            return
+        try:
+            message = Message.objects.select_related("case").filter(
+                id=latest_message_id, case_id=self.case_uuid,
+            ).first()
+        except (ValidationError, ValueError):
+            return
+        if message:
+            # Acknowledge only what this client received, leaving later activity unread.
+            mark_activity_read(message.case, user, read_at=message.sent_at)

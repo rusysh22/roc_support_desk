@@ -9,13 +9,10 @@
 <div class="max-w-3xl mx-auto space-y-6">
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'users_desk:employee_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'users_desk:employee_list' %}"
-           class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-        </a>
         <div>
             <h2 class="text-lg font-bold text-slate-900">{{ title }}</h2>
             <p class="text-sm text-slate-500 mt-0.5">
@@ -27,7 +24,7 @@
     <!-- Form Card -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="p-6 sm:p-8">
-            <form method="post" class="space-y-6">
+            <form data-unsaved-guard method="post" class="space-y-6">
                 {% csrf_token %}
 
                 {% if form.errors %}
@@ -51,6 +48,15 @@
                             {{ form.full_name }}
                             {% if form.full_name.errors %}
                             <p class="mt-1 text-xs text-red-600">{{ form.full_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">NIK <span class="text-slate-600 font-normal">(optional)</span></label>
+                            {{ form.nik }}
+                            <p class="mt-1 text-xs text-slate-400">Links this employee to their login account.</p>
+                            {% if form.nik.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ form.nik.errors.0 }}</p>
                             {% endif %}
                         </div>
 
@@ -133,7 +139,7 @@ document.addEventListener("DOMContentLoaded", function() {
         new TomSelect("#id_unit", {
             create: false,
             sortField: { field: "text", direction: "asc" },
-            placeholder: "Select a company unit..."
+            placeholder: "Select an entity..."
         });
     }
 });

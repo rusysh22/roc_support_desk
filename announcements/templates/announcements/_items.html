@@ -1,0 +1,24 @@
+{% comment %}Announcement rows. Expects `announcements` and `user`.{% endcomment %}
+<ul class="divide-y divide-slate-100">
+    {% for announcement in announcements %}
+    <li>
+        <a href="{% url 'announcements:detail' announcement.pk %}" class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 transition-colors">
+            <span class="shrink-0 mt-0.5 text-base">{% if announcement.is_pinned %}📌{% elif announcement.priority == 'IMPORTANT' %}❗{% else %}📣{% endif %}</span>
+            <span class="flex-1 min-w-0">
+                <span class="flex flex-wrap items-center gap-2">
+                    {% include "announcements/_badge.html" %}
+                    <span class="text-sm font-semibold text-slate-800">{{ announcement.title }}</span>
+                    {% if user.is_authenticated and not announcement.is_read %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">New</span>
+                    {% endif %}
+                    {% if announcement.require_acknowledgement and user.is_authenticated and not announcement.is_acknowledged %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Please acknowledge</span>
+                    {% endif %}
+                </span>
+                {% if announcement.summary %}<span class="block text-sm text-slate-600 mt-1 line-clamp-2">{{ announcement.summary }}</span>{% endif %}
+            </span>
+            <span class="shrink-0 text-xs text-slate-400 whitespace-nowrap">{{ announcement.publish_at|date:"d M Y" }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>

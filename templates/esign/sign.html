@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Sign Document — {{ document.title }}{% endblock %}
+{% block title %}Sign Document | {{ document.title }}{% endblock %}
 
 {% block meta %}
 <meta name="description" content="Please review and sign this document: {{ document.title }}.">
@@ -16,6 +16,11 @@
 <meta name="twitter:description" content="You have been requested to sign {{ document.title }}.">
 {% endblock %}
 {% block extra_head %}
+{{ default_job_role|json_script:"esign-default-job-role" }}
+<script>
+// Job role pre-filled from the Employee record linked to this user — still editable (free text).
+const ESIGN_DEFAULT_JOB_ROLE = JSON.parse(document.getElementById('esign-default-job-role').textContent) || '';
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
@@ -47,12 +52,12 @@
 }
 .sign-box.signed img { width:100%; height:100%; object-fit:contain; padding:4px; }
 @keyframes pulse-border {
-    0%,100% { 
-        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.5); 
+    0%,100% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.5);
         background: rgba(99,102,241,0.05);
     }
-    50% { 
-        box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); 
+    50% {
+        box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
         background: rgba(99,102,241,0.25);
     }
 }
@@ -79,8 +84,8 @@ const SAVED_SIG_URL             = "{% url 'esign_public:saved_signature_api' %}"
 const CREATE_MOBILE_SESSION_URL = "{% url 'esign_public:create_mobile_session' %}";
 const _pdf = { doc: null };
 
-document.addEventListener('alpine:init', () => {
-    Alpine.data('signPage', () => ({
+function createSignPage() {
+    return {
         currentPage: 1, totalPages: 1,
         canvasEl: null, wrapEl: null, canvasW: 0, canvasH: 0,
         pdfLoading: true, pdfError: null,
@@ -102,7 +107,7 @@ document.addEventListener('alpine:init', () => {
         saveForLater: false,
 
         // ── Stamp options ─────────────────────────────────────────────────────
-        stampTimestamp: true, stampName: true, stampJobRole: false, stampJobRoleText: '', stampUseLogo: true,
+        stampTimestamp: true, stampName: true, stampJobRole: false, stampJobRoleText: ESIGN_DEFAULT_JOB_ROLE, stampUseLogo: true,
 
         // ── Mobile/QR ─────────────────────────────────────────────────────────
         mobileSessionId: null, mobileUrl: null, mobilePollUrl: null,
@@ -130,7 +135,7 @@ document.addEventListener('alpine:init', () => {
                 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
             try {
                 _pdf.doc = await pdfjsLib.getDocument({
-                    url: "{{ pdf_url }}",
+                    url: "{{ pdf_url|escapejs }}",
                     disableRange: true, disableStream: true,
                 }).promise;
                 this.totalPages = _pdf.doc.numPages;
@@ -549,12 +554,18 @@ document.addEventListener('alpine:init', () => {
             this.mobileReady=false; this.mobileData=null;
             const c = document.getElementById('qr-container'); if (c) c.innerHTML='';
         },
-    }));
+    };
+}
+
+window.signPage = createSignPage;
+document.addEventListener('alpine:init', () => {
+    Alpine.data('signPage', createSignPage);
 });
 </script>
 {% endblock %}
 
 {% block layout %}
+<datalist id="esign-job-roles">{% for name in job_role_suggestions %}<option value="{{ name }}">{% endfor %}</datalist>
 <div class="min-h-screen bg-slate-50 py-4 px-3 sm:py-6 sm:px-4 pb-24 lg:pb-6" x-data="signPage" @keydown.escape.window="showCaptureModal = false">
     <div class="max-w-7xl mx-auto">
 
@@ -581,26 +592,26 @@ document.addEventListener('alpine:init', () => {
                     <!-- Nav bar -->
                     <div class="flex items-center justify-between mb-3 flex-shrink-0 gap-2">
                         <button @click="changePage(-1)" :disabled="currentPage <= 1 || viewMode === 'scroll'"
-                                class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                                class="px-2.5 py-1.5 text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:opacity-60 flex items-center gap-1 transition-colors">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                             <span class="hidden sm:inline">Prev</span>
                         </button>
                         <span class="text-xs sm:text-sm text-slate-600 font-medium whitespace-nowrap">Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span></span>
                         <div class="flex items-center gap-1">
                             <button @click="changePage(1)" :disabled="currentPage >= totalPages || viewMode === 'scroll'"
-                                    class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1">
+                                    class="px-2.5 py-1.5 text-sm text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:opacity-60 flex items-center gap-1 transition-colors">
                                 <span class="hidden sm:inline">Next</span>
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </button>
                             <!-- View mode toggle -->
-                            <div class="flex border border-slate-200 rounded-lg overflow-hidden ml-1">
+                            <div class="flex bg-slate-100 border border-slate-200 rounded-lg overflow-hidden ml-1">
                                 <button @click="switchViewMode('paged')"
-                                        :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'"
+                                        :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                         class="px-2 py-1.5 transition-colors" title="Page by page">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                 </button>
                                 <button @click="switchViewMode('scroll')"
-                                        :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'"
+                                        :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                         class="px-2 py-1.5 transition-colors border-l border-slate-200" title="Scroll all pages">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
@@ -638,14 +649,14 @@ document.addEventListener('alpine:init', () => {
                             <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
                                 <button type="button"
                                         @click="guidedMode = true"
-                                        :class="guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                        :class="guidedMode ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                         class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors">
                                     <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                                     Guided Placement
                                 </button>
                                 <button type="button"
                                         @click="guidedMode = false"
-                                        :class="!guidedMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                        :class="!guidedMode ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                         class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-colors border-l border-slate-200">
                                     <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
                                     Free Placement
@@ -682,7 +693,7 @@ document.addEventListener('alpine:init', () => {
                                      :style="`left:${box.xPx}px;top:${box.yPx}px;width:${box.wPx}px;height:${box.hPx}px`"
                                      @click="openCaptureModal()">
                                     <template x-if="signatureData">
-                                        <img :src="signatureData" draggable="false">
+                                        <img :src="signatureData" draggable="false" alt="Signature">
                                     </template>
                                     <template x-if="!signatureData">
                                         <span class="flex flex-col items-center gap-0.5 pointer-events-none">
@@ -721,7 +732,7 @@ document.addEventListener('alpine:init', () => {
                                      @pointercancel="isDragging=false">
                                     <div class="drag-handle"></div>
                                     <div class="sig-inner">
-                                        <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false">
+                                        <img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false" alt="Signature">
                                     </div>
                                     <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                     <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
@@ -750,7 +761,7 @@ document.addEventListener('alpine:init', () => {
                                              :class="signatureData ? 'signed' : 'unsigned'"
                                              :style="`left:${box.xPx}px;top:${box.yPx}px;width:${box.wPx}px;height:${box.hPx}px`"
                                              @click="openCaptureModal()">
-                                            <template x-if="signatureData"><img :src="signatureData" draggable="false"></template>
+                                            <template x-if="signatureData"><img :src="signatureData" draggable="false" alt="Signature"></template>
                                             <template x-if="!signatureData">
                                                 <span class="flex flex-col items-center gap-0.5 pointer-events-none">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -771,7 +782,7 @@ document.addEventListener('alpine:init', () => {
                                          @pointerup.stop="endDrag()"
                                          @pointercancel="isDragging=false">
                                         <div class="drag-handle"></div>
-                                        <div class="sig-inner"><img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false"></div>
+                                        <div class="sig-inner"><img :src="previewData" style="width:100%;height:100%;object-fit:contain;padding:4px;" draggable="false" alt="Signature"></div>
                                         <div class="resize-handle nw" @pointerdown.stop="startResize($event,'nw',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                         <div class="resize-handle n"  @pointerdown.stop="startResize($event,'n', overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
                                         <div class="resize-handle ne" @pointerdown.stop="startResize($event,'ne',overlay._idx)" @pointermove.stop="moveResize($event)" @pointerup.stop="endResize()" @pointercancel="endResize()"></div>
@@ -859,7 +870,7 @@ document.addEventListener('alpine:init', () => {
                                             @scroll.window.debounce.10ms="btnRect = $el.getBoundingClientRect()"
                                             @resize.window.debounce.10ms="btnRect = $el.getBoundingClientRect()"
                                             @click="goToPage({{ p.page_number }})"
-                                            class="ml-auto flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-colors shadow-sm">
+                                            class="ml-auto flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:from-indigo-800 active:to-purple-800 text-white font-semibold text-[10px] px-2.5 py-1 rounded-lg transition-all shadow-sm">
                                         <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                                         </svg>
@@ -888,7 +899,7 @@ document.addEventListener('alpine:init', () => {
                             <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Date &amp; time</span></label>
                             <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Full name</span></label>
                             <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Job title / role</span></label>
-                            <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager"></div>
+                            <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager" list="esign-job-roles"></div>
                             <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampUseLogo" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Use Company Logo</span></label>
                             
                             {% if request.user.is_authenticated and signer.user_id %}
@@ -902,14 +913,14 @@ document.addEventListener('alpine:init', () => {
                         <!-- Actions (hidden on mobile — sticky bottom bar handles them) -->
                         <div class="px-5 py-4 space-y-2 hidden lg:block">
                             <button type="button" @click="signatureData ? guidedSubmit() : openCaptureModal()"
-                                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'"
                                     class="w-full text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
                                 <svg x-show="!signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                 <svg x-show="signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                 <span x-text="signatureData ? 'Submit Signature' : 'Sign Document'"></span>
                             </button>
                             <button x-show="signatureData" type="button" @click="signatureData = null"
-                                    class="w-full text-sm py-2 border border-slate-200 text-slate-400 hover:bg-slate-50 rounded-xl">
+                                    class="w-full text-sm py-2 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
                                 ← Redo Signature
                             </button>
                             <button type="button" @click="activeAction = 'reject_view'"
@@ -940,7 +951,7 @@ document.addEventListener('alpine:init', () => {
                                       placeholder="Please explain why you are rejecting this document (required)…"></textarea>
                             <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl mb-2">Confirm Rejection</button>
                         </form>
-                        <button @click="activeAction = 'sign'" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Back</button>
+                        <button @click="activeAction = 'sign'" class="w-full text-sm py-2 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">← Back</button>
                     </div>
                 </template>
 
@@ -970,13 +981,13 @@ document.addEventListener('alpine:init', () => {
                                 </div>
                                 {% if has_saved_sig %}
                                 <div x-show="activeTab==='saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
-                                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-20 mx-auto"></div>
+                                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-20 mx-auto" alt="Saved signature"></div>
                                     <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">Loading saved signature…</div>
                                 </div>
                                 {% endif %}
                                 <div x-show="activeTab==='draw'" class="space-y-2">
                                     <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50"><canvas id="draw-canvas" style="width:100%;height:160px;display:block;"></canvas></div>
-                                    <button type="button" @click="clearDraw()" class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">Clear</button>
+                                    <button type="button" @click="clearDraw()" class="w-full text-xs py-1.5 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors">Clear</button>
                                 </div>
                                 <div x-show="activeTab==='type'" class="space-y-3">
                                     <input type="text" x-model="typedName" @input="renderTypedSig()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Type your full name…">
@@ -988,7 +999,7 @@ document.addEventListener('alpine:init', () => {
                                         <span class="text-sm text-slate-500 font-medium">Upload signature image</span>
                                         <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
                                     </label>
-                                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto"></div>
+                                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto" alt="Uploaded signature"></div>
                                 </div>
                                 <div x-show="activeTab==='mobile'" class="space-y-3">
                                     <div x-show="!mobileUrl" class="text-center space-y-3">
@@ -998,12 +1009,12 @@ document.addEventListener('alpine:init', () => {
                                     <div x-show="mobileUrl && !mobileReady" class="text-center space-y-2">
                                         <div id="qr-container" class="inline-block border border-slate-200 rounded-xl p-2 bg-white"></div>
                                         <p class="text-xs text-amber-600 flex items-center justify-center gap-1.5 font-medium"><span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>Waiting for mobile signature…</p>
-                                        <button type="button" @click="cancelMobile()" class="text-xs text-slate-400 underline">Cancel</button>
+                                        <button type="button" @click="cancelMobile()" class="text-xs font-semibold px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
                                     </div>
                                     <div x-show="mobileReady" class="space-y-2">
                                         <p class="text-xs text-green-600 font-semibold text-center">✅ Signature received!</p>
-                                        <div class="border border-green-200 bg-green-50 rounded-xl p-2 text-center"><img :src="mobileData" class="max-h-20 mx-auto"></div>
-                                        <button type="button" @click="cancelMobile()" class="w-full text-xs text-slate-400 underline py-1">Redo on phone</button>
+                                        <div class="border border-green-200 bg-green-50 rounded-xl p-2 text-center"><img :src="mobileData" class="max-h-20 mx-auto" alt="Signature from mobile device"></div>
+                                        <button type="button" @click="cancelMobile()" class="w-full text-xs font-semibold py-1.5 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">Redo on phone</button>
                                     </div>
                                 </div>
                                 {% if request.user.is_authenticated and signer.user_id %}
@@ -1017,13 +1028,13 @@ document.addEventListener('alpine:init', () => {
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampTimestamp" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Date &amp; time</span></label>
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampName" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Full name</span></label>
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampJobRole" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Job title / role</span></label>
-                                    <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager"></div>
+                                    <div x-show="stampJobRole" x-cloak class="pl-6"><input type="text" x-model="stampJobRoleText" maxlength="150" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="e.g. IT Manager" list="esign-job-roles"></div>
                                     <label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" x-model="stampUseLogo" class="w-4 h-4 rounded accent-indigo-600"><span class="text-xs text-slate-600">Use Company Logo</span></label>
                                 </div>
                                 <!-- Action buttons hidden on mobile — sticky bottom bar handles them -->
                                 <div class="pt-3 space-y-2 hidden lg:block">
                                     <button type="button" @click="placeOnDocument()" x-show="!showDragOverlay"
-                                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
+                                            class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                                         Place on Document
                                     </button>
@@ -1032,7 +1043,7 @@ document.addEventListener('alpine:init', () => {
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                             Submit Signature
                                         </button>
-                                        <button type="button" @click="cancelPlacement()" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Redo Signature</button>
+                                        <button type="button" @click="cancelPlacement()" class="w-full text-sm py-2 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">← Redo Signature</button>
                                     </div>
                                     <button type="button" @click="activeAction='reject'" class="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-xl">Reject Document</button>
                                 </div>
@@ -1042,7 +1053,7 @@ document.addEventListener('alpine:init', () => {
                                 <p class="text-sm font-semibold text-red-600">Rejection Reason</p>
                                 <textarea name="notes" rows="4" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300" placeholder="Please explain why you are rejecting this document (required)…"></textarea>
                                 <button type="button" @click="submitReject()" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl">Confirm Rejection</button>
-                                <button type="button" @click="activeAction='sign'" class="w-full text-sm py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl">← Back</button>
+                                <button type="button" @click="activeAction='sign'" class="w-full text-sm py-2 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">← Back</button>
                             </div>
                         </form>
                     </div>
@@ -1061,7 +1072,7 @@ document.addEventListener('alpine:init', () => {
         <!-- Guided mode -->
         <div x-show="guidedMode && activeAction !== 'reject_view'" class="flex gap-2">
             <button type="button" @click="signatureData ? guidedSubmit() : openCaptureModal()"
-                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                    :class="signatureData ? 'bg-green-600 hover:bg-green-700' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'"
                     class="flex-1 text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
                 <svg x-show="!signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 <svg x-show="signatureData" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -1075,7 +1086,7 @@ document.addEventListener('alpine:init', () => {
         <!-- Free mode -->
         <div x-show="!guidedMode && activeAction !== 'reject'" class="flex gap-2">
             <button type="button" @click="showDragOverlay ? submitFinal() : placeOnDocument()"
-                    :class="showDragOverlay ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                    :class="showDragOverlay ? 'bg-green-600 hover:bg-green-700' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'"
                     class="flex-1 text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
                 <svg x-show="!showDragOverlay" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 <svg x-show="showDragOverlay" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -1117,7 +1128,7 @@ document.addEventListener('alpine:init', () => {
 
                 {% if has_saved_sig %}
                 <div x-show="activeTab==='saved'" class="min-h-[100px] flex flex-col justify-center space-y-2">
-                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-24 mx-auto"></div>
+                    <div x-show="savedSigData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="savedSigData" class="max-h-24 mx-auto" alt="Saved signature"></div>
                     <div x-show="!savedSigData" class="text-center py-6 text-slate-400 text-sm animate-pulse">Loading…</div>
                 </div>
                 {% endif %}
@@ -1125,7 +1136,7 @@ document.addEventListener('alpine:init', () => {
                     <div class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-slate-50">
                         <canvas id="draw-canvas-modal" style="width:100%;height:160px;display:block;"></canvas>
                     </div>
-                    <button type="button" @click="clearModalDraw()" class="w-full text-xs py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-400">Clear</button>
+                    <button type="button" @click="clearModalDraw()" class="w-full text-xs py-1.5 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors">Clear</button>
                 </div>
                 <div x-show="activeTab==='type'" class="space-y-3">
                     <input type="text" x-model="typedName" @input="renderTypedSig()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Type your full name…">
@@ -1137,7 +1148,7 @@ document.addEventListener('alpine:init', () => {
                         <span class="text-sm text-slate-500 font-medium">Upload signature image</span>
                         <input type="file" accept="image/*" class="hidden" @change="handleUpload($event)">
                     </label>
-                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto"></div>
+                    <div x-show="uploadedData" class="border border-slate-200 rounded-xl p-2 text-center bg-slate-50"><img :src="uploadedData" class="max-h-20 mx-auto" alt="Uploaded signature"></div>
                 </div>
                 <div x-show="activeTab==='mobile'" class="space-y-3 text-center">
                     <div x-show="!mobileUrl">
@@ -1150,7 +1161,7 @@ document.addEventListener('alpine:init', () => {
                     </div>
                     <div x-show="mobileReady">
                         <p class="text-xs text-green-600 font-semibold mb-2">✅ Signature received!</p>
-                        <div class="border border-green-200 bg-green-50 rounded-xl p-2"><img :src="mobileData" class="max-h-16 mx-auto"></div>
+                        <div class="border border-green-200 bg-green-50 rounded-xl p-2"><img :src="mobileData" class="max-h-16 mx-auto" alt="Signature from mobile device"></div>
                     </div>
                 </div>
             </div>
@@ -1158,11 +1169,11 @@ document.addEventListener('alpine:init', () => {
             <!-- Modal footer -->
             <div class="px-6 py-4 border-t border-slate-100 flex gap-3">
                 <button type="button" @click="applySignature()"
-                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl py-2.5 transition-colors">
+                        class="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl py-2.5 transition-all">
                     Apply Signature
                 </button>
                 <button type="button" @click="showCaptureModal = false"
-                        class="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl py-2.5 transition-colors">
+                        class="flex-1 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 transition-colors">
                     Cancel
                 </button>
             </div>

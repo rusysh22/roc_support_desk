@@ -1,0 +1,16 @@
+<div class="mt-2 flex items-center gap-2">
+    <span class="text-xs text-slate-500">Input mode:</span>
+    {% if site_config.job_role_mode == 'master' %}
+    <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+        ✅ Master Data — users select from this list
+    </span>
+    {% else %}
+    <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+        Free Text — users type freely (this list is not used)
+    </span>
+    {% endif %}
+    <a href="{% url 'admin:core_siteconfig_changelist' %}"
+       class="text-xs text-indigo-600 hover:underline" target="_blank">
+        Change in Site Config →
+    </a>
+</div>

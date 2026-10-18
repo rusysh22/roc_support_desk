@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Staff Login | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
-{% block page_title %}Staff Login{% endblock %}
+{% block title %}Login | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block page_title %}Login{% endblock %}
 {% block main_class %}full-width{% endblock %}
 
 {% block layout %}
@@ -17,7 +17,19 @@
 
         {% with slides=site_config.slide_images.all %}
 
-        {% if site_config.login_image or slides %}
+        {% if site_config.login_video %}
+        <!-- Looping background video — takes priority over the image/slideshow.
+             muted+playsinline are required for autoplay on Chrome/Safari/mobile;
+             poster shows the existing login_image instantly while the video
+             buffers, so there's no blank flash. Panel is hidden below `lg`,
+             so mobile never downloads this. -->
+        <video class="absolute inset-0 w-full h-full object-cover object-center"
+               autoplay muted loop playsinline preload="auto"
+               {% if site_config.login_image %}poster="{{ site_config.login_image.url }}"{% endif %}>
+            <source src="{{ site_config.login_video.url }}">
+        </video>
+
+        {% elif site_config.login_image or slides %}
         <!-- Slides -->
         <div id="slideContainer" class="absolute inset-0">
             <!-- Primary image always first -->
@@ -572,7 +584,7 @@
                 </div>
                 <div class="flex flex-col gap-2.5">
                     {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id %}
-                    <a href="/accounts/microsoft/login/?process=login"
+                    <a href="/accounts/microsoft/login/?process=login{% if next %}&next={{ next|urlencode }}{% endif %}"
                        class="flex items-center justify-center gap-3 rounded-2xl py-3 text-sm font-semibold transition-all"
                        style="background:#ffffff; border:1.5px solid #e2e2e2; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,0.06);"
                        onmouseover="this.style.borderColor='#c4b5fd'; this.style.boxShadow='0 1px 4px rgba(91,33,182,0.1)';"
@@ -587,7 +599,7 @@
                     </a>
                     {% endif %}
                     {% if sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
-                    <a href="/accounts/google/login/?process=login"
+                    <a href="/accounts/google/login/?process=login{% if next %}&next={{ next|urlencode }}{% endif %}"
                        class="flex items-center justify-center gap-3 rounded-2xl py-3 text-sm font-semibold transition-all"
                        style="background:#ffffff; border:1.5px solid #e2e2e2; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,0.06);"
                        onmouseover="this.style.borderColor='#c4b5fd'; this.style.boxShadow='0 1px 4px rgba(91,33,182,0.1)';"
@@ -801,7 +813,7 @@
                 </div>
                 <div class="flex flex-col gap-2.5">
                     {% if sso_config.sso_enabled and sso_config.microsoft_enabled and sso_config.microsoft_client_id %}
-                    <a href="/accounts/microsoft/login/?process=login"
+                    <a href="/accounts/microsoft/login/?process=login{% if next %}&next={{ next|urlencode }}{% endif %}"
                        class="flex items-center justify-center gap-3 rounded-xl py-3 text-sm font-semibold transition-all text-slate-700 bg-white shadow-sm"
                        style="border:1.5px solid #e2e8f0;"
                        onmouseover="this.style.borderColor='#a78bfa'; this.style.color='#4c1d95';"
@@ -816,7 +828,7 @@
                     </a>
                     {% endif %}
                     {% if sso_config.sso_enabled and sso_config.google_enabled and sso_config.google_client_id %}
-                    <a href="/accounts/google/login/?process=login"
+                    <a href="/accounts/google/login/?process=login{% if next %}&next={{ next|urlencode }}{% endif %}"
                        class="flex items-center justify-center gap-3 rounded-xl py-3 text-sm font-semibold transition-all text-slate-700 bg-white shadow-sm"
                        style="border:1.5px solid #e2e8f0;"
                        onmouseover="this.style.borderColor='#a78bfa'; this.style.color='#4c1d95';"

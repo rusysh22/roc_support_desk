@@ -1,0 +1,10 @@
+{% comment %}Star button on a Ticket Portal service card. Expects `category` (with is_favorite). Signed-in users only.{% endcomment %}
+{% if user.is_authenticated %}
+<button type="button" class="svc-fav-btn{% if category.is_favorite %} is-on{% endif %}"
+        data-url="{% url 'cases:favorite_service_toggle' category.id %}"
+        aria-pressed="{{ category.is_favorite|yesno:'true,false' }}"
+        title="{% if category.is_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}"
+        aria-label="Favorite {{ category.name }}">
+    <svg class="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+</button>
+{% endif %}

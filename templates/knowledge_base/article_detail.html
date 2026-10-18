@@ -1,7 +1,24 @@
 {% extends "base.html" %}
 {% load static kb_tags text_filters %}
 
-{% block title %}{{ article.title }} - Knowledge Base{% endblock %}
+{% block title %}{{ article.title }} | Knowledge Base{% endblock %}
+
+{% block meta %}
+<meta name="description" content="{{ article.problem_summary|default:article.title|truncatechars:160 }}">
+<meta property="og:title" content="{{ article.title }}">
+<meta property="og:description" content="{{ article.problem_summary|default:article.title|truncatechars:160 }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ request.build_absolute_uri }}">
+{% if site_config.logo %}
+<meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ site_config.logo.url }}">
+{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ article.title }}">
+<meta name="twitter:description" content="{{ article.problem_summary|default:article.title|truncatechars:160 }}">
+{% if site_config.logo %}
+<meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{{ site_config.logo.url }}">
+{% endif %}
+{% endblock %}
 
 {% block main_class %}bg-slate-50{% endblock %}
 
@@ -92,8 +109,8 @@
         background: #f8fafc;
         color: #6366f1;
     }
-    .kb-toc-link.active { 
-        color: #6366f1; 
+    .kb-toc-link.active {
+        color: #6366f1;
         background: #f5f3ff;
         font-weight: 600;
     }
@@ -111,8 +128,6 @@
     /* ====== Section styling ====== */
     .kb-section { scroll-margin-top: 80px; }
 
-    /* ====== Copy toast ====== */
-    #kb-copy-toast { transition: opacity 0.3s ease; }
 
     /* ====== Print ====== */
     @media print {
@@ -226,7 +241,8 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     <!-- ===== BREADCRUMBS & TOP ACTIONS ===== -->
-    <div class="flex items-center justify-between gap-4 mb-6 no-print flex-wrap">
+    <div class="flex items-center gap-3 mb-6 no-print flex-wrap">
+        {% url 'knowledge_base:category' article.category.slug as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
         <nav class="flex items-center gap-2 text-sm text-slate-600">
             <a href="{% url 'knowledge_base:home' %}" class="flex items-center gap-1.5 hover:text-indigo-600 font-medium transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -238,10 +254,6 @@
             <span class="text-slate-700 font-semibold truncate max-w-xs">{{ article.title }}</span>
         </nav>
 
-        <a href="{% url 'knowledge_base:category' article.category.slug %}" class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors" style="border-radius: 0;">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            Back to {{ article.category.name }}
-        </a>
     </div>
 
     <div class="flex gap-8 items-start">
@@ -336,6 +348,13 @@
                                 <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 Last updated: {{ article.updated_at|date:"F d, Y" }}
                             </span>
+                            {% if contributors %}
+                            <span class="flex items-center gap-1.5" title="Contributors">
+                                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                Contributors: {% for person in contributors %}{{ person.get_full_name|default:person.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </span>
+                            {% endif %}
+                            <span class="flex items-center gap-1.5">{% include "knowledge_base/_article_stats.html" with views=views_total likes=likes_total %}</span>
                             {% if article.reviewed_by %}
                             <span class="flex items-center gap-1.5 text-emerald-600">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -469,27 +488,36 @@
                 <!-- Article Footer: Actions -->
                 <div class="border-t border-slate-100 px-6 md:px-8 py-5 bg-slate-50 flex flex-wrap items-center justify-between gap-4 no-print">
                     <div class="flex items-center gap-3">
-                        <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors shadow-sm">
+                        <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-200 transition-colors shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                             Print
                         </button>
-                        <button id="kb-copy-btn" onclick="copyLink()" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors shadow-sm">
+                        <button id="kb-copy-btn" onclick="copyLink()" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100 transition-colors shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                             Copy Link
                         </button>
                     </div>
 
-                    <!-- Feedback -->
+                    <!-- Like: one per user account, click again to undo -->
                     <div class="flex items-center gap-3">
                         <span class="text-sm text-slate-600">Was this article helpful?</span>
-                        <button onclick="giveFeedback('yes', this)" class="kb-feedback-btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
-                            Ya
-                        </button>
-                        <button onclick="giveFeedback('no', this)" class="kb-feedback-btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"/></svg>
-                            Tidak
-                        </button>
+                        {% if user.is_authenticated %}
+                        <form method="post" action="{% url 'knowledge_base:article_like' article.slug %}" id="kb-like-form">
+                            {% csrf_token %}
+                            <button type="submit" id="kb-like-btn" aria-pressed="{% if liked %}true{% else %}false{% endif %}"
+                                    class="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl border text-sm font-semibold transition-colors {% if liked %}bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700{% else %}bg-slate-100 border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50{% endif %}">
+                                <svg class="w-4 h-4" fill="{% if liked %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                                <span id="kb-like-label">{% if liked %}Liked{% else %}Like{% endif %}</span>
+                                <span id="kb-like-count" class="tabular-nums">{{ likes_total }}</span>
+                            </button>
+                        </form>
+                        {% else %}
+                        <a href="{% url 'login' %}?next={{ request.path|urlencode }}" title="Sign in to like this article"
+                           class="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl border border-slate-200 bg-slate-100 text-sm font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                            Like <span class="tabular-nums">{{ likes_total }}</span>
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </article>
@@ -500,7 +528,7 @@
                 <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
                     <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                     <h2 class="text-sm font-bold text-slate-700">Comments
-                        <span class="ml-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{{ comments.count }}</span>
+                        <span class="ml-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{{ comments|length }}</span>
                     </h2>
                 </div>
 
@@ -519,6 +547,25 @@
                             </div>
                             <p class="text-sm text-slate-700 leading-relaxed break-words">{{ comment.body }}</p>
                         </div>
+                        {% if comment.can_delete %}
+                        <!-- Delete: own comment, or any comment for a SuperAdmin -->
+                        <div class="flex-shrink-0 relative" x-data="{ open: false }" @keydown.escape.window="open = false">
+                            <button type="button" @click="open = !open" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                    title="Delete comment" aria-label="Delete this comment" :aria-expanded="open">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                            <form x-show="open" x-cloak @click.outside="open = false" method="post"
+                                  action="{% url 'knowledge_base:article_comment_delete' article.slug comment.pk %}"
+                                  class="absolute right-0 top-full mt-1 w-60 z-20 bg-white border border-slate-200 rounded-xl shadow-lg p-3 space-y-2.5">
+                                {% csrf_token %}
+                                <p class="text-sm text-slate-700"><b>Delete this comment?</b>{% if comment.user_id != request.user.pk %} It was written by {{ comment.user.get_full_name|default:comment.user.username }}.{% endif %} This cannot be undone.</p>
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" @click="open = false" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">Cancel</button>
+                                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700">Delete</button>
+                                </div>
+                            </form>
+                        </div>
+                        {% endif %}
                     </div>
                     {% empty %}
                     <div class="px-6 py-8 text-center text-slate-400 text-sm">
@@ -547,7 +594,7 @@
                                 class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition"></textarea>
                             <div class="flex items-center justify-between mt-2">
                                 <span id="comment-chars" class="text-xs text-slate-400">0 / 250</span>
-                                <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                                <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-semibold rounded-lg transition-all">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                                     Send
                                 </button>
@@ -571,12 +618,6 @@
     </div>
 </div>
 
-<!-- Copy success toast -->
-<div id="kb-copy-toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 opacity-0 pointer-events-none z-50 no-print">
-    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-    Link copied to clipboard!
-</div>
-
 <script>
 // ====== Comment char counter ======
 (function() {
@@ -594,28 +635,45 @@
 
 // ====== Copy Link ======
 function copyLink() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        const toast = document.getElementById('kb-copy-toast');
-        toast.style.opacity = '1';
-        toast.style.pointerEvents = 'auto';
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.pointerEvents = 'none';
-        }, 2500);
+    navigator.clipboard.writeText(window.location.href)
+        .then(() => window.toast('success', 'Link copied to clipboard!'))
+        .catch(() => window.toast('error', 'Could not copy the link.'));
+}
+
+// ====== Like (one per account; the button toggles it) ======
+(function () {
+    const form = document.getElementById('kb-like-form');
+    if (!form) return;
+    const button = document.getElementById('kb-like-btn');
+    const ON = ['bg-indigo-600', 'border-indigo-600', 'text-white', 'hover:bg-indigo-700'];
+    const OFF = ['bg-slate-100', 'border-slate-200', 'text-slate-700', 'hover:border-indigo-300', 'hover:text-indigo-700', 'hover:bg-indigo-50'];
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST', credentials: 'same-origin', body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+            button.setAttribute('aria-pressed', data.liked ? 'true' : 'false');
+            button.classList.remove(...(data.liked ? OFF : ON));
+            button.classList.add(...(data.liked ? ON : OFF));
+            button.querySelector('svg').setAttribute('fill', data.liked ? 'currentColor' : 'none');
+            document.getElementById('kb-like-label').textContent = data.liked ? 'Liked' : 'Like';
+            document.getElementById('kb-like-count').textContent = data.likes;
+            document.querySelectorAll('[data-kb-likes]').forEach((el) => { el.textContent = data.likes; });
+            document.querySelectorAll('[data-kb-stats]').forEach((el) => {
+                el.setAttribute('aria-label', el.dataset.views + ' views, ' + data.likes + ' likes');
+            });
+        } catch (error) {
+            window.toast('error', 'Could not save your like. Please try again.');
+        } finally {
+            button.disabled = false;
+        }
     });
-}
-
-// ====== Feedback buttons ======
-function giveFeedback(type, btn) {
-    const btns = document.querySelectorAll('.kb-feedback-btn');
-    btns.forEach(b => b.disabled = true);
-
-    const msg = document.createElement('span');
-    msg.className = 'text-sm font-medium ' + (type === 'yes' ? 'text-emerald-600' : 'text-slate-600');
-    msg.textContent = type === 'yes' ? 'Thank you for your feedback!' : 'Sorry this article wasn\'t helpful.';
-    btn.parentElement.innerHTML = '';
-    btn.parentElement.appendChild(msg);
-}
+})();
 
 // ====== TOC Active Highlight ======
 document.addEventListener('DOMContentLoaded', function() {

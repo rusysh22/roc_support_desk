@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}{% if role %}Edit{% else %}New{% endif %} User Role | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_user_roles %}active{% endblock %}
+{% block page_title %}User Roles{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <div>
+        {% url 'users_desk:role_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
+
+    {% include "partials/form_errors.html" %}
+
+    <form data-unsaved-guard method="post" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {% for field in form %}
+            {% if field.name == "name" or field.name == "code" or field.name == "base_access" or field.name == "sort_order" %}
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="text-red-700">*</span>{% endif %}</label>
+                {{ field }}
+                {% if field.name == "code" %}<p class="text-xs text-slate-500 mt-1">{% if role %}Fixed once created.{% else %}Letters, digits and underscores, e.g. finance_staff. Cannot be changed later.{% endif %}</p>
+                {% elif field.name == "base_access" %}<p class="text-xs text-slate-500 mt-1">{% if role.is_system %}Built-in roles keep their own level.{% else %}Portal User = portal only; the other levels open the Support Desk.{% endif %}</p>{% endif %}
+                {% for error in field.errors %}<p class="jk-form-error mt-1">{{ error }}</p>{% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.description.id_for_label }}">Description</label>
+                {{ form.description }}
+                {% for error in form.description.errors %}<p class="jk-form-error mt-1">{{ error }}</p>{% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <h3 class="text-base font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-3">Permissions</h3>
+            {% with selected=form.permissions.value|default_if_none:"" %}
+            <label class="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50 mb-3 cursor-pointer">
+                <input type="checkbox" name="permissions" value="*" class="jk-checkbox mt-0.5" {% if "*" in selected %}checked{% endif %}>
+                <span>
+                    <span class="block text-sm font-semibold text-amber-900">All permissions (current and future)</span>
+                    <span class="block text-xs text-amber-800">For full administrators. New features' permissions are included automatically.</span>
+                </span>
+            </label>
+            {% for group, perms in form.permission_groups.items %}
+            <fieldset class="mb-3">
+                <legend class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">{{ group }}</legend>
+                <div class="space-y-2">
+                    {% for code, label in perms %}
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="permissions" value="{{ code }}" class="jk-checkbox mt-0.5" {% if code in selected %}checked{% endif %}>
+                        <span>
+                            <span class="block text-sm font-medium text-slate-800">{{ label }}</span>
+                            <span class="block text-[11px] font-mono text-slate-400">{{ code }}</span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+            {% endfor %}
+            {% endwith %}
+            {% for error in form.permissions.errors %}<p class="jk-form-error mt-1">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div x-data="{ active: {{ form.is_active.value|yesno:'true,false' }} }" @change="if ($event.target.name === 'is_active') active = $event.target.checked">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+                {{ form.is_active }}
+                <span class="text-sm font-medium text-slate-700">Active (can be assigned to users)</span>
+            </label>
+            {% if user_count %}
+            <p x-show="!active" x-cloak class="mt-2 flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <span aria-hidden="true">⚠️</span>
+                <span>{{ user_count }} user(s) still have this role. They keep it, but it can no longer be assigned to anyone else.</span>
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+            <button type="submit" class="jk-btn jk-btn-primary px-6 py-2 text-sm font-semibold">{% if role %}Save Changes{% else %}Create Role{% endif %}</button>
+            <a href="{% url 'users_desk:role_list' %}" class="jk-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-5 py-2 text-sm">Cancel</a>
+            {% if role %}<a href="{% url 'users_desk:portal_modules_settings' %}?role={{ role.code }}" class="ml-auto text-sm font-semibold text-indigo-600 hover:underline">Set this role's menus →</a>{% endif %}
+        </div>
+    </form>
+
+    {% if role and not role.is_system %}
+    <form method="post" action="{% url 'users_desk:role_delete' role.pk %}"
+          x-data="{ confirmOpen: false, confirmTitle: 'Delete this role?', confirmMessage: 'Role &quot;{{ role.name|escapejs }}&quot; will be permanently deleted. This cannot be undone.', confirmSubmit() { $root.submit() } }">
+        {% csrf_token %}
+        <button type="button" @click="confirmOpen = true" class="text-sm font-medium text-rose-600 hover:underline">Delete this role</button>
+        {% include "partials/_confirm_modal.html" %}
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

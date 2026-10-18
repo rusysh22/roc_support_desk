@@ -2,7 +2,7 @@
 {% load text_filters %}
 {% load static %}
 
-{% block title %}Chat | {{ case.case_number }} · {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block title %}Chat | {{ case.case_number }} | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block page_title %}Live Chat{% endblock %}
 {% block nav_my_tickets %}active{% endblock %}
 
@@ -10,6 +10,7 @@
 {# Quill WYSIWYG editor — rich text without manual markdown parsing #}
 <link href="{% static 'vendor/quill-1.3.7.snow.css' %}" rel="stylesheet">
 <script src="{% static 'vendor/quill-1.3.7.min.js' %}"></script>
+<script id="chat-dropzone-js" src="{% static 'js/chat-dropzone.js' %}"></script>
 <style>
   /* Chat layout helpers */
   #chat-scroll { scroll-behavior: smooth; }
@@ -25,6 +26,53 @@
 
   /* Quill editor sizing inside chat input */
   #quill-editor { min-height: 40px; max-height: 120px; overflow-y: auto; font-size: 0.875rem; }
+
+  /* ── Phones: compact header, taller thread, slim composer — the whole conversation
+        incl. the Send button fits on one screen without scrolling the page ── */
+  @media (max-width: 640px) {
+    .jk-portal-chat .jk-card { margin-bottom: 0.5rem; border-radius: 0.875rem; }
+    .jk-portal-chat .jk-pc-nav { padding: 0.375rem 0.625rem; }
+    .jk-portal-chat .jk-pc-nav button { padding: 0.3125rem 0.5rem; }
+    .jk-portal-chat .jk-pc-identity { padding: 0.5rem 0.75rem 0.625rem; gap: 0.625rem; align-items: center; }
+    .jk-portal-chat .jk-pc-icon { width: 2rem; height: 2rem; font-size: 1rem; border-radius: 0.625rem; }
+    .jk-portal-chat .jk-pc-identity h1 {
+      font-size: 0.9375rem; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    /* number · category stay on one line; a long category is cut with … */
+    .jk-portal-chat .jk-pc-identity h1 + div { margin-top: 0.125rem; gap: 0.375rem; flex-wrap: nowrap; min-width: 0; }
+    .jk-portal-chat .jk-pc-identity h1 + div > span { font-size: 0.6875rem; flex-shrink: 0; }
+    .jk-portal-chat .jk-pc-identity h1 + div > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* follower count is already on the 👥 button in the top bar */
+    .jk-portal-chat .jk-pc-followers { display: none !important; }
+    .jk-portal-chat #chat-status-badge > * { font-size: 0.6875rem !important; padding: 0.25rem 0.5rem !important; }
+
+    /* Thread fills what the header + composer leave on screen */
+    .jk-portal-chat #chat-scroll { height: max(220px, calc(100svh - 400px)) !important; padding: 0.75rem; }
+    .jk-portal-chat .bubble-content { padding: 0.5rem 0.75rem; font-size: 0.875rem; line-height: 1.45; }
+    .jk-portal-chat #chat-history .max-w-\[70\%\] { max-width: 82%; }
+
+    .jk-portal-chat .jk-pc-composer .jk-card-body { padding: 0.5rem; }
+    .jk-portal-chat .jk-pc-composer .ql-toolbar.ql-snow { padding: 2px 4px; }
+    .jk-portal-chat .jk-pc-composer .ql-toolbar.ql-snow button { width: 26px; height: 24px; padding: 2px 4px; }
+    /* rarely-needed formatting stays on desktop; keeps the toolbar to one row */
+    .jk-portal-chat .jk-pc-composer .ql-strike,
+    .jk-portal-chat .jk-pc-composer .ql-code,
+    .jk-portal-chat .jk-pc-composer .ql-code-block,
+    .jk-portal-chat .jk-pc-composer .ql-clean { display: none !important; }
+    .jk-portal-chat #quill-editor { min-height: 52px; max-height: 96px; }
+    .jk-portal-chat #quill-editor .ql-editor { padding: 8px 10px; }
+    .jk-portal-chat #quill-editor .ql-editor.ql-blank::before { left: 10px; right: 10px; font-size: 0.8125rem; }
+    .jk-portal-chat .jk-pc-composer .border.rounded-xl { margin-bottom: 0.375rem; }
+    .jk-portal-chat .jk-pc-attach-label { display: none; }
+    /* one row: 📎 · ● · Follow Up · Mark as Resolved · Send */
+    .jk-portal-chat .jk-portal-chat-actions { gap: 0.25rem; flex-wrap: nowrap; }
+    .jk-portal-chat .jk-portal-chat-actions > label,
+    .jk-portal-chat .jk-portal-chat-actions > button { min-height: 36px; padding: 0.25rem 0.375rem; font-size: 0.6875rem; white-space: nowrap; }
+    .jk-portal-chat .jk-portal-chat-send { width: 40px; height: 40px; flex-shrink: 0; }
+    .jk-portal-chat .jk-portal-chat-connection { flex: 1 1 auto; min-width: 12px; font-size: 0; }   /* dot only */
+    .jk-portal-chat .jk-portal-chat-connection span { font-size: 0.75rem; display: inline-block; width: 0.75em; overflow: hidden; white-space: nowrap; }
+  }
   #quill-editor .ql-editor { padding: 8px 12px; font-size: 16px; }
   .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border-color: #e2e8f0; padding: 4px 8px; }
   .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border-color: #e2e8f0; }
@@ -48,9 +96,31 @@
   .chat-img-thumb:hover { opacity: 0.88; }
   .quote-block { cursor: pointer; transition: opacity 0.15s; }
   .quote-block:hover { opacity: 0.8; }
-  @media (hover: none) { .hover-actions { opacity: 1 !important; } }
+  @media (hover: none) {
+    .hover-actions,
+    .group\/bubble .reply-actions {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+  }
+  .reply-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
+  .group\/bubble:hover .reply-actions { opacity: 1; pointer-events: auto; }
   @keyframes msgHighlight { 0%,100%{background:transparent} 25%,75%{background:rgba(99,102,241,0.18)} }
   .msg-highlight { animation: msgHighlight 1.2s ease; border-radius: 0.75rem; }
+  .chat-search-active .bubble-content { outline: 2px solid #f59e0b; outline-offset: 3px; }
+  .chat-search-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .chat-search-field { flex: 1 1 180px; min-width: 0; }
+  .chat-search-results { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+  .chat-search-result { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; font-size: 13px; overflow-wrap: anywhere; }
+  .chat-search-result:hover, .chat-search-result[aria-current="true"] { background: #eef2ff; }
+  .chat-search-result small { display: block; color: #64748b; margin-bottom: 4px; }
+  .chat-search-result mark { background: #fef08a; color: #0f172a; border-radius: 2px; }
+  .chat-search-nav { min-width: 36px; min-height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .chat-search-nav:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 480px) {
+    .chat-search-field { flex-basis: 100%; }
+    .chat-search-controls { justify-content: flex-end; }
+  }
 
   /* Header back link */
   .chat-back-link {
@@ -92,7 +162,7 @@
     cursor: default;
     user-select: all;
   }
-  /* Inverted variant inside an outbound (indigo) bubble */
+  /* Inverted variant inside an outbound (blue) bubble */
   .bubble-content.bg-indigo-600 .mention-chip,
   .bubble-content.text-white .mention-chip {
     background: rgba(255,255,255,0.22);
@@ -127,6 +197,7 @@
   const CHAT_UPLOAD_URL        = "{% url 'chat:upload' case.id %}";
   const CHAT_RESOLVE_URL       = "{% url 'chat:resolve' case.id %}";
   const CHAT_REOPEN_URL        = "{% url 'chat:reopen' case.id %}";
+  const CHAT_FOLLOW_UP_URL     = "{% url 'chat:follow_up' case.id %}";
   const CHAT_POLL_URL          = "{% url 'chat:poll' case.id %}";
   const CHAT_ADD_FOLLOWER_URL  = "{% url 'chat:add_follower' case.id %}";
   const CHAT_REMOVE_FOLLOWER_URL = "{% url 'chat:remove_follower' case.id %}";
@@ -142,86 +213,89 @@
 {# ── Mention dropdown (outside Alpine component for fixed positioning) ── #}
 <div id="mention-dropdown" class="hidden fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1" style="min-width:200px;"></div>
 
-<div style="max-width:72rem;margin:0 auto;"
+<div class="jk-portal-chat" style="max-width:72rem;margin:0 auto;"
      x-data="chatRoom()"
      x-init="init()"
+     @visibilitychange.document="if (!document.hidden) acknowledgeActivity()"
      @beforeunload.window="disconnect()">
 
-<div style="display:flex;gap:1rem;align-items:flex-start;">
+<div class="flex flex-col lg:flex-row gap-4 items-start">
 
 {# ══ LEFT: Chat panel ══ #}
-<div style="flex:1 1 0%;min-width:0;">
+<div class="flex-1 min-w-0 w-full rounded-xl" x-ref="dropZone">
 
   {# ── Header card ── #}
   <div class="jk-card mb-3">
     {# Row 1: navigation bar #}
-    <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-      {# Back link (left) #}
-      {% if user.is_authenticated %}
-      <a href="{% url 'chat:my_tickets' %}" class="chat-back-link">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
-        </svg>
-        My Tickets
-      </a>
-      {% else %}
-      <a href="{% url 'cases:dashboard' %}" class="chat-back-link">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
-        </svg>
-        Back to Portal
-      </a>
-      {% endif %}
+    <div class="jk-pc-nav flex items-center justify-between px-4 py-3 border-b border-slate-100">
+      {# Back (left) — previous page, else My Tickets / portal home #}
+      {% if user.is_authenticated %}{% url 'chat:my_tickets' as back_fallback %}{% else %}{% url 'cases:dashboard' as back_fallback %}{% endif %}
+      {% include "partials/back_button.html" with fallback=back_fallback %}
       {# Actions (right) #}
       <div class="flex items-center gap-1.5">
+        {% if user.is_authenticated %}
+        {# Search only the messages in this ticket's conversation. #}
+          <button type="button" id="chat-search-toggle" aria-controls="chat-message-search" aria-expanded="false"
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 text-slate-500 hover:text-indigo-600 transition-colors text-xs font-semibold"
+                  aria-label="Search messages in this ticket" title="Search messages in this ticket">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <span class="hidden sm:inline">Search chat</span>
+          </button>
+        {% endif %}
         {# Followers button #}
         <button @click="showFollowersModal = true"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 text-slate-500 hover:text-indigo-600 transition-colors text-xs font-semibold"
                 title="Followers">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
           </svg>
-          <span class="text-[11px] font-semibold" x-text="followers.length"></span>
+          <span class="hidden sm:inline">Followers</span>
+          <span x-text="followers.length"></span>
         </button>
         {# Share button #}
         <button @click="shareTicket()"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 text-slate-500 hover:text-indigo-600 transition-colors text-xs font-semibold"
                 title="Share">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
           </svg>
-          <span class="text-[11px] font-semibold hidden sm:inline">Share</span>
+          <span class="hidden sm:inline">Share</span>
         </button>
-        {# Divider #}
-        <span class="w-px h-4 bg-slate-200 mx-0.5"></span>
-        {# Status badge — unified label from view #}
-        <span id="chat-status-badge"
-              class="text-[11px] font-bold px-2 py-0.5 rounded-full
-              {% if status_color == 'amber' %}bg-amber-100 text-amber-800
-              {% elif status_color == 'red' %}bg-red-100 text-red-700
-              {% elif status_color == 'yellow' %}bg-amber-100 text-amber-700
-              {% elif status_color == 'blue' %}bg-blue-100 text-blue-700
-              {% elif status_color == 'orange' %}bg-orange-100 text-orange-700
-              {% elif status_color == 'green' %}bg-emerald-100 text-emerald-700
-              {% else %}bg-slate-100 text-slate-500{% endif %}">
-          {{ status_label }}
-        </span>
       </div>
     </div>
-    {# Row 2: compact ticket subject #}
-    <div class="flex items-center gap-2.5 px-4 py-2.5">
-      <div class="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-base flex-shrink-0">
+    <section id="chat-message-search" hidden aria-label="Search this conversation" class="px-4 py-3 border-b border-slate-100 bg-slate-50">
+      <div class="chat-search-controls">
+        <input type="search" id="chat-message-search-input" class="chat-search-field px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
+               placeholder="Search messages in this ticket..." aria-label="Search messages in this ticket" autocomplete="off" maxlength="200" aria-controls="chat-message-search-results">
+        <button type="button" id="chat-message-search-prev" class="chat-search-nav" aria-label="Previous matching message" title="Previous match (Shift+Enter)" disabled>&uarr;</button>
+        <button type="button" id="chat-message-search-next" class="chat-search-nav" aria-label="Next matching message" title="Next match (Enter)" disabled>&darr;</button>
+        <button type="button" id="chat-message-search-close" class="chat-search-nav" aria-label="Close message search" title="Close (Escape)">&times;</button>
+      </div>
+      <p id="chat-message-search-status" role="status" aria-live="polite" class="text-xs text-slate-500 mt-2">Search within this ticket's messages.</p>
+      <div id="chat-message-search-results" class="chat-search-results"></div>
+    </section>
+    {# Row 2: ticket identity — bigger subject/number, solid status badge matching the admin table #}
+    <div class="jk-pc-identity flex items-start gap-3 px-4 py-4">
+      <div class="jk-pc-icon w-11 h-11 rounded-xl bg-indigo-100 flex items-center justify-center text-xl flex-shrink-0">
         {{ case.category.icon|default:"🎫" }}
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-xs font-bold text-slate-800 truncate">{{ case.subject }}</p>
-        <p class="text-[10px] text-slate-400">{{ case.category.name }}</p>
+        <h1 class="text-lg font-extrabold text-slate-900 leading-snug">{{ case.subject }}</h1>
+        <div class="flex items-center flex-wrap gap-2 mt-1">
+          <span class="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{{ case.case_number }}</span>
+          <span class="text-xs text-slate-400">·</span>
+          <span class="text-xs text-slate-500">{{ case.category.name }}</span>
+        </div>
       </div>
-      <span class="text-[10px] text-slate-400 font-mono flex-shrink-0 hidden lg:block">{{ case.case_number }}</span>
+      <span id="chat-status-badge" class="flex-shrink-0">
+        {% include "partials/status_badge.html" with case_status=case.status large=True %}
+      </span>
     </div>
     {# Row 3: followers strip (only when followers exist) #}
     <div x-show="followers.length > 0" x-cloak
-         class="flex items-center gap-2 px-4 pb-2.5">
+         class="jk-pc-followers flex items-center gap-2 px-4 pb-2.5">
       <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex-shrink-0">Followers</span>
       <div class="flex items-center flex-shrink-0">
         <template x-for="(f, i) in followers.slice(0,5)" :key="f.id">
@@ -237,7 +311,7 @@
   </div>
 
   {# ── Message thread ── #}
-  <div class="jk-card mb-3">
+  <div class="jk-pc-thread jk-card mb-3">
     <div class="jk-card-body p-0 relative">
       <div id="chat-scroll"
            class="overflow-y-auto px-4 py-4"
@@ -266,7 +340,7 @@
 
       <button x-show="showScrollBtn" x-cloak
               @click="goToBottom()"
-              class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full shadow-lg px-2.5 py-1.5 transition-all z-10">
+              class="absolute bottom-4 right-4 flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-semibold rounded-full shadow-lg px-2.5 py-1.5 transition-all z-10">
         <template x-if="unreadCount > 0">
           <span x-text="unreadCount"
                 class="bg-white text-indigo-600 text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1"></span>
@@ -278,28 +352,20 @@
     </div>
   </div>
 
-  {# ── Connection status bar ── #}
-  <div x-show="!wsConnected" x-cloak
-       class="text-center text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-    Reconnecting to chat...
-  </div>
-
   {# ── Action bar (resolve / reopen) ── #}
-  {% if can_reopen %}
-  <div class="jk-card mb-3 border-amber-200">
+  <div x-show="ticketStatus === 'Resolved'" x-cloak class="jk-card mb-3 border-amber-200">
     <div class="jk-card-body py-3 px-4 flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">This ticket is resolved. Need more help?</p>
+      <p class="text-sm text-slate-600">This ticket is resolved. You can still reply, or reopen if you need more help. After {{ reopen_window_days }} days it will close and cannot be reopened.</p>
       <button @click="reopenTicket()"
               class="jk-btn text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white border-none">
         Reopen Ticket
       </button>
     </div>
   </div>
-  {% endif %}
 
   {# ── Input area ── #}
   {% if can_send %}
-  <div class="jk-card" x-show="ticketOpen" x-cloak>
+  <div class="jk-pc-composer jk-card" x-show="ticketOpen" x-cloak>
     <div class="jk-card-body p-3">
 
       <div x-show="replyTo" x-cloak
@@ -342,21 +408,28 @@
         <div id="quill-editor"></div>
       </div>
 
-      <div class="flex items-center justify-between gap-2">
+      <div class="jk-portal-chat-actions">
         <label class="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer transition-colors"
                title="Attach file (jpg, png, pdf, docx, xlsx, txt — max 10 MB, 3 files)">
           <svg class="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
           </svg>
-          <span class="text-xs font-medium text-slate-500">Attachment</span>
+          <span class="jk-pc-attach-label text-xs font-medium text-slate-500">Attachment</span>
           <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                  @change="onFilePick($event)">
         </label>
 
-        <p class="text-xs flex-1 text-slate-400">
+        <p class="jk-portal-chat-connection text-xs text-slate-400" role="status">
           <span x-text="wsConnected ? '● Connected' : '○ Connecting…'"
                 :class="wsConnected ? 'text-emerald-500' : 'text-amber-500'"></span>
         </p>
+
+        {% if can_follow_up %}
+        <button @click="followUpTicket()" :disabled="followingUp"
+                class="text-xs text-amber-600 hover:text-amber-700 transition-colors underline-offset-2 hover:underline flex-shrink-0 disabled:opacity-50">
+          🔼 Follow Up
+        </button>
+        {% endif %}
 
         <button @click="resolveTicket()"
                 class="text-xs text-slate-400 hover:text-rose-500 transition-colors underline-offset-2 hover:underline flex-shrink-0">
@@ -365,7 +438,7 @@
 
         <button @click="send()"
                 :disabled="sending || pendingFiles.length === 0 && !hasContent"
-                class="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center transition-colors">
+                aria-label="Send message" class="jk-portal-chat-send flex-shrink-0 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-40 flex items-center justify-center transition-all">
           <svg x-show="!sending" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
           </svg>
@@ -380,19 +453,15 @@
 
   <div x-show="!ticketOpen" x-cloak class="jk-card">
     <div class="jk-card-body py-4 px-4 text-center">
-      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">closed</strong>. You can no longer send messages.</p>
+      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700" x-text="ticketStatus === 'Closed' ? 'closed' : 'not open for messages'"></strong>. You can no longer send messages.</p>
       <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">← Back to Portal</a>
     </div>
   </div>
   {% else %}
   <div class="jk-card">
     <div class="jk-card-body py-4 px-4 text-center">
-      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">{{ case.get_status_display }}</strong>.</p>
-      {% if can_reopen %}
-      <button @click="reopenTicket()" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">Reopen Ticket</button>
-      {% else %}
+      <p class="text-sm text-slate-500">This ticket is <strong class="text-slate-700">{{ case.get_status_display }}</strong> and cannot be reopened.</p>
       <a href="{% url 'cases:dashboard' %}" class="jk-btn jk-btn-primary mt-3 mx-auto w-fit">← Back to Portal</a>
-      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -400,62 +469,61 @@
 </div>{# end LEFT chat panel #}
 
 {# ══ RIGHT: Ticket Details Sidebar ══ #}
-<div style="width:288px;flex-shrink:0;display:flex;flex-direction:column;gap:0.75rem;position:sticky;top:1rem;">
+<div class="w-full lg:w-[288px] flex-shrink-0 flex flex-col gap-3 lg:sticky lg:top-4">
 
-  {# ── Ticket Info Card ── #}
+  {# ── Progress & Updates ── #}
+  {% comment %}
+  Replaces the old "Ticket Info" card, which repeated the status/subject/
+  number already shown large in the header above. Instead: a timeline of
+  status changes and support-desk replies, so the requester can see what
+  happened and what support said without scrolling the whole thread.
+  {% endcomment %}
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="bg-slate-50 border-b border-slate-100 px-3.5 py-2.5 flex items-center gap-1.5">
-      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ticket Info</span>
+    <div class="bg-slate-50 border-b border-slate-100 px-4 py-3 flex items-center gap-2">
+      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Progress &amp; Updates</span>
     </div>
-    <div class="px-3.5 py-3 space-y-2.5">
-      {# Category + Icon #}
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg flex-shrink-0">
-          {{ case.category.icon|default:"🎫" }}
-        </div>
-        <div class="min-w-0">
-          <p class="text-[10px] text-slate-400 font-medium">{{ case.category.name }}</p>
-          <p class="text-xs font-bold text-slate-800 leading-snug">{{ case.subject }}</p>
-        </div>
-      </div>
-      {# Case number + status #}
-      <div class="flex items-center justify-between gap-2">
-        <span class="font-mono text-[11px] text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">{{ case.case_number }}</span>
-        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full
-          {% if status_color == 'amber' %}bg-amber-100 text-amber-800
-          {% elif status_color == 'red' %}bg-red-100 text-red-700
-          {% elif status_color == 'yellow' %}bg-amber-100 text-amber-700
-          {% elif status_color == 'blue' %}bg-blue-100 text-blue-700
-          {% elif status_color == 'orange' %}bg-orange-100 text-orange-700
-          {% elif status_color == 'green' %}bg-emerald-100 text-emerald-700
-          {% else %}bg-slate-100 text-slate-500{% endif %}">
-          {{ status_label }}
-        </span>
-      </div>
-      {# Requester #}
-      <div class="flex items-center gap-1.5 text-xs text-slate-500">
+    <div class="px-4 py-3 space-y-1 border-b border-slate-100">
+      <p class="flex items-center gap-1.5 text-xs text-slate-500">
         <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-        {{ case.requester_name|default:case.requester_email }}
-      </div>
-      {# Dates #}
-      <div class="text-[11px] text-slate-400 space-y-0.5">
-        <p class="flex items-center gap-1.5">
-          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          Created {{ case.created_at|date:"d M Y, H:i" }}
-        </p>
-        {% if case.updated_at != case.created_at %}
-        <p class="flex items-center gap-1.5">
-          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          Updated {{ case.updated_at|timesince }} ago
-        </p>
+        <span class="font-semibold text-slate-700">{{ case.requester_name|default:case.requester_email }}</span>
+      </p>
+      <p class="flex items-center gap-1.5 text-xs text-slate-400">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Created {{ case.created_at|date:"d M Y, H:i" }}
+      </p>
+    </div>
+    <div class="px-4 pt-3 pb-4 overflow-y-auto" style="max-height: 440px;">
+      {% if progress_timeline %}
+      {% for entry in progress_timeline %}
+      <div class="relative pl-5 {% if not forloop.last %}pb-4 border-l-2 border-slate-100{% endif %}">
+        <span class="absolute -left-[7px] top-0.5 w-3 h-3 rounded-full border-2 border-white shadow
+          {% if entry.kind == 'message' %}bg-indigo-500{% elif entry.kind == 'assigned' %}bg-indigo-500{% elif entry.kind == 'progress' %}bg-amber-500{% else %}bg-emerald-500{% endif %}"></span>
+        {% if entry.kind == 'progress' %}
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <p class="text-sm font-bold text-slate-700">Progress update</p>
+          {% include "partials/status_badge.html" with case_status=entry.new_status %}
+        </div>
+        <p class="text-sm text-slate-600 mt-1 leading-snug whitespace-pre-line break-words bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">{{ entry.body }}</p>
+        {% elif entry.kind == 'status' %}
+        <p class="text-sm font-bold text-slate-700">Status changed</p>
+        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+          {% include "partials/status_badge.html" with case_status=entry.old_status %}
+          <svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          {% include "partials/status_badge.html" with case_status=entry.new_status %}
+        </div>
+        {% elif entry.kind == 'assigned' %}
+        <p class="text-sm font-bold text-slate-700">Assigned</p>
+        <p class="text-sm text-slate-500 mt-0.5">to <span class="font-semibold text-slate-700">{{ entry.new_label }}</span></p>
+        {% else %}
+        <p class="text-sm font-bold text-slate-700">Message from support</p>
+        <p class="text-sm text-slate-500 mt-0.5 leading-snug">{{ entry.body }}</p>
         {% endif %}
+        <p class="text-xs text-slate-400 mt-1">{{ entry.actor }} · {{ entry.at|timesince }} ago</p>
       </div>
-      {# Problem description #}
-      {% if case.problem_description %}
-      <div class="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-        <p class="text-[11px] text-slate-500 leading-relaxed">{{ case.problem_description|truncatechars:150 }}</p>
-      </div>
+      {% endfor %}
+      {% else %}
+      <p class="text-sm text-slate-400 text-center py-6">No updates yet.</p>
       {% endif %}
     </div>
   </div>
@@ -719,7 +787,7 @@
         </div>
       </div>
       <a href="{% url 'cases:portal_change_request_new' case.id %}{% if guest_token %}?token={{ guest_token }}{% endif %}"
-         class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
+         class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg transition-all">
         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
         </svg>
@@ -897,12 +965,14 @@ function chatRoom() {
     _readObserver: null,
     _reconnectDelay: 1000,
     ticketOpen: {% if can_send %}true{% else %}false{% endif %},
+    ticketStatus: '{{ case.status|escapejs }}',
     replyTo: null,
     unreadCount: 0,
     showScrollBtn: false,
     typingSenderName: '',
     resolveModal: false,
     resolveComment: '',
+    followingUp: false,
     // Followers
     followers: Array.isArray(CHAT_FOLLOWERS_INITIAL) ? CHAT_FOLLOWERS_INITIAL : [],
     showFollowersModal: false,
@@ -917,6 +987,20 @@ function chatRoom() {
     _isInsertingMention: false,
 
     init() {
+      // Drag & drop files onto the chat panel → same queue as the Attach button.
+      // On an htmx-boosted navigation the script loads async, so it may not
+      // be defined yet — retry on its load event (setup is idempotent).
+      const setupDrop = () => typeof window.initChatDropzone === 'function' && window.initChatDropzone(
+        this.$refs.dropZone,
+        (files) => this.addFiles(files),
+        { enabled: () => this.ticketOpen, hint: 'Max 3 files, 10 MB each (jpg, png, pdf, docx, xlsx, txt…)' }
+      );
+      if (typeof window.initChatDropzone === 'function') setupDrop();
+      else {
+        document.getElementById('chat-dropzone-js')?.addEventListener('load', setupDrop, { once: true });
+        window.addEventListener('load', setupDrop, { once: true });
+      }
+
       this.$nextTick(() => {
         const scrollEl = this.$refs.scroll;
         const divider = document.getElementById('unread-divider');
@@ -935,6 +1019,25 @@ function chatRoom() {
       this.setupReadReceipts();
       this.setupActionDelegation();
       this._initMentionClickHandler();
+
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    },
+
+    // Browser popup for a reply arriving while this exact ticket page is open
+    // but not the focused tab — mirrors the My Tickets list page's notifier
+    // (templates/client/my_tickets.html), which only covers the list view.
+    _notifyIncoming(data) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (!document.hidden && document.hasFocus()) return;
+      const plain = (data.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+      const notif = new Notification(`New reply — {{ case.case_number|escapejs }}`, {
+        body: data.sender_name ? `${data.sender_name}: ${plain}` : plain,
+        icon: "{% if site_config.favicon %}{{ site_config.favicon.url }}{% else %}/static/img/favicon.png{% endif %}",
+        tag: 'case-{{ case.id }}',
+      });
+      notif.onclick = () => { window.focus(); notif.close(); };
     },
 
     _initQuill() {
@@ -963,7 +1066,7 @@ function chatRoom() {
 
       this.quill = new Quill('#quill-editor', {
         theme: 'snow',
-        placeholder: 'Type a message… (Ctrl+Enter to send)',
+        placeholder: 'Type a message… (Enter to send, Shift+Enter for a new line)',
         modules: {
           toolbar: [
             ['bold', 'italic', 'underline', 'strike'],
@@ -986,7 +1089,18 @@ function chatRoom() {
         if (this._mentionActive) {
           if (e.key === 'Escape') { this._hideMention(); return; }
         }
-        if ((e.key === 'Enter' || e.keyCode === 13) && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+          // Shift+Enter inserts a new line — let Quill handle it natively.
+          if (e.isComposing) return;
+          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            const range = this.quill.getSelection(true);
+            if (range.length) this.quill.deleteText(range.index, range.length, 'user');
+            this.quill.insertText(range.index, '\n', 'user');
+            this.quill.setSelection(range.index + 1, 0, 'silent');
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           this.send();
@@ -1256,6 +1370,7 @@ function chatRoom() {
 
       this.ws.onopen = () => {
         this.wsConnected = true;
+        this.acknowledgeActivity();
         this._reconnectDelay = 1000;
         clearInterval(this.pollTimer);
         this.pollTimer = null;
@@ -1269,12 +1384,15 @@ function chatRoom() {
           this.ws.send(JSON.stringify({ type: 'pong' }));
         } else if (data.type === 'chat_message') {
           this.appendMessage(data);
+          this.acknowledgeActivity();
         } else if (data.type === 'chat_attachment') {
           this.appendAttachment(data);
+          this.acknowledgeActivity();
         } else if (data.type === 'typing') {
           this.showTyping(data.sender_name);
         } else if (data.type === 'status_update') {
           this.updateStatus(data.status, data.status_display);
+          this.acknowledgeActivity();
         } else if (data.type === 'chat_delete') {
           this.applyDelete(data.message_id);
         } else if (data.type === 'read_receipt') {
@@ -1297,12 +1415,19 @@ function chatRoom() {
       };
     },
 
+    acknowledgeActivity() {
+      if (!document.hidden && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'activity_read' }));
+      }
+    },
+
     startPolling() {
       if (this.pollTimer) return;
       this.pollTimer = setInterval(() => this.pollMessages(), 4000);
     },
 
     async pollMessages() {
+      if (document.hidden) return;
       try {
         const wasAtBottom = this.isAtBottom();
         const res = await fetch(CHAT_POLL_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
@@ -1342,6 +1467,7 @@ function chatRoom() {
     applyDelete(msgId) {
       const el = document.querySelector(`[data-msg-id="${msgId}"]`);
       if (!el) return;
+      el.dataset.searchDeleted = 'true';
       const bubble = el.querySelector('.bubble-content');
       if (bubble) bubble.innerHTML = '<em class="text-slate-400 text-xs">Message retracted 🚫</em>';
       el.querySelectorAll('.reply-action, .delete-action').forEach(b => b.remove());
@@ -1426,22 +1552,32 @@ function chatRoom() {
     },
 
     onFilePick(e) {
-      const files = Array.from(e.target.files || []);
-      const total = this.pendingFiles.length + files.length;
-      if (total > 3) {
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Maximum 3 files per message.' } }));
-        e.target.value = '';
+      this.addFiles(e.target.files);
+      e.target.value = '';
+    },
+
+    // Shared by the Attach button and drag & drop (chat-dropzone.js).
+    addFiles(fileList) {
+      const toast = (message) => window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message } }));
+      const allowedExt = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'];
+      const files = Array.from(fileList || []);
+      if (this.pendingFiles.length + files.length > 3) {
+        toast('Maximum 3 files per message.');
         return;
       }
       files.forEach(f => {
+        const ext = (f.name.split('.').pop() || '').toLowerCase();
+        if (!allowedExt.includes(ext)) {
+          toast(`${f.name}: file type not allowed.`);
+          return;
+        }
         if (f.size > 10 * 1024 * 1024) {
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: `${f.name} exceeds the 10 MB limit.` } }));
+          toast(`${f.name} exceeds the 10 MB limit.`);
           return;
         }
         this.filePreviews.push(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
         this.pendingFiles.push(f);
       });
-      e.target.value = '';
       this.$nextTick(() => this.quill?.focus());
     },
 
@@ -1535,7 +1671,7 @@ function chatRoom() {
         ? `<button class="delete-action w-6 h-6 rounded-full bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-500 hover:text-rose-700 shadow-sm transition-colors"
                    data-delete-id="${msgId}" title="Retract message">${this._svgTrash}</button>`
         : '';
-      return `<div class="hover-actions self-center opacity-0 transition-opacity flex gap-1 flex-shrink-0 pointer-events-none">
+      return `<div class="hover-actions reply-actions self-center flex gap-1 flex-shrink-0">
         <button class="reply-action w-6 h-6 rounded-full ${replyColor} flex items-center justify-center shadow-sm transition-colors"
                 data-reply-id="${msgId}"
                 data-reply-body="${this.escAttr(senderDisplay)}"
@@ -1561,6 +1697,8 @@ function chatRoom() {
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
       el.dataset.direction = data.direction;
+      el.dataset.searchSender = data.sender_name || (data.is_system ? 'System' : 'User');
+      el.dataset.searchTime = this.formatTime(data.sent_at);
 
       if (isSys) {
         el.className = 'flex justify-center mb-4';
@@ -1622,6 +1760,7 @@ function chatRoom() {
         this.unreadCount++;
         this.showScrollBtn = true;
       }
+      if (!isSys && !isOut) this._notifyIncoming(data);
       if (!isSys && data.body && !data.body.startsWith('<')) this._injectLinkPreview(data.body, el);
     },
 
@@ -1644,6 +1783,9 @@ function chatRoom() {
       const wasAtBottom = this.isAtBottom();
       const el = document.createElement('div');
       el.dataset.msgId = data.message_id;
+      el.dataset.searchText = data.filename || '';
+      el.dataset.searchSender = data.sender_name || 'User';
+      el.dataset.searchTime = this.formatTime(data.sent_at);
       const isOut = this._isOwnMessage(data);
       el.className = `flex gap-3 mb-4 ${isOut ? 'flex-row-reverse' : ''}`;
       const init = (data.sender_name || 'U').charAt(0).toUpperCase();
@@ -1657,6 +1799,8 @@ function chatRoom() {
           data-lightbox-name="${this.escAttr(data.filename)}"
           data-lightbox-group="chat-gallery"
           onclick="openLightbox(this)">`;
+      } else if ((data.mime_type || '').startsWith('video/')) {
+        mediaHtml = `<video src="${this.escAttr(data.file_url)}" controls preload="metadata" style="max-width:100%;max-height:240px;border-radius:8px;"></video>`;
       } else {
         mediaHtml = `<a href="${this.escAttr(data.file_url)}" target="_blank" rel="noopener noreferrer"
           class="flex items-center gap-2 mt-1 bg-slate-100 hover:bg-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 transition-colors">
@@ -1679,22 +1823,30 @@ function chatRoom() {
         this.unreadCount++;
         this.showScrollBtn = true;
       }
+      if (!isOut) this._notifyIncoming({ ...data, body: data.body || data.filename });
     },
 
     updateStatus(status, display) {
       const badge = document.getElementById('chat-status-badge');
-      if (!badge) return;
-      const map = {
-        'Open':         ['bg-yellow-100 text-yellow-700',  'Waiting'],
-        'Investigating':['bg-blue-100 text-blue-700',      'In Progress'],
-        'PendingInfo':  ['bg-orange-100 text-orange-700',  'Need Info'],
-        'Resolved':     ['bg-emerald-100 text-emerald-700','Resolved'],
-        'Closed':       ['bg-slate-100 text-slate-500',    'Closed'],
-      };
-      const [cls, label] = map[status] || ['bg-slate-100 text-slate-500', status];
-      badge.className = `text-xs font-bold px-2.5 py-1 rounded-full ${cls}`;
-      badge.textContent = label;
-      if (status === 'Closed') this.ticketOpen = false;
+      if (badge) {
+        // Mirrors CaseRecord.STATUS_META (cases/models.py) — same solid
+        // badge colors as the admin ticket table, via the jk-badge-* classes.
+        const map = {
+          'New':             ['jk-badge-new',              '🆕', 'New'],
+          'Assigned':        ['jk-badge-assigned',          '📌', 'Assigned'],
+          'InProgress':      ['jk-badge-investigating',     '🔍', 'In Progress'],
+          'PendingUser':     ['jk-badge-pending',            '⏸️', 'Pending User'],
+          'PendingExternal': ['jk-badge-pending-external',  '📡', 'Pending External'],
+          'Resolved':        ['jk-badge-resolved',          '✅', 'Resolved'],
+          'Closed':          ['jk-badge-closed',             '🔒', 'Closed'],
+          'Rejected':        ['jk-badge-rejected',           '🚫', 'Rejected'],
+          'Cancelled':       ['jk-badge-cancelled',          '⛔', 'Cancelled'],
+        };
+        const [cls, icon, label] = map[status] || ['jk-badge-closed', '', status];
+        badge.innerHTML = `<span class="jk-badge jk-badge-lg ${cls}">${icon} ${label}</span>`;
+      }
+      this.ticketStatus = status;
+      this.ticketOpen = status !== 'Closed' && status !== 'Rejected' && status !== 'Cancelled';
     },
 
     isAtBottom() {
@@ -1764,9 +1916,8 @@ function chatRoom() {
         body: JSON.stringify({ comment: this.resolveComment.trim() }),
       });
       if (res.ok) {
-        this.ticketOpen = false;
         this.updateStatus('Resolved', 'Resolved');
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket marked as resolved.' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket marked as resolved. You can still reply if needed.' } }));
       }
     },
 
@@ -1775,10 +1926,30 @@ function chatRoom() {
         method: 'POST',
         headers: { 'X-CSRFToken': CSRF_TOKEN },
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        this.ticketOpen = true;
-        this.updateStatus('Open', 'Open');
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket reopened.' } }));
+        this.updateStatus('InProgress', 'In Progress');
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: 'Ticket reopened. You can continue the conversation.' } }));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: data.error || 'Could not reopen this ticket.' } }));
+    },
+
+    async followUpTicket() {
+      this.followingUp = true;
+      try {
+        const res = await fetch(CHAT_FOLLOW_UP_URL, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': CSRF_TOKEN },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'success', message: `Priority raised to ${data.priority_label}.` } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: data.error || 'Could not follow up right now.' } }));
+        }
+      } finally {
+        this.followingUp = false;
       }
     },
 
@@ -1828,6 +1999,72 @@ function chatRoom() {
     target.classList.add('msg-highlight');
     setTimeout(function() { target.classList.remove('msg-highlight'); }, 1400);
   };
+})();
+</script>
+
+{% if user.is_authenticated %}
+<script src="{% static 'js/ticket-search-suggest.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  recordRecentTicket("{{ case.id }}", "{{ case.case_number|escapejs }}", "{{ case.subject|escapejs }}");
+});
+</script>
+{% endif %}
+<script src="{% static 'js/chat-message-search.js' %}"></script>
+<script>
+/* Phones: keep the composer above the on-screen keyboard.
+   Mobile browsers shrink only the *visible* area when the keyboard opens (the layout and
+   100svh stay the same), so the fixed-height thread would push the composer under it.
+   While typing, size the thread to what is actually visible (VisualViewport) and pin the
+   thread + composer into view, newest messages showing. Undo when the keyboard closes. */
+(function () {
+  var vv = window.visualViewport;
+  var thread = document.getElementById('chat-scroll');
+  var composer = document.querySelector('.jk-pc-composer');
+  if (!vv || !thread || !composer) return;
+
+  var fullH = vv.height;          // visible height with the keyboard closed
+  var open = false;
+
+  function typing() {
+    var a = document.activeElement;
+    return !!(a && composer.contains(a));
+  }
+
+  function fit() {
+    if (window.innerWidth > 640) return;
+    if (!typing()) fullH = Math.max(fullH, vv.height);
+    // keyboard is up when the composer has focus and the visible area shrank noticeably
+    var kb = typing() && vv.height < fullH * 0.85;
+    var se = document.scrollingElement;
+    if (!kb) {
+      if (open) { thread.style.removeProperty('height'); se.style.removeProperty('overflow-anchor'); open = false; }
+      return;
+    }
+    open = true;
+    // stop the browser's scroll anchoring from undoing the position we set below
+    se.style.setProperty('overflow-anchor', 'none');
+    // visible band = above the keyboard and below the pinned topbar
+    var bar = document.querySelector('.jk-topbar');
+    var barH = bar && getComputedStyle(bar).position !== 'static' ? bar.getBoundingClientRect().height : 0;
+    var gap = 8;
+    var avail = vv.height - barH - gap * 2;
+    // everything between the thread's top edge and the composer's bottom that isn't the thread itself
+    var chrome = composer.getBoundingClientRect().bottom - thread.getBoundingClientRect().top - thread.getBoundingClientRect().height;
+    thread.style.setProperty('height', Math.max(120, Math.floor(avail - chrome)) + 'px', 'important');
+    // thread top just under the topbar → composer ends just above the keyboard
+    var top = thread.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo(0, Math.max(0, top - barH - gap - (vv.offsetTop || 0)));
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  var raf;
+  function schedule() { cancelAnimationFrame(raf); raf = requestAnimationFrame(fit); }
+  vv.addEventListener('resize', schedule);
+  composer.addEventListener('focusin', function () { setTimeout(schedule, 300); });  // after the keyboard animates in
+  composer.addEventListener('focusout', function () { setTimeout(schedule, 300); });
+  // the editor grows while typing (and reply/attachment previews appear) — re-fit
+  if (window.ResizeObserver) new ResizeObserver(schedule).observe(composer);
 })();
 </script>
 {% endblock %}

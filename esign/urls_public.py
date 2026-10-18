@@ -18,5 +18,5 @@ urlpatterns = [
     path("mobile-sig/<uuid:session_id>/", mobile_sig_poll, name="mobile_sig_poll"),
     path("mobile-session/", create_mobile_session, name="create_mobile_session"),
     path("saved-sig/", saved_signature_api, name="saved_signature_api"),
-    path("progress/<uuid:pk>/", document_progress_public, name="document_progress_public"),
+    path("progress/<uuid:pk>/<uuid:token>/", document_progress_public, name="document_progress_public"),
 ]

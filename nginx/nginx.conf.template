@@ -48,10 +48,24 @@ server {
 
     client_max_body_size 20M;
 
+    # Uploaded files that could execute/render as markup if opened directly
+    # (defense in depth — the app itself also rejects these at upload time).
+    # Must come before the generic /media/ block: regex locations take
+    # priority over prefix locations in nginx regardless of file order.
+    location ~* ^/media/.*\.(html?|svg|xml|js|mjs|php[0-9]?|phtml|exe|sh|bash|pl|py)$ {
+        root /app;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Disposition "attachment" always;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+        limit_except GET HEAD { deny all; }
+    }
+
     location /media/ {
         alias /app/media/;
         expires 7d;
         add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
         limit_except GET HEAD { deny all; }
     }
 
@@ -110,10 +124,24 @@ server {
 
     client_max_body_size 20M;
 
+    # Uploaded files that could execute/render as markup if opened directly
+    # (defense in depth — the app itself also rejects these at upload time).
+    # Must come before the generic /media/ block: regex locations take
+    # priority over prefix locations in nginx regardless of file order.
+    location ~* ^/media/.*\.(html?|svg|xml|js|mjs|php[0-9]?|phtml|exe|sh|bash|pl|py)$ {
+        root /app;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Disposition "attachment" always;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+        limit_except GET HEAD { deny all; }
+    }
+
     location /media/ {
         alias /app/media/;
         expires 7d;
         add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
         limit_except GET HEAD { deny all; }
     }
 

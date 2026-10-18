@@ -1,14 +1,23 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Configure — {{ doc.title }}{% endblock %}
+{% block title %}Configure | {{ doc.title }}{% endblock %}
 {% block nav_esign %}active{% endblock %}
 {% block page_title %}Configure — {{ doc.title }}{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
-#pdf-viewer-wrap { position: relative; background: #e5e7eb; border-radius: 8px; }
-#pdf-canvas { display: block; max-width: 100%; border-radius: 6px; }
+#pdf-viewer-wrap { position: relative; display: inline-block; vertical-align: top; background: #e5e7eb; border-radius: 8px; }
+#pdf-canvas { display: block; border-radius: 6px; }
+/* Canvas CSS size is set from JS (fit width x zoom); zoomed pages scroll inside the stage. */
+.pdf-stage-paged { overflow: auto; max-height: 75vh; text-align: center; }
+.pdf-zoom { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: .5rem; overflow: hidden; }
+.pdf-zoom button { height: 2rem; min-width: 2rem; padding: 0 .4rem; display: inline-flex; align-items: center; justify-content: center;
+                   background: #f1f5f9; color: #475569; font-size: .8rem; font-weight: 700; }
+.pdf-zoom button + button { border-left: 1px solid #e2e8f0; }
+.pdf-zoom button:hover:not(:disabled) { background: #e2e8f0; }
+.pdf-zoom button:disabled { opacity: .4; cursor: not-allowed; }
+.pdf-zoom .pdf-zoom-level { min-width: 3.4rem; background: #fff; color: #334155; font-variant-numeric: tabular-nums; }
 .placement-box {
     position: absolute;
     border: 2px dashed #6366f1;
@@ -23,17 +32,34 @@
     user-select: none;
     touch-action: none;
 }
-.placement-box .remove-btn {
-    position: absolute;
-    top: -8px; right: -8px;
-    background: #ef4444;
-    color: white;
-    border-radius: 9999px;
-    width: 18px; height: 18px;
-    font-size: 10px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; line-height: 1;
+.placement-box .pb-inner {
+    /* kept away from the edges so the 8 resize handles stay free to grab */
+    position: absolute; inset: 7px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    overflow: hidden; pointer-events: none;
 }
+.placement-box .pb-name {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 10px; font-weight: 700; color: #4338ca; line-height: 1.3;
+    background: rgba(255, 255, 255, .9); padding: 0 6px; border-radius: 9999px;  /* readable over dark PDF content */
+}
+.placement-box .pb-remove {
+    pointer-events: auto;
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 7px; border-radius: 9999px; border: 1px solid #fecdd3;
+    background: #fff; color: #e11d48; font-size: 10px; font-weight: 700; line-height: 1.4;
+    cursor: pointer; box-shadow: 0 1px 2px rgba(15, 23, 42, .12);
+}
+.placement-box .pb-remove:hover { background: #e11d48; border-color: #e11d48; color: #fff; }
+.placement-box .pb-remove svg { width: 9px; height: 9px; }
+/* very small boxes: keep only the remove control */
+.placement-box.is-tight .pb-name { display: none; }
+.esign-history { display: inline-flex; border: 1px solid #e2e8f0; border-radius: .5rem; overflow: hidden; }
+.esign-history button { height: 2rem; padding: 0 .55rem; display: inline-flex; align-items: center; gap: .25rem;
+                        background: #f1f5f9; color: #475569; font-size: .75rem; font-weight: 700; }
+.esign-history button + button { border-left: 1px solid #e2e8f0; }
+.esign-history button:hover:not(:disabled) { background: #e2e8f0; }
+.esign-history button:disabled { opacity: .4; cursor: not-allowed; }
 .resize-handle {
     position: absolute;
     width: 10px; height: 10px;
@@ -58,8 +84,11 @@
 }
 </style>
 
+{{ current_user|json_script:"esign-current-user" }}
+{{ initial_contributors|json_script:"esign-contributors" }}
 <script>
-const PDF_URL            = "{{ doc.original_pdf.url }}";
+const CURRENT_USER = JSON.parse(document.getElementById('esign-current-user').textContent);
+const PDF_URL            = "{{ doc.original_pdf.url|escapejs }}";
 const SAVE_URL           = "{% url 'esign:save_configuration' pk=doc.pk %}";
 const APPLY_TEMPLATE_URL = "{% url 'esign:apply_flow_template' pk=doc.pk %}";
 const USER_SEARCH_URL    = "{% url 'esign:user_search' %}";
@@ -67,6 +96,7 @@ const EMPLOYEE_SEARCH_URL = "{% url 'esign:employee_search' %}";
 const DOC_PAGE_COUNT     = {{ doc.page_count }};
 
 const _pdfConfigure = { doc: null };
+const _renderTasks = {};   // canvas id -> pdf.js RenderTask (kept outside Alpine's reactive proxy)
 
 
 const INITIAL_ROUTING_MODE = "{{ doc.routing_mode|default:'sequential' }}";
@@ -77,6 +107,10 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('esignConfigure', () => ({
         signers: [...INITIAL_SIGNERS],
         placements: INITIAL_PLACEMENTS.map(p => ({ ...p })),
+        // Undo / redo of the signature boxes (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z)
+        undoStack: [],
+        redoStack: [],
+        _beforeMove: null,
         selectedSigner: INITIAL_SIGNERS.length > 0 ? 0 : null,
         placingMode: false,
         routingMode: INITIAL_ROUTING_MODE,
@@ -88,6 +122,8 @@ document.addEventListener('alpine:init', () => {
         newSigner: { name: '', email: '', userId: null, order: 1, role: 'signer' },
         userQuery: '',
         userResults: [],
+        userSearchLoading: false,
+        userSearchDone: false,
         employeeQuery: '',
         employeeResults: [],
         canvasEl: null,
@@ -97,7 +133,12 @@ document.addEventListener('alpine:init', () => {
         dragging: null,
         resizing: null,
         viewMode: 'paged',          // 'paged' | 'scroll'
-        scrollCanvasSizes: [],       // [{width, height}] indexed by page-1
+        scrollCanvasSizes: [],       // [{width, height}] in CSS px, indexed by page-1
+        zoom: 1,                     // 1 = fit the viewer width
+        me: CURRENT_USER,
+        contributors: JSON.parse(document.getElementById('esign-contributors').textContent),
+        contribQuery: '',
+        contribResults: [],
         pages: Array.from({ length: DOC_PAGE_COUNT }, (_, i) => i + 1),
         _scrollObserver: null,
 
@@ -114,19 +155,82 @@ document.addEventListener('alpine:init', () => {
             await this.renderPage(1);
         },
 
+        // Width a page is fitted to at 100%. Measured on the always-visible stage: the paged or
+        // scroll container about to be shown may still be display:none (width 0) at this point,
+        // which used to make pages and signature boxes drift apart after switching views.
+        fitWidth() {
+            const stage = document.getElementById('pdf-stage');
+            const width = stage ? stage.clientWidth : 700;
+            return Math.max(240, width - (this.viewMode === 'scroll' ? 20 : 4));
+        },
+
+        viewportFor(page) {
+            const base = page.getViewport({ scale: 1 });
+            return page.getViewport({ scale: (this.fitWidth() / base.width) * this.zoom });
+        },
+
+        // Draw sharply in device pixels while the CSS size stays in layout pixels — the unit the
+        // signature boxes are positioned in. A newer render of the same canvas cancels the older one.
+        async paint(canvas, page, viewport) {
+            const previous = _renderTasks[canvas.id];
+            if (previous) previous.cancel();
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(viewport.width * ratio);
+            canvas.height = Math.floor(viewport.height * ratio);
+            canvas.style.width = `${viewport.width}px`;
+            canvas.style.height = `${viewport.height}px`;
+            const task = page.render({
+                canvasContext: canvas.getContext('2d'),
+                viewport,
+                transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null,
+            });
+            _renderTasks[canvas.id] = task;
+            try {
+                await task.promise;
+            } catch (error) {
+                if (!error || error.name !== 'RenderingCancelledException') throw error;
+            } finally {
+                if (_renderTasks[canvas.id] === task) delete _renderTasks[canvas.id];
+            }
+        },
+
         async renderPage(num) {
             if (!_pdfConfigure.doc) return;
             this.currentPage = num;
             const page = await _pdfConfigure.doc.getPage(num);
-            const viewport = page.getViewport({ scale: 1 });
-            const wrapW = this.wrapEl.clientWidth || 700;
-            const scale = wrapW / viewport.width;
-            const scaled = page.getViewport({ scale });
-            this.canvasEl.width  = scaled.width;
-            this.canvasEl.height = scaled.height;
-            this.canvasW = scaled.width;
-            this.canvasH = scaled.height;
-            await page.render({ canvasContext: this.canvasEl.getContext('2d'), viewport: scaled }).promise;
+            const viewport = this.viewportFor(page);
+            this.canvasW = viewport.width;
+            this.canvasH = viewport.height;
+            await this.paint(this.canvasEl, page, viewport);
+        },
+
+        async rerender() {
+            if (!_pdfConfigure.doc) return;
+            if (this.viewMode === 'scroll') {
+                const page = this.currentPage;
+                await this.renderScrollPages();
+                this.scrollToPage(page);
+            } else {
+                await this.renderPage(this.currentPage);
+            }
+        },
+
+        setZoom(value) {
+            const next = Math.min(3, Math.max(0.5, Math.round(value * 100) / 100));
+            if (next === this.zoom) return;
+            this.zoom = next;
+            this.rerender();
+        },
+        zoomIn()    { this.setZoom(this.zoom + 0.25); },
+        zoomOut()   { this.setZoom(this.zoom - 0.25); },
+        resetZoom() { this.setZoom(1); },
+
+        scrollToPage(num) {
+            const outer = document.getElementById('pdf-scroll-outer');
+            const el = document.getElementById(`scroll-page-${num}`);
+            if (!outer || !el) return;
+            outer.scrollTop += el.getBoundingClientRect().top - outer.getBoundingClientRect().top;
+            this.currentPage = num;
         },
 
         changePage(delta) {
@@ -148,38 +252,33 @@ document.addEventListener('alpine:init', () => {
 
         async switchViewMode(mode) {
             if (mode === this.viewMode) return;
-            if (mode === 'paged' && this._scrollObserver) {
+            const page = this.currentPage;   // stay on the same page across the switch
+            if (this._scrollObserver) {
                 this._scrollObserver.disconnect();
                 this._scrollObserver = null;
             }
             this.viewMode = mode;
+            await this.$nextTick();          // let the target container become visible first
             if (mode === 'scroll') {
-                await this.$nextTick();
                 await this.renderScrollPages();
+                this.scrollToPage(page);
             } else {
-                await this.renderPage(this.currentPage);
+                await this.renderPage(page);
             }
         },
 
         async renderScrollPages() {
             if (!_pdfConfigure.doc) return;
-            const outer = document.getElementById('pdf-scroll-outer');
-            if (!outer) return;
-            const wrapW = outer.clientWidth - 8;
             const sizes = new Array(DOC_PAGE_COUNT).fill(null);
             for (let i = 1; i <= DOC_PAGE_COUNT; i++) {
-                const page = await _pdfConfigure.doc.getPage(i);
-                const vp0   = page.getViewport({ scale: 1 });
-                const scale = wrapW / vp0.width;
-                const vp    = page.getViewport({ scale });
                 const canvas = document.getElementById(`scroll-canvas-${i}`);
                 if (!canvas) continue;
-                canvas.width  = vp.width;
-                canvas.height = vp.height;
-                sizes[i - 1] = { width: vp.width, height: vp.height };
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+                const page = await _pdfConfigure.doc.getPage(i);
+                const viewport = this.viewportFor(page);
+                sizes[i - 1] = { width: viewport.width, height: viewport.height };
+                this.scrollCanvasSizes = [...sizes];   // boxes follow each page as it is drawn
+                await this.paint(canvas, page, viewport);
             }
-            this.scrollCanvasSizes = sizes;
             this._setupScrollObserver();
         },
 
@@ -204,6 +303,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         onCanvasClick(e) {
+            const before = this.snapshot();
+            this.$nextTick(() => this.remember(before));
             if (this.dragging) return;
             if (!this.placingMode || this.selectedSigner === null) return;
             const rect = this.wrapEl.getBoundingClientRect();
@@ -221,6 +322,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         onScrollPageClick(e, pageNum) {
+            const before = this.snapshot();
+            this.$nextTick(() => this.remember(before));
             if (this.dragging) return;
             if (!this.placingMode || this.selectedSigner === null) return;
             const canvas = document.getElementById(`scroll-canvas-${pageNum}`);
@@ -256,6 +359,7 @@ document.addEventListener('alpine:init', () => {
                 cw = this.canvasW;
                 ch = this.canvasH;
             }
+            this._beforeMove = this.snapshot();
             this.dragging = { globalIdx, lastX: e.clientX, lastY: e.clientY, canvasW: cw, canvasH: ch };
         },
 
@@ -271,7 +375,36 @@ document.addEventListener('alpine:init', () => {
             this.dragging.lastY = e.clientY;
         },
 
-        stopDrag() { this.dragging = null; this.resizing = null; },
+        stopDrag() {
+            if (this._beforeMove !== null) { this.remember(this._beforeMove); this._beforeMove = null; }
+            this.dragging = null; this.resizing = null;
+        },
+
+        snapshot() { return JSON.stringify(this.placements); },
+        remember(before) {
+            if (before === this.snapshot()) return;           // nothing actually changed
+            this.undoStack.push(before);
+            if (this.undoStack.length > 100) this.undoStack.shift();
+            this.redoStack = [];
+        },
+        undo() {
+            if (!this.undoStack.length) return;
+            this.redoStack.push(this.snapshot());
+            this.placements = JSON.parse(this.undoStack.pop());
+        },
+        redo() {
+            if (!this.redoStack.length) return;
+            this.undoStack.push(this.snapshot());
+            this.placements = JSON.parse(this.redoStack.pop());
+        },
+        onHistoryKey(e) {
+            const tag = (e.target && e.target.tagName) || '';
+            if (/INPUT|TEXTAREA|SELECT/.test(tag) || (e.target && e.target.isContentEditable)) return;
+            if (!(e.ctrlKey || e.metaKey)) return;
+            const key = e.key.toLowerCase();
+            if (key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
+            else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); this.redo(); }
+        },
 
         startResize(e, handle, globalIdx) {
             if (this.placingMode) return;
@@ -287,6 +420,7 @@ document.addEventListener('alpine:init', () => {
                 cw = this.canvasW;
                 ch = this.canvasH;
             }
+            this._beforeMove = this.snapshot();
             this.resizing = {
                 globalIdx, handle,
                 startX: e.clientX, startY: e.clientY,
@@ -342,24 +476,73 @@ document.addEventListener('alpine:init', () => {
                 .map(p => ({ ...p, xPx: p.x * w, yPx: p.y * h, wPx: p.w * w, hPx: p.h * h }));
         },
 
-        removePlacement(idx) { this.placements.splice(idx, 1); },
+        removePlacement(idx) { const before = this.snapshot(); this.placements.splice(idx, 1); this.remember(before); },
         selectSigner(idx)    { this.selectedSigner = idx; },
 
         removeSigner(idx) {
+            this.undoStack = []; this.redoStack = [];
             this.placements = this.placements
                 .filter(p => p.signerIndex !== idx)
                 .map(p => ({ ...p, signerIndex: p.signerIndex > idx ? p.signerIndex - 1 : p.signerIndex }));
             this.signers.splice(idx, 1);
+            this.renumberOrders();
             if (this.selectedSigner !== null && this.selectedSigner >= this.signers.length) {
                 this.selectedSigner = null;
             }
         },
 
+        // ── Sign order: new signers get the next number; gaps close up (1,3,3,7 → 1,2,2,3) ──
+        nextOrder() {
+            return this.signers.reduce((max, s) => Math.max(max, Number(s.order) || 0), 0) + 1;
+        },
+        renumberOrders() {
+            const distinct = [...new Set(this.signers.map(s => Number(s.order) || 1))].sort((a, b) => a - b);
+            this.signers.forEach(s => { s.order = distinct.indexOf(Number(s.order) || 1) + 1; });
+        },
+        openAddSigner() {
+            this.newSigner = { name: '', email: '', userId: null, order: this.nextOrder(), role: 'signer' };
+            this.userQuery = '';
+            this.userResults = [];
+            this.addSignerModal = true;
+        },
+
+        // ── "I'll sign this myself" ──
+        isMeSigner() {
+            return !!this.me && this.signers.some(s => s.userId === this.me.id);
+        },
+        addMyself() {
+            if (!this.me || this.isMeSigner()) return;
+            this.signers.push({
+                type: 'user', userId: this.me.id, name: this.me.name, email: this.me.email,
+                order: this.nextOrder(), role: 'signer',
+            });
+            this.addSignerModal = false;
+            this.selectSigner(this.signers.length - 1);
+            this.placingMode = true;
+        },
+
         async searchUsers() {
-            if (this.userQuery.length < 2) { this.userResults = []; return; }
-            const resp = await fetch(`${USER_SEARCH_URL}?q=${encodeURIComponent(this.userQuery)}`);
-            const data = await resp.json();
-            this.userResults = data.results;
+            const query = this.userQuery.trim();
+            this.newSigner.name = '';
+            this.newSigner.email = '';
+            this.newSigner.userId = null;
+            if (query.length < 2) {
+                this.userResults = [];
+                this.userSearchDone = false;
+                return;
+            }
+            this.userSearchLoading = true;
+            this.userSearchDone = false;
+            try {
+                const resp = await fetch(`${USER_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                const data = await resp.json();
+                this.userResults = data.results || [];
+            } catch (error) {
+                this.userResults = [];
+            } finally {
+                this.userSearchLoading = false;
+                this.userSearchDone = true;
+            }
         },
 
         async searchEmployees() {
@@ -375,6 +558,7 @@ document.addEventListener('alpine:init', () => {
             this.newSigner.userId = u.id;
             this.userResults = [];
             this.userQuery   = u.name;
+            this.userSearchDone = false;
         },
 
         selectFoundEmployee(e) {
@@ -391,21 +575,57 @@ document.addEventListener('alpine:init', () => {
                 alert('Name and email are required.');
                 return;
             }
+            if (this.newSigner.userId && this.signers.some(s => s.userId === this.newSigner.userId)) {
+                alert('This user is already a signer on this document.');
+                return;
+            }
             this.signers.push({
                 type:   this.newSignerType,
                 userId: this.newSigner.userId,
                 name:   this.newSigner.name,
                 email:  this.newSigner.email,
-                order:  this.newSigner.order || (this.signers.length + 1),
+                order:  this.newSigner.order || this.nextOrder(),
                 role:   this.newSigner.role,
             });
-            this.newSigner = { name: '', email: '', userId: null, order: this.signers.length + 1, role: 'signer' };
+            this.renumberOrders();
+            this.newSigner = { name: '', email: '', userId: null, order: this.nextOrder(), role: 'signer' };
             this.userQuery = '';
             this.addSignerModal = false;
             
             // Auto-select the newly added signer and activate placing mode
             this.selectSigner(this.signers.length - 1);
             this.placingMode = true;
+        },
+
+        // ── Contributors: can open the document (read-only) and get an email on every update ──
+        async searchContributors() {
+            const query = this.contribQuery.trim();
+            if (query.length < 2) { this.contribResults = []; return; }
+            try {
+                const resp = await fetch(`${USER_SEARCH_URL}?q=${encodeURIComponent(query)}`);
+                const data = await resp.json();
+                const taken = new Set(this.contributors.map(c => c.id));
+                this.contribResults = (data.results || []).filter(u => !taken.has(u.id) && (!this.me || u.id !== this.me.id));
+            } catch (error) {
+                this.contribResults = [];
+            }
+        },
+        addContributor(u) {
+            if (!this.contributors.some(c => c.id === u.id)) {
+                this.contributors.push({ id: u.id, name: u.name, email: u.email });
+            }
+            this.contribQuery = '';
+            this.contribResults = [];
+        },
+        removeContributor(id) {
+            this.contributors = this.contributors.filter(c => c.id !== id);
+        },
+
+        saveLabel() {
+            if (this.saving) return 'Saving…';
+            const mine = this.me ? this.signers.filter(s => s.userId === this.me.id).length : 0;
+            if (mine && mine === this.signers.length) return 'Save & Sign Now';
+            return 'Save & Send to Signers';
         },
 
         async applyTemplate() {
@@ -438,6 +658,7 @@ document.addEventListener('alpine:init', () => {
                     page: p.page, x: p.x, y: p.y, w: p.w, h: p.h,
                     field_type: 'signature',
                 })),
+                contributors: this.contributors.map(c => c.id),
             };
             const resp = await fetch(SAVE_URL, {
                 method: 'POST',
@@ -462,6 +683,8 @@ document.addEventListener('alpine:init', () => {
 
 {% block content %}
 <div x-data="esignConfigure" id="configure-content"
+     @keydown.window="onHistoryKey($event)"
+     @resize.window.debounce.250ms="rerender()"
      @pointerup.window="stopDrag()"
      @pointermove.window="onCanvasMouseMove($event)">
 
@@ -469,13 +692,7 @@ document.addEventListener('alpine:init', () => {
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div class="min-w-0">
         <div class="flex items-center gap-2 mb-1">
-            <a href="{% url 'esign:document_list' %}"
-               class="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-                My Documents
-            </a>
+            {% url 'esign:document_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
         </div>
         <h2 class="text-xl font-bold text-slate-900 truncate">{{ doc.title }}</h2>
         <p class="text-sm text-slate-500 mt-0.5">Add signers and place signature boxes on the document.</p>
@@ -495,6 +712,14 @@ document.addEventListener('alpine:init', () => {
                 <input type="file" name="original_pdf" accept="application/pdf" class="hidden"
                        onchange="document.getElementById('replace-pdf-form').submit()">
             </label>
+        </form>
+        <form method="post" action="{% url 'esign:document_delete' pk=doc.pk %}"
+              onsubmit="return confirm('Delete \'{{ doc.title|escapejs }}\'? This cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-xs font-medium text-red-600 transition-colors" title="Delete document">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete
+            </button>
         </form>
         {% endif %}
         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
@@ -563,7 +788,7 @@ document.addEventListener('alpine:init', () => {
                     <button @click="routingMode='sequential'"
                             :class="routingMode==='sequential'
                                 ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                             class="flex-1 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2">
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
@@ -573,7 +798,7 @@ document.addEventListener('alpine:init', () => {
                     <button @click="routingMode='parallel'"
                             :class="routingMode==='parallel'
                                 ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'bg-white text-slate-500 hover:bg-slate-50'"
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                             class="flex-1 py-2.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 border-l border-slate-200">
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
@@ -598,13 +823,20 @@ document.addEventListener('alpine:init', () => {
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700"
                           x-text="signers.length" x-show="signers.length > 0"></span>
                 </div>
-                <button @click="addSignerModal = true"
-                        class="inline-flex items-center gap-1 jk-btn jk-btn-sm jk-btn-primary">
-                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Add
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" x-show="me && !isMeSigner()" @click="addMyself()"
+                            class="inline-flex items-center gap-1 jk-btn jk-btn-sm jk-btn-outline" title="Add yourself as a signer">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        Add Myself
+                    </button>
+                    <button type="button" @click="openAddSigner()"
+                            class="inline-flex items-center gap-1 jk-btn jk-btn-sm jk-btn-primary">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add
+                    </button>
+                </div>
             </div>
 
             <div class="divide-y divide-slate-100 max-h-56 overflow-y-auto">
@@ -653,6 +885,41 @@ document.addEventListener('alpine:init', () => {
                     </div>
                     <p class="text-xs text-slate-400 font-medium">No signers added yet</p>
                     <p class="text-xs text-slate-300 mt-0.5">Click Add to get started</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contributors -->
+        <div class="bg-white border border-slate-200 rounded-2xl">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                <h3 class="font-semibold text-sm text-slate-700">Contributors</h3>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600"
+                      x-text="contributors.length" x-show="contributors.length > 0"></span>
+            </div>
+            <div class="px-4 py-3 space-y-2">
+                <p class="text-xs text-slate-400">Optional. They can open this document (read-only) and get an email on every update.</p>
+                <div class="relative">
+                    <input type="text" x-model="contribQuery" @input.debounce.300ms="searchContributors()"
+                           class="jk-input text-sm" placeholder="Search a system user…" aria-label="Add contributor">
+                    <div x-show="contribResults.length > 0" x-cloak @click.outside="contribResults = []"
+                         class="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        <template x-for="u in contribResults" :key="u.id">
+                            <button type="button" @click="addContributor(u)"
+                                    class="block w-full text-left px-3 py-2 hover:bg-indigo-50 text-sm border-b border-slate-100 last:border-0">
+                                <span class="block font-semibold text-slate-800" x-text="u.name"></span>
+                                <span class="block text-xs text-slate-400" x-text="u.email"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-1.5" x-show="contributors.length > 0">
+                    <template x-for="c in contributors" :key="c.id">
+                        <span class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700" :title="c.email">
+                            <span x-text="c.name"></span>
+                            <button type="button" @click="removeContributor(c.id)" class="w-4 h-4 rounded flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white" :aria-label="`Remove ${c.name}`">×</button>
+                        </span>
+                    </template>
                 </div>
             </div>
         </div>
@@ -741,7 +1008,7 @@ document.addEventListener('alpine:init', () => {
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                <span x-text="saving ? 'Saving…' : 'Save & Send to Signers'"></span>
+                <span x-text="saveLabel()"></span>
             </button>
             <p class="text-xs text-slate-400 mt-2 text-center">Configuration will be saved and the document sent to all signers.</p>
         </div>
@@ -752,7 +1019,7 @@ document.addEventListener('alpine:init', () => {
     <div class="lg:col-span-2">
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <!-- Toolbar -->
-            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 <!-- Page nav (paged mode only) -->
                 <div class="flex items-center gap-2">
                     <template x-if="viewMode === 'paged'">
@@ -790,11 +1057,25 @@ document.addEventListener('alpine:init', () => {
                     </div>
                     <div x-show="selectedSigner === null" class="text-xs text-slate-400">Select a signer to place boxes</div>
 
+                    <!-- Zoom -->
+                    <div class="esign-history ml-2" role="group" aria-label="Undo and redo">
+                        <button type="button" @click="undo()" :disabled="!undoStack.length" title="Undo (Ctrl+Z)">↶ Undo</button>
+                        <button type="button" @click="redo()" :disabled="!redoStack.length" title="Redo (Ctrl+Y)">Redo ↷</button>
+                    </div>
+                    <div class="pdf-zoom ml-2" role="group" aria-label="Zoom">
+                        <button type="button" @click="zoomOut()" :disabled="zoom <= 0.5" title="Zoom out" aria-label="Zoom out">−</button>
+                        <button type="button" class="pdf-zoom-level" @click="resetZoom()" title="Reset zoom (fit width)" x-text="Math.round(zoom * 100) + '%'">100%</button>
+                        <button type="button" @click="zoomIn()" :disabled="zoom >= 3" title="Zoom in" aria-label="Zoom in">+</button>
+                        <button type="button" @click="resetZoom()" :disabled="zoom === 1" title="Reset zoom" aria-label="Reset zoom">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                    </div>
+
                     <!-- View mode toggle -->
-                    <div class="flex rounded-lg overflow-hidden border border-slate-200 ml-2">
+                    <div class="flex rounded-lg overflow-hidden border border-slate-200">
                         <button @click="switchViewMode('paged')"
                                 title="Page-by-page"
-                                :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                :class="viewMode === 'paged' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                 class="w-8 h-8 flex items-center justify-center transition-colors">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
@@ -802,7 +1083,7 @@ document.addEventListener('alpine:init', () => {
                         </button>
                         <button @click="switchViewMode('scroll')"
                                 title="Continuous scroll"
-                                :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'"
+                                :class="viewMode === 'scroll' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                                 class="w-8 h-8 flex items-center justify-center border-l border-slate-200 transition-colors">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
@@ -813,20 +1094,22 @@ document.addEventListener('alpine:init', () => {
             </div>
 
             <!-- Canvas area -->
-            <div class="p-3">
+            <div class="p-3" id="pdf-stage">
 
                 <!-- Paged mode -->
-                <div x-show="viewMode === 'paged'">
+                <div x-show="viewMode === 'paged'" class="pdf-stage-paged">
                     <div id="pdf-viewer-wrap"
                          @click="onCanvasClick($event)"
                          :style="placingMode ? 'cursor:crosshair' : (dragging ? 'cursor:grabbing' : 'cursor:default')">
                         <canvas id="pdf-canvas"></canvas>
                         <template x-for="(p, idx) in currentPagePlacements()" :key="p.globalIdx">
-                            <div class="placement-box"
+                            <div class="placement-box" :class="p.hPx < 34 && 'is-tight'"
                                  :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
                                  @pointerdown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
-                                <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
-                                <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                <div class="pb-inner">
+                                    <span class="pb-name" x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                    <button type="button" class="pb-remove" @pointerdown.stop @click.stop="removePlacement(p.globalIdx)" title="Remove this signature box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Remove</button>
+                                </div>
                                 <div>
                                     <div class="resize-handle nw" @pointerdown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
                                     <div class="resize-handle n"  @pointerdown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
@@ -845,9 +1128,9 @@ document.addEventListener('alpine:init', () => {
                 <!-- Scroll mode -->
                 <div x-show="viewMode === 'scroll'"
                      id="pdf-scroll-outer"
-                     style="max-height: 75vh; overflow-y: auto; scroll-behavior: smooth;">
+                     style="max-height: 75vh; overflow: auto;">
                     <template x-for="pageNum in pages" :key="pageNum">
-                        <div class="relative mb-3 last:mb-0"
+                        <div class="relative mb-3 last:mb-0 w-fit mx-auto"
                              :id="'scroll-page-' + pageNum"
                              :data-page="pageNum"
                              @click="onScrollPageClick($event, pageNum)"
@@ -857,14 +1140,16 @@ document.addEventListener('alpine:init', () => {
                                 <span class="text-[10px] font-bold bg-black/40 text-white rounded px-1.5 py-0.5"
                                       x-text="'p.' + pageNum"></span>
                             </div>
-                            <canvas :id="'scroll-canvas-' + pageNum" style="display:block; max-width:100%; border-radius:4px;"></canvas>
+                            <canvas :id="'scroll-canvas-' + pageNum" style="display:block; border-radius:4px;"></canvas>
                             <!-- Placement overlays for this page -->
                             <template x-for="p in placementsForScrollPage(pageNum)" :key="p.globalIdx">
-                                <div class="placement-box"
+                                <div class="placement-box" :class="p.hPx < 34 && 'is-tight'"
                                      :style="`left:${p.xPx}px;top:${p.yPx}px;width:${p.wPx}px;height:${p.hPx}px;cursor:${placingMode ? 'crosshair' : (resizing ? 'auto' : 'grab')}`"
                                      @pointerdown.stop.prevent="!placingMode && startDrag($event, p.globalIdx)">
-                                    <span x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
-                                    <span class="remove-btn" @click.stop="removePlacement(p.globalIdx)">✕</span>
+                                    <div class="pb-inner">
+                                        <span class="pb-name" x-text="'✍ ' + (signers[p.signerIndex]?.name?.split(' ')[0] || '')"></span>
+                                        <button type="button" class="pb-remove" @pointerdown.stop @click.stop="removePlacement(p.globalIdx)" title="Remove this signature box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Remove</button>
+                                    </div>
                                     <div>
                                         <div class="resize-handle nw" @pointerdown.stop.prevent="startResize($event,'nw',p.globalIdx)"></div>
                                         <div class="resize-handle n"  @pointerdown.stop.prevent="startResize($event,'n', p.globalIdx)"></div>
@@ -897,7 +1182,7 @@ document.addEventListener('alpine:init', () => {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
         </svg>
-        <span x-text="saving ? 'Saving…' : 'Save & Send to Signers'"></span>
+        <span x-text="saveLabel()"></span>
     </button>
 </div>
 
@@ -918,38 +1203,64 @@ document.addEventListener('alpine:init', () => {
         </div>
 
         <div class="p-6 space-y-4">
+            <!-- Shortcut: the sender signs it personally -->
+            <button type="button" x-show="me && !isMeSigner()" @click="addMyself()"
+                    class="w-full flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 px-3 py-2.5 text-left transition-colors">
+                <span class="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </span>
+                <span class="min-w-0">
+                    <span class="block text-sm font-semibold text-emerald-800">I'll sign this myself</span>
+                    <span class="block text-xs text-emerald-700 truncate" x-text="me ? `${me.name} · ${me.email}` : ''"></span>
+                </span>
+            </button>
+            <div x-show="me && !isMeSigner()" class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <span class="flex-1 h-px bg-slate-200"></span>or add someone else<span class="flex-1 h-px bg-slate-200"></span>
+            </div>
             <!-- Type toggle -->
             <div class="flex rounded-xl overflow-hidden border border-slate-200">
                 <button @click="newSignerType='user'"
-                        :class="newSignerType==='user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                        :class="newSignerType==='user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                         class="flex-1 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                     System User
                 </button>
+                {% if site_config.esign_allow_external_signers %}
                 <button @click="newSignerType='external'"
-                        :class="newSignerType==='external' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+                        :class="newSignerType==='external' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
                         class="flex-1 py-2.5 text-sm font-semibold transition-colors flex items-center justify-center gap-2 border-l border-slate-200">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                     External Email
                 </button>
+                {% endif %}
             </div>
 
             <!-- System user search -->
             <div x-show="newSignerType === 'user'" class="space-y-3">
                 <div>
                     <label class="jk-label">Search User</label>
-                    <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
-                           class="jk-input" placeholder="Name or email…">
+                    <div class="relative">
+                        <input type="text" x-model="userQuery" @input.debounce.300ms="searchUsers()"
+                               class="jk-input pr-9" placeholder="Type at least 2 letters…">
+                        <svg x-show="userSearchLoading" x-cloak
+                             class="absolute right-3 top-3 h-4 w-4 animate-spin text-indigo-500"
+                             fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                    </div>
                     <div x-show="userResults.length > 0"
-                         class="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                         class="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-52 overflow-y-auto">
                         <template x-for="u in userResults" :key="u.id">
-                            <div @click="selectFoundUser(u)"
-                                 class="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 transition-colors">
+                            <button type="button" @click="selectFoundUser(u)"
+                                    class="block w-full text-left px-3 py-2.5 hover:bg-indigo-50 text-sm border-b border-slate-100 last:border-0 transition-colors">
                                 <div class="font-semibold text-slate-800" x-text="u.name"></div>
                                 <div class="text-xs text-slate-400 mt-0.5" x-text="u.email + ' — ' + u.role"></div>
-                            </div>
+                            </button>
                         </template>
                     </div>
+                    <p x-show="userSearchDone && !userSearchLoading && userResults.length === 0 && userQuery.trim().length >= 2"
+                       x-cloak class="mt-2 text-xs text-slate-400">No active system user found.</p>
                 </div>
                 <div x-show="newSigner.name"
                      class="flex items-center gap-2 text-sm bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5">
@@ -959,6 +1270,7 @@ document.addEventListener('alpine:init', () => {
             </div>
 
             <!-- External user fields -->
+            {% if site_config.esign_allow_external_signers %}
             <div x-show="newSignerType === 'external'" class="space-y-3">
                 <div class="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-3">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Quick Fill from Employee</label>
@@ -985,6 +1297,7 @@ document.addEventListener('alpine:init', () => {
                     <input type="email" x-model="newSigner.email" class="jk-input" placeholder="email@example.com">
                 </div>
             </div>
+            {% endif %}
 
             <!-- Order + Role -->
             <div class="flex gap-3">

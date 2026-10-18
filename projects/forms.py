@@ -1,5 +1,8 @@
 from django import forms
+from django.core.files.uploadedfile import UploadedFile
 from .models import Project, ProjectPhase, ProjectUpdate
+from core.models import SiteConfig
+from core.upload_security import validate_upload, safe_filename, ALLOWED_IMAGE_MIME_TYPES, ALLOWED_DOCUMENT_MIME_TYPES
 
 
 class ProjectForm(forms.ModelForm):
@@ -16,6 +19,16 @@ class ProjectForm(forms.ModelForm):
             "allow_public_crud": forms.CheckboxInput(attrs={"class": "rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500"}),
             "followers": forms.SelectMultiple(attrs={"class": "jk-input w-full h-32"}),
         }
+
+    def clean_cover_image(self):
+        f = self.cleaned_data.get("cover_image")
+        if isinstance(f, UploadedFile):
+            max_mb = SiteConfig.get_solo().max_upload_size_mb
+            is_valid, error, mime = validate_upload(f, max_mb, ALLOWED_IMAGE_MIME_TYPES)
+            if not is_valid:
+                raise forms.ValidationError(error)
+            f.name = safe_filename(f.name, mime)
+        return f
 
 
 class ProjectPhaseForm(forms.ModelForm):
@@ -48,4 +61,14 @@ class ProjectUpdateForm(forms.ModelForm):
             "shared_doc": forms.Select(attrs={"class": "jk-input w-full"}),
             "attachment": forms.FileInput(attrs={"class": "block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-200 rounded-xl p-1"}),
         }
+
+    def clean_attachment(self):
+        f = self.cleaned_data.get("attachment")
+        if isinstance(f, UploadedFile):
+            max_mb = SiteConfig.get_solo().max_upload_size_mb
+            is_valid, error, mime = validate_upload(f, max_mb, ALLOWED_DOCUMENT_MIME_TYPES)
+            if not is_valid:
+                raise forms.ValidationError(error)
+            f.name = safe_filename(f.name, mime)
+        return f
 

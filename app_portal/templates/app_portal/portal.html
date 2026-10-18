@@ -132,7 +132,7 @@
   margin-top:1.75rem;
   display:inline-flex; align-items:center; gap:.5rem;
   font-size:.8125rem; font-weight:700; color:#fff;
-  background:rgba(99,102,241,.2);
+  background:linear-gradient(90deg, rgba(34,197,94,.22), rgba(99, 102, 241,.22));
   border:1px solid rgba(99,102,241,.4);
   border-radius:.75rem;
   padding:.625rem 1.25rem;
@@ -140,7 +140,7 @@
   transition: background .2s, border-color .2s, box-shadow .2s, transform .15s;
 }
 .ap-add-btn:hover {
-  background:rgba(99,102,241,.35);
+  background:linear-gradient(90deg, rgba(34,197,94,.38), rgba(99, 102, 241,.38));
   border-color:rgba(99,102,241,.7);
   box-shadow:0 0 24px rgba(99,102,241,.4);
   transform:translateY(-1px);
@@ -562,8 +562,8 @@
 {% if user.role_access == 'SuperAdmin' %}
 
 <!-- ═══ CREATE / EDIT MODAL (shared) ════════════════════════════════ -->
-<div id="appModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeAppModal()">
-  <div class="ap-modal" onclick="event.stopPropagation()">
+<div id="appModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeAppModal()" role="button" tabindex="0" onkeydown="if(event.target===this&&event.key==='Escape')closeAppModal()">
+  <div class="ap-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="event.stopPropagation()">
     <div class="ap-modal-hd">
       <span class="ap-modal-title" id="modalTitle">Add New Application</span>
       <button onclick="closeAppModal()"
@@ -580,7 +580,7 @@
 
         <!-- Name -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+          <label for="f_name" class="block text-xs font-semibold text-slate-600 mb-1.5">
             Application Name <span class="text-red-500">*</span>
           </label>
           <input type="text" name="name" id="f_name" required maxlength="200"
@@ -589,7 +589,7 @@
 
         <!-- Description -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+          <label for="f_description" class="block text-xs font-semibold text-slate-600 mb-1.5">
             Description <span class="text-red-500">*</span>
           </label>
           <textarea name="description" id="f_description" rows="3" required
@@ -599,7 +599,7 @@
 
         <!-- URL -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+          <label for="f_url" class="block text-xs font-semibold text-slate-600 mb-1.5">
             App URL <span class="text-red-500">*</span>
           </label>
           <input type="url" name="url" id="f_url" required
@@ -609,13 +609,13 @@
         <!-- Emoji + Badge -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icon Emoji</label>
+            <label for="f_icon_emoji" class="block text-xs font-semibold text-slate-600 mb-1.5">Icon Emoji</label>
             <input type="text" name="icon_emoji" id="f_icon_emoji" maxlength="10"
                    class="jk-input text-sm w-full text-center" style="font-size:1.375rem; padding:.375rem;"
                    value="🌐">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Badge Label</label>
+            <label for="f_badge_text" class="block text-xs font-semibold text-slate-600 mb-1.5">Badge Label</label>
             <input type="text" name="badge_text" id="f_badge_text" maxlength="50"
                    class="jk-input text-sm w-full" placeholder="New, Beta, Internal…">
           </div>
@@ -623,7 +623,7 @@
 
         <!-- Image upload -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+          <label for="f_icon_image" class="block text-xs font-semibold text-slate-600 mb-1.5">
             Logo Image <span class="text-slate-400 font-normal">(overrides emoji)</span>
           </label>
           <input type="file" name="icon_image" id="f_icon_image" accept="image/*"
@@ -636,14 +636,14 @@
 
         <!-- Accent color -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-2">Card Accent Color</label>
+          <p class="block text-xs font-semibold text-slate-600 mb-2">Card Accent Color</p>
           <div class="ap-swatches" id="swatchGrid"></div>
           <input type="hidden" name="accent_color" id="f_accent_color" value="indigo">
         </div>
 
         <!-- Accessible roles -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-2">Accessible By</label>
+          <p class="block text-xs font-semibold text-slate-600 mb-2">Accessible By</p>
           <div id="rolesGrid"
                class="grid grid-cols-2 gap-y-2 gap-x-6 p-3 bg-slate-50 border border-slate-200 rounded-xl"></div>
           <input type="hidden" name="accessible_roles" id="f_accessible_roles" value="all">
@@ -653,7 +653,7 @@
         <!-- Order + Active -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Display Order</label>
+            <label for="f_order" class="block text-xs font-semibold text-slate-600 mb-1.5">Display Order</label>
             <input type="number" name="order" id="f_order" min="0" value="0"
                    class="jk-input text-sm w-full">
           </div>
@@ -687,10 +687,10 @@
 </div>
 
 <!-- ═══ DELETE MODAL ════════════════════════════════════════════════ -->
-<div id="deleteModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeDeleteModal()">
-  <div class="ap-modal ap-modal-sm" onclick="event.stopPropagation()">
+<div id="deleteModal" class="ap-backdrop" style="display:none;" onclick="if(event.target===this)closeDeleteModal()" role="button" tabindex="0" onkeydown="if(event.target===this&&event.key==='Escape')closeDeleteModal()">
+  <div class="ap-modal ap-modal-sm" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle" onclick="event.stopPropagation()">
     <div class="ap-modal-hd">
-      <span class="ap-modal-title">Delete Application</span>
+      <span class="ap-modal-title" id="deleteModalTitle">Delete Application</span>
       <button onclick="closeDeleteModal()"
               class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

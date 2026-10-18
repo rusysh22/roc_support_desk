@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static custom_tags %}
 
 {% block title %}Employees | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
 {% block nav_employees %}active{% endblock %}
@@ -8,135 +8,109 @@
 {% block content %}
 <div class="space-y-6">
 
-    <!-- Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">Employees
-                {% if page_obj.paginator.count %}
-                <span class="ml-2 text-sm font-normal text-slate-400">({{ page_obj.paginator.count }})</span>
-                {% endif %}
-            </h2>
-            <p class="text-sm text-slate-500 mt-0.5">Manage your organization's employees, their units, and manager reporting lines.</p>
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
         </div>
-        <div class="flex items-center gap-2">
-            <a href="{% url 'users_desk:employee_import' %}"
-               class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                Import / Update
-            </a>
-            <a href="{% url 'users_desk:employee_create' %}"
-               class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-                Add Employee
-            </a>
-        </div>
+    {% endfor %}
     </div>
+    {% endif %}
 
-    <!-- Search -->
-    <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
-        <form method="get" class="flex gap-3 items-center">
-            <div class="relative flex-1 max-w-sm">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                </div>
-                <input type="text" name="q" value="{{ q }}" placeholder="Search name, email, or phone..."
-                    class="jk-input pl-9 w-full">
-            </div>
-            <button type="submit" class="jk-btn jk-btn-primary">Search</button>
-            {% if q %}
-            <a href="{% url 'users_desk:employee_list' %}" class="text-sm text-slate-500 hover:text-slate-700 transition-colors">Clear</a>
-            {% endif %}
-        </form>
-    </div>
+    <!-- Header & Search / Filter Toolbar -->
+    {% url 'users_desk:employee_create' as create_url_val %}
+    {% include "partials/list/_toolbar.html" with result_noun="employee(s)" title="Employees" subtitle="Manage your organization's employees, their units, and manager reporting lines." create_url=create_url_val create_label="Add Employee" extra_header_template="desk/employees/_header_extra.html" search_query=q search_placeholder="Search name, email, phone, NIK, unit, or role..." clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="desk/employees/_filter_fields.html" %}
 
-    <!-- Table -->
-    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
+    {% url 'users_desk:employee_bulk_archive' as emp_archive_url %}
+    {% url 'users_desk:employee_bulk_unarchive' as emp_unarchive_url %}
+    {% url 'users_desk:employee_bulk_duplicate' as emp_duplicate_url %}
+    {% url 'users_desk:employee_bulk_export' as emp_export_url %}
+    {% url 'users_desk:employee_bulk_delete' as emp_delete_url %}
+
+    <div x-data="jkListTable([{% for employee in page_obj %}'{{ employee.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}])">
+
+    {% include "partials/_confirm_modal.html" %}
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto min-h-[50vh]">
+            <table class="jk-table">
                 <thead>
-                    <tr class="border-b border-slate-100 bg-slate-50/60">
-                        <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Employee</th>
-                        <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Contact</th>
-                        <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit / Role</th>
-                        <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Reports To</th>
-                        <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Actions</th>
+                    <tr>
+                        <th class="w-10 px-4">
+                            <input type="checkbox" :checked="allSelected" @click="toggleAll()"
+                                   class="rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                        </th>
+                        <th class="w-8"></th>
+                        <th>Employee</th>
+                        <th>NIK</th>
+                        <th>Contact</th>
+                        <th>Unit / Role</th>
+                        <th>Reports To</th>
+                        <th class="text-center w-24">Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for employee in page_obj %}
-                    <tr class="hover:bg-slate-50/70 transition-colors">
-                        <!-- Employee Name + Avatar -->
-                        <td class="px-5 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                    {{ employee.full_name|slice:":2"|upper }}
-                                </div>
-                                <span class="font-medium text-slate-800">{{ employee.full_name }}</span>
+                    <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer {% if employee.is_archived %}opacity-50{% endif %}"
+                        @click="openRow('{% url "users_desk:employee_edit" employee.pk %}')">
+                        <td class="px-4 text-center" @click.stop>
+                            <input type="checkbox" x-model="selectedIds" value="{{ employee.pk }}"
+                                   class="rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                        </td>
+                        <td class="text-center px-1">
+                            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold ring-2 ring-white uppercase text-xs">
+                                {{ employee.full_name|slice:":2" }}
                             </div>
                         </td>
-                        <!-- Contact -->
-                        <td class="px-5 py-4">
-                            <div class="text-slate-700">{{ employee.email|default:"—" }}</div>
-                            <div class="text-xs text-slate-400 mt-0.5">{{ employee.phone_number|default:"—" }}</div>
+                        <td>
+                            <div class="font-semibold text-slate-900">{{ employee.full_name }}</div>
                         </td>
-                        <!-- Unit / Role -->
-                        <td class="px-5 py-4">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <td>
+                            <div class="text-sm font-medium text-slate-700">{{ employee.user.nik|default:"-" }}</div>
+                        </td>
+                        <td>
+                            <div class="text-slate-700">{{ employee.email|default:"-" }}</div>
+                            <div class="text-xs text-slate-600">{{ employee.phone_number|default:"-" }}</div>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
                                 {{ employee.unit.code }}
                             </span>
-                            <div class="text-xs text-slate-500 mt-1">{{ employee.job_role|default:"—" }}</div>
+                            <div class="text-xs text-slate-600 mt-1">{{ employee.job_role|default:"-" }}</div>
                         </td>
-                        <!-- Reports To -->
-                        <td class="px-5 py-4">
+                        <td>
                             {% if employee.reports_to %}
-                            <div class="flex items-center gap-2">
-                                <div class="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                    {{ employee.reports_to.full_name|slice:":1"|upper }}
-                                </div>
-                                <div>
-                                    <div class="text-slate-700 text-sm">{{ employee.reports_to.full_name }}</div>
-                                    <div class="text-xs text-slate-400">{{ employee.reports_to.job_role }}</div>
-                                </div>
-                            </div>
+                            <div class="text-sm font-medium text-slate-700">{{ employee.reports_to.full_name }}</div>
+                            <div class="text-xs text-slate-600">{{ employee.reports_to.job_role }}</div>
                             {% else %}
-                            <span class="text-xs text-slate-400 italic">— No manager</span>
+                            <span class="text-sm text-slate-600">-</span>
                             {% endif %}
                         </td>
-                        <!-- Actions -->
-                        <td class="px-5 py-4 text-right">
-                            <div class="flex items-center justify-end gap-1.5">
-                                <a href="{% url 'users_desk:employee_edit' employee.pk %}"
-                                   class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors"
-                                   title="Edit">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    Edit
-                                </a>
-                                <form method="post" action="{% url 'users_desk:employee_delete' employee.pk %}" class="inline-block"
-                                      onsubmit="return confirm('Delete {{ employee.full_name|escapejs }}? This cannot be undone.');">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-rose-100 hover:text-rose-700 rounded-lg transition-colors"
-                                            title="Delete">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                        Delete
-                                    </button>
-                                </form>
-                            </div>
+                        <td class="text-center">
+                            {% if employee.is_archived %}
+                            <span class="jk-badge jk-badge-closed">Archived</span>
+                            {% else %}
+                            <span class="jk-badge jk-badge-resolved">Active</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-14 text-center">
-                            <div class="flex flex-col items-center gap-3 text-slate-400">
-                                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <div>
-                                    <p class="font-medium text-slate-600">No employees found</p>
-                                    {% if q %}<p class="text-sm mt-1">Try adjusting your search terms.</p>{% endif %}
-                                </div>
-                                {% if not q %}
-                                <a href="{% url 'users_desk:employee_create' %}" class="jk-btn jk-btn-primary text-sm">Add First Employee</a>
-                                {% endif %}
-                            </div>
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-600">
+                            {% if q %}
+                            No employees found matching your search.
+                            {% else %}
+                            No employees available.
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -144,32 +118,16 @@
             </table>
         </div>
 
-        <!-- Pagination -->
-        {% if page_obj.has_other_pages %}
-        <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
-            <p class="text-sm text-slate-500">
-                Showing <span class="font-medium text-slate-700">{{ page_obj.start_index }}</span>–<span class="font-medium text-slate-700">{{ page_obj.end_index }}</span>
-                of <span class="font-medium text-slate-700">{{ page_obj.paginator.count }}</span> employees
-            </p>
-            <div class="flex gap-2">
-                {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}"
-                   class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    Prev
-                </a>
-                {% endif %}
-                {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}&q={{ q }}"
-                   class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-                    Next
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                </a>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
+        {% include "partials/list/_pagination.html" %}
     </div>
+
+    {% if viewing_archived_only %}
+        {% include "partials/list/_bulk_bar.html" with unarchive_url=emp_unarchive_url duplicate_url=emp_duplicate_url export_url=emp_export_url delete_url=emp_delete_url %}
+    {% else %}
+        {% include "partials/list/_bulk_bar.html" with archive_url=emp_archive_url duplicate_url=emp_duplicate_url export_url=emp_export_url delete_url=emp_delete_url %}
+    {% endif %}
+
+    </div><!-- end jkListTable x-data -->
 
 </div>
 {% endblock %}

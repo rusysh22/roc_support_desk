@@ -1,0 +1,12 @@
+<p style="margin:0 0 14px;font-size:15px;color:#475569;line-height:1.6;">Hello <span style="color:#0f172a;font-weight:500;">{{ requester_name }}</span>,</p>
+<p style="margin:0 0 18px;font-size:15px;color:#475569;line-height:1.6;">Thank you for reaching out. We have received your request and our support team will review it shortly.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8fa;border:1px solid #dbe7ec;margin:0 0 18px;">
+  <tr>
+    <td style="padding:16px 18px;">
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Ticket</p>
+      <p style="margin:0 0 14px;font-size:17px;font-weight:600;letter-spacing:-0.01em;">{% if ticket_url %}<a href="{{ ticket_url }}" style="color:#312e81;text-decoration:underline;">{{ case_number }}</a>{% else %}<span style="color:#312e81;">{{ case_number }}</span>{% endif %}</p>
+      <p style="margin:0 0 3px;font-size:12px;color:#64748b;font-weight:500;">Subject</p>
+      <p style="margin:0;font-size:15px;color:#0f172a;font-weight:500;">{{ case_subject }}</p>
+    </td>
+  </tr>
+</table>

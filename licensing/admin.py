@@ -21,7 +21,7 @@ from .models import LicenseAuditLog, LicenseRecord, TrialRecord
 class LicenseRecordAdmin(admin.ModelAdmin):
     list_display = [
         'id', 'plan_tier', 'status', 'issued_to',
-        'issued_at', 'expires_at', 'last_verified_at', 'max_agents',
+        'issued_at', 'expires_at', 'token_expires_at', 'last_verified_at', 'max_agents',
     ]
     # All license state fields are read-only in admin.
     # License activation and renewal must go through the proper licensing views,
@@ -29,7 +29,7 @@ class LicenseRecordAdmin(admin.ModelAdmin):
     # get_effective_status() / _is_structurally_valid().
     readonly_fields = [
         'id', 'license_key', 'status', 'plan_tier',
-        'issued_at', 'expires_at', 'last_verified_at',
+        'issued_at', 'expires_at', 'token_expires_at', 'last_verified_at',
         'install_fingerprint', 'marketplace_endpoint',
         'max_agents', 'features_json',
     ]
@@ -38,7 +38,7 @@ class LicenseRecordAdmin(admin.ModelAdmin):
             'fields': ('license_key', 'issued_to', 'plan_tier', 'status'),
         }),
         ('Validity', {
-            'fields': ('issued_at', 'expires_at', 'last_verified_at'),
+            'fields': ('issued_at', 'expires_at', 'token_expires_at', 'last_verified_at'),
         }),
         ('Limits & Features', {
             'fields': ('max_agents', 'features_json'),

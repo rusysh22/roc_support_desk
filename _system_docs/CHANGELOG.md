@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.6.0] — 2026-10-18
+
+### New Features
+
+- **Ticket lifecycle** — Statuses New, Assigned, In Progress, Pending User, Pending External, Resolved, Closed, Rejected and Cancelled with enforced transitions (`CaseRecord.STATUS_META`). Existing tickets are remapped by migration `cases.0044_status_workflow_overhaul` (Open → New/Assigned, Investigating → In Progress, Pending Info → Pending User). The SLA clock pauses in Pending User / Pending External; Resolved tickets may be reopened for `CHAT_AUTO_CLOSE_IDLE_DAYS` (default 5) days, then close automatically.
+- **Priority matrix** — Impact × Severity → P1–P4 (`PriorityMatrixRule`), first-response timestamp and follow-up tracking.
+- **Task Management** — Dynamic filter builder, saved filters, status chips, Type column, clickable dashboard counts, standard 25-row pagination, unread activity per ticket (`CaseActivityRead`), mobile toolbar.
+- **Tickets** — Ticket Locations (CRUD), CC emails, multiple attachments, level-by-level category picker with unlimited nesting, favourite services, automatic acknowledgement and resolve/close emails, unique prefix codes.
+- **Announcements app** — Portal announcements (public / signed-in / per company unit), e-mail notification, read & acknowledge receipts.
+- **Microsoft Teams** — Channel cards for ticket activity and personal notifications through a Teams Workflows flow (`gateways/teams_notify.py`).
+- **Knowledge Base** — Views/likes, contributors, comment controls, change log, shared editing with review, trigram search (`pg_trgm`).
+- **E-Sign** — Self-signing, contributors, automatic reminders every `ESIGN_AUTO_REMIND_HOURS` (default 24), bulk delete, undo/redo for signature boxes.
+- **Shorten Link** — Redirect portal with countdown, media (video/YouTube/TikTok), full-page or mini layout.
+- **Users & access** — User Roles master data, Engineer role (assigned tickets only), per-role module defaults, Portal User module defaults, My Approvals page with sidebar count.
+- **Licensing** — Ed25519-signed Marketplace entitlements, feature-based sidebar gating, hardened installation identity.
+
+### New Settings (Site Configuration)
+
+- `require_ticket_location` (default off), `show_generate_template_button` (default on), `allow_whatsapp_notifications` (default on).
+- `developer_contact_name` / `developer_contact_email` — when the email is set, Help & About shows only that contact and feedback is e-mailed to it; when blank, SuperAdmins are listed as before.
+- `WA_ENABLED` environment switch (default on) for deployments without an Evolution API instance.
+
+### Improvements
+
+- Archiving across master-data lists, standardized list toolbars and status badges, sidebar search with recent pages, unsaved-changes guard on edit forms, upload hardening, CSP updates, email templates with a shared layout using the site logo.
+- Fixed fresh-install migration for `projects` (duplicate column).
+
+---
+
 ## [1.4.7] — 2026-05-24
 
 ### New Features

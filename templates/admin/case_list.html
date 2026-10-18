@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load category_tree %}
 {% load custom_tags %}
 
 {% block title %}Tickets | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
@@ -15,190 +16,216 @@
 
 {% block content %}
 
+<!-- Sticky header: view tabs, folder nav, status chips, saved filters, search/filter bar —
+     stays visible/floating while the ticket table below scrolls, instead of scrolling away.
+     Flat (no shadow) so it sits flush with the table below. -->
+<div class="jk-task-toolbar sticky z-20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-[var(--jk-surface-alt)] pb-3" style="top: 4rem;">
+
 <!-- View Mode Tabs & Navigation -->
-<div class="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-3">
-    <div class="flex flex-col sm:flex-row gap-3 overflow-x-auto">
+<div class="flex flex-col lg:flex-row lg:items-center justify-between mb-3 gap-2">
+    <div class="flex flex-col sm:flex-row gap-2 overflow-x-auto">
         <!-- View Options -->
-        <div class="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200 shrink-0">
-            <a href="{% url 'desk:case_list' %}?folder={{ current_filters.folder }}"
-            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-indigo-500 text-white shadow-sm whitespace-nowrap">
+        <div class="flex items-center bg-white rounded-lg p-0.5 shadow-sm border border-slate-200 shrink-0">
+            <a data-task-view href="{% url 'desk:case_list' %}?{{ request.GET.urlencode }}"
+            class="px-2.5 py-1 rounded-md text-xs font-medium transition-all bg-indigo-500 text-white shadow-sm whitespace-nowrap">
                 📋 Table
             </a>
-            <a href="{% url 'desk:case_kanban' %}"
-            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
+            <a data-task-view href="{% url 'desk:case_kanban' %}?{{ request.GET.urlencode }}"
+            class="px-2.5 py-1 rounded-md text-xs font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
                 📊 Kanban
             </a>
-            <a href="{% url 'desk:case_calendar' %}"
-            class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
+            <a data-task-view href="{% url 'desk:case_calendar' %}?{{ request.GET.urlencode }}"
+            class="px-2.5 py-1 rounded-md text-xs font-medium transition-all text-slate-600 hover:bg-slate-100 whitespace-nowrap">
                 📅 Calendar
             </a>
         </div>
-        
+
         <!-- Folder Navigation -->
-        <div class="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200 shrink-0">
-            <a href="{% url 'desk:case_list' %}?folder=inbox" 
-               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'inbox' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
-                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+        <div class="flex items-center bg-white rounded-lg p-0.5 shadow-sm border border-slate-200 shrink-0">
+            <a href="{% url 'desk:case_list' %}?folder=inbox"
+               class="px-2.5 py-1 rounded-md text-xs font-medium transition-all {% if current_filters.folder == 'inbox' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1 whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
                 Inbox
                 {% if unread_inbox > 0 %}
-                <span class="inline-flex items-center justify-center px-2 py-0.5 ms-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ unread_inbox }}</span>
+                <span class="inline-flex items-center justify-center px-1.5 py-0.5 ms-0.5 text-[10px] font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ unread_inbox }}</span>
                 {% endif %}
             </a>
-            <a href="{% url 'desk:case_list' %}?folder=archive" 
-               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'archive' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
-                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+            <a href="{% url 'desk:case_list' %}?folder=archive"
+               class="px-2.5 py-1 rounded-md text-xs font-medium transition-all {% if current_filters.folder == 'archive' %}bg-slate-800 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1 whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                 Archive
                 {% if unread_archive > 0 %}
-                <span class="inline-flex items-center justify-center px-2 py-0.5 ms-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ unread_archive }}</span>
+                <span class="inline-flex items-center justify-center px-1.5 py-0.5 ms-0.5 text-[10px] font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ unread_archive }}</span>
                 {% endif %}
             </a>
-            <a href="{% url 'desk:case_list' %}?folder=spam" 
-               class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all {% if current_filters.folder == 'spam' %}bg-rose-600 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1.5 whitespace-nowrap">
-                <svg class="w-4 h-4 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <a href="{% url 'desk:case_list' %}?folder=spam"
+               class="px-2.5 py-1 rounded-md text-xs font-medium transition-all {% if current_filters.folder == 'spam' %}bg-rose-600 text-white shadow-sm{% else %}text-slate-600 hover:bg-slate-100{% endif %} flex items-center gap-1 whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 Spam
                 {% if unread_spam > 0 %}
-                <span class="inline-flex items-center justify-center px-2 py-0.5 ms-1 text-xs font-bold leading-none text-rose-100 bg-rose-700 rounded-full">{{ unread_spam }}</span>
+                <span class="inline-flex items-center justify-center px-1.5 py-0.5 ms-0.5 text-[10px] font-bold leading-none text-rose-100 bg-rose-700 rounded-full">{{ unread_spam }}</span>
                 {% endif %}
             </a>
         </div>
     </div>
-    
+
     <a href="{% url 'desk:case_export' %}?{{ request.GET.urlencode }}"
-       class="jk-btn jk-btn-sm shrink-0 self-start lg:self-auto" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
+       class="jk-btn jk-btn-sm shrink-0 self-start lg:self-auto jk-export-desk" style="background:#10b981;color:#fff;display:flex;align-items:center;gap:4px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export Excel
     </a>
 </div>
 
-<!-- Status Button Bar -->
-<div class="jk-status-filter-bar flex flex-wrap gap-2 mb-4" x-data="{
+<!-- Status Button Bar (mobile: shown only with Filters open) -->
+{% include "partials/task_more_filters.html" %}
+<div class="jk-status-filter-bar jk-task-extra flex flex-wrap items-center gap-1.5 mb-2.5" x-data="{
     activeStatuses: '{{ current_filters.status }}' ? '{{ current_filters.status }}'.split(',').map(s => s.trim()).filter(s => s) : [],
+    confidentialActive: {{ current_filters.confidential|yesno:'true,false' }},
+    slaValue: '{{ current_filters.sla }}',
     toggleStatus(status) {
         if (!status) {
             this.activeStatuses = [];
         } else {
             const idx = this.activeStatuses.indexOf(status);
-            if (idx > -1) Object.assign(this.activeStatuses, this.activeStatuses.toSpliced(idx, 1));
-            // wait, object.assign on array doesn't work correctly to resize sometimes.
-            // better way:
             if (idx > -1) this.activeStatuses.splice(idx, 1);
             else this.activeStatuses.push(status);
         }
         document.getElementById('statusField').value = this.activeStatuses.join(',');
-        document.getElementById('filterForm').submit();
+        document.getElementById('filterForm').requestSubmit();
+    },
+    toggleConfidential() {
+        this.confidentialActive = !this.confidentialActive;
+        document.getElementById('confidentialField').value = this.confidentialActive ? '1' : '';
+        document.getElementById('filterForm').requestSubmit();
+    },
+    toggleSla(value) {
+        this.slaValue = (this.slaValue === value) ? '' : value;
+        document.getElementById('slaField').value = this.slaValue;
+        document.getElementById('filterForm').requestSubmit();
     }
 }">
     <!-- All Status -->
-    <button type="button" @click="toggleStatus('')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
+    <button type="button" @click="toggleStatus('')"
+            class="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
             :class="activeStatuses.length === 0 ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'">
         All Status
     </button>
-    
-    <!-- Open -->
-    <button type="button" @click="toggleStatus('Open')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
-            :class="activeStatuses.includes('Open') ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'">
-        Open
+
+    {% for status_val, icon, label, color in all_status_columns %}
+    <button type="button" @click="toggleStatus('{{ status_val }}')"
+            class="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
+            :class="activeStatuses.includes('{{ status_val }}') ? 'text-white shadow-sm' : 'bg-white'"
+            :style="activeStatuses.includes('{{ status_val }}') ? 'background:{{ color }};border-color:{{ color }};' : 'color:{{ color }};border-color:{{ color }}55;'">
+        {{ icon }} {{ label }}
     </button>
-    
-    <!-- Investigating -->
-    <button type="button" @click="toggleStatus('Investigating')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
-            :class="activeStatuses.includes('Investigating') ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'">
-        Investigating
+    {% endfor %}
+
+    <div class="w-px h-4 bg-slate-200"></div>
+
+    <!-- Confidential / SLA quick toggles — independent of Status, analysis-focused -->
+    <button type="button" @click="toggleConfidential()"
+            class="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
+            :class="confidentialActive ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'">
+        🔒 Confidential
     </button>
-    
-    <!-- PendingInfo -->
-    <button type="button" @click="toggleStatus('PendingInfo')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
-            :class="activeStatuses.includes('PendingInfo') ? 'bg-sky-500 text-white border-sky-500 shadow-sm' : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'">
-        PendingInfo
+    <button type="button" @click="toggleSla('breached')"
+            class="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
+            :class="slaValue === 'breached' ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'">
+        ⏰ Breached
     </button>
-    
-    <!-- Resolved -->
-    <button type="button" @click="toggleStatus('Resolved')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
-            :class="activeStatuses.includes('Resolved') ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'">
-        Resolved
-    </button>
-    
-    <!-- Closed -->
-    <button type="button" @click="toggleStatus('Closed')" 
-            class="px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold border transition-colors"
-            :class="activeStatuses.includes('Closed') ? 'bg-slate-500 text-white border-slate-500 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'">
-        Closed
+    <button type="button" @click="toggleSla('at_risk')"
+            class="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
+            :class="slaValue === 'at_risk' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'">
+        ⏰ At Risk
     </button>
 </div>
 
+<!-- Saved Filters -->
+<div id="saved-filters-row" class="jk-task-extra flex flex-wrap items-center gap-1.5 mb-3">
+    {% include "partials/saved_filters_row.html" %}
+</div>
+<div class="jk-task-extra sm:hidden mb-2">
+    <a href="{% url 'desk:case_export' %}?{{ request.GET.urlencode }}" class="jk-btn jk-btn-sm" style="background:#10b981;color:#fff;display:inline-flex;align-items:center;gap:4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+    </a>
+</div>
+
 <!-- Filters Bar -->
-<div class="jk-card mb-4" x-data="{ showFilters: false, showAdvanced: '{{ current_filters.type }}{{ current_filters.tags }}{{ current_filters.followers }}{{ current_filters.read_status }}'.length > 0 }">
-    <div class="jk-card-body py-3">
-        <form method="get" id="filterForm">
+<div x-init="$el.closest('.jk-task-toolbar').classList.toggle('jk-filters-open', showAdvanced)" class="jk-card jk-task-search mb-3" x-data="{ showAdvanced: '{{ current_filters.type }}{{ current_filters.tags }}{{ current_filters.followers }}{{ current_filters.read_status }}{{ current_filters.assigned_to }}{{ current_filters.source }}{{ current_filters.category }}{{ current_filters.date_from }}{{ current_filters.date_to }}'.length > 0 && '{{ request.GET.panel|escapejs }}' !== 'closed' }" style="box-shadow: none;">
+    <div class="jk-card-body !py-2.5">
+        <form method="get" id="filterForm"
+              hx-get="{% url 'desk:case_list_results_partial' %}" hx-target="#case-results" hx-swap="innerHTML"
+              hx-indicator="#filter-spinner"
+              hx-trigger="submit, change, keyup changed delay:400ms from:#searchInput">
             <input type="hidden" name="status" id="statusField" value="{{ current_filters.status }}">
             <input type="hidden" name="folder" value="{{ current_filters.folder }}">
-            
-            <!-- Always visible: Search + Toggle -->
-            <div class="flex items-center gap-2">
+            {% if request.GET.panel == "closed" %}<input type="hidden" name="panel" value="closed">{% endif %}
+            <input type="hidden" name="sort" value="{{ request.GET.sort|default:'' }}">
+            <input type="hidden" name="order" value="{{ request.GET.order|default:'' }}">
+            <input type="hidden" name="company_unit" value="{{ request.GET.company_unit|default:'' }}">
+            <input type="hidden" name="date_source" value="{{ request.GET.date_source|default:'' }}">
+            <input type="hidden" name="confidential" id="confidentialField" value="{{ current_filters.confidential }}">
+            <input type="hidden" name="sla" id="slaField" value="{{ current_filters.sla }}">
+
+            <!-- Always visible: Search + primary actions -->
+            <div class="flex items-center gap-1.5">
                 <div class="flex-1 min-w-0">
-                    <input type="text" name="q" value="{{ current_filters.q }}" placeholder="Search by subject, name, email, or ticket number (e.g. RQ-E8973E6D)..."
-                        class="jk-input w-full text-sm">
+                    <input type="text" name="q" id="searchInput" value="{{ current_filters.q }}" placeholder="Search by subject, requester, assignee, email, or ticket number (e.g. RQ-E8973E6D)..."
+                        class="jk-input w-full text-sm py-1.5">
                 </div>
                 <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm shrink-0">Search</button>
-                <button type="button" @click="showFilters = !showFilters" class="jk-btn jk-btn-secondary jk-btn-sm shrink-0 lg:hidden" title="Toggle Filters">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                <button type="button" @click="showAdvanced = !showAdvanced; $el.closest('.jk-task-toolbar').classList.toggle('jk-filters-open', showAdvanced)" class="jk-btn jk-btn-secondary jk-btn-sm shrink-0 font-medium text-indigo-700" title="Filters">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                    <span class="hidden sm:inline">Filters</span>
+                </button>
+                {% if current_filters.status or current_filters.source or current_filters.category or current_filters.assigned_to or current_filters.type or current_filters.priority or current_filters.tags or current_filters.followers or current_filters.read_status or current_filters.confidential or current_filters.sla or current_filters.q or current_filters.date_from or current_filters.date_to %}
+                <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-danger jk-btn-sm shrink-0" title="Clear all filters">Clear</a>
+                {% endif %}
+                <button type="button" onclick="window.location.reload()" class="jk-btn jk-btn-secondary jk-btn-sm shrink-0" title="Refresh">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 </button>
             </div>
 
-            <!-- Collapsible filters (hidden on mobile by default, always visible on desktop) -->
-            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2" :class="{ 'hidden': !showFilters }" x-bind:class="{ 'hidden': !showFilters && window.innerWidth < 1024 }" x-init="if(window.innerWidth >= 1024) showFilters = true">
-                <select name="assigned_to" class="jk-select jk-select-search text-sm">
-                    <option value="">All Assignees</option>
-                    <option value="unassigned" {% if current_filters.assigned_to == 'unassigned' %}selected{% endif %}>Unassigned</option>
-                    {% for u in assignees %}
-                    <option value="{{ u.id }}" {% if current_filters.assigned_to|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
-                    {% endfor %}
-                </select>
-
-                <select name="source" class="jk-select text-sm">
-                    <option value="">All Sources</option>
-                    {% for value, label in sources %}
-                    <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-
-                <select name="category" class="jk-select text-sm">
-                    <option value="">All Categories</option>
-                    {% for cat in categories %}
-                    <option value="{{ cat.slug }}" {% if current_filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <div class="flex items-center gap-1">
-                    <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm flex-1 min-w-0" title="From">
-                    <span class="text-slate-600 text-xs">–</span>
-                    <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm flex-1 min-w-0" title="To">
-                </div>
-
-                <div class="flex items-center justify-between sm:col-span-2 lg:col-span-4 mt-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button type="submit" class="jk-btn jk-btn-primary jk-btn-sm font-medium">Apply Filters</button>
-                        <a href="{% url 'desk:case_list' %}" class="jk-btn jk-btn-secondary jk-btn-sm font-medium">Clear</a>
-                        <button type="button" @click="showAdvanced = !showAdvanced" class="jk-btn jk-btn-secondary jk-btn-sm font-medium text-indigo-700 ml-1">
-                            <span x-show="!showAdvanced">Advanced Filters &plus;</span>
-                            <span x-show="showAdvanced">Hide Advanced &minus;</span>
-                        </button>
-                        <button type="button" onclick="window.location.reload()" class="jk-btn jk-btn-secondary jk-btn-sm ms-auto sm:ms-2" title="Refresh">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                        </button>
+            <!-- Advanced Filters Panel — every non-search filter lives here -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mt-2.5 pt-2.5 border-t border-slate-100" x-show="showAdvanced" x-transition.opacity x-cloak>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Assignee</label>
+                        <select name="assigned_to" class="jk-select jk-select-search text-sm py-1.5">
+                            <option value="">All Assignees</option>
+                            <option value="unassigned" {% if current_filters.assigned_to == 'unassigned' %}selected{% endif %}>Unassigned</option>
+                            {% for u in assignees %}
+                            <option value="{{ u.id }}" {% if current_filters.assigned_to|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                </div>
-
-                <!-- Advanced Filters Panel -->
-                <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2 pt-4 border-t border-slate-100" x-show="showAdvanced" x-transition.opacity style="display: none;">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Source</label>
+                        <select name="source" class="jk-select text-sm py-1.5">
+                            <option value="">All Sources</option>
+                            {% for value, label in sources %}
+                            <option value="{{ value }}" {% if current_filters.source == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+                        <select name="category" class="jk-select text-sm py-1.5" data-category-cascade data-allow-group>
+                        <option value="">All Categories</option>
+                        {% category_options "slug" current_filters.category %}
+                    </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Date Range</label>
+                        <div class="flex items-center gap-1">
+                            <input type="date" name="date_from" value="{{ current_filters.date_from }}" class="jk-input text-sm py-1.5 flex-1 min-w-0" title="From">
+                            <span class="text-slate-600 text-xs">–</span>
+                            <input type="date" name="date_to" value="{{ current_filters.date_to }}" class="jk-input text-sm py-1.5 flex-1 min-w-0" title="To">
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Ticket Type</label>
-                        <select name="type" class="jk-select text-sm">
+                        <select name="type" class="jk-select text-sm py-1.5">
                             <option value="">All Types</option>
                             {% for value, label in types %}
                             <option value="{{ value }}" {% if current_filters.type == value %}selected{% endif %}>{{ label }}</option>
@@ -207,11 +234,11 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Tags Contains</label>
-                        <input type="text" name="tags" value="{{ current_filters.tags }}" placeholder="e.g. bug, network" class="jk-input text-sm w-full">
+                        <input type="text" name="tags" value="{{ current_filters.tags }}" placeholder="e.g. bug, network" class="jk-input text-sm py-1.5 w-full">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Followers</label>
-                        <select name="followers" class="jk-select text-sm">
+                        <select name="followers" class="jk-select text-sm py-1.5">
                             <option value="">All Followers</option>
                             {% for u in all_followers %}
                             <option value="{{ u.id }}" {% if current_filters.followers|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
@@ -220,461 +247,48 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Read Status</label>
-                        <select name="read_status" class="jk-select text-sm">
+                        <select name="read_status" class="jk-select text-sm py-1.5">
                             <option value="">All Tickets</option>
                             <option value="unread" {% if current_filters.read_status == 'unread' %}selected{% endif %}>Unread Messages</option>
                             <option value="unopened" {% if current_filters.read_status == 'unopened' %}selected{% endif %}>Never Opened</option>
                             <option value="read" {% if current_filters.read_status == 'read' %}selected{% endif %}>Read</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Priority</label>
+                        <select name="priority" class="jk-select text-sm py-1.5">
+                            <option value="">All Priorities</option>
+                            {% for value, label in priorities %}
+                            <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
-            </div>
         </form>
     </div>
 </div>
 
-<!-- Ticket Count -->
-<div class="flex items-center justify-between mb-4">
-    <p class="text-sm text-slate-600">
-        <span class="font-semibold text-slate-700">{{ cases|length }}</span> case{{ cases|length|pluralize }}
-    </p>
 </div>
+<!-- /sticky header -->
 
-<!-- Tickets Table with Alpine Data for Bulk Actions -->
-{% if cases %}
-<div class="jk-table-wrapper jk-case-list-wrapper select-none" x-data="{
-    selectedIds: [],
-    caseIds: {{ cases|length|default:0 }} ? [{% for c in cases %}'{{ c.id }}'{% if not forloop.last %},{% endif %}{% endfor %}] : [],
-    showMergeModal: false,
-    
-    get allSelected() {
-        return this.caseIds.length > 0 && this.selectedIds.length === this.caseIds.length;
-    },
-    toggleAll() {
-        if (this.allSelected) {
-            this.selectedIds = [];
-        } else {
-            this.selectedIds = [...this.caseIds];
-        }
-    }
-}">
-    <table class="jk-table jk-case-list-table relative">
-        <thead>
-            <tr>
-                <th class="w-10 hidden sm:table-cell">
-                    <input type="checkbox" 
-                           class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                           x-bind:checked="allSelected"
-                           @change="toggleAll()">
-                </th>
-                <th>
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=case_number&order={% if current_sort == 'case_number' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'case_number' %}text-indigo-600 font-bold{% endif %}">
-                        Ticket # {% if current_sort == 'case_number' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th>
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=subject&order={% if current_sort == 'subject' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'subject' %}text-indigo-600 font-bold{% endif %}">
-                        Subject {% if current_sort == 'subject' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th>
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=status&order={% if current_sort == 'status' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'status' %}text-indigo-600 font-bold{% endif %}">
-                        Status {% if current_sort == 'status' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden md:table-cell">
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=source&order={% if current_sort == 'source' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'source' %}text-indigo-600 font-bold{% endif %}">
-                        Source {% if current_sort == 'source' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden lg:table-cell">
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=requester&order={% if current_sort == 'requester' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'requester' %}text-indigo-600 font-bold{% endif %}">
-                        Requester {% if current_sort == 'requester' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden lg:table-cell">
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=category&order={% if current_sort == 'category' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'category' %}text-indigo-600 font-bold{% endif %}">
-                        Category {% if current_sort == 'category' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden xl:table-cell">
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=assigned_to&order={% if current_sort == 'assigned_to' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'assigned_to' %}text-indigo-600 font-bold{% endif %}">
-                        Assigned To {% if current_sort == 'assigned_to' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th>
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=created_at&order={% if current_sort == 'created_at' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'created_at' %}text-indigo-600 font-bold{% endif %}">
-                        Created {% if current_sort == 'created_at' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden md:table-cell">
-                    <a href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'order' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=last_viewed_at&order={% if current_sort == 'last_viewed_at' and current_order == 'asc' %}desc{% else %}asc{% endif %}" class="inline-flex items-center gap-1 hover:text-indigo-600 transition-colors {% if current_sort == 'last_viewed_at' %}text-indigo-600 font-bold{% endif %}">
-                        Last Viewed {% if current_sort == 'last_viewed_at' %}{% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}
-                    </a>
-                </th>
-                <th class="hidden md:table-cell">Idle</th>
-                <th class="hidden md:table-cell">SLA</th>
-            </tr>
-        </thead>
-        <tbody id="case-tbody">
-            {% for case in cases %}
-            {% if case.category.is_confidential and not case.has_confidential_access_flag %}
-            {# === Masked confidential row — subject hidden, requester/category visible === #}
-            <tr class="jk-confidential-masked opacity-60 hover:bg-slate-50/50 transition-colors">
-                <td class="jk-col-checkbox hidden sm:table-cell">
-                    <input type="checkbox" disabled class="w-4 h-4 rounded border-slate-200 bg-slate-100 cursor-not-allowed">
-                </td>
-                <td class="jk-col-ticket whitespace-nowrap">
-                    <span class="text-slate-600 text-xs sm:text-sm font-semibold">
-                        <svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                        {{ case.case_number }}
-                    </span>
-                </td>
-                <td class="jk-col-subject">
-                    <span class="text-slate-600 italic text-sm">Confidential Ticket</span>
-                </td>
-                <td class="jk-col-status">
-                    {% if case.status == "Open" %}
-                    <span class="jk-badge jk-badge-open">Open</span>
-                    {% elif case.status == "Investigating" %}
-                    <span class="jk-badge jk-badge-investigating">Investigating</span>
-                    {% elif case.status == "PendingInfo" %}
-                    <span class="jk-badge jk-badge-pending">Pending Info</span>
-                    {% elif case.status == "Resolved" %}
-                    <span class="jk-badge jk-badge-resolved">Resolved</span>
-                    {% elif case.status == "Closed" %}
-                    <span class="jk-badge jk-badge-closed">Closed</span>
-                    {% endif %}
-                </td>
-                <td class="jk-col-source hidden md:table-cell">
-                    {% if case.source == "EvolutionAPI_WA" %}
-                    <span class="jk-badge jk-badge-wa">WhatsApp</span>
-                    {% elif case.source == "Email" %}
-                    <span class="jk-badge jk-badge-email">Email</span>
-                    {% else %}
-                    <span class="jk-badge jk-badge-web">Web</span>
-                    {% endif %}
-                </td>
-                <td class="jk-col-requester hidden">
-                    <span class="jk-col-requester__name">{{ case.requester.full_name|default:"Unknown" }}</span>
-                    {% if case.requester.phone_number %}<span class="jk-col-requester__contact">{{ case.requester.phone_number }}</span>
-                    {% elif case.requester.email %}<span class="jk-col-requester__contact">{{ case.requester.email }}</span>{% endif %}
-                    {% if case.requester.unit %}<span class="jk-col-requester__unit">{{ case.requester.unit.name }}</span>{% endif %}
-                </td>
-                <td class="text-sm hidden lg:table-cell">
-                    <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
-                    {% if case.requester.job_role %}<div class="text-xs text-slate-600">{{ case.requester.job_role }}</div>{% endif %}
-                    {% if case.requester.email %}<div class="text-xs text-slate-600">{{ case.requester.email }}</div>{% endif %}
-                    {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
-                </td>
-                <td class="text-sm text-slate-600 hidden lg:table-cell">{{ case.category.name }}</td>
-                <td class="text-sm hidden xl:table-cell">
-                    {% if case.assigned_to %}
-                    <span class="font-medium">{{ case.assigned_to.username }}</span>
-                    {% else %}
-                    <span class="text-slate-600">Unassigned</span>
-                    {% endif %}
-                </td>
-                <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
-                    {{ case.created_at|date:"d M Y" }}<br>
-                    <span class="text-xs sm:text-xs text-slate-300">{{ case.created_at|time:"H:i" }}</span>
-                </td>
-                <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">—</td>
-                <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
-                <td class="hidden md:table-cell"><span class="text-xs text-slate-600">—</span></td>
-            </tr>
-            {% else %}
-            <tr class="{% if case.has_unread_messages %}bg-rose-100 border-l-4 border-rose-500{% else %}hover:bg-slate-50/50{% endif %} transition-colors"
-                :class="{'bg-indigo-50/50 border-l-4 border-indigo-500': selectedIds.includes('{{ case.id }}')}">
-                <td class="jk-col-checkbox hidden sm:table-cell">
-                    <input type="checkbox" value="{{ case.id }}" x-model="selectedIds"
-                           class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                </td>
-                <td class="jk-col-ticket whitespace-nowrap">
-                    <a href="{% url 'desk:case_detail' case_id=case.id %}" class="jk-table-link text-xs sm:text-sm">
-                        {% if case.category.is_confidential %}<svg class="w-3 h-3 inline-block text-amber-500 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>{% endif %}{{ case.case_number }}
-                    </a>
-                </td>
-                <td class="jk-col-subject">
-                    <a href="{% url 'desk:case_detail' case_id=case.id %}"
-                        class="text-slate-800 font-medium hover:text-indigo-600 transition-colors jk-truncate block max-w-[140px] sm:max-w-[200px] lg:max-w-[280px] flex items-center gap-2">
-                        {% if case.has_unread_messages %}
-                            <span class="flex w-2 h-2 rounded-full bg-red-500 flex-shrink-0 shadow-sm" title="Unread messages"></span>
-                        {% endif %}
-                        {{ case.subject }}
-                    </a>
-                </td>
-                <td class="jk-col-status">
-                    {% if case.status == "Open" %}
-                    <span class="jk-badge jk-badge-open">Open</span>
-                    {% elif case.status == "Investigating" %}
-                    <span class="jk-badge jk-badge-investigating">Investigating</span>
-                    {% elif case.status == "PendingInfo" %}
-                    <span class="jk-badge jk-badge-pending">Pending Info</span>
-                    {% elif case.status == "Resolved" %}
-                    <span class="jk-badge jk-badge-resolved">Resolved</span>
-                    {% elif case.status == "Closed" %}
-                    <span class="jk-badge jk-badge-closed">Closed</span>
-                    {% endif %}
-                </td>
-                <td class="jk-col-source hidden md:table-cell">
-                    {% if case.source == "EvolutionAPI_WA" %}
-                    <span class="jk-badge jk-badge-wa">💬 WhatsApp</span>
-                    {% elif case.source == "Email" %}
-                    <span class="jk-badge jk-badge-email">📧 Email</span>
-                    {% else %}
-                    <span class="jk-badge jk-badge-web">🌐 Web</span>
-                    {% endif %}
-                </td>
-                <!-- Mobile-only requester row (visible in card layout, hidden in desktop table) -->
-                <td class="jk-col-requester hidden">
-                    <span class="jk-col-requester__name">{{ case.requester.full_name|default:"Unknown" }}</span>
-                    {% if case.requester.phone_number %}<span class="jk-col-requester__contact">{{ case.requester.phone_number }}</span>
-                    {% elif case.requester.email %}<span class="jk-col-requester__contact">{{ case.requester.email }}</span>{% endif %}
-                    {% if case.requester.unit %}<span class="jk-col-requester__unit">{{ case.requester.unit.name }}</span>{% endif %}
-                </td>
-                <td class="text-sm hidden lg:table-cell">
-                    <div class="font-medium text-slate-800">{{ case.requester.full_name|default:"Unknown" }}</div>
-                    {% if case.requester.job_role %}<div class="text-xs text-slate-600">{{ case.requester.job_role }}</div>{% endif %}
-                    {% if case.requester.email %}<div class="text-xs text-slate-600">{{ case.requester.email }}</div>{% endif %}
-                    {% if case.requester.unit %}<div class="text-xs text-indigo-600 font-medium mt-0.5">{{ case.requester.unit.name }}</div>{% endif %}
-                </td>
-                <td class="text-sm text-slate-600 hidden lg:table-cell">{{ case.category.name }}</td>
-                <td class="text-sm hidden xl:table-cell">
-                    {% if case.assigned_to %}
-                    <span class="font-medium">{{ case.assigned_to.username }}</span>
-                    {% else %}
-                    <span class="text-slate-600">Unassigned</span>
-                    {% endif %}
-                </td>
-                <td class="jk-col-created text-xs sm:text-sm text-slate-600 whitespace-nowrap">
-                    {{ case.created_at|date:"d M Y" }}<br>
-                    <span class="text-xs sm:text-xs text-slate-600">{{ case.created_at|time:"H:i" }}</span>
-                </td>
-                <td class="text-sm text-slate-600 whitespace-nowrap hidden md:table-cell">
-                    {% if case.last_viewed_at %}
-                    {{ case.last_viewed_at|date:"d M Y" }}<br>
-                    <span class="text-xs text-slate-600">{{ case.last_viewed_at|time:"H:i" }}</span>
-                    {% else %}
-                    <span class="text-xs text-slate-600 italic">Never</span>
-                    {% endif %}
-                </td>
-                <td class="hidden md:table-cell">
-                    {% if case.status == "Open" or case.status == "Investigating" or case.status == "PendingInfo" %}
-                        {% with level=case.last_viewed_at|idle_level %}
-                        {% if level == "danger" %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                            🔴 {{ case.last_viewed_at|idle_time }}
-                        </span>
-                        {% elif level == "warning" %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                            🟡 {{ case.last_viewed_at|idle_time }}
-                        </span>
-                        {% elif level == "info" %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            🟢 {{ case.last_viewed_at|idle_time }}
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            Please Open
-                        </span>
-                        {% endif %}
-                        {% endwith %}
-                    {% else %}
-                    <span class="text-xs text-slate-600">—</span>
-                    {% endif %}
-                </td>
-                <td class="hidden md:table-cell">
-                    {% if case.resolution_due_at %}
-                    {% if case.status == "Resolved" or case.status == "Closed" %}
-                    <span class="jk-badge jk-badge-sla-ok">✓ Met</span>
-                    {% else %}
-                    <span class="jk-badge jk-badge-sla-warn">{{ case.resolution_due_at|date:"d M H:i" }}</span>
-                    {% endif %}
-                    {% else %}
-                    <span class="text-xs text-slate-600">—</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Pagination block -->
-    {% if cases.has_other_pages %}
-    <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex items-center justify-between flex-wrap gap-2 sm:gap-4">
-        <div class="text-sm text-slate-600">
-            Showing <span class="font-medium text-slate-900">{{ cases.start_index }}</span> to <span class="font-medium text-slate-900">{{ cases.end_index }}</span> of <span class="font-medium text-slate-900">{{ cases.paginator.count }}</span> cases
-        </div>
-        <div class="flex items-center gap-1">
-            {% if cases.has_previous %}
-            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
-            {% else %}
-            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Prev</button>
-            {% endif %}
-
-            {% for i in cases.paginator.page_range %}
-                {% if cases.number == i %}
-                <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20">{{ i }}</span>
-                {% elif i > cases.number|add:'-3' and i < cases.number|add:'3' %}
-                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
-                {% endif %}
-            {% endfor %}
-
-            {% if cases.has_next %}
-            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ cases.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
-            {% else %}
-            <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-600 bg-slate-50 cursor-not-allowed">Next</button>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Floating Bulk Action Bar -->
-    <div x-show="selectedIds.length > 0" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-10"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-10"
-         style="display: none;"
-         class="jk-bulk-bar fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-stretch ring-1 ring-white/10 select-none">
-        
-        <div class="px-5 py-3.5 bg-slate-800 flex items-center gap-2 border-r border-slate-700/50 font-medium">
-            <span class="flex items-center justify-center w-6 h-6 bg-indigo-500 rounded-full text-xs font-bold" x-text="selectedIds.length"></span>
-            <span class="text-sm">selected</span>
-        </div>
-
-        <div class="flex items-center px-2">
-            
-            <form action="{% url 'desk:case_bulk_action' %}" method="post" class="flex" id="bulk-action-form">
-                {% csrf_token %}
-                <template x-for="id in selectedIds" :key="id">
-                    <input type="hidden" name="case_ids" :value="id">
-                </template>
-
-                {% if current_filters.folder == "spam" %}
-                <!-- Unspam Route -->
-                <button type="submit" name="action" value="unspam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-emerald-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Not Spam
-                </button>
-                {% else %}
-                <!-- Mark Spam Route -->
-                <button type="submit" name="action" value="spam" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 text-rose-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    Spam
-                </button>
-                {% endif %}
-
-                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
-
-                {% if current_filters.folder == "archive" %}
-                <!-- Unarchive -->
-                <button type="submit" name="action" value="unarchive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                    Unarchive
-                </button>
-                {% else %}
-                <!-- Archive Route -->
-                <button type="submit" name="action" value="archive" class="px-4 py-3.5 text-sm font-medium hover:bg-slate-800 transition-colors flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                    Archive
-                </button>
-                {% endif %}
-
-                <div class="w-px h-8 bg-slate-700/50 self-center"></div>
-
-                <!-- Merge Route (Opens Modal) -->
-                <button type="button" @click="showMergeModal = true"
-                        :disabled="selectedIds.length < 2"
-                        :class="selectedIds.length < 2 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-800'"
-                        class="px-4 py-3.5 text-sm font-medium transition-colors flex items-center gap-2 text-indigo-300">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                    Merge
-                </button>
-            </form>
-
-            <div class="w-px h-8 bg-slate-700/50 self-center mx-1"></div>
-
-            <button type="button" @click="selectedIds = []" title="Clear selection" class="px-3 py-3.5 hover:text-white text-slate-600 hover:bg-slate-800 transition-colors border-l border-slate-700/50 ml-1">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
-    </div>
-
-    <!-- Modals inside x-data -->
-    <!-- Merge Modal -->
-    <div x-show="showMergeModal" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-cloak>
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden" @click.outside="showMergeModal = false">
-            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                    Merge Tickets
-                </h3>
-                <button @click="showMergeModal = false" class="text-slate-600 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            
-            <div class="p-6">
-                <p class="text-sm text-slate-600 mb-4">You are about to merge <strong x-text="selectedIds.length"></strong> tickets into a single view. Please select which ticket should be the <strong>Master Ticket</strong>. The others will be listed as sub-tickets inside it.</p>
-                
-                <form action="{% url 'desk:case_bulk_action' %}" method="post" id="merge-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="merge">
-                    <template x-for="id in selectedIds" :key="id">
-                        <input type="hidden" name="case_ids" :value="id">
-                    </template>
-                    
-                    <div class="max-h-60 overflow-y-auto pr-2 space-y-2 mb-6 pointer-events-auto">
-                        {% regroup cases|dictsort:"status" by status as status_groups %}
-                        {% for group in status_groups %}
-                        <div class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 px-2 py-1 mb-1 mt-2 text-xs font-bold text-slate-600 uppercase tracking-wider rounded border border-slate-200">
-                            {{ group.grouper }}
-                        </div>
-                        {% for case in group.list %}
-                        <label class="flex items-start gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 hover:border-indigo-300 transition-colors"
-                               x-show="selectedIds.includes('{{ case.id }}')">
-                            <div class="pt-0.5">
-                                <input type="radio" name="master_id" value="{{ case.id }}" required class="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500">
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="font-medium text-slate-800 text-sm truncate">{{ case.case_number }}: {{ case.subject }}</div>
-                                <div class="text-xs text-slate-600 truncate mt-0.5">👤 {{ case.requester.full_name|default:"Unknown" }} • {{ case.created_at|date:"d M Y" }}</div>
-                            </div>
-                        </label>
-                        {% endfor %}
-                        {% endfor %}
-                    </div>
-                
-                    <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                        <button type="button" @click="showMergeModal = false" class="jk-btn jk-btn-secondary">Cancel</button>
-                        <button type="submit" class="jk-btn jk-btn-primary">Confirm Merge</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-
+{% include "partials/fit_viewport.html" %}
+<div id="case-results">
+    {% include "partials/case_results.html" %}
 </div>
-{% else %}
-<div class="jk-card">
-    <div class="jk-empty-state">
-        <div class="jk-empty-state-icon">📭</div>
-        <h3 class="text-lg font-semibold text-slate-700 mb-1">No Tickets Found</h3>
-        <p class="text-slate-600 text-sm">No cases match your current filters.</p>
-    </div>
-</div>
-{% endif %}
 
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+// Phones: rows are shown as cards — tapping anywhere on a card opens the ticket
+// (delegated, so it keeps working after filter swaps and the 5s auto-refresh).
+document.addEventListener('click', function (e) {
+    if (window.innerWidth > 768) return;
+    const row = e.target.closest('#case-tbody tr[data-href]');
+    if (!row || e.target.closest('a, button, input, select, label, textarea')) return;
+    window.location.href = row.dataset.href;
+});
+
 (function() {
     const REFRESH_INTERVAL = 5000; // 5 seconds
     const PARTIAL_URL = '{% url "desk:case_list_partial" %}';

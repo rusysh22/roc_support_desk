@@ -1,5 +1,7 @@
 <!-- HTMX Partial: Root Cause Analysis & Solving Steps Form -->
 <!-- Rendered inside #rca-panel in case_detail.html -->
+{% load case_tags custom_tags %}
+{% priority_matrix_json as priority_matrix_json %}
 <style>
     /* Styling for fields that fail validation */
     .has-error input, .has-error select, .has-error textarea {
@@ -9,21 +11,103 @@
         box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000) !important;
         background-color: #fef2f2 !important; /* Tailwind red-50 */
     }
+    /* Assigned To is a TomSelect: the real <select> is hidden, so mark its
+       visible control instead. */
+    .has-error .ts-wrapper .ts-control {
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 0 2px #ef4444 !important;
+        background-color: #fef2f2 !important;
+    }
+    .has-error .ts-wrapper .ts-control input { box-shadow: none !important; background-color: transparent !important; }
 </style>
 <div class="jk-card" x-data="{ 
     showRequestModal: false,
     initialStatus: '{{ case.status|escapejs }}',
     status: '',
     showSubmitOptions: false,
-    targetStatus: '{% if case.status == 'Open' %}Investigating{% elif case.status == 'Investigating' %}Resolved{% elif case.status == 'Resolved' %}Closed{% endif %}',
+    targetStatus: '{{ case.primary_next_status|default:"" }}',
+    targetStatusLabel: '{{ case.primary_next_status|status_label|escapejs }}',
     get buttonText() {
         if (this.status === this.initialStatus && this.targetStatus) {
-            return 'Submit to ' + this.targetStatus;
+            return 'Submit to ' + this.targetStatusLabel;
         }
         {% if case.status == 'Closed' and case.edit_permission_status == 'Approved' %}
         if (this.status === 'Closed') return 'Submit Amendment';
         {% endif %}
         return 'Submit';
+    },
+    /* Optional progress note pop-up shown before any status change. */
+    showProgressModal: false,
+    progressNote: '',
+    progressMax: 280,
+    prevStatus: '',
+    fromLabel: '',
+    toLabel: '',
+    startSubmit(useTarget) {
+        const sel = document.getElementById('id_status');
+        if (!sel) { this.submitForm(); return; }
+        this.prevStatus = sel.value;
+        if (useTarget && this.status === this.initialStatus && this.targetStatus) sel.value = this.targetStatus;
+        const statusLabel = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
+        if (!this.checkRequired(sel.value, statusLabel)) { sel.value = this.prevStatus; return; }
+        if (sel.value === this.initialStatus) { this.submitForm(); return; }
+        const fromOpt = Array.from(sel.options).find(o => o.value === this.initialStatus);
+        this.fromLabel = fromOpt ? fromOpt.text : this.initialStatus;
+        this.toLabel = statusLabel;
+        this.progressNote = '';
+        this.showProgressModal = true;
+        this.$nextTick(() => { const el = document.getElementById('progress-note-input'); if (el) el.focus(); });
+    },
+    cancelProgress() {
+        const sel = document.getElementById('id_status');
+        if (sel) sel.value = this.prevStatus;
+        this.progressNote = '';
+        this.showProgressModal = false;
+    },
+    /* Same rules as CaseRCAForm.REQUIRED_BY_STATUS, checked before the progress pop-up opens. */
+    requiredByStatus: JSON.parse('{{ rca_form.required_by_status_json|escapejs }}'),
+    requiredError: '',
+    checkRequired(status, statusLabel) {
+        const form = this.$refs.rcaForm;
+        form.querySelectorAll('[data-client-error]').forEach(el => el.remove());
+        form.querySelectorAll('.jk-form-group[data-client-invalid]').forEach(g => { g.classList.remove('has-error'); delete g.dataset.clientInvalid; });
+        const required = this.requiredByStatus[status] || {};
+        const missing = Object.keys(required).filter(name => {
+            const el = form.elements.namedItem(name);
+            return el && !el.disabled && !String(el.value || '').trim();
+        });
+        if (!missing.length) { this.requiredError = ''; return true; }
+        missing.forEach(name => {
+            const group = form.elements.namedItem(name).closest('.jk-form-group');
+            if (!group) return;
+            group.querySelectorAll('.jk-form-error').forEach(el => el.remove());
+            group.classList.add('has-error');
+            group.dataset.clientInvalid = '1';
+            const msg = document.createElement('div');
+            msg.className = 'jk-form-error';
+            msg.dataset.clientError = '1';
+            msg.textContent = 'This field is required before marking as ' + statusLabel + '.';
+            group.appendChild(msg);
+        });
+        this.requiredError = 'Please fill in ' + missing.map(n => required[n]).join(', ') + ' before moving to ' + statusLabel + '.';
+        const first = form.elements.namedItem(missing[0]);
+        first.closest('.jk-form-group').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (first.tomselect) first.tomselect.focus(); else first.focus({ preventScroll: true });
+        return false;
+    },
+    /* Clear a field's required-field error as soon as it gets a value. */
+    clearRequired(e) {
+        const group = e.target.closest && e.target.closest('.jk-form-group.has-error');
+        if (!group || !e.target.name || !String(e.target.value || '').trim()) return;
+        group.classList.remove('has-error');
+        delete group.dataset.clientInvalid;
+        group.querySelectorAll('.jk-form-error').forEach(el => el.remove());
+        if (!this.$refs.rcaForm.querySelector('[data-client-error]')) this.requiredError = '';
+    },
+    submitForm(skipNote) {
+        if (skipNote) this.progressNote = '';
+        this.showProgressModal = false;
+        this.$nextTick(() => this.$refs.rcaForm.requestSubmit());
     }
 }" x-init="const el = document.getElementById('id_status'); if(el) { status = el.value; el.addEventListener('change', (e) => status = e.target.value); }">
     <div class="jk-card-header">
@@ -31,12 +115,12 @@
         <div class="jk-spinner htmx-indicator" id="rca-spinner"></div>
     </div>
     <div class="jk-card-body">
-
         <!-- Alerts moved to the bottom floating action bar -->
 
-        <form hx-post="{% url 'desk:case_update_rca' case_id=case.id %}" hx-target="#rca-panel" hx-swap="innerHTML"
-            hx-indicator="#rca-spinner">
+        <form x-ref="rcaForm" data-unsaved-guard hx-post="{% url 'desk:case_update_rca' case_id=case.id %}" hx-target="#rca-panel" hx-swap="innerHTML"
+            hx-indicator="#rca-spinner" @input="clearRequired($event)" @change="clearRequired($event)">
             {% csrf_token %}
+            <input type="hidden" name="progress_note" :value="progressNote">
             <input type="hidden" name="back_url" value="{{ back_url|default:'/desk/cases/' }}">
 
             <!-- Assigned To -->
@@ -54,7 +138,7 @@
                     <div class="flex items-center justify-between mb-1">
                         <label for="id_response_due_at" class="jk-label mb-0">Response SLA</label>
                         <button type="button"
-                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_response_due_at').value = d.toISOString().slice(0,16);"
+                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); const el = document.getElementById('id_response_due_at'); el.value = d.toISOString().slice(0,16); el.dispatchEvent(new Event('input', { bubbles: true }));"
                                 class="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             Fill Date Now
@@ -69,7 +153,7 @@
                     <div class="flex items-center justify-between mb-1">
                         <label for="id_resolution_due_at" class="jk-label mb-0">Resolution SLA</label>
                         <button type="button"
-                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); document.getElementById('id_resolution_due_at').value = d.toISOString().slice(0,16);"
+                                onclick="const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); const el = document.getElementById('id_resolution_due_at'); el.value = d.toISOString().slice(0,16); el.dispatchEvent(new Event('input', { bubbles: true }));"
                                 class="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             Fill Date Now
@@ -80,6 +164,17 @@
                     <div class="jk-form-error">{{ rca_form.resolution_due_at.errors.0 }}</div>
                     {% endif %}
                 </div>
+                <div class="jk-form-group sm:col-span-2">
+                    <label class="jk-label">Response Time</label>
+                    <div class="jk-input bg-slate-100 text-slate-700 font-semibold cursor-default">
+                        {% if case.first_response_at %}
+                        {{ case.response_time_display }}
+                        <span class="text-xs font-normal text-slate-500 ml-2">(from creation to first assign/reply)</span>
+                        {% else %}
+                        <span class="text-slate-400 font-normal">Not yet assigned or replied</span>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
 
             <!-- Ticket Classification & Internal Metadata -->
@@ -89,13 +184,29 @@
                     Classification & Notes
                 </h3>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4" x-data="{
+                    impact: '{{ case.impact|default:"Medium"|escapejs }}',
+                    severity: '{{ case.severity|default:"2"|escapejs }}',
+                    matrix: JSON.parse('{{ priority_matrix_json|escapejs }}'),
+                    get priority() { return this.matrix[this.severity + '|' + this.impact] || 'P3'; }
+                }">
                     <div class="jk-form-group mb-0">
-                        <label for="id_priority" class="jk-label">Priority</label>
-                        {{ rca_form.priority }}
-                        {% if rca_form.priority.errors %}
-                        <div class="jk-form-error">{{ rca_form.priority.errors.0 }}</div>
+                        <label for="id_impact" class="jk-label">Impact</label>
+                        {{ rca_form.impact }}
+                        {% if rca_form.impact.errors %}
+                        <div class="jk-form-error">{{ rca_form.impact.errors.0 }}</div>
                         {% endif %}
+                    </div>
+                    <div class="jk-form-group mb-0">
+                        <label for="id_severity" class="jk-label">Severity</label>
+                        {{ rca_form.severity }}
+                        {% if rca_form.severity.errors %}
+                        <div class="jk-form-error">{{ rca_form.severity.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="jk-form-group mb-0">
+                        <label class="jk-label">Priority</label>
+                        <div class="jk-input bg-slate-100 text-slate-700 font-semibold cursor-default" x-text="priority">{{ case.priority|default:"P3" }}</div>
                     </div>
                     <div class="jk-form-group mb-0">
                         <label for="id_case_type" class="jk-label">Type</label>
@@ -440,8 +551,8 @@
                 <!-- Split Submit Button Group -->
                 <div class="flex items-stretch shadow-md hover:shadow-lg transition-all scale-100 hover:scale-[1.02] active:scale-95 shrink-0 group">
                     <!-- Main Action Button -->
-                    <button type="submit" 
-                            @click="if(status === initialStatus && targetStatus) { document.getElementById('id_status').value = targetStatus; }"
+                    <button type="button"
+                            @click="startSubmit(true)"
                             class="bg-[#0f172a] hover:bg-[#1e293b] text-white px-6 py-2.5 text-sm font-bold transition-colors flex-1 sm:min-w-[180px] rounded-l-xl border-r border-white/10">
                         <span x-text="buttonText"></span>
                     </button>
@@ -469,8 +580,8 @@
                              class="absolute bottom-full right-0 mb-4 w-60 bg-white rounded-2xl shadow-[0_-20px_50px_rgba(0,0,0,0.2)] border border-slate-200 overflow-hidden z-[9999]"
                              style="display: none;">
                             <div class="p-2">
-                                <button type="submit" 
-                                        @click="open = false; /* Form submits with current status dropdown value */"
+                                <button type="button"
+                                        @click="open = false; startSubmit(false) /* current status dropdown value */"
                                         class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-50 flex items-center gap-3 transition-all group/item">
                                     <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover/item:bg-indigo-100 group-hover/item:text-indigo-600 transition-colors">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -490,14 +601,20 @@
                 <!-- Notification Area Next to Submit Button -->
                 <div class="flex-1 w-full animate-[fade-in_0.3s_ease-out]">
                     {% if success_message %}
-                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm">
+                    <div x-show="!requiredError" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm">
                         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <span>{{ success_message }}</span>
                     </div>
                     {% endif %}
                     
+                    <div x-show="requiredError" x-cloak role="alert"
+                         class="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span x-text="requiredError"></span>
+                    </div>
+
                     {% if error_message %}
-                    <div class="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm animate-[pulse_2s_ease-in-out_3]">
+                    <div x-show="!requiredError" class="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center sm:justify-start gap-2 shadow-sm animate-[pulse_2s_ease-in-out_3]">
                         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <span>{{ error_message }}</span>
                     </div>
@@ -545,6 +662,47 @@
             
             <!-- Padding at the bottom of the form to ensure content isn't hidden behind the fixed bar -->
             <div class="h-24"></div>
+
+            <!-- Optional Progress Note Modal (shown before any status change) -->
+            <template x-teleport="body">
+                <div x-show="showProgressModal" x-cloak
+                     class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+                     @keydown.escape.window="if (showProgressModal) cancelProgress()">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg" @click.outside="cancelProgress()" x-show="showProgressModal" x-transition>
+                        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">Add a progress update?</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">
+                                    <span x-text="fromLabel"></span> → <span class="font-semibold text-slate-700" x-text="toLabel"></span>
+                                </p>
+                            </div>
+                            <button type="button" @click="cancelProgress()" class="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100" title="Cancel">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="p-6 space-y-2">
+                            <label for="progress-note-input" class="block text-sm font-medium text-slate-700">
+                                Is there any progress you'd like to share or note down?
+                                <span class="text-xs font-normal text-slate-400">(optional)</span>
+                            </label>
+                            <textarea id="progress-note-input" x-model="progressNote" :maxlength="progressMax" rows="4"
+                                      @keydown.enter="if (!$event.isComposing && !$event.shiftKey) { $event.preventDefault(); submitForm(false); }"
+                                      aria-describedby="progress-note-hint"
+                                      class="jk-textarea w-full text-sm"
+                                      placeholder="e.g. Coordinated with the network team, waiting for the firewall rule to be applied."></textarea>
+                            <div class="flex items-start justify-between gap-3 text-[11px]">
+                                <span class="text-slate-500" id="progress-note-hint">Shown to the requester in <strong>Progress &amp; Updates</strong> and posted to Internal Chat. Please write in English.<br><kbd class="font-sans">Enter</kbd> to save &amp; submit · <kbd class="font-sans">Shift</kbd>+<kbd class="font-sans">Enter</kbd> for a new line.</span>
+                                <span class="shrink-0 tabular-nums" :class="progressNote.length >= progressMax ? 'text-red-500 font-semibold' : 'text-slate-400'"
+                                      x-text="progressNote.length + '/' + progressMax"></span>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <button type="button" @click="cancelProgress()" class="jk-btn jk-btn-secondary">Cancel</button>
+                            <button type="button" @click="submitForm(false)" class="jk-btn jk-btn-primary">Save &amp; Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </template>
 
             <!-- Alpine Modal for Requesting Edit -->
             <div x-show="showRequestModal" x-cloak class="fixed z-[999] inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">

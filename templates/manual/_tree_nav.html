@@ -1,51 +1,11 @@
-{% comment %}Recursive tree nav partial. Called with: pages, current_page, manual, can_edit{% endcomment %}
+{% comment %}Recursive tree nav partial. Called with: pages, current_page, manual, can_edit, depth (1 = root), open_ids.
+`pages` come from views._nav_tree(): each node carries `.nav_children` (already filtered to what this
+user may see), so rendering the tree costs no extra queries.
+Levels 1–2 start expanded so level-3 items are visible; level-3+ items start collapsed (their
+children appear after clicking the arrow), except the branch holding the current page.
+Long titles scroll on hover (static/js/marquee-truncate.js, .jk-marquee markup).{% endcomment %}
+{% with level=depth|default:1 %}
 {% for page in pages %}
-{% if can_edit %}
-{% with vc=page.get_all_children %}
-<div class="nav-item {% if current_page and current_page.pk == page.pk %}active{% endif %} mb-0.5"{% if vc %} x-data="{ open: true }"{% endif %}>
-    <div class="nav-item-row">
-        <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}">
-            {% if page.is_faq %}<span class="faq-dot flex-shrink-0" title="FAQ"></span>{% endif %}
-            {% if not page.is_published %}<span class="draft-dot flex-shrink-0" title="Draft"></span>{% endif %}
-            <span class="flex-1 leading-snug truncate">{{ page.title }}</span>
-        </a>
-        {% if vc %}
-        <button class="nav-toggle" @click="open = !open" title="Toggle">
-            <svg :style="open ? '' : 'transform:rotate(-90deg)'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-        </button>
-        {% endif %}
-    </div>
-    {% if vc %}
-    <div class="nav-children" x-show="open" x-transition>
-        {% include "manual/_tree_nav.html" with pages=vc current_page=current_page manual=manual can_edit=can_edit %}
-    </div>
-    {% endif %}
-</div>
-{% endwith %}
-{% else %}
-{% with vc=page.get_children %}
-<div class="nav-item {% if current_page and current_page.pk == page.pk %}active{% endif %} mb-0.5"{% if vc %} x-data="{ open: true }"{% endif %}>
-    <div class="nav-item-row">
-        <a href="{% url 'manual:viewer_page' manual_slug=manual.slug page_id=page.pk %}">
-            {% if page.is_faq %}<span class="faq-dot flex-shrink-0" title="FAQ"></span>{% endif %}
-            <span class="flex-1 leading-snug truncate">{{ page.title }}</span>
-        </a>
-        {% if vc %}
-        <button class="nav-toggle" @click="open = !open" title="Toggle">
-            <svg :style="open ? '' : 'transform:rotate(-90deg)'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-        </button>
-        {% endif %}
-    </div>
-    {% if vc %}
-    <div class="nav-children" x-show="open" x-transition>
-        {% include "manual/_tree_nav.html" with pages=vc current_page=current_page manual=manual can_edit=can_edit %}
-    </div>
-    {% endif %}
-</div>
-{% endwith %}
-{% endif %}
+{% with vc=page.nav_children %}{% include "manual/_tree_nav_item.html" %}{% endwith %}
 {% endfor %}
+{% endwith %}

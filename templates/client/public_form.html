@@ -19,7 +19,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS -->
-    <link rel="stylesheet" href="{% static 'css/tailwind.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'css/tailwind.css' %}?v=2">
 
     <!-- Alpine.js -->
     <script defer src="{% static 'vendor/alpine-3.14.8.min.js' %}"></script>
@@ -27,20 +27,13 @@
     <style>
         [x-cloak] { display: none !important; }
         
-        /* Animated gradient background */
-        .form-bg {
-            {% if dynamic_form.background_image %}
-                background-image: linear-gradient(135deg, rgba(15,23,42,0.4) 0%, rgba(30,41,59,0.2) 100%), url('{{ dynamic_form.background_image.url }}');
-                background-size: cover;
-                background-position: center;
-                background-attachment: fixed;
-            {% elif dynamic_form.background_color %}
-                background-color: {{ dynamic_form.background_color }};
-            {% else %}
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-                background-size: 200% 200%;
-                animation: gradientShift 12s ease infinite;
-            {% endif %}
+        /* Animated gradient background — the actual background value is set
+           inline on <body> below, since Django template tags inside a CSS
+           block confuse static analyzers (they parse this as literal CSS). */
+        .form-bg--default {
+            background: linear-gradient(135deg, #22c55e 0%, #06b6d4 50%, #6366f1 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 12s ease infinite;
         }
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -124,7 +117,13 @@
     </style>
 </head>
 
-<body class="font-sans antialiased text-slate-900 min-h-screen form-bg">
+<body class="font-sans antialiased text-slate-900 min-h-screen{% if not dynamic_form.background_image and not dynamic_form.background_color %} form-bg--default{% endif %}"
+    {% if dynamic_form.background_image %}
+    style="background-image: linear-gradient(135deg, rgba(15,23,42,0.4) 0%, rgba(30,41,59,0.2) 100%), url('{{ dynamic_form.background_image.url }}'); background-size: cover; background-position: center; background-attachment: fixed;"
+    {% elif dynamic_form.background_color %}
+    style="background-color: {{ dynamic_form.background_color }};"
+    {% endif %}
+>
 
     <!-- Floating Particles (decorative) -->
     {% if not dynamic_form.background_image and not dynamic_form.background_color %}
@@ -150,18 +149,18 @@
             </div>
         </div>
 
-        <div class="w-full max-w-2xl">
+        <div class="w-full max-w-2xl lg:max-w-4xl">
 
             {% if success %}
             <!-- ===== SUCCESS STATE ===== -->
-            <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 sm:p-12 text-center animate-fade-in">
+            <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 sm:p-12 lg:p-10 text-center animate-fade-in">
                 <div class="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-400 to-green-500 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-green-500/30">
                     <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
                     </svg>
                 </div>
-                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-3">Thank You! 🎉</h2>
-                <p class="text-base sm:text-lg text-slate-600 leading-relaxed max-w-md mx-auto">{{ dynamic_form.success_message|default:"Your response has been recorded successfully." }}</p>
+                <h2 class="text-2xl sm:text-3xl lg:text-2xl font-extrabold text-slate-900 mb-3">Thank You! 🎉</h2>
+                <p class="text-base sm:text-lg lg:text-base text-slate-600 leading-relaxed max-w-md mx-auto">{{ dynamic_form.success_message|default:"Your response has been recorded successfully." }}</p>
                 
                 <div class="mt-8 pt-6 border-t border-slate-100">
                     <a href="/" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors">
@@ -177,7 +176,7 @@
                 
                 <!-- Header Image -->
                 {% if dynamic_form.header_image %}
-                <div class="w-full h-40 sm:h-56 bg-slate-100 overflow-hidden rounded-t-3xl">
+                <div class="w-full h-40 sm:h-56 lg:h-48 bg-slate-100 overflow-hidden rounded-t-3xl">
                     <img src="{{ dynamic_form.header_image.url }}" alt="{{ dynamic_form.title }}" class="w-full h-full object-cover">
                 </div>
                 {% endif %}
@@ -191,7 +190,7 @@
                 {% endif %}
 
                 <!-- Header -->
-                <div class="relative px-6 sm:px-10 pt-8 sm:pt-10 pb-6 sm:pb-8">
+                <div class="relative px-6 sm:px-10 lg:px-12 pt-8 sm:pt-10 lg:pt-8 pb-6 sm:pb-8 lg:pb-6">
                     <!-- Gradient accent bar -->
                     {% if not dynamic_form.header_image and not is_preview %}
                         <div class="absolute top-0 left-0 w-full h-[24px] overflow-hidden rounded-t-3xl pointer-events-none">
@@ -201,9 +200,9 @@
                         <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                     {% endif %}
                     
-                    <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">{{ dynamic_form.title }}</h1>
+                    <h1 class="text-2xl sm:text-3xl lg:text-2xl font-extrabold text-slate-900 leading-tight tracking-tight">{{ dynamic_form.title }}</h1>
                     {% if dynamic_form.description %}
-                        <div class="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ dynamic_form.description|safe }}</div>
+                        <div class="mt-3 text-sm sm:text-base lg:text-sm text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ dynamic_form.description|safe }}</div>
                     {% endif %}
                     
                     {% if fields %}
@@ -239,7 +238,7 @@
                 {% endif %}
 
                 <!-- Form Body -->
-                <form x-ref="formEl" method="post" enctype="multipart/form-data" class="px-6 sm:px-10 py-6 sm:py-8">
+                <form x-ref="formEl" method="post" enctype="multipart/form-data" class="px-6 sm:px-10 lg:px-12 py-6 sm:py-8 lg:py-6">
                     {% csrf_token %}
 
                     <!-- Build page structure from Django template -->
@@ -353,23 +352,23 @@
 
                     {% split_by_page_break fields as pages %}
                     {% for page in pages %}
-                    <div data-page-section class="space-y-6">
+                    <div data-page-section class="space-y-6 lg:space-y-4">
                         
                         {% if forloop.first %}
                             {% if dynamic_form.collect_user %}
                                 <div class="jk-card border-none shadow-sm bg-slate-50 relative transition-all duration-300 transform group" style="animation: fade-in 0.3s ease-out both;">
-                                    <h3 class="text-sm sm:text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                                    <h3 class="text-sm sm:text-base lg:text-sm font-extrabold text-slate-800 mb-1 flex items-center gap-2">
                                         Employee Info <span class="text-red-500 font-bold">*</span>
                                     </h3>
                                     <div class="mt-2 relative">
                                         {% if request.user.is_authenticated %}
-                                            <div class="form-input w-full bg-slate-200 border border-slate-300 rounded-xl px-4 py-3 text-slate-700 text-sm sm:text-base cursor-not-allowed font-medium flex items-center gap-2 shadow-inner">
+                                            <div class="form-input w-full bg-slate-200 border border-slate-300 rounded-xl px-4 py-3 text-slate-700 text-sm sm:text-base lg:text-sm cursor-not-allowed font-medium flex items-center gap-2 shadow-inner">
                                                 <svg class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                                                 {{ request.user.get_full_name|default:request.user.username }} (Auto-filled)
                                             </div>
                                             <input type="hidden" name="sys_user_login" value="{{ request.user.username }}">
                                         {% else %}
-                                            <div class="form-input w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm sm:text-base font-medium flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <div class="form-input w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm sm:text-base lg:text-sm font-medium flex flex-col sm:flex-row sm:items-center gap-2">
                                                 <div class="flex items-center gap-2">
                                                     <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                                     You must be logged in to record your user data.
@@ -382,14 +381,14 @@
                             {% endif %}
                             
                             {% if dynamic_form.collect_company %}
-                                <div class="jk-card border-none shadow-sm bg-slate-50 relative transition-all duration-300 transform group" style="animation: fade-in 0.3s ease-out both; z-index: 50;">
-                                    <h3 class="text-sm sm:text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                                <div class="jk-card border-none shadow-sm bg-slate-50 relative transition-all duration-300 transform group" style="animation: fade-in 0.3s ease-out both; z-index: 100;">
+                                    <h3 class="text-sm sm:text-base lg:text-sm font-extrabold text-slate-800 mb-1 flex items-center gap-2">
                                         Company Unit <span class="text-red-500 font-bold">*</span>
                                     </h3>
                                         <div x-data="{
                                             open: false,
                                             search: '',
-                                            selected: '{% if answers.sys_company_unit %}{{ answers.sys_company_unit|escapejs }}{% endif %}',
+                                            selected: '{% if answers.sys_company_unit %}{{ answers.sys_company_unit|escapejs }}{% elif request.user.is_authenticated and request.user.employee_profile.unit %}{{ request.user.employee_profile.unit.name|escapejs }}{% endif %}',
                                             choices: [{% for unit in company_units %}'{{ unit.name|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}],
                                             get filtered() {
                                                 if (!this.search) return this.choices;
@@ -400,13 +399,14 @@
                                                 this.search = '';
                                                 this.open = false;
                                             }
-                                        }" @click.away="open = false; search = ''" class="relative">
+                                        }" @click.away="open = false; search = ''" class="relative"
+                                             data-restore-prop="selected" data-field-name="sys_company_unit">
                                             <!-- Hidden input for form submission -->
                                             <input type="hidden" name="sys_company_unit" :value="selected" required>
                                             
                                             <!-- Trigger Button -->
                                             <button type="button" @click="open = !open; $nextTick(() => { if(open) $refs.dd_cu.focus() })"
-                                                class="form-input w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base cursor-pointer flex items-center justify-between transition-all"
+                                                class="form-input w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base lg:text-sm cursor-pointer flex items-center justify-between transition-all"
                                                 :class="open ? 'ring-2 ring-indigo-500 border-indigo-500' : ''">
                                                 <span :class="selected ? 'text-slate-900' : 'text-slate-600'" x-text="selected || 'Select Company Unit...'"></span>
                                                 <svg class="h-4 w-4 text-slate-600 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -451,9 +451,9 @@
                             {% if field.field_type == 'title_desc' %}
                             <!-- Title & Description Block -->
                             <div class="py-4 animate-fade-in" style="animation-delay: {{ forloop.counter0 }}00ms">
-                                <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">{{ field.label }}</h2>
+                                <h2 class="text-xl sm:text-2xl lg:text-xl font-extrabold text-slate-800 tracking-tight leading-tight">{{ field.label }}</h2>
                                 {% if field.help_text %}
-                                    <div class="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ field.help_text|safe }}</div>
+                                    <div class="mt-2 text-sm sm:text-base lg:text-sm text-slate-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:mb-1 [&_a]:text-indigo-500 [&_a]:underline">{{ field.help_text|safe }}</div>
                                 {% endif %}
                                 <div class="mt-3 h-px bg-gradient-to-r from-indigo-200 via-purple-200 to-transparent"></div>
                             </div>
@@ -463,7 +463,7 @@
 
                             {% else %}
                             <!-- Regular Field -->
-                            <div class="field-group rounded-2xl p-4 sm:p-5 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 animate-fade-in {% if errors|get_item:field.id %}!border-red-200 !bg-red-50/50{% endif %}"
+                            <div class="field-group rounded-2xl p-4 sm:p-5 lg:p-4 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 animate-fade-in {% if errors|get_item:field.id %}!border-red-200 !bg-red-50/50{% endif %}"
                                  style="animation-delay: {{ forloop.counter0 }}00ms; z-index: calc(100 - {{ forloop.counter }});"
                                  {% if field.settings.condition %}
                                  data-cond-field="{{ field.settings.condition.field_id }}"
@@ -473,7 +473,7 @@
                                  {% endif %}>
 
                                 <!-- Label -->
-                                <label class="block text-sm sm:text-base font-bold text-slate-800 mb-1">
+                                <label class="block text-sm sm:text-base lg:text-sm font-bold text-slate-800 mb-1">
                                     <span class="text-indigo-500 text-xs font-black mr-1.5">{{ forloop.counter }}.</span>
                                     {{ field.label }}
                                     {% if field.is_required %}
@@ -490,7 +490,7 @@
                             <div class="mt-2 pl-0 sm:pl-5">
                                 {% if field.field_type == 'text' or field.field_type == 'text_short' %}
                                     <input type="text" name="field_{{ field.id }}" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600"
                                         placeholder="Your answer"
                                         maxlength="255"
                                         {% if field.is_required %}required{% endif %}
@@ -498,7 +498,7 @@
                                         
                                 {% elif field.field_type == 'textarea' or field.field_type == 'text_long' %}
                                     <textarea name="field_{{ field.id }}" rows="4" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600 resize-none"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600 resize-none"
                                         placeholder="Type your answer here..."
                                         maxlength="5000"
                                         {% if field.is_required %}required{% endif %}>{{ answers|get_item:field.id|default:'' }}</textarea>
@@ -509,7 +509,7 @@
                                             <svg class="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                                         </div>
                                         <input type="email" name="field_{{ field.id }}" 
-                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
+                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600"
                                             placeholder="email@example.com"
                                             maxlength="254"
                                             {% if field.is_required %}required{% endif %}
@@ -526,13 +526,14 @@
                                                 let num = value.toString().replace(/\D/g, '');
                                                 return new Intl.NumberFormat('id-ID').format(num);
                                             }
-                                        }" x-init="displayVal = formatCurrency(displayVal)">
+                                        }" x-init="displayVal = formatCurrency(displayVal)"
+                                             data-restore-prop="displayVal" data-field-name="field_{{ field.id }}">
                                             <div class="relative items-center">
                                                 <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                                                    <span class="text-slate-500 font-bold text-sm sm:text-base">{% if field.settings.currency_type == 'usd' %}${% else %}Rp{% endif %}</span>
+                                                    <span class="text-slate-500 font-bold text-sm sm:text-base lg:text-sm">{% if field.settings.currency_type == 'usd' %}${% else %}Rp{% endif %}</span>
                                                 </div>
                                                 <input type="text" x-model="displayVal" @input="displayVal = formatCurrency($event.target.value)"
-                                                    class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
+                                                    class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600"
                                                     placeholder="0"
                                                     {% if field.is_required %}required{% endif %}>
                                                 <input type="hidden" name="field_{{ field.id }}" :value="rawVal">
@@ -546,14 +547,15 @@
                                                 let Clean = this.val.replace(/[^\d]/g, '').replace(/^0+/, '');
                                                 return '{{ field.settings.phone_code|default:'+62' }}' + Clean;
                                             }
-                                        }">
+                                        }" data-restore-prop="val" data-field-name="field_{{ field.id }}"
+                                             data-strip-prefix="{{ field.settings.phone_code|default:'+62' }}">
                                             <div class="relative items-center">
                                                 <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                                                    <span class="text-slate-500 font-bold text-sm sm:text-base">{{ field.settings.phone_code|default:'+62' }}</span>
+                                                    <span class="text-slate-500 font-bold text-sm sm:text-base lg:text-sm">{{ field.settings.phone_code|default:'+62' }}</span>
                                                 </div>
                                                 <!-- Prefix length calculation roughly 8px per char + 16px padding -->
                                                 <input type="tel" x-model="val" x-on:input="val = $event.target.value.replace(/[^\d\s\-]/g, '')"
-                                                    class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-14 pr-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
+                                                    class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl pl-14 pr-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600"
                                                     placeholder="8XX-XXX-XXX"
                                                     {% if field.is_required %}required{% endif %}>
                                                 <input type="hidden" name="field_{{ field.id }}" :value="formatted">
@@ -562,7 +564,7 @@
                                     {% else %}
                                         <input type="text" inputmode="numeric" name="field_{{ field.id }}" 
                                             oninput="this.value = this.value.replace(/\D/g, '')"
-                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base placeholder:text-slate-600"
+                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm placeholder:text-slate-600"
                                             placeholder="0"
                                             {% if field.is_required %}required{% endif %}
                                             value="{{ answers|get_item:field.id|default:'' }}">
@@ -570,13 +572,13 @@
                                         
                                 {% elif field.field_type == 'date' %}
                                     <input type="date" name="field_{{ field.id }}" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm"
                                         {% if field.is_required %}required{% endif %}
                                         value="{{ answers|get_item:field.id|default:'' }}">
                                         
                                 {% elif field.field_type == 'datetime' %}
                                     <input type="datetime-local" name="field_{{ field.id }}" 
-                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base"
+                                        class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm sm:text-base lg:text-sm"
                                         {% if field.is_required %}required{% endif %}
                                         value="{{ answers|get_item:field.id|default:'' }}">
                                         
@@ -690,7 +692,7 @@
                                     <div x-data="{
                                         open: false,
                                         search: '',
-                                        selected: '',
+                                        selected: '{% if answers|get_item:field.id %}{{ answers|get_item:field.id|escapejs }}{% endif %}',
                                         choices: [{% for choice in field.choices %}'{{ choice|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}],
                                         get filtered() {
                                             if (!this.search) return this.choices;
@@ -702,13 +704,14 @@
                                             this.open = false;
                                             this.$dispatch('form-answer', { name: 'field_{{ field.id }}', value: val });
                                         }
-                                    }" @click.away="open = false; search = ''" class="relative">
+                                    }" @click.away="open = false; search = ''" class="relative"
+                                         data-restore-prop="selected" data-field-name="field_{{ field.id }}">
                                         <!-- Hidden input for form submission -->
                                         <input type="hidden" name="field_{{ field.id }}" :value="selected" {% if field.is_required %}required{% endif %}>
                                         
                                         <!-- Trigger Button -->
                                         <button type="button" @click="open = !open; $nextTick(() => { if(open) $refs['dd_{{ field.id }}'].focus() })"
-                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base cursor-pointer flex items-center justify-between transition-all"
+                                            class="form-input w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base lg:text-sm cursor-pointer flex items-center justify-between transition-all"
                                             :class="open ? 'ring-2 ring-indigo-500 border-indigo-500' : ''">
                                             <span :class="selected ? 'text-slate-900' : 'text-slate-600'" x-text="selected || 'Select an option'"></span>
                                             <svg class="h-4 w-4 text-slate-600 transition-transform" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -788,7 +791,7 @@
                             {% if errors|get_item:field.id %}
                                 <p class="text-xs font-bold text-red-700 mt-2 pl-5 flex items-center gap-1">
                                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                    This field is required
+                                    {{ errors|get_item:field.id }}
                                 </p>
                             {% endif %}
                         </div>
@@ -810,11 +813,11 @@
 
                     <!-- Page Navigation -->
                     <div class="flex items-center gap-3 mb-6" x-show="totalPages > 1">
-                        <button type="button" @click="prevPage()" x-show="currentPage > 0" class="flex-1 py-3 bg-white border-2 border-slate-200 hover:border-indigo-300 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-slate-50">
+                        <button type="button" @click="prevPage()" x-show="currentPage > 0" class="flex-1 py-3 bg-slate-100 border-2 border-slate-200 hover:border-indigo-300 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-slate-200">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                             Previous
                         </button>
-                        <button type="button" @click="nextPage()" x-show="currentPage < totalPages - 1" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-500/20">
+                        <button type="button" @click="nextPage()" x-show="currentPage < totalPages - 1" class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-500/20">
                             Next Section
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                         </button>
@@ -832,12 +835,12 @@
 
                         <!-- Submit -->
                         {% if is_preview %}
-                        <div class="w-full py-3.5 sm:py-4 px-6 rounded-2xl text-base sm:text-lg flex items-center justify-center gap-2 bg-slate-200 text-slate-600 font-bold cursor-not-allowed">
+                        <div class="w-full py-3.5 sm:py-4 lg:py-3 px-6 rounded-2xl text-base sm:text-lg lg:text-base flex items-center justify-center gap-2 bg-slate-200 text-slate-600 font-bold cursor-not-allowed">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                             Preview Mode
                         </div>
                         {% else %}
-                        <button type="submit" class="btn-submit w-full text-white font-bold py-3.5 sm:py-4 px-6 rounded-2xl text-base sm:text-lg shadow-lg flex items-center justify-center gap-2">
+                        <button type="submit" class="btn-submit w-full text-white font-bold py-3.5 sm:py-4 lg:py-3 px-6 rounded-2xl text-base sm:text-lg lg:text-base shadow-lg flex items-center justify-center gap-2">
                             <span>Submit Response</span>
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                         </button>
@@ -896,5 +899,120 @@
             }
         });
     </script>
+
+    <!-- Draft autosave — restores in-progress answers if the page is reloaded/reopened -->
+    {% if success %}
+    <script>
+        try { localStorage.removeItem('roc_form_draft_{{ dynamic_form.slug }}'); } catch (_) {}
+    </script>
+    {% else %}
+    <script>
+    (function() {
+        var DRAFT_KEY = 'roc_form_draft_{{ dynamic_form.slug }}';
+        var DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+        var formEl = document.querySelector('form[x-ref="formEl"]');
+        if (!formEl) return;
+
+        function loadDraft() {
+            try {
+                var raw = localStorage.getItem(DRAFT_KEY);
+                if (!raw) return null;
+                var draft = JSON.parse(raw);
+                if (!draft || (Date.now() - (draft.savedAt || 0)) > DRAFT_TTL_MS) return null;
+                return draft;
+            } catch (_) { return null; }
+        }
+
+        function collect() {
+            var fd = new FormData(formEl);
+            var fields = {};
+            Array.from(new Set(fd.keys())).forEach(function(name) {
+                var vals = fd.getAll(name).filter(function(v) { return !(v instanceof File); });
+                if (vals.length) fields[name] = vals.length > 1 ? vals : vals[0];
+            });
+            return fields;
+        }
+
+        var saveTimer = null;
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveNow, 500);
+        }
+        function saveNow() {
+            try {
+                var page = 0;
+                var containerEl = formEl.querySelector('[x-ref="formContainer"]');
+                var containerData = containerEl && window.Alpine && Alpine.$data(containerEl);
+                if (containerData) page = containerData.currentPage || 0;
+                localStorage.setItem(DRAFT_KEY, JSON.stringify({
+                    savedAt: Date.now(), currentPage: page, fields: collect(),
+                }));
+            } catch (_) {}
+        }
+
+        formEl.addEventListener('input', scheduleSave);
+        formEl.addEventListener('change', scheduleSave);
+        formEl.addEventListener('click', function() { setTimeout(saveNow, 50); });
+        window.addEventListener('pagehide', saveNow);
+
+        function showRestoreNotice() {
+            var el = document.createElement('div');
+            el.textContent = 'Jawaban sebelumnya berhasil dipulihkan.';
+            el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+                'background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:9999px;' +
+                'font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:9999;';
+            document.body.appendChild(el);
+            setTimeout(function() { el.remove(); }, 3500);
+        }
+
+        function restore() {
+            var draft = loadDraft();
+            if (!draft || !draft.fields || Object.keys(draft.fields).length === 0) return;
+
+            // Alpine-driven widgets (Company Unit / dropdown / currency / phone) — set their
+            // internal reactive property directly so :value/x-model bindings follow.
+            formEl.querySelectorAll('[data-restore-prop]').forEach(function(el) {
+                var name = el.dataset.fieldName;
+                if (!(name in draft.fields)) return;
+                var val = draft.fields[name];
+                if (Array.isArray(val)) val = val[0];
+                if (el.dataset.stripPrefix && typeof val === 'string') {
+                    val = val.replace(el.dataset.stripPrefix, '');
+                }
+                var data = window.Alpine && Alpine.$data(el);
+                if (data) data[el.dataset.restoreProp] = val;
+            });
+
+            // Plain native inputs/textareas (text, textarea, email, number, date,
+            // datetime, radio, checkbox, survey) not owned by an Alpine widget above.
+            formEl.querySelectorAll('input[name], textarea[name]').forEach(function(el) {
+                if (el.closest('[data-restore-prop]')) return;
+                if (el.type === 'file' || el.type === 'hidden') return;
+                var name = el.name;
+                if (!(name in draft.fields)) return;
+                var val = draft.fields[name];
+                if (el.type === 'radio' || el.type === 'checkbox') {
+                    var vals = Array.isArray(val) ? val : [val];
+                    el.checked = vals.indexOf(el.value) !== -1;
+                } else {
+                    el.value = Array.isArray(val) ? val[0] : val;
+                }
+            });
+
+            // Jump back to the page the user was on (multi-page forms)
+            var containerEl = formEl.querySelector('[x-ref="formContainer"]');
+            var containerData = containerEl && window.Alpine && Alpine.$data(containerEl);
+            if (containerData && typeof draft.currentPage === 'number') {
+                containerData.currentPage = Math.min(draft.currentPage, containerData.totalPages - 1);
+                containerData.showPage(containerData.currentPage);
+            }
+
+            showRestoreNotice();
+        }
+
+        document.addEventListener('alpine:initialized', restore);
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Upload Document — E-Sign{% endblock %}
+{% block title %}Upload Document | E-Sign{% endblock %}
 {% block nav_esign %}active{% endblock %}
 
 {% block content %}
@@ -7,13 +7,7 @@
 
     <!-- Back -->
     <div class="mb-6">
-        <a href="{% url 'esign:document_list' %}"
-           class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-            </svg>
-            Back to My Documents
-        </a>
+        {% url 'esign:document_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
     </div>
 
     <!-- Step indicator -->
@@ -34,7 +28,7 @@
         </div>
     </div>
 
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6" x-data="{ showTncModal: false, tncRequired: {{ tnc_required|yesno:'true,false' }} }">
         <h2 class="text-base font-bold text-slate-900 mb-1">Upload PDF Document</h2>
         <p class="text-sm text-slate-500 mb-6">Upload the file and set delivery preferences.</p>
 
@@ -44,8 +38,10 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="space-y-5" id="create-form">
+        <form data-unsaved-guard method="post" enctype="multipart/form-data" class="space-y-5" id="create-form"
+              @submit.prevent="tncRequired ? (showTncModal = true) : $el.submit()">
             {% csrf_token %}
+            <input type="hidden" name="accept_tnc" id="accept_tnc_input" value="">
 
             {% for field in form %}
             <div class="jk-form-group">
@@ -53,13 +49,62 @@
                     {{ field.label }}
                     {% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
                 </label>
+
+                {% if field.name == "original_pdf" %}
+                {# Compact drag-and-drop zone around the (hidden) native file input. PDF only. #}
+                <div x-data="esignPdfDrop({{ max_upload_mb|default:10 }})"
+                     @dragover.prevent="dragging = true"
+                     @dragleave.prevent="dragging = false"
+                     @drop.prevent="drop($event)"
+                     @click="if ($event.target.type !== 'file' && !$event.target.closest('[data-no-pick]')) $refs.pdfInput.click()"
+                     class="esign-drop" :class="{ 'is-dragging': dragging, 'is-ready': file, 'is-error': error }">
+                    <span class="esign-drop-icon" aria-hidden="true">
+                        <svg x-show="!file && !error" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        <svg x-show="file" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        <svg x-show="error" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3.75h.008M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </span>
+                    <span class="flex-1 min-w-0 text-left">
+                        <template x-if="!file">
+                            <span class="block text-sm text-slate-600">
+                                <span class="font-semibold text-indigo-600">Click to upload</span> or drag and drop
+                                <span class="block text-xs text-slate-400 mt-0.5">PDF only · max {{ max_upload_mb|default:10 }} MB</span>
+                            </span>
+                        </template>
+                        <template x-if="file">
+                            <span class="block">
+                                <span class="block text-sm font-semibold text-emerald-800 truncate" x-text="file.name"></span>
+                                <span class="block text-xs text-emerald-700 mt-0.5"><span x-text="file.size"></span> · Ready to upload</span>
+                            </span>
+                        </template>
+                        <span x-show="error" x-cloak class="block text-xs font-semibold text-rose-600 mt-1" x-text="error" role="alert"></span>
+                    </span>
+                    <span x-show="file" x-cloak class="flex items-center gap-1.5 flex-shrink-0" data-no-pick>
+                        <button type="button" class="esign-drop-btn" @click="$refs.pdfInput.click()">Change</button>
+                        <button type="button" class="esign-drop-btn is-remove" @click="clear()" aria-label="Remove file">✕</button>
+                    </span>
+                    {{ field }}
+                </div>
+                {% else %}
                 {{ field }}
+                {% endif %}
+
                 {% if field.help_text %}
                     <p class="text-xs text-slate-400 mt-1">{{ field.help_text }}</p>
                 {% endif %}
                 {% for error in field.errors %}
                     <p class="jk-form-error mt-1">{{ error }}</p>
                 {% endfor %}
+
+                {% if field.name == "original_pdf" %}
+                <div class="flex items-start gap-2 mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span class="flex-shrink-0">⚠️</span>
+                    <span>
+                        By uploading, you agree to the
+                        <button type="button" @click="showTncModal = true" class="font-semibold underline hover:text-amber-900">E-Sign Terms &amp; Conditions</button>
+                        — the document must not be personal or confidential.
+                    </span>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
 
@@ -70,30 +115,121 @@
                 <a href="{% url 'esign:document_list' %}" class="jk-btn jk-btn-outline">Cancel</a>
             </div>
         </form>
+
+        <!-- E-Sign Terms & Conditions acceptance. Shown only once per year per user —
+             acceptance is recorded on the user's profile (User.esign_tnc_accepted_at)
+             and re-confirmed automatically after it expires. -->
+        <div x-show="showTncModal" x-cloak
+             class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden" @click.outside="showTncModal = false">
+                <div class="p-6">
+                    <div class="flex items-start gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 text-xl">📄</div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">E-Sign Terms &amp; Conditions</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Please read before continuing</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-600 mb-3 leading-relaxed">
+                        By continuing, you agree that:
+                    </p>
+                    <ul class="text-sm text-slate-600 mb-5 leading-relaxed list-disc pl-5 space-y-1.5">
+                        <li>The document you upload is <strong>not personal or confidential</strong>; keeping such documents confidential is solely the uploader's responsibility.</li>
+                        <li>Electronic signatures generated through this system are legally valid and binding, equivalent to a wet-ink signature.</li>
+                    </ul>
+                    <p class="text-xs text-slate-400 mb-5">
+                        This acceptance is recorded on your account profile and valid for 1 year, after which you'll be asked to accept again.
+                    </p>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" @click="showTncModal = false" class="jk-btn jk-btn-outline">Cancel</button>
+                        <button type="button"
+                                @click="showTncModal = false; document.getElementById('accept_tnc_input').value = '1'; document.getElementById('create-form').submit()"
+                                class="jk-btn jk-btn-primary">
+                            I Agree, Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
 
+<style>
+.esign-drop { display: flex; align-items: center; gap: .75rem; padding: .7rem .9rem; border-radius: .75rem;
+              border: 2px dashed #cbd5e1; background: #fff; cursor: pointer; transition: border-color .15s, background-color .15s, box-shadow .15s; }
+.esign-drop:hover { border-color: #a5b4fc; background: #f8fafc; }
+.esign-drop.is-dragging { border-color: #6366f1; background: #eef2ff; }
+.esign-drop.is-ready { border-style: solid; border-color: #34d399; background: #ecfdf5; box-shadow: 0 0 0 3px rgba(16, 185, 129, .12); }
+.esign-drop.is-error { border-style: solid; border-color: #fda4af; background: #fff1f2; }
+.esign-drop-icon { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; flex-shrink: 0;
+                   border-radius: .6rem; background: #f1f5f9; color: #64748b; }
+.esign-drop.is-ready .esign-drop-icon { background: #10b981; color: #fff; }
+.esign-drop.is-error .esign-drop-icon { background: #ffe4e6; color: #e11d48; }
+.esign-drop-btn { padding: .3rem .65rem; border-radius: .5rem; border: 1px solid #a7f3d0; background: #fff; color: #047857;
+                  font-size: .75rem; font-weight: 600; }
+.esign-drop-btn:hover { background: #d1fae5; }
+.esign-drop-btn.is-remove { border-color: #fecdd3; color: #e11d48; }
+.esign-drop-btn.is-remove:hover { background: #ffe4e6; }
+</style>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const fileInput  = document.querySelector('#create-form input[type="file"]');
+// PDF picker for the upload form: accepts only .pdf / application/pdf within the size limit.
+function esignPdfDrop(maxMb) {
+    return {
+        dragging: false,
+        file: null,
+        error: '',
+        isPdf(f) { return f.type === 'application/pdf' || /\.pdf$/i.test(f.name); },
+        check(f) {
+            if (!this.isPdf(f)) return 'Only PDF files can be uploaded.';
+            if (maxMb && f.size > maxMb * 1024 * 1024) return `The file is larger than ${maxMb} MB.`;
+            return '';
+        },
+        pick(files) {
+            const f = files && files[0];
+            if (!f) { this.file = null; return; }
+            const problem = this.check(f);
+            if (problem) { this.reject(problem); return; }
+            this.error = '';
+            this.file = { name: f.name, size: this.formatSize(f.size) };
+            esignFillTitle(f.name);
+        },
+        drop(event) {
+            this.dragging = false;
+            const files = event.dataTransfer.files;
+            if (!files.length) return;
+            const problem = this.check(files[0]);
+            if (problem) { this.reject(problem); return; }
+            this.$refs.pdfInput.files = files;
+            this.pick(files);
+        },
+        reject(message) {
+            this.error = message;
+            this.file = null;
+            this.$refs.pdfInput.value = '';
+        },
+        clear() {
+            this.file = null;
+            this.error = '';
+            this.$refs.pdfInput.value = '';
+        },
+        formatSize(bytes) {
+            return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+        },
+    };
+}
+
+// Suggest a title from the file name while the title is still empty.
+function esignFillTitle(fileName) {
     const titleInput = document.querySelector('#create-form input[name="title"]');
-    if (!fileInput || !titleInput) return;
-
-    fileInput.addEventListener('change', function () {
-        if (!this.files.length) return;
-        // Only auto-fill if user hasn't typed anything yet
-        if (titleInput.value.trim()) return;
-
-        const raw = this.files[0].name.replace(/\.[^/.]+$/, ''); // strip extension
-        const cleaned = raw
-            .replace(/[_\-]+/g, ' ')            // underscores & hyphens → space
-            .replace(/\s+/g, ' ')               // collapse multiple spaces
-            .trim()
-            .replace(/\b\w/g, l => l.toUpperCase()); // Title Case
-        titleInput.value = cleaned;
-        titleInput.focus();
-    });
-});
+    if (!titleInput || titleInput.value.trim()) return;
+    titleInput.value = fileName
+        .replace(/\.[^/.]+$/, '')            // strip extension
+        .replace(/[_\-]+/g, ' ')             // underscores & hyphens -> space
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+    titleInput.focus();
+}
 </script>
 {% endblock %}

@@ -208,6 +208,10 @@ _CB_MAX_DISCONNECTS = 2               # 2 disconnects within 24 h trips the circ
 
 def is_circuit_open() -> bool:
     """Return True if the circuit breaker is tripped (all outbound blocked)."""
+    from django.conf import settings
+
+    if not settings.WA_ENABLED:
+        return True
     return bool(cache.get(_CB_OPEN_KEY))
 
 

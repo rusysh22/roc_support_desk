@@ -55,13 +55,20 @@ def _format_dt_with_gmt(dt) -> str:
 
 
 def _logo_data_uri(site_config) -> str:
-    """Return a base64 data-URI for the site logo, or empty string if unavailable."""
-    if not site_config or not site_config.logo:
+    """Return a base64 data-URI for the document letterhead logo, or empty string if unavailable.
+
+    Prefers SiteConfig.company_logo (meant for printed documents); falls back to
+    the System Logo (SiteConfig.logo) when no company logo has been uploaded.
+    """
+    if not site_config:
+        return ""
+    logo_field = site_config.company_logo or site_config.logo
+    if not logo_field:
         return ""
     try:
-        with open(site_config.logo.path, "rb") as f:
+        with open(logo_field.path, "rb") as f:
             raw = base64.b64encode(f.read()).decode("utf-8")
-        name = site_config.logo.name.lower()
+        name = logo_field.name.lower()
         if name.endswith(".svg"):
             mime = "image/svg+xml"
         elif name.endswith(".png"):
@@ -100,6 +107,7 @@ def generate_change_request_pdf(doc) -> bytes | None:
     requester_email = case.requester_email or "—"
     requester_unit  = case.requester_unit_name or "—"
     requester_role  = case.requester_job_role or "—"
+    requester_loc   = case.location_display or "—"
 
     submitted_str = _format_dt_with_gmt(doc.submitted_at or doc.created_at)
 
@@ -310,6 +318,7 @@ def generate_change_request_pdf(doc) -> bytes | None:
   <tr><td class="lbl">Unit / Department</td><td class="sep">:</td><td>{requester_unit}</td></tr>
   <tr><td class="lbl">Email</td><td class="sep">:</td><td>{requester_email}</td></tr>
   <tr><td class="lbl">Job Title</td><td class="sep">:</td><td>{requester_role}</td></tr>
+  <tr><td class="lbl">Location</td><td class="sep">:</td><td>{requester_loc}</td></tr>
   <tr><td class="lbl">Submission Date</td><td class="sep">:</td><td>{submitted_str}</td></tr>
   {revision_row}
 </table>

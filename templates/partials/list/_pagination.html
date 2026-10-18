@@ -1,0 +1,44 @@
+{% load custom_tags %}
+{% comment %}
+Standardized pagination for list pages (25 rows/page — core/list_pagination.py).
+Expects `page_obj` in context (function-based views and CBVs both expose this
+name). The "Showing x–y of N" line is always shown, even on a single page, so the
+total matching the current search/filters is visible; the pager appears only
+when there is more than one page. Page links keep every current GET param.
+{% endcomment %}
+{% if page_obj and page_obj.paginator.count %}
+<div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex items-center justify-between flex-wrap gap-2 sm:gap-4">
+    <div class="flex items-center gap-4 flex-wrap">
+        {% include "partials/list/_page_size.html" %}
+        <div class="text-sm text-slate-600">
+            Showing <span class="font-medium text-slate-900">{{ page_obj.start_index }}</span>–<span class="font-medium text-slate-900">{{ page_obj.end_index }}</span>
+            of <span class="font-medium text-slate-900">{{ page_obj.paginator.count }}</span>
+        </div>
+    </div>
+    {% if page_obj.has_other_pages %}
+    <nav class="flex items-center gap-1" aria-label="Pagination">
+        {% if page_obj.has_previous %}
+        <a href="{% page_url page_obj.previous_page_number %}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Prev</a>
+        {% else %}
+        <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Prev</button>
+        {% endif %}
+
+        {% for i in page_obj|page_window %}
+            {% if i is None %}
+            <span class="px-1.5 text-sm text-slate-400" aria-hidden="true">…</span>
+            {% elif page_obj.number == i %}
+            <span class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm shadow-indigo-500/20" aria-current="page">{{ i }}</span>
+            {% else %}
+            <a href="{% page_url i %}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <a href="{% page_url page_obj.next_page_number %}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Next</a>
+        {% else %}
+        <button disabled class="px-3 py-1.5 rounded-lg border border-slate-100 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed">Next</button>
+        {% endif %}
+    </nav>
+    {% endif %}
+</div>
+{% endif %}

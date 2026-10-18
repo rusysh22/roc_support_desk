@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load text_filters %}
+
+{% block title %}{{ announcement.title }} | {{ site_config.site_name }}{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <div class="pt-4">
+        {% url 'announcements:list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-xl text-sm font-medium bg-emerald-50 border border-emerald-200 text-emerald-700">✅ {{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <article class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-8 space-y-4">
+        <div class="flex flex-wrap items-center gap-2">
+            {% include "announcements/_badge.html" %}
+            {% if announcement.is_pinned %}<span class="text-xs font-semibold text-slate-500">📌 Pinned</span>{% endif %}
+            {% if announcement.priority == 'IMPORTANT' %}<span class="text-xs font-semibold text-rose-600">❗ Important</span>{% endif %}
+            <span class="text-xs text-slate-400">{{ announcement.publish_at|date:"d M Y H:i" }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900">{{ announcement.title }}</h1>
+        {% if announcement.summary %}<p class="text-base text-slate-600">{{ announcement.summary }}</p>{% endif %}
+        {% if announcement.body %}
+        <div class="prose prose-slate max-w-none text-sm">{{ announcement.body|sanitize_html }}</div>
+        {% endif %}
+        {% if announcement.link_url %}
+        <a href="{{ announcement.link_url }}" class="jk-btn jk-btn-primary px-5 py-2 text-sm inline-flex">Open related page →</a>
+        {% endif %}
+    </article>
+
+    {% if announcement.require_acknowledgement and user.is_authenticated %}
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {% if announcement.is_acknowledged %}
+        <p class="text-sm text-emerald-700 font-medium">✅ You have acknowledged this announcement.</p>
+        {% else %}
+        <p class="text-sm text-slate-700">Please confirm that you have read and understood this announcement.</p>
+        <form method="post" action="{% url 'announcements:acknowledge' announcement.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="jk-btn jk-btn-primary px-5 py-2 text-sm">I have read this</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

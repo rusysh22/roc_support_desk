@@ -32,6 +32,7 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     """
     from cases.models import CaseRecord, Message
     from core.models import SiteConfig
+    from core.utils.email_branding import attach_logo, render_branded_from_template
     from django.core.mail import EmailMultiAlternatives
     from django.utils.html import strip_tags
 
@@ -42,7 +43,6 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
 
     case = msg.case
 
-    # Only notify for outbound staff messages when the ticket still shows unread.
     if msg.direction != "OUT" or not case.has_unread_messages:
         return
 
@@ -61,32 +61,23 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
     sender_name = (
         msg.sender_staff.get_full_name() if msg.sender_staff else "Support Team"
     )
-    # Strip HTML tags from Quill-generated body before embedding in email to
-    # prevent XSS in email clients and display a clean text preview.
-    from django.utils.html import strip_tags, escape
     preview_plain = strip_tags(msg.body or "")[:200]
     case_url = f"{base_url}/portal/chat/{case.id}/"
 
     subject = f"[{site_name}] New reply on your ticket: {case.subject}"
-    html_content = f"""
-    <!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;">
-    <p>Hi <strong>{escape(case.requester_name or 'User')}</strong>,</p>
-    <p><strong>{escape(sender_name)}</strong> replied to your ticket
-       <strong>{escape(case.case_number)}</strong>:</p>
-    <blockquote style="border-left:3px solid #4f46e5;margin:12px 0;
-                        padding:8px 12px;color:#6b7280;background:#f5f3ff;">
-      {escape(preview_plain)}
-    </blockquote>
-    <p><a href="{case_url}"
-          style="background:#4f46e5;color:#fff;padding:10px 20px;
-                 border-radius:6px;text-decoration:none;display:inline-block;">
-      View Ticket
-    </a></p>
-    <p style="font-size:12px;color:#9ca3af;margin-top:24px;">
-      This email was sent automatically by {site_name}.
-    </p>
-    </body></html>
-    """
+    html_content = render_branded_from_template(
+        "emails/bodies/offline_chat.html",
+        {
+            "requester_name": case.requester_name or "User",
+            "sender_name": sender_name,
+            "case_number": case.case_number,
+            "preview": preview_plain,
+        },
+        site_name=site_name,
+        title="New reply on your ticket",
+        cta_url=case_url,
+        cta_label="View ticket",
+    )
 
     try:
         mail = EmailMultiAlternatives(
@@ -96,6 +87,7 @@ def send_chat_offline_notification(self, case_id: str, message_id: str) -> None:
             to=[recipient_email],
         )
         mail.attach_alternative(html_content, "text/html")
+        attach_logo(mail)
         mail.send()
         logger.info("Offline notification sent to %s for case %s", recipient_email, case_id)
     except Exception as exc:
@@ -147,38 +139,25 @@ def batch_mark_messages_read(self, case_id: str, latest_message_id: str) -> None
 )
 def auto_close_idle_tickets() -> int:
     """
-    Close Resolved tickets that have received no inbound message for
-    CHAT_AUTO_CLOSE_IDLE_DAYS (default 7) days.
-
-    Register in Celery Beat:
-        "auto-close-idle-tickets": {
-            "task": "cases.auto_close_idle_tickets",
-            "schedule": crontab(hour=2, minute=0),
-        }
+    Close tickets that have stayed Resolved for CHAT_AUTO_CLOSE_IDLE_DAYS
+    (default 5). Closed tickets cannot be reopened.
     """
-    from cases.models import CaseRecord, Message
+    from cases.models import CaseRecord
     from django.utils import timezone
     from datetime import timedelta
 
-    idle_days = getattr(settings, "CHAT_AUTO_CLOSE_IDLE_DAYS", 7)
+    idle_days = getattr(settings, "CHAT_AUTO_CLOSE_IDLE_DAYS", 5)
     cutoff = timezone.now() - timedelta(days=idle_days)
 
-    # Resolved tickets where the most recent inbound message predates the cutoff.
-    resolved_ids = CaseRecord.objects.filter(
-        status=CaseRecord.Status.RESOLVED
-    ).values_list("id", flat=True)
-
-    # Exclude tickets that have a recent inbound message.
-    recently_active_ids = Message.objects.filter(
-        case_id__in=resolved_ids,
-        direction=Message.Direction.INBOUND,
-        sent_at__gte=cutoff,
-    ).values_list("case_id", flat=True).distinct()
-
     idle_qs = CaseRecord.objects.filter(
-        id__in=resolved_ids,
-    ).exclude(id__in=recently_active_ids)
-
-    count = idle_qs.update(status=CaseRecord.Status.CLOSED)
-    logger.info("auto_close_idle_tickets: closed %d idle tickets", count)
+        status=CaseRecord.Status.RESOLVED,
+        updated_at__lte=cutoff,
+    )
+    idle_ids = list(idle_qs.values_list("id", flat=True))
+    count = CaseRecord.objects.filter(id__in=idle_ids).update(status=CaseRecord.Status.CLOSED)
+    if idle_ids:
+        from gateways.tasks import queue_requester_status_email
+        for case_id in idle_ids:
+            queue_requester_status_email(case_id, CaseRecord.Status.CLOSED)
+    logger.info("auto_close_idle_tickets: closed %d resolved tickets (idle_days=%s)", count, idle_days)
     return count

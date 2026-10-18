@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}User Roles | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_user_roles %}active{% endblock %}
+{% block page_title %}User Roles{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    {% if messages %}
+    <div class="space-y-2">
+    {% for message in messages %}
+        <div class="flex items-start gap-3 px-4 py-3 rounded-xl text-sm font-medium
+            {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700
+            {% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %}">
+            <span class="shrink-0 mt-0.5">
+                {% if message.tags == 'error' %}⛔{% elif message.tags == 'success' %}✅{% else %}⚠️{% endif %}
+            </span>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    {% url 'users_desk:role_create' as create_url_val %}
+    {% include "partials/list/_toolbar.html" with result_noun="role(s)" title="User Roles" subtitle="A role sets a base access level and a set of permissions. Menus per role are set in Module Defaults." create_url=create_url_val create_label="New Role" search_query=search_query search_placeholder="Search role name, code or description…" clear_url=request.path has_active_filters=has_active_filters active_filter_count=active_filters|length filter_panel_template="desk/users/roles/_filter_fields.html" %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto min-h-[40vh]"
+             x-data="jkListTable([{% for role in roles %}'{{ role.pk }}'{% if not forloop.last %},{% endif %}{% endfor %}])">
+            <table class="jk-table">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-bind:checked="allSelected" @change="toggleAll()">
+                        </th>
+                        <th>Role</th>
+                        <th>Base Access Level</th>
+                        <th>Permissions</th>
+                        <th class="text-center">Users</th>
+                        <th class="w-24 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for role in roles %}
+                    <tr class="hover:bg-slate-50/70 transition-colors cursor-pointer" @click="openRow('{% url 'users_desk:role_edit' role.pk %}')">
+                        <td @click.stop>
+                            <input type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                   x-model="selectedIds" value="{{ role.pk }}">
+                        </td>
+                        <td>
+                            <span class="font-semibold text-slate-900">{{ role.name }}</span>
+                            {% if role.is_system %}<span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" title="Built-in role">Built-in</span>{% endif %}
+                            <div class="text-xs font-mono text-slate-400">{{ role.code }}</div>
+                            {% if role.description %}<div class="text-xs text-slate-500 mt-0.5 max-w-md">{{ role.description }}</div>{% endif %}
+                        </td>
+                        <td class="text-sm text-slate-700">{{ role.get_base_access_display }}</td>
+                        <td>
+                            <div class="flex flex-wrap gap-1 max-w-md">
+                                {% for label in role.permission_labels %}
+                                <span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{{ label }}</span>
+                                {% empty %}
+                                <span class="text-xs text-slate-400">—</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="text-center text-sm font-semibold text-slate-700">{{ role.user_count }}</td>
+                        <td class="text-center">
+                            {% if role.is_active %}<span class="jk-badge jk-badge-resolved">Active</span>{% else %}<span class="jk-badge jk-badge-cancelled">Inactive</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-10 text-center text-slate-500 text-sm">
+                            {% if has_active_filters %}
+                            No roles match your search.
+                            {% else %}
+                            No roles yet. <a href="{% url 'users_desk:role_create' %}" class="text-indigo-600 hover:underline">Create one →</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% include "partials/list/_pagination.html" %}
+
+            {% url 'users_desk:role_bulk_export' as bulk_export_url %}
+            {% url 'users_desk:role_bulk_delete' as bulk_delete_url %}
+            {% include "partials/list/_bulk_bar.html" with export_url=bulk_export_url delete_url=bulk_delete_url %}
+            {% include "partials/_confirm_modal.html" %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

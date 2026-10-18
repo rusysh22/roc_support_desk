@@ -1,0 +1,32 @@
+<!-- Download Template -->
+<a href="{% url 'users_desk:user_import_template' %}"
+   class="jk-btn bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+    <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    Template .xlsx
+</a>
+<!-- Import New -->
+<button @click="showImportModal = true"
+        class="jk-btn bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+    <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+    Import New
+</button>
+<!-- Update via Excel -->
+<button @click="showUpdateModal = true"
+        class="jk-btn bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 py-2 px-3 text-sm whitespace-nowrap shadow-sm">
+    <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+    Update Excel
+</button>
+<!-- Agent limit badge -->
+{% if max_agents %}
+<span class="text-xs px-2.5 py-1.5 rounded-lg font-semibold
+    {% if agent_limit_reached %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+    Agents: {{ current_agents }}/{{ max_agents }}
+</span>
+{% endif %}
+<!-- New User -->
+<a href="{% url 'users_desk:user_create' %}"
+   class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap"
+   {% if agent_limit_reached %}title="Agent limit reached ({{ current_agents }}/{{ max_agents }}). Non-agent roles (Auditor, PortalUser, SuperAdmin) can still be created."{% endif %}>
+    <svg class="h-4 w-4 mr-1.5 inline-block -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+    New User
+</a>

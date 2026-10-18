@@ -1,0 +1,11 @@
+{% comment %}
+Mobile only (≤639px): one small toggle that shows / hides the status chips, saved filters and Export under the tabs.
+Hidden by default; the badge counts the statuses / quick filters that are switched on, so a hidden filter is never a surprise.
+Expects `current_filters`. The three Task Management views (table, kanban, calendar) include it right before the status chips.
+{% endcomment %}
+<button type="button" class="jk-task-more" aria-expanded="false" aria-label="Status and saved filters"
+        onclick="var t=this.closest('.jk-task-toolbar');var open=t.classList.toggle('jk-extra-open');this.setAttribute('aria-expanded',open);this.querySelector('.jk-task-more-label').textContent=open?'Hide status & saved filters':'Status & saved filters';">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="jk-task-more-caret" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    <span class="jk-task-more-label">Status &amp; saved filters</span>
+    {% if current_filters.status or current_filters.confidential or current_filters.sla %}<span class="jk-task-more-badge" title="Active status / quick filters">on</span>{% endif %}
+</button>

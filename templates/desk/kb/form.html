@@ -6,6 +6,20 @@
 {% block page_title %}{% if is_edit %}Edit Article{% else %}New Article{% endif %}{% endblock %}
 
 {% block extra_head %}
+<script>window.KB_LOCKED = {% if locked %}true{% else %}false{% endif %};</script>
+<style>
+    .kb-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+    .kb-locked .ql-toolbar { display: none; }
+    .kb-locked .ql-container { border-top: 1px solid #e2e8f0 !important; background: #f8fafc; }
+    .kb-locked fieldset[disabled] input, .kb-locked fieldset[disabled] select, .kb-locked fieldset[disabled] textarea { background: #f8fafc; cursor: not-allowed; }
+    .kb-log { list-style: none; margin: 0; padding: 0 1.25rem 1rem; }
+    .kb-log-item { display: flex; align-items: flex-start; gap: .65rem; padding: .55rem 0; border-top: 1px solid #f1f5f9; }
+    .kb-log-dot { flex: none; width: .6rem; height: .6rem; margin-top: .35rem; border-radius: 9999px; background: #94a3b8; }
+    .kb-log-item > div { flex: 1 1 auto; }
+    .kb-log--approved .kb-log-dot { background: #059669; } .kb-log--rejected .kb-log-dot { background: #e11d48; }
+    .kb-log--submitted .kb-log-dot { background: #4f46e5; } .kb-log--unpublished .kb-log-dot { background: #ea580c; }
+    .kb-log--featured .kb-log-dot, .kb-log--unfeatured .kb-log-dot { background: #b45309; } .kb-log--created .kb-log-dot { background: #0369a1; }
+</style>
 <!-- Quill.js Rich Text Editor -->
 <link href="{% static 'vendor/quill-2.0.2.snow.css' %}" rel="stylesheet">
 <script src="{% static 'vendor/quill-2.0.2.js' %}"></script>
@@ -120,10 +134,10 @@
 <div class="max-w-4xl mx-auto space-y-6" x-data="kbForm()">
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'kb_desk:article_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'kb_desk:article_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-        </a>
         <div>
             <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit Article{% else %}Create New Article{% endif %}</h2>
             <p class="text-sm text-slate-600 mt-1">
@@ -139,9 +153,163 @@
         </div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <form method="post" id="articleForm" enctype="multipart/form-data" class="p-6 sm:p-8">
+    {% if is_edit %}
+    <!-- Workflow: status bar + actions (Submit for Review / Approve / Reject / Unpublish / Feature) -->
+    <style>
+        /* Plain CSS: tailwind.css is pre-built, so classes used here for the first time would not render. */
+        .kb-wf-pill { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .7rem; border-radius: 9999px; color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .02em; }
+        .kb-wf-pill--Draft { background: #475569; }
+        .kb-wf-pill--Pending { background: #b45309; }
+        .kb-wf-pill--Published { background: #047857; }
+        .kb-wf-pill--Rejected { background: #be123c; }
+        .kb-wf-pill--Featured { background: #b45309; }
+        .kb-steps { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; row-gap: .3rem; list-style: none; margin: .75rem 0 0; padding: .4rem .75rem;
+                    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .7rem; }
+        .kb-step { display: flex; align-items: center; position: relative; }
+        .kb-step:not(:last-child)::after { content: ""; width: 3rem; height: 2px; margin: 0 .6rem; border-radius: 1px; background: #cbd5e1; }
+        .kb-step.is-done:not(:last-child)::after { background: #059669; }
+        .kb-step-main { display: inline-flex; align-items: center; gap: .4rem; position: relative; padding: .1rem .2rem; border-radius: .4rem; white-space: nowrap; cursor: default; }
+        .kb-step-main:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+        .kb-step-dot { width: 1.1rem; height: 1.1rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: .62rem; font-weight: 800;
+                       background: #fff; border: 2px solid #cbd5e1; color: #64748b; }
+        .kb-step.is-done .kb-step-dot { background: #059669; border-color: #059669; color: #fff; }
+        .kb-step.is-current .kb-step-dot { background: #4f46e5; border-color: #4f46e5; color: #fff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .18); }
+        .kb-step.is-current.is-done .kb-step-dot { background: #059669; border-color: #059669; box-shadow: 0 0 0 3px rgba(5, 150, 105, .2); }
+        .kb-step.is-rejected .kb-step-dot { background: #e11d48; border-color: #e11d48; color: #fff; box-shadow: 0 0 0 3px rgba(225, 29, 72, .18); }
+        .kb-step-label { font-size: .78rem; font-weight: 600; color: #64748b; }
+        .kb-step.is-done .kb-step-label { color: #065f46; }
+        .kb-step.is-current .kb-step-label { color: #1e1b4b; font-weight: 800; }
+        .kb-step.is-current.is-done .kb-step-label { color: #064e3b; }
+        .kb-step.is-rejected .kb-step-label { color: #9f1239; font-weight: 800; }
+        .kb-step-tip { display: none; position: absolute; z-index: 30; top: calc(100% + .4rem); left: 50%; transform: translateX(-50%); width: max-content; max-width: 16rem; padding: .4rem .6rem;
+                       border-radius: .5rem; background: #1e293b; color: #f8fafc; font-size: .72rem; font-weight: 500; line-height: 1.35; white-space: normal; text-align: center; box-shadow: 0 6px 18px rgba(15, 23, 42, .25); }
+        .kb-step-main:hover .kb-step-tip, .kb-step-main:focus .kb-step-tip { display: block; }
+        .kb-btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .5rem 1.1rem; border: 0; border-radius: .75rem; color: #fff;
+                  font-size: .875rem; font-weight: 600; line-height: 1.25rem; white-space: nowrap; cursor: pointer; text-decoration: none; box-shadow: 0 1px 2px rgba(15, 23, 42, .15); transition: background-color .15s; }
+        .kb-btn:hover { color: #fff; }
+        .kb-btn:focus-visible { outline: 2px solid #1e293b; outline-offset: 2px; }
+        .kb-btn--submit { background: #4f46e5; } .kb-btn--submit:hover { background: #4338ca; }
+        .kb-btn--approve { background: #059669; } .kb-btn--approve:hover { background: #047857; }
+        .kb-btn--reject { background: #e11d48; } .kb-btn--reject:hover { background: #be123c; }
+        .kb-btn--unpublish { background: #ea580c; } .kb-btn--unpublish:hover { background: #c2410c; }
+        .kb-btn--featured { background: #b45309; } .kb-btn--featured:hover { background: #92400e; }
+        .kb-btn--feature-off { background: #475569; } .kb-btn--feature-off:hover { background: #334155; }
+        .kb-btn--public { background: #0369a1; } .kb-btn--public:hover { background: #075985; }
+        .kb-btn--cancel { background: #64748b; } .kb-btn--cancel:hover { background: #475569; }
+    </style>
+    <div x-data="{ showReject: false }" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+                <p class="text-sm font-semibold text-slate-800">Workflow</p>
+                <p class="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">Current status:
+                    <span class="kb-wf-pill kb-wf-pill--{{ article.status }}">{{ article.get_status_display }}</span>
+                    {% if article.is_featured and article.status == "Published" %}<span class="kb-wf-pill kb-wf-pill--Featured">&#9733; Featured</span>{% endif %}
+                </p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                {% if article.status == "Draft" or article.status == "Rejected" %}
+                    {% if user.role_access != 'Auditor' %}
+                    <form method="post" action="{% url 'kb_desk:article_submit' article.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="kb-btn kb-btn--submit">Submit for Review</button>
+                    </form>
+                    {% endif %}
+                {% elif article.status == "Pending" %}
+                    {% if user.role_access in "SuperAdmin,Manager" %}
+                    <form method="post" action="{% url 'kb_desk:article_approve' article.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="kb-btn kb-btn--approve">Approve</button>
+                    </form>
+                    <button type="button" @click="showReject = true" class="kb-btn kb-btn--reject">Reject</button>
+                    {% endif %}
+                {% elif article.status == "Published" %}
+                    {% if user.role_access in "SuperAdmin,Manager" %}
+                    <form method="post" action="{% url 'kb_desk:article_toggle_featured' article.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="kb-btn {% if article.is_featured %}kb-btn--featured{% else %}kb-btn--feature-off{% endif %}">
+                            <svg class="w-4 h-4" fill="{% if article.is_featured %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                            </svg>
+                            {% if article.is_featured %}Featured{% else %}Add to Featured{% endif %}
+                        </button>
+                    </form>
+                    <div x-data="{ open: false }" class="relative" @keydown.escape.window="open = false">
+                        <button type="button" class="kb-btn kb-btn--unpublish" @click="open = !open">Unpublish…</button>
+                        <form x-show="open" x-cloak @click.outside="open = false" method="post" action="{% url 'kb_desk:article_unpublish' article.pk %}"
+                              class="absolute right-0 top-full mt-2 w-80 z-20 bg-white border border-slate-200 rounded-xl shadow-lg p-4 space-y-3">
+                            {% csrf_token %}
+                            <p class="text-sm text-slate-700"><b>Unpublish this article?</b> It leaves the Knowledge Base and goes back to Draft so it can be edited. This is recorded in the change log.</p>
+                            <textarea name="reason" rows="2" maxlength="500" class="jk-input w-full" placeholder="Why? (optional, shown in the change log)"></textarea>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" class="kb-btn kb-btn--cancel" @click="open = false">Cancel</button>
+                                <button type="submit" class="kb-btn kb-btn--unpublish">Unpublish</button>
+                            </div>
+                        </form>
+                    </div>
+                    {% endif %}
+                    <a href="{% url 'knowledge_base:article_detail' article.slug %}" target="_blank" rel="noopener" class="kb-btn kb-btn--public">View Public</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Status bar: where the article is in Draft, Pending Review, Published -->
+        {% with status=article.status %}
+        <ol class="kb-steps" aria-label="Article workflow">
+            <li class="kb-step {% if status == 'Rejected' %}is-rejected is-current{% elif status == 'Draft' %}is-current{% else %}is-done{% endif %}"{% if status == 'Draft' or status == 'Rejected' %} aria-current="step"{% endif %}>
+                <span class="kb-step-main"{% if status == 'Draft' or status == 'Rejected' %} tabindex="0"{% endif %}>
+                    <span class="kb-step-dot" aria-hidden="true">{% if status == 'Rejected' %}!{% elif status == 'Draft' %}1{% else %}&#10003;{% endif %}</span>
+                    <span class="kb-step-label">{% if status == 'Rejected' %}Rejected{% else %}Draft{% endif %}</span>
+                    {% if status == 'Rejected' %}<span class="kb-step-tip" role="tooltip">Revise it, then submit again{% if article.rejection_reason %}<br>Reason: {{ article.rejection_reason }}{% endif %}</span>{% elif status == 'Draft' %}<span class="kb-step-tip" role="tooltip">Being written. Submit it for review when it is ready.</span>{% endif %}
+                </span>
+            </li>
+            <li class="kb-step {% if status == 'Pending' %}is-current{% elif status == 'Published' %}is-done{% endif %}"{% if status == 'Pending' %} aria-current="step"{% endif %}>
+                <span class="kb-step-main"{% if status == 'Pending' %} tabindex="0"{% endif %}>
+                    <span class="kb-step-dot" aria-hidden="true">{% if status == 'Published' %}&#10003;{% else %}2{% endif %}</span>
+                    <span class="kb-step-label">Pending Review</span>
+                    {% if status == 'Pending' %}<span class="kb-step-tip" role="tooltip">Waiting for a Manager / SuperAdmin to approve or reject it.</span>{% endif %}
+                </span>
+            </li>
+            <li class="kb-step {% if status == 'Published' %}is-current is-done{% endif %}"{% if status == 'Published' %} aria-current="step"{% endif %}>
+                <span class="kb-step-main"{% if status == 'Published' %} tabindex="0"{% endif %}>
+                    <span class="kb-step-dot" aria-hidden="true">{% if status == 'Published' %}&#10003;{% else %}3{% endif %}</span>
+                    <span class="kb-step-label">Published</span>
+                    {% if status == 'Published' %}<span class="kb-step-tip" role="tooltip">Visible on the Knowledge Base{% if article.is_featured %} and featured{% endif %}.</span>{% endif %}
+                </span>
+            </li>
+        </ol>
+        {% if status == 'Rejected' and article.rejection_reason %}
+        <p class="mt-3 text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"><b>Reason:</b> {{ article.rejection_reason }}</p>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Reject panel -->
+        <div x-show="showReject" x-cloak x-transition class="mt-4 pt-4 border-t border-slate-100">
+            <form method="post" action="{% url 'kb_desk:article_reject' article.pk %}">
+                {% csrf_token %}
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Rejection Reason</label>
+                <textarea name="rejection_reason" rows="3" class="jk-input w-full" placeholder="Reason for rejection (optional)..."></textarea>
+                <div class="flex justify-end gap-2 mt-3">
+                    <button type="button" @click="showReject = false" class="kb-btn kb-btn--cancel">Cancel</button>
+                    <button type="submit" class="kb-btn kb-btn--reject">Reject Article</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if locked %}
+    <div class="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900" role="status">
+        <span aria-hidden="true">🔒</span>
+        <span class="flex-1 min-w-0"><b>Published — read-only.</b> To change this article,
+            {% if can_publish %}use <b>Unpublish</b> in the Workflow bar first; it goes back to Draft and the change is logged.
+            {% else %}ask a Manager or SuperAdmin to unpublish it first.{% endif %}</span>
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden{% if locked %} kb-locked{% endif %}">
+        <form {% if not locked %}data-unsaved-guard {% endif %}method="post" id="articleForm" enctype="multipart/form-data" class="p-6 sm:p-8">
             {% csrf_token %}
+            <fieldset {% if locked %}disabled{% endif %} class="kb-fieldset">
 
             <!-- Validation Errors -->
             {% if form.errors %}
@@ -233,13 +401,32 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Contributors -->
+                        <div class="md:col-span-2">
+                            <label for="id_contributors" class="block text-sm font-semibold text-slate-700 mb-1.5">Contributors</label>
+                            {{ form.contributors }}
+                            <p class="text-xs text-slate-500 mt-1.5">
+                                Users credited on the article page; add as many as needed.
+                                {% if from_case %}
+                                {% if requester_has_no_account %}
+                                <span class="text-amber-700">The requester of {{ from_case.case_number }} has no user account, so nobody was pre-selected.</span>
+                                {% else %}
+                                The requester of {{ from_case.case_number }} is pre-selected.
+                                {% endif %}
+                                {% endif %}
+                            </p>
+                            {% if form.contributors.errors %}
+                            <p class="text-xs text-red-500 mt-1">{{ form.contributors.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
                         <!-- Allow Comments toggle -->
                         <div class="md:col-span-2">
                             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Comments</label>
                             <label class="inline-flex items-center gap-3 cursor-pointer select-none">
                                 {{ form.allow_comments }}
                                 <span class="text-sm text-slate-700">Allow comments from logged-in users</span>
-                                <span class="text-xs text-slate-400">(if disabled, the comment form will not appear on the article)</span>
+                                <span class="text-xs text-slate-400">(off by default; when off, readers see no comments and no comment form)</span>
                             </label>
                             {% if form.allow_comments.errors %}
                             <p class="text-xs text-red-500 mt-1">{{ form.allow_comments.errors.0 }}</p>
@@ -448,17 +635,44 @@
 
             </div>
 
+            </fieldset>
+
             <!-- Submit -->
             <div class="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
                 <a href="{% url 'kb_desk:article_list' %}" class="px-6 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center">
-                    Cancel
+                    {% if locked %}Back to list{% else %}Cancel{% endif %}
                 </a>
+                {% if not locked %}
                 <button type="submit" class="jk-btn jk-btn-primary px-8 py-2.5 shadow-sm">
                     {% if is_edit %}Save Changes{% else %}Create Article{% endif %}
                 </button>
+                {% endif %}
             </div>
         </form>
     </div>
+
+    {% if is_edit %}
+    <!-- Change log: who changed what, and the review workflow -->
+    <details class="bg-white rounded-2xl shadow-sm border border-slate-200" {% if locked %}open{% endif %}>
+        <summary class="px-5 py-3.5 cursor-pointer text-sm font-semibold text-slate-800">Change log <span class="text-slate-400 font-normal">({{ change_logs|length }})</span></summary>
+        {% if change_logs %}
+        <ol class="kb-log">
+            {% for entry in change_logs %}
+            <li class="kb-log-item kb-log--{{ entry.action }}">
+                <span class="kb-log-dot" aria-hidden="true"></span>
+                <div class="min-w-0">
+                    <p class="text-sm text-slate-800"><b>{{ entry.get_action_display }}</b> by {{ entry.actor_name|default:"—" }}</p>
+                    {% if entry.detail %}<p class="text-xs text-slate-600 whitespace-pre-line break-words">{{ entry.detail }}</p>{% endif %}
+                </div>
+                <time class="text-xs text-slate-500 shrink-0" datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|date:"d M Y H:i" }}</time>
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="px-5 pb-4 text-sm text-slate-500">No changes recorded yet.</p>
+        {% endif %}
+    </details>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -931,6 +1145,7 @@ function kbForm() {
                 attachPasteDropHandler(quill);
 
                 this.editors[field.id] = quill;
+                if (window.KB_LOCKED) quill.enable(false);  // published: read-only
             });
 
             // Pre-fill markdown textareas when editing an article with use_markdown=True

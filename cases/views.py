@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 from ipware import get_client_ip as _get_client_ip
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.contrib import messages
-from django.db.models import Q, F, Value, BooleanField, Case as DBCase, When, Exists, OuterRef
+from django.db import IntegrityError, transaction
+from django.db.models import Q, F, Value, BooleanField, Case as DBCase, When, Exists, OuterRef, IntegerField
 from django.http import HttpResponseForbidden, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -34,14 +35,46 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.cache import cache
 
 from core.models import CompanyUnit, Employee, User
-from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm
+from .forms import CaseCreateForm, CaseRCAForm, StaffReplyForm, validate_staff_reply_attachment
 from .models import (
     Attachment, CaseCategory, CaseRecord, ChangeRequestApproval,
     ChangeRequestDocument, Message, CaseComment, CaseAuditLog,
     RCATemplate, DocumentTemplate, DocumentTemplateField, FormSubmission,
+    TicketLocation, SavedCaseFilter,
 )
 
+from .activity import annotate_activity, attach_unread_counts, mark_activity_read, mark_all_activity_read, unread_cases
+
 from licensing.decorators import feature_required
+
+
+# =====================================================================
+# Shared literals (avoid duplicated string literals)
+# =====================================================================
+ACCESS_DENIED_MSG = "Access denied."
+CONFIDENTIAL_ACCESS_DENIED_MSG = "You do not have access to this confidential ticket."
+FIELD_REQUIRED_MSG = "This field is required."
+
+TEMPLATE_CREATE_CASE = "client/create_case.html"
+TEMPLATE_PUBLIC_FORM = "client/public_form.html"
+TEMPLATE_RCA_FORM = "partials/rca_form.html"
+TEMPLATE_CHAT_THREAD = "partials/chat_thread.html"
+TEMPLATE_EMAIL_SETTINGS = "desk/email_settings.html"
+TEMPLATE_FIELD_LIST = "desk/forms/partials/field_list.html"
+TEMPLATE_CHANGE_REQUEST_FORM = "client/change_request_form.html"
+TEMPLATE_CHANGE_REQUEST_APPROVAL = "client/change_request_approval.html"
+
+URLNAME_CASE_DETAIL = "desk:case_detail"
+URLNAME_CASE_LIST = "desk:case_list"
+URLNAME_WHATSAPP_STATUS = "desk:whatsapp_status"
+URLNAME_FORM_EDIT = "desk:form_edit"
+URLNAME_DOCUMENT_TEMPLATE_LIST = "desk:document_template_list"
+URLNAME_CATEGORY_LIST = "desk:category_list"
+
+CASES_LIST_PATH = "/desk/cases/"
+HTML_TAG_PATTERN = r'<[^>]+>'
+SCRIPT_RELOAD_HTML = '<script>window.location.reload();</script>'
+DATETIME_DISPLAY_FORMAT = "%d/%m/%Y %H:%M"
 
 
 # =====================================================================
@@ -51,23 +84,24 @@ from licensing.decorators import feature_required
 def staff_required(view_func):
     """
     Decorator to ensure user is authenticated AND has staff-level
-    role_access (SuperAdmin, Manager, SupportDesk, or Auditor).
+    role_access (SuperAdmin, Manager, SupportDesk, Engineer, or Auditor).
     Auditor has Read-Only access (GET requests only).
     """
     @wraps(view_func)
     @login_required
     def _wrapped(request, *args, **kwargs):
         if not hasattr(request.user, "role_access"):
-            return HttpResponseForbidden("Access denied.")
+            return HttpResponseForbidden(ACCESS_DENIED_MSG)
         allowed_roles = {
             User.RoleAccess.SUPERADMIN,
             User.RoleAccess.MANAGER,
             User.RoleAccess.SUPPORTDESK,
+            User.RoleAccess.ENGINEER,
             User.RoleAccess.AUDITOR,
         }
         if request.user.role_access not in allowed_roles:
             return HttpResponseForbidden("Insufficient role access.")
-            
+
         # Enforce read-only for Auditor
         if request.user.role_access == User.RoleAccess.AUDITOR and request.method not in ("GET", "HEAD", "OPTIONS"):
             return HttpResponseForbidden("Access denied. Auditors have read-only access.")
@@ -84,11 +118,42 @@ def _case_is_closed(case, request):
     return False
 
 
+def _is_sso_whitelist_case(case):
+    tags = {
+        tag.strip().lower()
+        for tag in (case.tags or "").split(",")
+        if tag.strip()
+    }
+    return "sso-whitelist" in tags
+
+
+def _get_sso_whitelist_user(case):
+    if not _is_sso_whitelist_case(case) or not case.requester_email:
+        return None
+    return User.objects.filter(email__iexact=case.requester_email).first()
+
+
 def _check_confidential_access(case, user):
     """Return True if the user is allowed to access this case's details."""
     if not getattr(case.category, "is_confidential", False):
         return True
     return user.role_access == "SuperAdmin" or user.can_handle_confidential
+
+
+def _check_case_access(case, user):
+    """Return True if the user may view/act on this case (confidential + Engineer scope)."""
+    if not _check_confidential_access(case, user):
+        return False
+    if getattr(user, "role_access", None) == User.RoleAccess.ENGINEER:
+        return case.assigned_to_id == user.id
+    return True
+
+
+def _scope_cases_for_user(qs, user):
+    """Engineers only see tickets assigned to them."""
+    if getattr(user, "role_access", None) == User.RoleAccess.ENGINEER:
+        return qs.filter(assigned_to=user)
+    return qs
 
 
 def _annotate_confidential_access(qs, user):
@@ -104,6 +169,274 @@ def _annotate_confidential_access(qs, user):
             output_field=BooleanField(),
         )
     )
+
+
+def _filter_case_queryset(request, cases):
+    """
+    Shared Ticket Management (case_list) filtering: folder scoping, every
+    filter GET param, priority/confidential annotations, and sorting.
+
+    Used by ``case_list``, ``case_list_results_partial`` and
+    ``case_list_partial`` so the three views can never drift out of sync —
+    a filter added here works everywhere at once.
+
+    Returns ``(cases, current_filters)`` — ``current_filters`` mirrors every
+    accepted GET param (defaulted to ``""``) for use in templates/chips.
+    """
+    from datetime import timedelta
+
+    folder = request.GET.get("folder", "inbox")
+    status_filter = request.GET.get("status")
+    source_filter = request.GET.get("source")
+    category_filter = request.GET.get("category")
+    assigned_to_filter = request.GET.get("assigned_to")
+    type_filter = request.GET.get("type")
+    tags_filter = request.GET.get("tags", "").strip()
+    followers_filter = request.GET.get("followers")
+    read_filter = request.GET.get("read_status", "")
+    priority_filter = request.GET.get("priority")
+    confidential_filter = request.GET.get("confidential", "")
+    sla_filter = request.GET.get("sla", "")
+    search_query = request.GET.get("q", "").strip()
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+    updated_date = request.GET.get("updated_date")
+    # ``status=all`` = every status, including the approval-workflow ones the inbox hides by default
+    # (the dashboard's Total Tickets counts those too).
+    any_status = status_filter == "all"
+
+    if folder == "spam":
+        cases = cases.filter(is_spam=True)
+    elif folder == "archive":
+        cases = cases.filter(is_archived=True)
+    else:  # inbox
+        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
+        # Tickets in the CR approval workflow are hidden from the desk inbox
+        # until fully approved; desk agents can still find them via status filter.
+        if not status_filter:
+            cases = cases.exclude(status__in=[
+                CaseRecord.Status.PENDING_APPROVAL,
+                CaseRecord.Status.REVISION_REQUIRED,
+            ])
+
+    if status_filter and not any_status:
+        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
+        cases = cases.filter(status__in=status_list)
+    if source_filter:
+        cases = cases.filter(source=source_filter)
+    if category_filter:
+        cases = cases.filter(category_id__in=CaseCategory.subtree_ids(category_filter))
+    if assigned_to_filter and request.user.role_access != User.RoleAccess.ENGINEER:
+        if assigned_to_filter == "unassigned":
+            cases = cases.filter(assigned_to__isnull=True)
+        else:
+            cases = cases.filter(assigned_to_id=assigned_to_filter)
+    if request.GET.get("company_unit"):
+        cases = cases.filter(requester__unit_id=request.GET["company_unit"])
+    if type_filter:
+        cases = cases.filter(case_type=type_filter)
+    if priority_filter:
+        cases = cases.filter(priority=priority_filter)
+    if tags_filter:
+        cases = cases.filter(tags__icontains=tags_filter)
+    if followers_filter:
+        cases = cases.filter(followers__id=followers_filter)
+    cases = annotate_activity(cases, request.user)
+    if read_filter == "unread":
+        cases = cases.filter(has_unread_activity=True)
+    elif read_filter == "unopened":
+        cases = cases.filter(activity_read_at__isnull=True)
+    elif read_filter == "read":
+        cases = cases.filter(has_unread_activity=False, activity_read_at__isnull=False)
+    if confidential_filter == "1":
+        cases = cases.filter(category__is_confidential=True)
+    if sla_filter in ("breached", "at_risk"):
+        now = timezone.now()
+        cases = cases.exclude(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED])
+        if sla_filter == "breached":
+            cases = cases.filter(resolution_due_at__lt=now)
+        else:
+            cases = cases.filter(resolution_due_at__gt=now, resolution_due_at__lte=now + timedelta(hours=24))
+
+    if search_query:
+        # Support full case number format (e.g. "RQ-E8973E6D"):
+        # strip any PREFIX- prefix and search the UUID hex portion directly.
+        dash_idx = search_query.find('-')
+        uuid_part = search_query[dash_idx + 1:].lower() if dash_idx != -1 else None
+        q = (
+            Q(id__icontains=search_query) |
+            Q(subject__icontains=search_query) |
+            Q(requester_name__icontains=search_query) |
+            Q(requester__full_name__icontains=search_query) |
+            Q(requester_email__icontains=search_query) |
+            Q(requester__email__icontains=search_query) |
+            Q(requester__phone_number__icontains=search_query) |
+            Q(requester_unit_name__icontains=search_query) |
+            Q(requester__unit__name__icontains=search_query) |
+            Q(assigned_to__username__icontains=search_query) |
+            Q(assigned_to__first_name__icontains=search_query) |
+            Q(assigned_to__last_name__icontains=search_query)
+        )
+        if uuid_part:
+            q |= Q(id__istartswith=uuid_part)
+        cases = cases.filter(q)
+    if date_from:
+        cases = cases.filter(created_at__date__gte=date_from)
+    if date_to:
+        cases = cases.filter(created_at__date__lte=date_to)
+    if updated_date:
+        cases = cases.filter(updated_at__date=updated_date)
+
+    sort_field = request.GET.get("sort") or "last_activity"
+    sort_order = request.GET.get("order") or "desc"
+    ALLOWED_SORT_FIELDS = {
+        "last_activity": "last_activity_at",
+        "case_number": "id",
+        "subject": "subject",
+        "status": "status",
+        "source": "source",
+        "requester": "requester__full_name",
+        "category": "category__name",
+        "assigned_to": "assigned_to__username",
+        "created_at": "created_at",
+        "last_viewed_at": "last_viewed_at",
+        "priority": "priority_rank",
+        "case_type": "case_type",
+        "last_user_reply": "last_user_reply_at",
+    }
+    # Numeric rank so priority sorts by actual urgency (P4<P3<P2<P1),
+    # not alphabetically.
+    cases = cases.annotate(priority_rank=DBCase(
+        *[When(priority=p, then=i) for i, p in enumerate(CaseRecord.PRIORITY_ORDER)],
+        output_field=IntegerField(),
+    ))
+    cases = _annotate_confidential_access(cases, request.user)
+
+    db_field = ALLOWED_SORT_FIELDS.get(sort_field, "last_activity_at")
+    if sort_order == "asc":
+        cases = cases.order_by(F(db_field).asc(nulls_last=True), "-created_at", "-id")
+    else:
+        cases = cases.order_by(F(db_field).desc(nulls_last=True), "-created_at", "-id")
+
+    current_filters = {
+        "company_unit": request.GET.get("company_unit", ""),
+        "folder": folder,
+        "status": status_filter or "",
+        "source": source_filter or "",
+        "category": category_filter or "",
+        "assigned_to": assigned_to_filter or "",
+        "type": type_filter or "",
+        "priority": priority_filter or "",
+        "tags": tags_filter or "",
+        "followers": followers_filter or "",
+        "read_status": read_filter or "",
+        "confidential": confidential_filter or "",
+        "sla": sla_filter or "",
+        "q": search_query,
+        "date_from": date_from or "",
+        "date_to": date_to or "",
+        "updated_date": updated_date or "",
+    }
+    return cases, current_filters, sort_field, sort_order
+
+
+def _build_active_filter_chips(request, current_filters):
+    """
+    Build removable "chip" descriptors for every active Ticket Management
+    filter (excludes ``folder``, which has its own tab UI). Each chip's
+    ``remove_qs`` is the current querystring with just that filter cleared,
+    so the template stays a dumb loop over these dicts.
+    """
+    base_qs = request.GET.copy()
+    base_qs.pop("page", None)
+
+    def remove_qs(**to_clear):
+        qs = base_qs.copy()
+        for key, value in to_clear.items():
+            if value is None:
+                qs.pop(key, None)
+            else:
+                qs[key] = value
+        return qs.urlencode()
+
+    chips = []
+
+    status_filter = current_filters["status"]
+    if status_filter:
+        statuses = [s for s in status_filter.split(",") if s]
+        status_meta = CaseRecord.STATUS_META
+        for s in statuses:
+            remaining = [x for x in statuses if x != s]
+            chips.append({
+                "label": "Status: All" if s == "all" else f"Status: {status_meta.get(s, {}).get('label', s)}",
+                "remove_qs": remove_qs(status=",".join(remaining) if remaining else None),
+            })
+
+    if current_filters["source"]:
+        label = dict(CaseRecord.Source.choices).get(current_filters["source"], current_filters["source"])
+        chips.append({"label": f"Source: {label}", "remove_qs": remove_qs(source=None)})
+
+    if current_filters["category"]:
+        cat = CaseCategory.objects.filter(slug=current_filters["category"]).only("name").first()
+        chips.append({
+            "label": f"Category: {cat.name if cat else current_filters['category']}",
+            "remove_qs": remove_qs(category=None),
+        })
+
+    if current_filters["assigned_to"]:
+        if current_filters["assigned_to"] == "unassigned":
+            label = "Unassigned"
+        else:
+            u = User.objects.filter(pk=current_filters["assigned_to"]).only("first_name", "last_name", "username").first()
+            label = (u.get_full_name() or u.username) if u else current_filters["assigned_to"]
+        chips.append({"label": f"Assignee: {label}", "remove_qs": remove_qs(assigned_to=None)})
+
+    if current_filters["type"]:
+        label = dict(CaseRecord.Type.choices).get(current_filters["type"], current_filters["type"])
+        chips.append({"label": f"Type: {label}", "remove_qs": remove_qs(type=None)})
+
+    if current_filters["priority"]:
+        label = dict(CaseRecord.Priority.choices).get(current_filters["priority"], current_filters["priority"])
+        chips.append({"label": f"Priority: {label}", "remove_qs": remove_qs(priority=None)})
+
+    if current_filters["tags"]:
+        chips.append({"label": f"Tags: {current_filters['tags']}", "remove_qs": remove_qs(tags=None)})
+
+    if current_filters["followers"]:
+        u = User.objects.filter(pk=current_filters["followers"]).only("first_name", "last_name", "username").first()
+        label = (u.get_full_name() or u.username) if u else current_filters["followers"]
+        chips.append({"label": f"Follower: {label}", "remove_qs": remove_qs(followers=None)})
+
+    if current_filters["read_status"]:
+        label = {
+            "unread": "Unread Messages", "unopened": "Never Opened", "read": "Read",
+        }.get(current_filters["read_status"], current_filters["read_status"])
+        chips.append({"label": f"Read Status: {label}", "remove_qs": remove_qs(read_status=None)})
+
+    if current_filters["confidential"] == "1":
+        chips.append({"label": "🔒 Confidential Only", "remove_qs": remove_qs(confidential=None)})
+
+    if current_filters["sla"]:
+        label = {"breached": "⏰ SLA Breached", "at_risk": "⏰ SLA At Risk (24h)"}.get(
+            current_filters["sla"], current_filters["sla"]
+        )
+        chips.append({"label": label, "remove_qs": remove_qs(sla=None)})
+
+    if current_filters["updated_date"]:
+        chips.append({"label": f"Updated on: {current_filters['updated_date']}", "remove_qs": remove_qs(updated_date=None)})
+
+    if current_filters["q"]:
+        chips.append({"label": f'Search: "{current_filters["q"]}"', "remove_qs": remove_qs(q=None)})
+
+    if current_filters["date_from"] or current_filters["date_to"]:
+        df = current_filters["date_from"] or "…"
+        dt = current_filters["date_to"] or "…"
+        chips.append({
+            "label": f"Date: {df} → {dt}",
+            "remove_qs": remove_qs(date_from=None, date_to=None),
+        })
+
+    return chips
 
 
 def manager_or_admin_required(view_func):
@@ -432,7 +765,7 @@ def dashboard(request):
         is_spam=False,
         master_ticket__isnull=True,
         created_at__range=(dt_from, dt_to),
-    ).select_related("category", "assigned_to", "requester", "requester__unit")
+    ).select_related("category", "assigned_to", "requester", "requester__unit", "location")
 
     # Apply filters
     if filter_assigned:
@@ -440,8 +773,9 @@ def dashboard(request):
             qs = qs.filter(assigned_to__isnull=True)
         else:
             qs = qs.filter(assigned_to_id=filter_assigned)
+    qs = _scope_cases_for_user(qs, request.user)
     if filter_category:
-        qs = qs.filter(category__slug=filter_category)
+        qs = qs.filter(category_id__in=CaseCategory.subtree_ids(filter_category))
     if filter_source:
         qs = qs.filter(source=filter_source)
     if filter_priority:
@@ -453,7 +787,8 @@ def dashboard(request):
     active_qs = CaseRecord.objects.filter(
         is_spam=False,
         master_ticket__isnull=True,
-        status__in=[CaseRecord.Status.OPEN, CaseRecord.Status.INVESTIGATING, CaseRecord.Status.PENDING_INFO],
+        status__in=[CaseRecord.Status.NEW, CaseRecord.Status.ASSIGNED, CaseRecord.Status.IN_PROGRESS,
+                    CaseRecord.Status.PENDING_USER, CaseRecord.Status.PENDING_EXTERNAL],
     )
     if filter_assigned:
         if filter_assigned == "unassigned":
@@ -461,13 +796,15 @@ def dashboard(request):
         else:
             active_qs = active_qs.filter(assigned_to_id=filter_assigned)
     if filter_category:
-        active_qs = active_qs.filter(category__slug=filter_category)
+        active_qs = active_qs.filter(category_id__in=CaseCategory.subtree_ids(filter_category))
     if filter_source:
         active_qs = active_qs.filter(source=filter_source)
     if filter_priority:
         active_qs = active_qs.filter(priority=filter_priority)
     if filter_unit:
         active_qs = active_qs.filter(requester__unit_id=filter_unit)
+
+    active_qs = _scope_cases_for_user(active_qs, request.user)
 
     # ── SUMMARY CARDS ──────────────────────────────────────────────
     total_in_range = qs.count()
@@ -481,7 +818,7 @@ def dashboard(request):
         updated_at__date=today,
     ).count()
 
-    unread_count = active_qs.filter(has_unread_messages=True).count()
+    unread_count = annotate_activity(active_qs, request.user).filter(has_unread_activity=True).count()
 
     # SLA breached: resolution_due_at < now AND status not closed/resolved
     sla_breached = active_qs.filter(
@@ -522,24 +859,24 @@ def dashboard(request):
             trend_granularity = "monthly"
 
     if trend_granularity == "monthly":
-        from django.db.models.functions import TruncMonth as TruncPeriod
+        from django.db.models.functions import TruncMonth as trunc_period
         fmt = "%b %Y"
     elif trend_granularity == "weekly":
-        from django.db.models.functions import TruncWeek as TruncPeriod
+        from django.db.models.functions import TruncWeek as trunc_period
         fmt = "%d %b"
     else:
-        TruncPeriod = TruncDate
+        trunc_period = TruncDate
         fmt = "%d %b"
 
     trend_data = (
-        qs.annotate(period=TruncPeriod("created_at"))
+        qs.annotate(period=trunc_period("created_at"))
         .values("period")
         .annotate(created=Count("id"))
         .order_by("period")
     )
     resolved_trend = (
         qs.filter(status__in=[CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED])
-        .annotate(period=TruncPeriod("updated_at"))
+        .annotate(period=trunc_period("updated_at"))
         .values("period")
         .annotate(resolved=Count("id"))
         .order_by("period")
@@ -569,13 +906,7 @@ def dashboard(request):
     status_dist = qs.values("status").annotate(count=Count("id")).order_by("status")
     status_labels = []
     status_counts = []
-    status_colors = {
-        "Open": "#6366f1",
-        "Investigating": "#f59e0b",
-        "PendingInfo": "#0ea5e9",
-        "Resolved": "#10b981",
-        "Closed": "#64748b",
-    }
+    status_colors = {code: meta["color"] for code, meta in CaseRecord.STATUS_META.items()}
     status_bg = []
     for s in status_dist:
         status_labels.append(s["status"])
@@ -595,7 +926,7 @@ def dashboard(request):
     priority_dist = qs.values("priority").annotate(count=Count("id")).order_by("-count")
     priority_labels = []
     priority_counts = []
-    priority_colors_map = {"Low": "#10b981", "Medium": "#f59e0b", "High": "#ef4444", "Critical": "#7c3aed"}
+    priority_colors_map = {"P4": "#10b981", "P3": "#f59e0b", "P2": "#ef4444", "P1": "#7c3aed"}
     priority_bg = []
     for p in priority_dist:
         priority_labels.append(p["priority"])
@@ -664,13 +995,16 @@ def dashboard(request):
 
     # ── CHART DATA: First Response Time (FRT) Trend ────────────────
     from django.db.models import Min, Subquery, OuterRef
+    from django.db.models.functions import Coalesce
     frt_subquery = Message.objects.filter(
         case=OuterRef("pk"),
         direction=Message.Direction.OUTBOUND,
+        is_system=False,
+        sender_staff__isnull=False,
     ).order_by("sent_at").values("sent_at")[:1]
 
     frt_qs = (
-        qs.annotate(first_reply_at=Subquery(frt_subquery))
+        qs.annotate(first_reply_at=Coalesce(F("first_response_at"), Subquery(frt_subquery)))
         .filter(first_reply_at__isnull=False)
         .annotate(
             frt_seconds=ExpressionWrapper(
@@ -678,7 +1012,7 @@ def dashboard(request):
                 output_field=DurationField(),
             )
         )
-        .annotate(period=TruncPeriod("created_at"))
+        .annotate(period=trunc_period("created_at"))
         .values("period")
         .annotate(avg_frt=Avg("frt_seconds"))
         .order_by("period")
@@ -694,7 +1028,7 @@ def dashboard(request):
 
     # Overall avg FRT
     overall_frt_qs = (
-        qs.annotate(first_reply_at=Subquery(frt_subquery))
+        qs.annotate(first_reply_at=Coalesce(F("first_response_at"), Subquery(frt_subquery)))
         .filter(first_reply_at__isnull=False)
         .annotate(
             frt_seconds=ExpressionWrapper(
@@ -758,7 +1092,8 @@ def dashboard(request):
         is_spam=False,
         master_ticket__isnull=True,
         created_at__range=(dt_from, dt_to),
-        status__in=[CaseRecord.Status.OPEN, CaseRecord.Status.INVESTIGATING, CaseRecord.Status.PENDING_INFO],
+        status__in=[CaseRecord.Status.NEW, CaseRecord.Status.ASSIGNED, CaseRecord.Status.IN_PROGRESS,
+                    CaseRecord.Status.PENDING_USER, CaseRecord.Status.PENDING_EXTERNAL],
         edit_permission_status__isnull=False,  # had amendment workflow = was closed before
     ).count()
     reopen_pct = round((reopened_count / total_in_range * 100), 1) if total_in_range > 0 else 0
@@ -820,7 +1155,7 @@ def dashboard(request):
 
     # ── Filter options for dropdowns ───────────────────────────────
     staff_users = User.objects.filter(
-        role_access__in=[User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER, User.RoleAccess.SUPPORTDESK]
+        role_access__in=[User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER, User.RoleAccess.SUPPORTDESK, User.RoleAccess.ENGINEER]
     ).order_by("username")
     categories = CaseCategory.objects.filter(parent__isnull=True).order_by("name")
     all_company_units = CompanyUnit.objects.order_by("code")
@@ -838,7 +1173,7 @@ def dashboard(request):
         else:
             map_case_filter &= Q(employees__cases__assigned_to_id=filter_assigned)
     if filter_category:
-        map_case_filter &= Q(employees__cases__category__slug=filter_category)
+        map_case_filter &= Q(employees__cases__category_id__in=CaseCategory.subtree_ids(filter_category))
     if filter_source:
         map_case_filter &= Q(employees__cases__source=filter_source)
     if filter_priority:
@@ -870,7 +1205,41 @@ def dashboard(request):
     map_total_units = len(map_units_list)
     map_covered_tickets = sum(u.ticket_count for u in map_units_list)
 
+    # Each summary card opens Task Management with the filters that reproduce its number: the same
+    # status set, the dashboard's own filters (assignee, category, source, priority, entity), and the
+    # date range only where the card is counted within it (Total, Resolved).
+    from urllib.parse import urlencode
+
+    shared = {
+        "assigned_to": filter_assigned, "category": filter_category, "source": filter_source,
+        "priority": filter_priority, "company_unit": filter_unit,
+    }
+    active_statuses = ",".join((
+        CaseRecord.Status.NEW, CaseRecord.Status.ASSIGNED, CaseRecord.Status.IN_PROGRESS,
+        CaseRecord.Status.PENDING_USER, CaseRecord.Status.PENDING_EXTERNAL,
+    ))
+    in_range = {"date_from": date_from.isoformat(), "date_to": date_to.isoformat()}
+
+    def card_url(**params):
+        # panel=closed: arrive with the advanced-filter panel hidden (the chips already show what is applied)
+        merged = {**shared, **params, "panel": "closed"}
+        return reverse("desk:case_list") + "?" + urlencode({k: v for k, v in merged.items() if v})
+
+    card_urls = {
+        "total": card_url(status="all", **in_range),
+        "active": card_url(status=active_statuses),
+        # Filtered to one agent, "unassigned" is empty by definition: nothing to open.
+        "unassigned": None if filter_assigned not in ("", "unassigned") else card_url(status=active_statuses, assigned_to="unassigned"),
+        "resolved": card_url(status="Resolved,Closed", **in_range),
+        # Counted across all tickets resolved today, whatever the dashboard filters say.
+        "resolved_today": reverse("desk:case_list") + "?" + urlencode({"status": "Resolved,Closed", "updated_date": today.isoformat(), "panel": "closed"}),
+        "sla_breached": card_url(status=active_statuses, sla="breached"),
+        "sla_at_risk": card_url(status=active_statuses, sla="at_risk"),
+        "unread": card_url(status=active_statuses, read_status="unread"),
+    }
+
     context = {
+        "card_urls": card_urls,
         # Summary cards
         "total_in_range": total_in_range,
         "total_active": total_active,
@@ -965,7 +1334,40 @@ def client_dashboard(request):
         .prefetch_related("children")
     )
     portal_forms = DynamicForm.objects.filter(is_published=True, show_on_portal=True)
-    return render(request, "client/dashboard.html", {"categories": categories, "portal_forms": portal_forms})
+    parent_options = CaseCategory.parent_select_options()
+    category_search_tree = CaseCategory.portal_search_tree(
+        exclude_slugs=["whatsapp-general", "email-general"],
+    )
+    from announcements.services import visible_announcements_for
+    from .portal_services import annotate_cards, favorite_ids, favorite_subcategories, service_usage
+
+    # Per-user star and usage, read by the Services toolbar (favorites only / recently / most used).
+    # Starred sub-categories are extra cards that only show while the ★ filter is on.
+    favorites = favorite_ids(request.user)
+    usage = service_usage(request.user)
+    categories = annotate_cards(list(categories), request.user, usage, favorites)
+    starred_children = annotate_cards(
+        favorite_subcategories(request.user, exclude_slugs=["whatsapp-general", "email-general"]),
+        request.user, usage, favorites,
+    )
+
+    return render(request, "client/dashboard.html", {
+        "categories": categories,
+        "starred_children": starred_children,
+        "portal_forms": portal_forms,
+        "parent_category_options": parent_options,
+        "category_search_tree": category_search_tree,
+        "portal_announcements": visible_announcements_for(request.user)[:5],
+    })
+
+
+@login_required
+@require_POST
+def favorite_service_toggle(request, category_id):
+    """Star / unstar a Ticket Portal service card for the signed-in user."""
+    from .portal_services import toggle_favorite
+    category = get_object_or_404(CaseCategory, id=category_id)
+    return JsonResponse({"ok": True, "favorite": toggle_favorite(request.user, category)})
 
 
 @login_required
@@ -976,7 +1378,7 @@ def create_category(request):
     Only accessible by SuperAdmin users.
     """
     if request.user.role_access != User.RoleAccess.SUPERADMIN:
-        return JsonResponse({"error": "Access denied."}, status=403)
+        return JsonResponse({"error": ACCESS_DENIED_MSG}, status=403)
 
     name = request.POST.get("name", "").strip()
     description = request.POST.get("description", "").strip()
@@ -991,6 +1393,13 @@ def create_category(request):
     if not name:
         return JsonResponse({"error": "Category name is required."}, status=400)
 
+    prefix_code = (prefix_code or "RQ").upper()
+    if CaseCategory.objects.filter(prefix_code__iexact=prefix_code).exists():
+        return JsonResponse(
+            {"error": f'Prefix code "{prefix_code}" is already in use.'},
+            status=400,
+        )
+
     parent = None
     if parent_id:
         parent = CaseCategory.objects.filter(id=parent_id).first()
@@ -1000,7 +1409,7 @@ def create_category(request):
             name=name,
             description=description,
             icon=icon or "📝",
-            prefix_code=prefix_code or "RQ",
+            prefix_code=prefix_code,
             parent=parent,
             is_confidential=is_confidential,
             is_attachment_mandatory=is_attachment_mandatory,
@@ -1025,7 +1434,7 @@ def update_category(request, category_id):
     Only accessible by SuperAdmin users.
     """
     if request.user.role_access != User.RoleAccess.SUPERADMIN:
-        return JsonResponse({"error": "Access denied."}, status=403)
+        return JsonResponse({"error": ACCESS_DENIED_MSG}, status=403)
 
     category = get_object_or_404(CaseCategory, id=category_id)
 
@@ -1033,27 +1442,37 @@ def update_category(request, category_id):
     if not name:
         return JsonResponse({"error": "Category name is required."}, status=400)
 
+    new_prefix = request.POST.get("prefix_code", "RQ").strip()[:2].upper() or "RQ"
+    if CaseCategory.objects.filter(prefix_code__iexact=new_prefix).exclude(id=category.id).exists():
+        return JsonResponse(
+            {"error": f'Prefix code "{new_prefix}" is already in use.'},
+            status=400,
+        )
+
     category.name = name
     category.description = request.POST.get("description", "").strip()
     category.icon = request.POST.get("icon", "").strip() or "📝"
-    category.prefix_code = request.POST.get("prefix_code", "RQ").strip()[:2] or "RQ"
+    category.prefix_code = new_prefix
     category.is_confidential = request.POST.get("is_confidential") == "on"
     category.is_attachment_mandatory = request.POST.get("is_attachment_mandatory") == "on"
     category.template_subject = request.POST.get("template_subject", "").strip()
     category.template_text = request.POST.get("template_text", "").strip()
     category.updated_by = request.user
 
-    # Update parent
     parent_id = request.POST.get("parent", "").strip()
     if parent_id:
         if str(category.id) == parent_id:
             return JsonResponse({"error": "A category cannot be its own parent."}, status=400)
         new_parent = CaseCategory.objects.filter(id=parent_id).first()
+        if new_parent and new_parent.pk in category.get_descendant_ids():
+            return JsonResponse(
+                {"error": "A category cannot be nested under one of its sub-categories."},
+                status=400,
+            )
         category.parent = new_parent
     else:
         category.parent = None
 
-    # Allow changing slug if name changed
     new_slug = request.POST.get("slug", "").strip()
     if new_slug and new_slug != category.slug:
         if CaseCategory.objects.filter(slug=new_slug).exclude(id=category.id).exists():
@@ -1078,7 +1497,7 @@ def delete_category(request, category_id):
     Prevents deletion if category has associated tickets.
     """
     if request.user.role_access != User.RoleAccess.SUPERADMIN:
-        return JsonResponse({"error": "Access denied."}, status=403)
+        return JsonResponse({"error": ACCESS_DENIED_MSG}, status=403)
 
     category = get_object_or_404(CaseCategory, id=category_id)
 
@@ -1122,18 +1541,27 @@ def category_children(request, slug):
         breadcrumbs.insert(0, node)
         node = node.parent
 
-    # All root categories for parent dropdown in edit modal
-    all_root_categories = (
-        CaseCategory.objects
-        .filter(parent__isnull=True)
-        .exclude(slug__in=["whatsapp-general", "email-general"])
-    )
+    parent_category_options = CaseCategory.parent_select_options()
+    subtree = CaseCategory.portal_search_tree()
+    # Restrict search tree to this parent's descendants only
+    def find_node(nodes, slug):
+        for n in nodes:
+            if n["slug"] == slug:
+                return n
+            found = find_node(n.get("children") or [], slug)
+            if found:
+                return found
+        return None
+    parent_node = find_node(subtree, parent.slug)
+    category_search_tree = (parent_node or {}).get("children") or []
 
+    from .portal_services import annotate_cards
     return render(request, "client/category_children.html", {
         "parent": parent,
-        "children": children,
+        "children": annotate_cards(list(children), request.user),
         "breadcrumbs": breadcrumbs,
-        "all_root_categories": all_root_categories,
+        "parent_category_options": parent_category_options,
+        "category_search_tree": category_search_tree,
     })
 
 
@@ -1145,11 +1573,28 @@ def create_case(request, slug=None):
     """
     import json
     from core.models import JobRole as JobRoleModel, SiteConfig
+
+    def _entity_name_for_badge(f):
+        """Resolve the currently-selected company_unit's display name.
+
+        Used to prefill the "picked requestor" summary badge under Full Name
+        so it shows on first load/redisplay, not just after the user re-types
+        their name and re-picks it from the live search dropdown.
+        """
+        try:
+            cu_id = f["company_unit"].value()
+        except Exception:
+            cu_id = None
+        if not cu_id:
+            return ""
+        return CompanyUnit.objects.filter(pk=cu_id).values_list("name", flat=True).first() or ""
+
     initial = {}
     selected_category = None
 
     _site_cfg = SiteConfig.get_solo()
     _job_role_mode = _site_cfg.job_role_mode
+    ticket_locations = TicketLocation.objects.filter(is_active=True)
 
     if slug:
         selected_category = get_object_or_404(CaseCategory, slug=slug)
@@ -1223,9 +1668,10 @@ def create_case(request, slug=None):
         
         if attempts >= 5:
             messages.error(request, "Too many requests. Please wait 10 minutes before submitting a new ticket.")
-            return render(request, "client/create_case.html", {
+            return render(request, TEMPLATE_CREATE_CASE, {
                 "categories": categories_qs,
                 "company_units": CompanyUnit.objects.all(),
+                "ticket_locations": ticket_locations,
             }, status=429)
 
         form = CaseCreateForm(request.POST, request.FILES, job_role_mode=_job_role_mode)
@@ -1242,17 +1688,19 @@ def create_case(request, slug=None):
             if file_errors:
                 for err in file_errors:
                     form.add_error(None, err)
-                return render(request, "client/create_case.html", {
+                return render(request, TEMPLATE_CREATE_CASE, {
                     "form": form,
                     "job_role_mode": _job_role_mode,
                     "selected_category": selected_category,
                     "categories": categories_qs,
                     "company_units": CompanyUnit.objects.all(),
+                    "ticket_locations": ticket_locations,
                     "category_templates_json": category_templates_json,
                     "category_templates_subject_json": category_templates_subject_json,
                     "category_cr_enabled_json": category_cr_enabled_json,
                     "category_document_templates_json": category_document_templates_json,
                     "available_approvers_json": available_approvers_json,
+                    "requester_entity_name": _entity_name_for_badge(form),
                 })
 
             email = form.cleaned_data["requester_email"]
@@ -1321,14 +1769,28 @@ def create_case(request, slug=None):
                 requester_name=form.cleaned_data["requester_name"],
                 requester_job_role=form.cleaned_data["job_role"],
                 requester_unit_name=company_unit.name,
+                location=form.cleaned_data.get("location"),
+                location_detail=form.cleaned_data.get("location_detail", ""),
                 category=category,
                 subject=form.cleaned_data["subject"],
                 problem_description=form.cleaned_data["problem_description"],
                 link=form.cleaned_data.get("link", ""),
+                cc_emails=form.cleaned_data.get("cc_emails", ""),
                 source=CaseRecord.Source.WEBFORM,
-                status=CaseRecord.Status.OPEN,
+                status=CaseRecord.Status.NEW,
                 has_unread_messages=True,
+                last_user_reply_at=timezone.now(),
             )
+
+            # Add followers right at creation time — any authenticated
+            # submitter (staff or the requester themselves) can loop in a
+            # colleague/manager so they can track the ticket and get
+            # notified on updates, same multi-select pattern as cr_approvers
+            # above (plain POST list, not a declared form field).
+            if request.user.is_authenticated:
+                follower_ids = [fid for fid in request.POST.getlist("followers") if fid]
+                if follower_ids:
+                    case.followers.set(User.objects.filter(id__in=follower_ids))
 
             # Create the initial message from the problem description
             msg = Message.objects.create(
@@ -1355,7 +1817,7 @@ def create_case(request, slug=None):
             cr_chronology = request.POST.get("cr_chronology", "").strip()
 
             def _quill_has_content(html):
-                text = re.sub(r'<[^>]+>', '', html or '').strip()
+                text = re.sub(HTML_TAG_PATTERN, '', html or '').strip()
                 return bool(text) or '<img' in (html or '')
 
             cr_is_pending_approval = False
@@ -1434,8 +1896,13 @@ def create_case(request, slug=None):
             if form.email_domain_warning:
                 messages.warning(request, form.email_domain_warning)
 
-            # Increment Rate Limit Counter
-            cache.set(cache_key, attempts + 1, timeout=600)  # 10 minutes timeout
+            cache.set(cache_key, attempts + 1, timeout=600)
+
+            try:
+                from gateways.tasks import send_case_acknowledgment_task
+                send_case_acknowledgment_task.delay(str(case.id))
+            except Exception:
+                logger.warning("Failed to dispatch acknowledgment email for case %s", case.id)
 
             return redirect("cases:case_submitted", case_id=case.id)
     else:
@@ -1452,17 +1919,19 @@ def create_case(request, slug=None):
                 initial.setdefault("requester_email", request.user.email)
         form = CaseCreateForm(initial=initial, job_role_mode=_job_role_mode)
 
-    return render(request, "client/create_case.html", {
+    return render(request, TEMPLATE_CREATE_CASE, {
         "form": form,
         "job_role_mode": _job_role_mode,
         "selected_category": selected_category,
         "categories": categories_qs,
         "company_units": CompanyUnit.objects.all(),
+        "ticket_locations": ticket_locations,
         "category_templates_json": category_templates_json,
         "category_templates_subject_json": category_templates_subject_json,
         "category_cr_enabled_json": category_cr_enabled_json,
         "category_document_templates_json": category_document_templates_json,
         "available_approvers_json": available_approvers_json,
+        "requester_entity_name": _entity_name_for_badge(form),
     })
 
 
@@ -1497,22 +1966,6 @@ def case_submitted(request, case_id):
         "case": case,
         "pending_approvals": pending_approvals,
     })
-
-def send_case_email(request, case_id):
-    """View to trigger an email to the requester with case details."""
-    from django.contrib import messages
-    from gateways.tasks import send_case_acknowledgment_task
-    
-    case = get_object_or_404(CaseRecord, id=case_id)
-    
-    if request.method == "POST":
-        try:
-            send_case_acknowledgment_task.delay(str(case.id))
-            messages.success(request, f"Ticket information has been successfully sent to {case.requester_email}.")
-        except Exception as e:
-            messages.error(request, f"Failed to send ticket information email. The mail service might be temporarily down. Please take a screenshot of this page for your records. (Error: {e})")
-            
-    return redirect("cases:case_submitted", case_id=case.id)
 
 
 # =====================================================================
@@ -1557,7 +2010,7 @@ def public_form_view(request, slug):
         attempts = cache.get(cache_key, 0)
         if attempts >= 5:
             messages.error(request, "Too many requests. Please wait 10 minutes before submitting this form again.")
-            return render(request, "client/public_form.html", {
+            return render(request, TEMPLATE_PUBLIC_FORM, {
                 "dynamic_form": form_obj,
                 "fields": fields,
                 "is_preview": is_preview,
@@ -1568,25 +2021,27 @@ def public_form_view(request, slug):
         answers = {}
         errors = {}
 
+        from core.upload_security import validate_upload, safe_filename
+
         site_config = SiteConfig.get_solo()
-        max_size_bytes = site_config.max_upload_size_mb * 1024 * 1024
         fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'form_uploads'), base_url=f"{settings.MEDIA_URL}form_uploads/")
 
         for field in fields:
             if 'attachment' in field.field_type:
                 files = request.FILES.getlist(f"field_{field.id}")
                 if field.is_required and not files:
-                    errors[str(field.id)] = "This field is required."
+                    errors[str(field.id)] = FIELD_REQUIRED_MSG
                     answers[str(field.id)] = None
                     continue
 
                 saved_files = []
                 for f in files:
-                    if f.size > max_size_bytes:
-                        errors[str(field.id)] = f"File {f.name} exceeds {site_config.max_upload_size_mb}MB limit."
+                    is_valid, error, mime = validate_upload(f, site_config.max_upload_size_mb)
+                    if not is_valid:
+                        errors[str(field.id)] = f'File "{f.name}": {error}'
                         break
-                    
-                    filename = fs.save(os.path.basename(f.name), f)
+
+                    filename = fs.save(safe_filename(f.name, mime), f)
                     saved_files.append(fs.url(filename))
                 
                 if field.field_type == 'attachment':
@@ -1598,12 +2053,12 @@ def public_form_view(request, slug):
                 # Checkbox fields use getlist because they can have multiple values
                 val = request.POST.getlist(f"field_{field.id}")
                 if field.is_required and not val:
-                    errors[str(field.id)] = "This field is required."
+                    errors[str(field.id)] = FIELD_REQUIRED_MSG
                 answers[str(field.id)] = val
             else:
                 val = request.POST.get(f"field_{field.id}", "").strip()
                 if field.is_required and not val:
-                    errors[str(field.id)] = "This field is required."
+                    errors[str(field.id)] = FIELD_REQUIRED_MSG
                 answers[str(field.id)] = val
 
         if form_obj.collect_user:
@@ -1616,7 +2071,7 @@ def public_form_view(request, slug):
 
         if errors:
             messages.error(request, "Please fill out all required fields marked with *")
-            return render(request, "client/public_form.html", {
+            return render(request, TEMPLATE_PUBLIC_FORM, {
                 "dynamic_form": form_obj,
                 "fields": fields,
                 "answers": answers,
@@ -1637,13 +2092,13 @@ def public_form_view(request, slug):
 
         messages.success(request, form_obj.success_message)
         # Using a simple success flag in context or simply rendering directly
-        return render(request, "client/public_form.html", {
+        return render(request, TEMPLATE_PUBLIC_FORM, {
             "dynamic_form": form_obj,
             "success": True,
             "company_units": apps.get_model('core', 'CompanyUnit').objects.all()
         })
 
-    return render(request, "client/public_form.html", {
+    return render(request, TEMPLATE_PUBLIC_FORM, {
         "dynamic_form": form_obj,
         "fields": fields,
         "is_preview": is_preview,
@@ -1655,166 +2110,149 @@ def public_form_view(request, slug):
 # Auth Required Desk (Admin/Staff) Views below
 # =====================================================================
 
+# Table page, its htmx results partial and the auto-refresh rows share one rows-per-page choice
+TASK_LIST_PAGE_SIZE_KEY = "task_management"
+
+
+def _case_neighbours(request, case, list_url):
+    """
+    (prev_id, next_id) for the ticket-detail arrows, walking the same filtered + sorted
+    list the user last had open in Task Management (``list_url``), within what they may
+    see. Falls back to the default Inbox order when the ticket isn't in that list
+    (e.g. opened from a notification, or it no longer matches the filter).
+    """
+    from types import SimpleNamespace
+    from urllib.parse import urlsplit
+    from django.http import QueryDict
+
+    def ordered_ids(query):
+        shim = SimpleNamespace(GET=QueryDict(query), user=request.user)
+        qs = _scope_cases_for_user(CaseRecord.objects.all(), request.user)
+        qs, _filters, _sort, _order = _filter_case_queryset(shim, qs)
+        return list(qs.values_list("id", flat=True))
+
+    query = urlsplit(list_url).query
+    for q in ([query, ""] if query else [""]):
+        ids = ordered_ids(q)
+        if case.id in ids:
+            i = ids.index(case.id)
+            return (ids[i - 1] if i > 0 else None), (ids[i + 1] if i + 1 < len(ids) else None)
+    return None, None
+
+
+def _case_list_results_context(request):
+    """Shared context for the results block (count/chips/table/pagination) — used by
+    both the full-page ``case_list`` view and the ``case_list_results_partial`` HTMX view."""
+    cases = CaseRecord.objects.select_related(
+        "requester", "requester__unit", "category", "assigned_to", "location"
+    ).all()
+    cases = _scope_cases_for_user(cases, request.user)
+    cases, current_filters, sort_field, sort_order = _filter_case_queryset(request, cases)
+
+    from core.list_pagination import get_page_size, make_paginator, page_size_context
+    page_size = get_page_size(request, default=50, key=TASK_LIST_PAGE_SIZE_KEY)
+    page_obj = make_paginator(cases, page_size).get_page(request.GET.get('page'))
+    page_obj.object_list = attach_unread_counts(list(page_obj.object_list), request.user)
+
+    return {
+        **page_size_context(page_size),
+        "cases": page_obj,
+        "current_filters": current_filters,
+        "current_sort": sort_field,
+        "current_order": sort_order,
+        "active_filter_chips": _build_active_filter_chips(request, current_filters),
+        "task_view_url": reverse(URLNAME_CASE_LIST),
+        "now": timezone.now(),
+    }
+
+
 @staff_required
 def case_list(request):
     """
     Filterable list of all cases for the support desk.
     Supports status/source/category filtering via GET params.
     """
-    cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to"
-    ).all()
-
-    # --- Filtering ---
-    folder = request.GET.get("folder", "inbox")
-    status_filter = request.GET.get("status")
-    source_filter = request.GET.get("source")
-    category_filter = request.GET.get("category")
-    assigned_to_filter = request.GET.get("assigned_to")
-    type_filter = request.GET.get("type")
-    tags_filter = request.GET.get("tags", "").strip()
-    followers_filter = request.GET.get("followers")
-    read_filter = request.GET.get("read_status", "")
-    unit_filter = request.GET.get("company_unit")
-
-    search_query = request.GET.get("q", "").strip()
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-
-    # Folder specific base filtering
-    if folder == "spam":
-        cases = cases.filter(is_spam=True)
-    elif folder == "archive":
-        cases = cases.filter(is_archived=True)
-    else:  # inbox
-        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
-        # Tickets in the CR approval workflow are hidden from the desk inbox
-        # until fully approved; desk agents can still find them via status filter.
-        if not status_filter:
-            cases = cases.exclude(status__in=[
-                CaseRecord.Status.PENDING_APPROVAL,
-                CaseRecord.Status.REVISION_REQUIRED,
-            ])
-
-    if status_filter:
-        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
-        cases = cases.filter(status__in=status_list)
-    if source_filter:
-        cases = cases.filter(source=source_filter)
-    if category_filter:
-        cases = cases.filter(category__slug=category_filter)
-    if assigned_to_filter:
-        if assigned_to_filter == "unassigned":
-            cases = cases.filter(assigned_to__isnull=True)
-        else:
-            cases = cases.filter(assigned_to_id=assigned_to_filter)
-    if type_filter:
-        cases = cases.filter(case_type=type_filter)
-    if unit_filter:
-        cases = cases.filter(requester__unit_id=unit_filter)
-    if tags_filter:
-        cases = cases.filter(tags__icontains=tags_filter)
-    if followers_filter:
-        cases = cases.filter(followers__id=followers_filter)
-    if read_filter == "unread":
-        cases = cases.filter(has_unread_messages=True)
-    elif read_filter == "unopened":
-        cases = cases.filter(last_viewed_at__isnull=True)
-    elif read_filter == "read":
-        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
-
-    if search_query:
-        # Support full case number format (e.g. "RQ-E8973E6D"):
-        # strip any PREFIX- prefix and search the UUID hex portion directly.
-        dash_idx = search_query.find('-')
-        uuid_part = search_query[dash_idx + 1:].lower() if dash_idx != -1 else None
-        q = (
-            Q(id__icontains=search_query) |
-            Q(subject__icontains=search_query) |
-            Q(requester_name__icontains=search_query) |
-            Q(requester__full_name__icontains=search_query) |
-            Q(requester_email__icontains=search_query) |
-            Q(requester__email__icontains=search_query) |
-            Q(requester__phone_number__icontains=search_query) |
-            Q(requester_unit_name__icontains=search_query) |
-            Q(requester__unit__name__icontains=search_query)
-        )
-        if uuid_part:
-            q |= Q(id__istartswith=uuid_part)
-        cases = cases.filter(q)
-    if date_from:
-        cases = cases.filter(created_at__date__gte=date_from)
-    if date_to:
-        cases = cases.filter(created_at__date__lte=date_to)
-
-    # --- Sorting ---
-    sort_field = request.GET.get("sort", "created_at")
-    sort_order = request.GET.get("order", "desc")
-    ALLOWED_SORT_FIELDS = {
-        "case_number": "id",
-        "subject": "subject",
-        "status": "status",
-        "source": "source",
-        "requester": "requester__full_name",
-        "category": "category__name",
-        "assigned_to": "assigned_to__username",
-        "created_at": "created_at",
-        "last_viewed_at": "last_viewed_at",
-    }
-    # Annotate confidential access for the current user
-    cases = _annotate_confidential_access(cases, request.user)
-
-    db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
-    if sort_order == "asc":
-        cases = cases.order_by(F(db_field).asc(nulls_last=True))
-    else:
-        cases = cases.order_by(F(db_field).desc(nulls_last=True))
-
-    from django.core.paginator import Paginator
-    paginator = Paginator(cases, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    request.session["task_management_url"] = request.get_full_path()
+    context = _case_list_results_context(request)
+    current_filters = context["current_filters"]
 
     # Calculate unread counts
-    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
-    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
-    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+    unread_base = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user)
+    unread_inbox = unread_base.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_activity=True).count()
+    unread_archive = unread_base.filter(is_archived=True, has_unread_activity=True).count()
+    unread_spam = unread_base.filter(is_spam=True, has_unread_activity=True).count()
 
     from django.contrib.auth import get_user_model
-    User = get_user_model()
-    
-    assignees = User.objects.filter(is_staff=True, is_active=True).exclude(
-        role_access__in=[User.RoleAccess.AUDITOR, User.RoleAccess.PORTALUSER]
-    ).order_by("first_name", "username")
-    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
+    user_model = get_user_model()
 
-    return render(request, "admin/case_list.html", {
-        "cases": page_obj,
+    assignees = user_model.objects.filter(is_staff=True, is_active=True).exclude(
+        role_access__in=[user_model.RoleAccess.AUDITOR, user_model.RoleAccess.PORTALUSER]
+    ).order_by("first_name", "username")
+    all_followers = user_model.objects.filter(is_active=True).order_by("first_name", "username")
+
+    context.update({
         "statuses": CaseRecord.Status.choices,
-        "sources": CaseRecord.Source.choices,
+        "all_status_columns": [
+            (code, meta["icon"], meta["label"], meta["color"])
+            for code, meta in CaseRecord.STATUS_META.items()
+        ],
+        "sources": [(value, label) for value, label in CaseRecord.Source.choices if value != CaseRecord.Source.EVOLUTION_WA],
         "categories": CaseCategory.objects.all(),
         "types": CaseRecord.Type.choices,
+        "priorities": CaseRecord.Priority.choices,
         "assignees": assignees,
         "all_followers": all_followers,
-        "current_filters": {
-            "folder": folder,
-            "status": status_filter or "",
-            "source": source_filter or "",
-            "category": category_filter or "",
-            "assigned_to": assigned_to_filter or "",
-            "type": type_filter or "",
-            "tags": tags_filter or "",
-            "followers": followers_filter or "",
-            "read_status": read_filter or "",
-            "q": search_query,
-            "date_from": date_from or "",
-            "date_to": date_to or "",
-        },
-        "current_sort": sort_field,
-        "current_order": sort_order,
+        "saved_filters": request.user.saved_case_filters.all(),
         "unread_inbox": unread_inbox,
         "unread_archive": unread_archive,
         "unread_spam": unread_spam,
+    })
+    return render(request, "admin/case_list.html", context)
+
+
+@staff_required
+def case_list_results_partial(request):
+    """
+    HTMX partial: returns the results block (count/chips/table/pagination)
+    for live filtering — the filter form's ``hx-get`` target.
+    """
+    response = render(request, "partials/case_results.html", _case_list_results_context(request))
+    # This endpoint's own URL is an implementation detail — point the browser's
+    # address bar/history at the canonical page URL instead (a plain hx-push-url="true"
+    # would push THIS endpoint's path, breaking refresh/back/bookmark and the
+    # "remove filter chip" links, which resolve their relative "?..." href against
+    # whatever is currently in the address bar).
+    query = request.GET.urlencode()
+    list_url = f"{reverse('desk:case_list')}?{query}" if query else reverse("desk:case_list")
+    request.session["task_management_url"] = list_url
+    response["HX-Push-Url"] = list_url
+    return response
+
+
+@staff_required
+@require_POST
+def saved_filter_create(request):
+    """Save the current Ticket Management filters (from the ``qs`` POST field) under a name."""
+    name = (request.POST.get("name") or "").strip()
+    qs = (request.POST.get("qs") or "").strip()
+    if name:
+        from urllib.parse import parse_qsl, urlencode
+        pairs = [(k, v) for k, v in parse_qsl(qs) if k != "page"]
+        SavedCaseFilter.objects.create(user=request.user, name=name[:100], query_string=urlencode(pairs))
+    return render(request, "partials/saved_filters_row.html", {
+        "saved_filters": request.user.saved_case_filters.all(),
+        "task_view_url": request.session.get("task_management_url", reverse(URLNAME_CASE_LIST)).split("?")[0],
+    })
+
+
+@staff_required
+@require_POST
+def saved_filter_delete(request, filter_id):
+    """Delete one of the current user's saved filters."""
+    request.user.saved_case_filters.filter(id=filter_id).delete()
+    return render(request, "partials/saved_filters_row.html", {
+        "saved_filters": request.user.saved_case_filters.all(),
+        "task_view_url": request.session.get("task_management_url", reverse(URLNAME_CASE_LIST)).split("?")[0],
     })
 
 
@@ -1829,104 +2267,26 @@ def case_list_partial(request):
     on the case list page. Accepts the same GET params as case_list.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to", "location"
     ).all()
+    cases = _scope_cases_for_user(cases, request.user)
+    cases, _current_filters, _sort_field, _sort_order = _filter_case_queryset(request, cases)
 
-    folder = request.GET.get("folder", "inbox")
-    status_filter = request.GET.get("status")
-    source_filter = request.GET.get("source")
-    category_filter = request.GET.get("category")
-    assigned_to_filter = request.GET.get("assigned_to")
-    type_filter = request.GET.get("type")
-    tags_filter = request.GET.get("tags", "").strip()
-    followers_filter = request.GET.get("followers")
-    read_filter = request.GET.get("read_status", "")
-    unit_filter = request.GET.get("company_unit")
-    search_query = request.GET.get("q", "").strip()
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
+    from core.list_pagination import get_page_size, make_paginator
+    page_size = get_page_size(request, default=50, key=TASK_LIST_PAGE_SIZE_KEY)
+    page_obj = make_paginator(cases, page_size).get_page(request.GET.get('page'))
+    page_obj.object_list = attach_unread_counts(list(page_obj.object_list), request.user)
 
-    if folder == "spam":
-        cases = cases.filter(is_spam=True)
-    elif folder == "archive":
-        cases = cases.filter(is_archived=True)
-    else:
-        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
-
-    if status_filter:
-        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
-        cases = cases.filter(status__in=status_list)
-    if source_filter:
-        cases = cases.filter(source=source_filter)
-    if category_filter:
-        cases = cases.filter(category__slug=category_filter)
-    if assigned_to_filter:
-        if assigned_to_filter == "unassigned":
-            cases = cases.filter(assigned_to__isnull=True)
-        else:
-            cases = cases.filter(assigned_to_id=assigned_to_filter)
-    if type_filter:
-        cases = cases.filter(case_type=type_filter)
-    if unit_filter:
-        cases = cases.filter(requester__unit_id=unit_filter)
-    if tags_filter:
-        cases = cases.filter(tags__icontains=tags_filter)
-    if followers_filter:
-        cases = cases.filter(followers__id=followers_filter)
-    if read_filter == "unread":
-        cases = cases.filter(has_unread_messages=True)
-    elif read_filter == "unopened":
-        cases = cases.filter(last_viewed_at__isnull=True)
-    elif read_filter == "read":
-        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
-    if search_query:
-        cases = cases.filter(
-            Q(id__icontains=search_query) |
-            Q(subject__icontains=search_query) |
-            Q(requester_name__icontains=search_query) |
-            Q(requester__full_name__icontains=search_query) |
-            Q(requester_email__icontains=search_query) |
-            Q(requester__email__icontains=search_query) |
-            Q(requester__phone_number__icontains=search_query) |
-            Q(requester_unit_name__icontains=search_query) |
-            Q(requester__unit__name__icontains=search_query)
-        )
-    if date_from:
-        cases = cases.filter(created_at__date__gte=date_from)
-    if date_to:
-        cases = cases.filter(created_at__date__lte=date_to)
-
-    sort_field = request.GET.get("sort", "created_at")
-    sort_order = request.GET.get("order", "desc")
-    ALLOWED_SORT_FIELDS = {
-        "case_number": "id", "subject": "subject", "status": "status",
-        "source": "source", "requester": "requester__full_name",
-        "category": "category__name", "assigned_to": "assigned_to__username",
-        "created_at": "created_at", "last_viewed_at": "last_viewed_at",
-    }
-    # Annotate confidential access for the current user
-    cases = _annotate_confidential_access(cases, request.user)
-
-    db_field = ALLOWED_SORT_FIELDS.get(sort_field, "created_at")
-    if sort_order == "asc":
-        cases = cases.order_by(F(db_field).asc(nulls_last=True))
-    else:
-        cases = cases.order_by(F(db_field).desc(nulls_last=True))
-
-    from django.core.paginator import Paginator
-    paginator = Paginator(cases, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
-    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
-    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+    unread_inbox = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user).filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_activity=True).count()
+    unread_archive = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user).filter(is_archived=True, has_unread_activity=True).count()
+    unread_spam = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user).filter(is_spam=True, has_unread_activity=True).count()
 
     return render(request, "partials/case_table_rows.html", {
         "cases": page_obj,
         "unread_inbox": unread_inbox,
         "unread_archive": unread_archive,
         "unread_spam": unread_spam,
+        "now": timezone.now(),
     })
 
 
@@ -1936,82 +2296,17 @@ def case_kanban_partial(request):
     Returns only the kanban columns HTML fragment for the auto-refresh mechanism.
     """
     cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to", "location"
     ).all()
+    cases = _scope_cases_for_user(cases, request.user)
 
-    folder = request.GET.get("folder", "inbox")
-    source_filter = request.GET.get("source")
-    category_filter = request.GET.get("category")
-    priority_filter = request.GET.get("priority")
-    status_filter = request.GET.get("status")
-    assigned_to_filter = request.GET.get("assigned_to")
-    type_filter = request.GET.get("type")
-    tags_filter = request.GET.get("tags", "").strip()
-    followers_filter = request.GET.get("followers")
-    read_filter = request.GET.get("read_status", "")
-    unit_filter = request.GET.get("company_unit")
-    search_query = request.GET.get("q", "").strip()
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
+    cases, current_filters, _, _ = _filter_case_queryset(request, cases)
+    status_filter = current_filters["status"]
 
-    if folder == "spam":
-        cases = cases.filter(is_spam=True)
-    elif folder == "archive":
-        cases = cases.filter(is_archived=True)
-    else:
-        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
-
-    if source_filter:
-        cases = cases.filter(source=source_filter)
-    if category_filter:
-        cases = cases.filter(category__slug=category_filter)
-    if priority_filter:
-        cases = cases.filter(priority=priority_filter)
-    if assigned_to_filter:
-        if assigned_to_filter == "unassigned":
-            cases = cases.filter(assigned_to__isnull=True)
-        else:
-            cases = cases.filter(assigned_to_id=assigned_to_filter)
-    if type_filter:
-        cases = cases.filter(case_type=type_filter)
-    if unit_filter:
-        cases = cases.filter(requester__unit_id=unit_filter)
-    if tags_filter:
-        cases = cases.filter(tags__icontains=tags_filter)
-    if followers_filter:
-        cases = cases.filter(followers__id=followers_filter)
-    if read_filter == "unread":
-        cases = cases.filter(has_unread_messages=True)
-    elif read_filter == "unopened":
-        cases = cases.filter(last_viewed_at__isnull=True)
-    elif read_filter == "read":
-        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
-    if search_query:
-        cases = cases.filter(
-            Q(id__icontains=search_query) |
-            Q(subject__icontains=search_query) |
-            Q(requester_name__icontains=search_query) |
-            Q(requester__full_name__icontains=search_query) |
-            Q(requester_email__icontains=search_query) |
-            Q(requester__email__icontains=search_query) |
-            Q(requester__phone_number__icontains=search_query) |
-            Q(requester_unit_name__icontains=search_query) |
-            Q(requester__unit__name__icontains=search_query)
-        )
-    if date_from:
-        cases = cases.filter(created_at__date__gte=date_from)
-    if date_to:
-        cases = cases.filter(created_at__date__lte=date_to)
-
-    # Annotate confidential access for the current user
-    cases = _annotate_confidential_access(cases, request.user)
 
     status_columns = [
-        ("Open", "⏳", "Open", "#6366f1"),
-        ("Investigating", "🔍", "Investigating", "#f59e0b"),
-        ("PendingInfo", "⏸️", "Pending Info", "#0ea5e9"),
-        ("Resolved", "✅", "Resolved", "#10b981"),
-        ("Closed", "🔒", "Closed", "#64748b"),
+        (code, meta["icon"], meta["label"], meta["color"])
+        for code, meta in CaseRecord.STATUS_META.items()
     ]
     if status_filter:
         status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
@@ -2037,14 +2332,14 @@ def case_unmerge(request, case_id):
     Unmerges a sub-ticket from its master ticket.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     if case.master_ticket:
         master_num = case.master_ticket.case_number
         case.master_ticket = None
         case.save(update_fields=["master_ticket"])
         messages.success(request, f"Ticket {case.case_number} has been unmerged from {master_num}.")
-    return redirect("desk:case_detail", case_id=case.id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case.id)
 
 @staff_required
 def case_bulk_action(request):
@@ -2057,7 +2352,7 @@ def case_bulk_action(request):
         master_id = request.POST.get("master_id")
 
         if not action or not case_ids:
-            return redirect("desk:case_list")
+            return redirect(URLNAME_CASE_LIST)
 
         cases_qs = CaseRecord.objects.filter(id__in=case_ids)
 
@@ -2073,13 +2368,13 @@ def case_bulk_action(request):
             try:
                 master = CaseRecord.objects.get(id=master_id)
                 # Exclude the master itself from being set as its own sub-ticket
-                # Also ensure only Open tickets can be merged into a master ticket
-                sub_tickets = cases_qs.exclude(id=master_id).filter(status=CaseRecord.Status.OPEN)
+                # Also ensure only New tickets can be merged into a master ticket
+                sub_tickets = cases_qs.exclude(id=master_id).filter(status=CaseRecord.Status.NEW)
                 sub_tickets.update(master_ticket=master, status=master.status)
             except CaseRecord.DoesNotExist:
                 pass
 
-    return redirect(request.META.get("HTTP_REFERER", "desk:case_list"))
+    return redirect(request.META.get("HTTP_REFERER", URLNAME_CASE_LIST))
 
 
 @staff_required
@@ -2090,12 +2385,13 @@ def case_detail(request, case_id):
     - Right panel: RCA + solving steps form.
     """
     case = get_object_or_404(
-        CaseRecord.objects.select_related("requester", "category", "assigned_to"),
+        CaseRecord.objects.select_related("requester", "category", "assigned_to", "location"),
         id=case_id,
     )
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
+    mark_activity_read(case, request.user)
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
@@ -2130,31 +2426,19 @@ def case_detail(request, case_id):
     rca_form = CaseRCAForm(instance=case)
     reply_form = StaffReplyForm()
 
-    # Capture the referring URL (the dashboard/list with filters)
-    back_url = request.GET.get("back") or request.META.get("HTTP_REFERER", "/desk/cases/")
-    # If the referer is just the current page itself, fallback to the list
-    if f"/desk/cases/{case_id}" in back_url:
-        back_url = "/desk/cases/"
+    # Back always returns to the last Task Management view (table/kanban/calendar + filters)
+    back_url = request.session.get("task_management_url") or CASES_LIST_PATH
+    if not url_has_allowed_host_and_scheme(back_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        back_url = CASES_LIST_PATH
 
     # Sub-ticket / Master-ticket contextual tabs
     master = case.master_ticket if case.master_ticket else case
     related_cases = [master] + list(master.sub_tickets.exclude(id=master.id).all())
 
-    # Prev / Next ticket navigation (ordered by created_at DESC — same as list)
-    prev_case = (
-        CaseRecord.objects.filter(created_at__gt=case.created_at)
-        .order_by("created_at")
-        .values_list("id", flat=True)
-        .first()
-    )
-    next_case = (
-        CaseRecord.objects.filter(created_at__lt=case.created_at)
-        .order_by("-created_at")
-        .values_list("id", flat=True)
-        .first()
-    )
+    prev_case, next_case = _case_neighbours(request, case, back_url)
 
     # (Confidential access is now category-based; no per-ticket user list needed)
+    sso_whitelist_user = _get_sso_whitelist_user(case)
 
     return render(request, "admin/case_detail.html", {
         "case": case,
@@ -2175,6 +2459,8 @@ def case_detail(request, case_id):
         ).select_related("category"),
         "prev_case_id": prev_case,
         "next_case_id": next_case,
+        "is_sso_whitelist_case": _is_sso_whitelist_case(case),
+        "sso_whitelist_user": sso_whitelist_user,
     })
 
 
@@ -2186,16 +2472,33 @@ def case_update_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
-        if not _check_confidential_access(case, request.user):
-            return HttpResponseForbidden("You do not have access to this confidential ticket.")
+        if not _check_case_access(case, request.user):
+            return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
         if _case_is_closed(case, request):
-            return redirect("desk:case_detail", case_id=case_id)
+            return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
         if case.requester:
-            full_name = request.POST.get("full_name")
-            email = request.POST.get("email")
-            phone_number = request.POST.get("phone_number")
+            full_name = (request.POST.get("full_name") or "").strip()
+            email = (request.POST.get("email") or "").strip()
+            phone_number = (request.POST.get("phone_number") or "").strip()
             job_role = request.POST.get("job_role")
             unit_id = request.POST.get("unit_id")
+
+            # Employee.email / phone_number are unique: if the new value already belongs to
+            # someone else, this is a different person — point to "Change Requester" instead
+            # of crashing on the DB constraint.
+            others = Employee.objects.exclude(pk=case.requester.pk)
+            if email and email.lower() != (case.requester.email or "").lower():
+                owner = others.filter(email__iexact=email).first()
+                if owner:
+                    messages.error(request, f"{email} already belongs to employee \"{owner.full_name}\". "
+                                            "To make them the requester, use the Change Requester tab.")
+                    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
+            if phone_number and phone_number != (case.requester.phone_number or ""):
+                owner = others.filter(phone_number=phone_number).first()
+                if owner:
+                    messages.error(request, f"{phone_number} already belongs to employee \"{owner.full_name}\". "
+                                            "To make them the requester, use the Change Requester tab.")
+                    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
             # Track changes for audit log
             changes = []
@@ -2219,11 +2522,22 @@ def case_update_requester(request, case_id):
                         changes.append(("unit", old_unit_name, new_unit.name))
                     case.requester.unit = new_unit
                     case.requester_unit_name = new_unit.name
-                    case.save(update_fields=["requester_unit_name"])
                 except CompanyUnit.DoesNotExist:
                     pass
 
-            case.requester.save()
+            try:
+                with transaction.atomic():
+                    case.requester.save()
+                    # Keep the ticket's own copy in sync — portal access, notifications and
+                    # Teams cards read requester_email/name from the ticket, not the Employee.
+                    case.requester_name = case.requester.full_name
+                    case.requester_email = case.requester.email or ""
+                    case.requester_job_role = case.requester.job_role or ""
+                    case.save(update_fields=["requester_name", "requester_email", "requester_job_role", "requester_unit_name"])
+            except IntegrityError:
+                # Race with another save, or a value the checks above didn't catch
+                messages.error(request, "Could not save: the email or phone number is already used by another employee.")
+                return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
             # Write audit logs for each changed field
             for field_name, old_val, new_val in changes:
@@ -2236,7 +2550,7 @@ def case_update_requester(request, case_id):
                     created_by=request.user,
                 )
 
-    return redirect("desk:case_detail", case_id=case_id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
 
 @staff_required
@@ -2244,10 +2558,10 @@ def case_update_subject(request, case_id):
     """HTMX/POST endpoint — update the case subject (title)."""
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
-        if not _check_confidential_access(case, request.user):
-            return HttpResponseForbidden("You do not have access to this confidential ticket.")
+        if not _check_case_access(case, request.user):
+            return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
         if _case_is_closed(case, request):
-            return redirect("desk:case_detail", case_id=case_id)
+            return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
         new_subject = request.POST.get("subject", "").strip()
         if new_subject and new_subject != case.subject:
             old_subject = case.subject
@@ -2261,7 +2575,7 @@ def case_update_subject(request, case_id):
                 new_value=new_subject,
                 created_by=request.user,
             )
-    return redirect("desk:case_detail", case_id=case_id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
 
 @staff_required
@@ -2269,10 +2583,10 @@ def case_update_category(request, case_id):
     """HTMX/POST endpoint — update the case category."""
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
-        if not _check_confidential_access(case, request.user):
-            return HttpResponseForbidden("You do not have access to this confidential ticket.")
+        if not _check_case_access(case, request.user):
+            return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
         if _case_is_closed(case, request):
-            return redirect("desk:case_detail", case_id=case_id)
+            return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
         new_category_id = request.POST.get("category_id", "").strip()
         if new_category_id:
             new_category = get_object_or_404(CaseCategory, id=new_category_id)
@@ -2288,7 +2602,7 @@ def case_update_category(request, case_id):
                     new_value=new_category.name,
                     created_by=request.user,
                 )
-    return redirect("desk:case_detail", case_id=case_id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
 
 @staff_required
@@ -2299,10 +2613,10 @@ def case_change_requester(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
-        if not _check_confidential_access(case, request.user):
-            return HttpResponseForbidden("You do not have access to this confidential ticket.")
+        if not _check_case_access(case, request.user):
+            return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
         if _case_is_closed(case, request):
-            return redirect("desk:case_detail", case_id=case_id)
+            return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
         new_employee_id = request.POST.get("new_employee_id")
         if new_employee_id:
             try:
@@ -2328,7 +2642,7 @@ def case_change_requester(request, case_id):
                 )
             except Employee.DoesNotExist:
                 pass
-    return redirect("desk:case_detail", case_id=case_id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
 
 @staff_required
@@ -2339,10 +2653,10 @@ def case_forward_escalation(request, case_id):
     """
     if request.method == "POST":
         case = get_object_or_404(CaseRecord, id=case_id)
-        if not _check_confidential_access(case, request.user):
-            return HttpResponseForbidden("You do not have access to this confidential ticket.")
+        if not _check_case_access(case, request.user):
+            return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
         if _case_is_closed(case, request):
-            return redirect("desk:case_detail", case_id=case_id)
+            return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
         forward_to = request.POST.get("forward_to", "").strip()
         channel = request.POST.get("channel", "EMAIL").upper()
         custom_message = request.POST.get("custom_message", "").strip()
@@ -2353,7 +2667,7 @@ def case_forward_escalation(request, case_id):
             if not SiteConfig.get_solo().wa_outbound_enabled:
                 from django.contrib import messages
                 messages.error(request, "Outbound WhatsApp messages are currently disabled.")
-                return redirect("desk:case_detail", case_id=case_id)
+                return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
         if forward_to and channel in ["EMAIL", "WHATSAPP"]:
             from cases.models import Message
@@ -2394,7 +2708,37 @@ def case_forward_escalation(request, case_id):
                 from django.contrib import messages
                 messages.error(request, f"Failed to dispatch escalation task: {str(e)}")
 
-    return redirect("desk:case_detail", case_id=case_id)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
+
+
+PROGRESS_NOTE_MAX_LEN = 280
+
+
+def _record_progress_note(case, user, note, old_status, new_status):
+    """
+    Save the optional progress note a staff member types in the status-change
+    pop-up: posted to the case's Internal Chat, and logged as a
+    ``progress_note`` audit entry (old_value = status it moved to) that the
+    requester's "Progress & Updates" timeline renders.
+    """
+    note = (note or "").strip()[:PROGRESS_NOTE_MAX_LEN]
+    if not note:
+        return
+    labels = dict(CaseRecord.Status.choices)
+    CaseComment.objects.create(
+        case=case,
+        author=user,
+        body=f"📌 Progress update ({labels.get(old_status, old_status)} → {labels.get(new_status, new_status)}):\n{note}",
+        created_by=user,
+    )
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="progress_note",
+        old_value=new_status,
+        new_value=note,
+        created_by=user,
+    )
 
 
 @staff_required
@@ -2404,8 +2748,8 @@ def case_update_rca(request, case_id):
     and SLA fields.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
     if case.is_locked:
         return HttpResponseForbidden(
@@ -2424,7 +2768,7 @@ def case_update_rca(request, case_id):
                 if not form.cleaned_data.get("root_cause_analysis") or not form.cleaned_data.get("solving_steps"):
                     # Revert instance mutation so the template doesn't think it's closed yet
                     case.status = original_status
-                    return render(request, "partials/rca_form.html", {
+                    return render(request, TEMPLATE_RCA_FORM, {
                         "case": case,
                         "rca_form": form,
                         "error_message": "SLA Details (Root Cause Analysis & Solving Steps) are required to close the ticket.",
@@ -2457,6 +2801,9 @@ def case_update_rca(request, case_id):
                             created_by=request.user,
                         )
 
+                if not form.initial.get("assigned_to") and case.assigned_to_id:
+                    case.record_first_response(save=False)
+
                 case.save()
                 if case.sub_tickets.exists():
                     case.sub_tickets.update(status=case.status, updated_by=request.user)
@@ -2466,17 +2813,22 @@ def case_update_rca(request, case_id):
                 
                 if 'assigned_to' in form.changed_data and case.assigned_to:
                     from gateways.tasks import send_assignment_email_task
-                    case_url = request.build_absolute_uri(reverse("desk:case_detail", kwargs={"case_id": case.id}))
+                    case_url = request.build_absolute_uri(reverse(URLNAME_CASE_DETAIL, kwargs={"case_id": case.id}))
                     send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
                 
                 from django.template.loader import render_to_string
-                form_response = render(request, "partials/rca_form.html", {
+                form_response = render(request, TEMPLATE_RCA_FORM, {
                     "case": case,
                     "rca_form": CaseRCAForm(instance=case),
                     "success_message": "Details saved. Please confirm ticket closure below.",
                 })
                 
-                modal_html = render_to_string("partials/closure_modal.html", {"case": case}, request=request)
+                modal_html = render_to_string("partials/closure_modal.html", {
+                    "case": case,
+                    # Carried through the closure confirmation so it's only
+                    # recorded once the ticket is actually closed.
+                    "progress_note": request.POST.get("progress_note", "").strip()[:PROGRESS_NOTE_MAX_LEN],
+                }, request=request)
                 oob_modal = f'<div id="htmx-modal" hx-swap-oob="innerHTML">{modal_html}</div>'
                 
                 return HttpResponse(form_response.content.decode() + oob_modal)
@@ -2484,7 +2836,17 @@ def case_update_rca(request, case_id):
             # Normal save for non-closing updates OR amending an already closed ticket
             case = form.save(commit=False)
             case.updated_by = request.user
-            
+
+            # Auto-couple assignment to status: if staff sets a PIC on a
+            # New ticket but left the status dropdown untouched, bump it
+            # to Assigned. If they manually picked a different valid
+            # target, that's respected as-is.
+            if original_status == CaseRecord.Status.NEW and case.status == CaseRecord.Status.NEW and case.assigned_to_id:
+                case.status = CaseRecord.Status.ASSIGNED
+
+            if not form.initial.get("assigned_to") and case.assigned_to_id:
+                case.record_first_response(save=False)
+
             # --- Amendment Logic ---
             if original_status == CaseRecord.Status.CLOSED and case.edit_permission_status == CaseRecord.EditPermissionStatus.APPROVED:
                 if form.changed_data:
@@ -2520,10 +2882,7 @@ def case_update_rca(request, case_id):
                         created_by=request.user,
                     )
 
-            if case.status == CaseRecord.Status.INVESTIGATING:
-                case.hold_wa_session = True
-            elif case.status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
-                case.hold_wa_session = False
+            case.apply_status_transition(case.status, old_status=original_status)
 
             case.save()
             if case.sub_tickets.exists():
@@ -2532,16 +2891,28 @@ def case_update_rca(request, case_id):
 
             if 'assigned_to' in form.changed_data and case.assigned_to:
                 from gateways.tasks import send_assignment_email_task
-                case_url = request.build_absolute_uri(reverse("desk:case_detail", kwargs={"case_id": case.id}))
+                case_url = request.build_absolute_uri(reverse(URLNAME_CASE_DETAIL, kwargs={"case_id": case.id}))
                 send_assignment_email_task.delay(str(case.id), str(request.user.id), case_url)
 
-            redirect_url = request.POST.get("back_url", "/desk/cases/")
+            if (
+                "status" in form.changed_data
+                and case.status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED)
+                and original_status != case.status
+            ):
+                from gateways.tasks import queue_requester_status_email
+                queue_requester_status_email(case.id, case.status)
+
+            if original_status != case.status:
+                _record_progress_note(case, request.user, request.POST.get("progress_note"), original_status, case.status)
+
+            mark_activity_read(case, request.user)
+            redirect_url = request.POST.get("back_url") or request.session.get("task_management_url", CASES_LIST_PATH)
             if not url_has_allowed_host_and_scheme(
                 redirect_url,
                 allowed_hosts={request.get_host()},
                 require_https=request.is_secure(),
             ) or f"/desk/cases/{case_id}" in redirect_url:
-                redirect_url = "/desk/cases/"
+                redirect_url = CASES_LIST_PATH
 
             response = HttpResponse()
             response["HX-Redirect"] = redirect_url
@@ -2549,11 +2920,11 @@ def case_update_rca(request, case_id):
         else:
             # Revert instance mutation if validation fails so the template logic maintains the true DB status
             case.status = original_status
-            return render(request, "partials/rca_form.html", {
+            return render(request, TEMPLATE_RCA_FORM, {
                 "case": case,
                 "rca_form": form,
                 "error_message": "Please fix the errors below.",
-                "back_url": request.POST.get("back_url", "/desk/cases/"),
+                "back_url": request.POST.get("back_url", CASES_LIST_PATH),
             })
 
     return HttpResponse(status=405)
@@ -2565,23 +2936,39 @@ def case_send_reply(request, case_id):
     HTMX endpoint — staff sends a reply message within the case thread.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     if _case_is_closed(case, request):
-        return redirect("desk:case_detail", case_id=case_id)
+        return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
 
     if request.method == "POST":
-        form = StaffReplyForm(request.POST, request.FILES)
+        form = StaffReplyForm(request.POST)
+        uploaded_files = request.FILES.getlist("attachments")[:StaffReplyForm.MAX_ATTACHMENTS]
         if form.is_valid():
-            # Must have at least body or attachment
-            if not form.cleaned_data.get("body") and not form.cleaned_data.get("attachment"):
+            # Must have at least body or an attachment
+            if not form.cleaned_data.get("body") and not uploaded_files:
                 messages = case.messages.select_related(
                     "sender_employee", "sender_staff"
                 ).prefetch_related("attachments").all()
-                return render(request, "partials/chat_thread.html", {
+                return render(request, TEMPLATE_CHAT_THREAD, {
                     "case": case,
                     "chat_messages": messages,
                 })
+
+            # Keep the draft and previews when any attachment fails validation.
+            valid_files = []
+            upload_errors = []
+            for f in uploaded_files:
+                try:
+                    detected_mime = validate_staff_reply_attachment(f)
+                    valid_files.append((f, detected_mime))
+                except Exception as exc:
+                    upload_errors.append(str(exc))
+            if upload_errors:
+                import json
+                response = HttpResponse(" ".join(upload_errors), status=400)
+                response["HX-Trigger"] = json.dumps({"show-toast": {"type": "error", "message": " ".join(upload_errors)}})
+                return response
 
             # Determine the channel based on the original case source
             reply_channel = Message.Channel.WEB
@@ -2613,22 +3000,22 @@ def case_send_reply(request, case_id):
                 delivery_status=Message.DeliveryStatus.PENDING if reply_channel != Message.Channel.WEB else Message.DeliveryStatus.SUCCESS,
                 quoted_message=quoted_message,
             )
+            case.record_first_response()
 
-            # Handle optional attachment
-            uploaded_file = form.cleaned_data.get("attachment")
-            if uploaded_file:
-                import uuid
-                import os
-                import mimetypes
-                
+            # Handle optional attachments (up to StaffReplyForm.MAX_ATTACHMENTS)
+            import uuid
+            import os
+            import mimetypes
+
+            dangerous_exts = {".php", ".php3", ".php4", ".php5", ".phtml", ".html", ".htm", ".exe", ".sh", ".bash", ".pl", ".py"}
+            for uploaded_file, detected_mime in valid_files:
                 original_name = uploaded_file.name
                 ext = os.path.splitext(original_name)[1].lower()
-                dangerous_exts = {".php", ".php3", ".php4", ".php5", ".phtml", ".html", ".htm", ".exe", ".sh", ".bash", ".pl", ".py"}
-                
-                mime = getattr(uploaded_file, "content_type", "")
+
+                mime = detected_mime
                 if ext in dangerous_exts or not ext:
                     ext = mimetypes.guess_extension(mime) or ".bin"
-                    
+
                 safe_name = f"{uuid.uuid4().hex}{ext}"
                 uploaded_file.name = safe_name
 
@@ -2686,7 +3073,8 @@ def case_send_reply(request, case_id):
             messages = case.messages.select_related(
                 "sender_employee", "sender_staff"
             ).prefetch_related("attachments").all()
-            return render(request, "partials/chat_thread.html", {
+            mark_activity_read(case, request.user)
+            return render(request, TEMPLATE_CHAT_THREAD, {
                 "case": case,
                 "chat_messages": messages,
             })
@@ -2700,9 +3088,10 @@ def chat_thread(request, case_id):
     HTMX endpoint — returns the chat thread partial for polling refresh.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
+    mark_activity_read(case, request.user)
     unread_msg_ids = []
     if case.has_unread_messages:
         unread_msg_ids = list(case.messages.filter(direction="IN", is_read=False).values_list("id", flat=True))
@@ -2726,7 +3115,7 @@ def chat_thread(request, case_id):
         "quoted_message__sender_employee", "quoted_message__sender_staff",
     ).prefetch_related("attachments", "reactions").all()
 
-    return render(request, "partials/chat_thread.html", {
+    return render(request, TEMPLATE_CHAT_THREAD, {
         "case": case,
         "chat_messages": messages,
         "unread_msg_ids": unread_msg_ids,
@@ -2742,10 +3131,10 @@ def chat_thread(request, case_id):
 def message_delete(request, case_id, message_id):
     """Soft-delete an outbound WhatsApp message and revoke it on WhatsApp."""
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     if _case_is_closed(case, request):
-        return redirect("desk:case_detail", case_id=case_id)
+        return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
     msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
 
     if not msg.is_deleted:
@@ -2764,7 +3153,7 @@ def message_delete(request, case_id, message_id):
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments", "reactions").all()
-    return render(request, "partials/chat_thread.html", {
+    return render(request, TEMPLATE_CHAT_THREAD, {
         "case": case,
         "chat_messages": messages,
         "unread_msg_ids": [],
@@ -2776,10 +3165,10 @@ def message_delete(request, case_id, message_id):
 def message_edit(request, case_id, message_id):
     """Edit an outbound WhatsApp message text."""
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     if _case_is_closed(case, request):
-        return redirect("desk:case_detail", case_id=case_id)
+        return redirect(URLNAME_CASE_DETAIL, case_id=case_id)
     msg = get_object_or_404(Message, id=message_id, case=case, direction="OUT")
 
     new_body = request.POST.get("body", "").strip()
@@ -2787,7 +3176,7 @@ def message_edit(request, case_id, message_id):
         messages = case.messages.select_related(
             "sender_employee", "sender_staff"
         ).prefetch_related("attachments", "reactions").all()
-        return render(request, "partials/chat_thread.html", {
+        return render(request, TEMPLATE_CHAT_THREAD, {
             "case": case, "chat_messages": messages, "unread_msg_ids": [],
         })
 
@@ -2807,7 +3196,7 @@ def message_edit(request, case_id, message_id):
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments", "reactions").all()
-    return render(request, "partials/chat_thread.html", {
+    return render(request, TEMPLATE_CHAT_THREAD, {
         "case": case, "chat_messages": messages, "unread_msg_ids": [],
     })
 
@@ -2819,8 +3208,8 @@ def message_react(request, case_id, message_id):
     from cases.models import MessageReaction
 
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     msg = get_object_or_404(Message, id=message_id, case=case)
     emoji = request.POST.get("emoji", "").strip()
 
@@ -2854,7 +3243,7 @@ def message_react(request, case_id, message_id):
     messages = case.messages.select_related(
         "sender_employee", "sender_staff"
     ).prefetch_related("attachments", "reactions").all()
-    return render(request, "partials/chat_thread.html", {
+    return render(request, TEMPLATE_CHAT_THREAD, {
         "case": case, "chat_messages": messages, "unread_msg_ids": [],
     })
 
@@ -2869,8 +3258,9 @@ def case_quick_view(request, case_id):
     HTMX endpoint — returns a quick view modal for a specific case card.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
+    mark_activity_read(case, request.user)
     return render(request, "partials/quick_view_modal.html", {
         "case": case,
     })
@@ -2881,89 +3271,24 @@ def case_kanban(request):
     Kanban board — cases grouped by status columns.
     Supports same filters as case_list.
     """
+    request.session["task_management_url"] = request.get_full_path()
+
     cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to", "location"
     ).all()
+    cases = _scope_cases_for_user(cases, request.user)
 
     # --- Filtering ---
-    folder = request.GET.get("folder", "inbox")
-    source_filter = request.GET.get("source")
-    category_filter = request.GET.get("category")
-    priority_filter = request.GET.get("priority")
-    status_filter = request.GET.get("status")
-    assigned_to_filter = request.GET.get("assigned_to")
-    type_filter = request.GET.get("type")
-    tags_filter = request.GET.get("tags", "").strip()
-    followers_filter = request.GET.get("followers")
-    read_filter = request.GET.get("read_status", "")
-    unit_filter = request.GET.get("company_unit")
+    cases, current_filters, _, _ = _filter_case_queryset(request, cases)
+    status_filter = current_filters["status"]
 
-    search_query = request.GET.get("q", "").strip()
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-
-    # Folder specific base filtering
-    if folder == "spam":
-        cases = cases.filter(is_spam=True)
-    elif folder == "archive":
-        cases = cases.filter(is_archived=True)
-    else:  # inbox
-        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
-
-    if source_filter:
-        cases = cases.filter(source=source_filter)
-    if category_filter:
-        cases = cases.filter(category__slug=category_filter)
-    if priority_filter:
-        cases = cases.filter(priority=priority_filter)
-    if assigned_to_filter:
-        if assigned_to_filter == "unassigned":
-            cases = cases.filter(assigned_to__isnull=True)
-        else:
-            cases = cases.filter(assigned_to_id=assigned_to_filter)
-    if type_filter:
-        cases = cases.filter(case_type=type_filter)
-    if unit_filter:
-        cases = cases.filter(requester__unit_id=unit_filter)
-    if tags_filter:
-        cases = cases.filter(tags__icontains=tags_filter)
-    if followers_filter:
-        cases = cases.filter(followers__id=followers_filter)
-    if read_filter == "unread":
-        cases = cases.filter(has_unread_messages=True)
-    elif read_filter == "unopened":
-        cases = cases.filter(last_viewed_at__isnull=True)
-    elif read_filter == "read":
-        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
-
-    if search_query:
-        cases = cases.filter(
-            Q(id__icontains=search_query) |
-            Q(subject__icontains=search_query) |
-            Q(requester_name__icontains=search_query) |
-            Q(requester__full_name__icontains=search_query) |
-            Q(requester_email__icontains=search_query) |
-            Q(requester__email__icontains=search_query) |
-            Q(requester__phone_number__icontains=search_query) |
-            Q(requester_unit_name__icontains=search_query) |
-            Q(requester__unit__name__icontains=search_query)
-        )
-    if date_from:
-        cases = cases.filter(created_at__date__gte=date_from)
-    if date_to:
-        cases = cases.filter(created_at__date__lte=date_to)
-
-    # Annotate confidential access for the current user
-    cases = _annotate_confidential_access(cases, request.user)
 
     # Group by status
     status_columns = [
-        ("Open", "⏳", "Open", "#6366f1"),
-        ("Investigating", "🔍", "Investigating", "#f59e0b"),
-        ("PendingInfo", "⏸️", "Pending Info", "#0ea5e9"),
-        ("Resolved", "✅", "Resolved", "#10b981"),
-        ("Closed", "🔒", "Closed", "#64748b"),
+        (code, meta["icon"], meta["label"], meta["color"])
+        for code, meta in CaseRecord.STATUS_META.items()
     ]
+    all_status_columns = status_columns  # unfiltered, for the status button bar
 
     # If a status filter is active, only show matching columns
     if status_filter:
@@ -2983,39 +3308,30 @@ def case_kanban(request):
         })
 
     # Calculate unread counts
-    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
-    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
-    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+    unread_base = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user)
+    unread_inbox = unread_base.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_activity=True).count()
+    unread_archive = unread_base.filter(is_archived=True, has_unread_activity=True).count()
+    unread_spam = unread_base.filter(is_spam=True, has_unread_activity=True).count()
 
     from django.contrib.auth import get_user_model
-    User = get_user_model()
-    
-    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
-    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
+    user_model = get_user_model()
+
+    assignees = user_model.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    all_followers = user_model.objects.filter(is_active=True).order_by("first_name", "username")
 
     return render(request, "admin/case_kanban.html", {
         "kanban_data": kanban_data,
-        "sources": CaseRecord.Source.choices,
+        "all_status_columns": all_status_columns,
+        "sources": [(value, label) for value, label in CaseRecord.Source.choices if value != CaseRecord.Source.EVOLUTION_WA],
         "categories": CaseCategory.objects.all(),
         "priorities": CaseRecord.Priority.choices,
         "types": CaseRecord.Type.choices,
         "assignees": assignees,
         "all_followers": all_followers,
-        "current_filters": {
-            "folder": folder,
-            "status": status_filter or "",
-            "source": source_filter or "",
-            "category": category_filter or "",
-            "priority": priority_filter or "",
-            "assigned_to": assigned_to_filter or "",
-            "type": type_filter or "",
-            "tags": tags_filter or "",
-            "followers": followers_filter or "",
-            "read_status": read_filter or "",
-            "q": search_query,
-            "date_from": date_from or "",
-            "date_to": date_to or "",
-        },
+        "current_filters": current_filters,
+        "saved_filters": request.user.saved_case_filters.all(),
+        "task_view_url": request.path,
+        "active_filter_chips": _build_active_filter_chips(request, current_filters),
         "unread_inbox": unread_inbox,
         "unread_archive": unread_archive,
         "unread_spam": unread_spam,
@@ -3031,35 +3347,116 @@ def case_update_status(request, case_id):
         return HttpResponse(status=405)
 
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     new_status = request.POST.get("status", "")
+    old_status = case.status
 
-    valid_statuses = [s[0] for s in CaseRecord.Status.choices]
-    if new_status not in valid_statuses:
-        return HttpResponse("Invalid status", status=400)
+    if not case.can_transition_to(new_status):
+        return HttpResponse(
+            f"Cannot move ticket from {case.get_status_display()} to "
+            f"{dict(CaseRecord.Status.choices).get(new_status, new_status)}.",
+            status=400,
+        )
+
+    # Require a PIC before landing in Assigned
+    if new_status == CaseRecord.Status.ASSIGNED and not case.assigned_to_id:
+        return HttpResponse(
+            "Assign a PIC before moving this ticket to Assigned. Open the ticket to assign someone.",
+            status=400,
+        )
 
     # Prevent direct closing without SLA details from Kanban
     if new_status == CaseRecord.Status.CLOSED:
         if not case.root_cause_analysis or not case.solving_steps:
             return HttpResponse("SLA details (Root Cause Analysis & Solving Steps) are required before closing. Please click the case to open the detail panel and fill them out.", status=400)
-            
+
         # Generate and return the modal directly
         return render(request, "partials/closure_modal.html", {"case": case})
 
-    case.status = new_status
-    if new_status == CaseRecord.Status.INVESTIGATING:
-        case.hold_wa_session = True
-    elif new_status in [CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED]:
-        case.hold_wa_session = False
-        
+    case.apply_status_transition(new_status)
     case.updated_by = request.user
-    case.save(update_fields=["status", "hold_wa_session", "updated_at", "updated_by"])
-    
+    case.save(update_fields=[
+        "status", "hold_wa_session", "resolution_due_at",
+        "sla_paused_at", "sla_total_paused_duration",
+        "updated_at", "updated_by",
+    ])
+
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.STATUS_CHANGE,
+        field_name="status",
+        old_value=old_status,
+        new_value=new_status,
+        created_by=request.user,
+    )
+
     if case.sub_tickets.exists():
         case.sub_tickets.update(status=new_status, updated_at=case.updated_at, updated_by=request.user)
 
+    if new_status in (CaseRecord.Status.RESOLVED, CaseRecord.Status.CLOSED) and old_status != new_status:
+        from gateways.tasks import queue_requester_status_email
+        queue_requester_status_email(case.id, new_status)
+
     return HttpResponse(status=204)
+
+
+@staff_required
+@require_POST
+def case_activate_sso_user(request, case_id):
+    case = get_object_or_404(CaseRecord, id=case_id)
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
+    if not _is_sso_whitelist_case(case):
+        messages.error(request, "This ticket is not an SSO whitelist request.")
+        return redirect(URLNAME_CASE_DETAIL, case_id=case.id)
+
+    user_obj = _get_sso_whitelist_user(case)
+    if not user_obj:
+        messages.error(request, "No user account was found for this whitelist ticket.")
+        return redirect(URLNAME_CASE_DETAIL, case_id=case.id)
+
+    old_active = user_obj.is_active
+    if not user_obj.is_active:
+        user_obj.is_active = True
+        user_obj.save(update_fields=["is_active"])
+
+    old_status = case.status
+    case.root_cause_analysis = case.root_cause_analysis or "SSO whitelist approval request reviewed."
+    case.solving_steps = case.solving_steps or f"Activated user account for {user_obj.email}."
+    case.status = CaseRecord.Status.RESOLVED
+    case.updated_by = request.user
+    case.save(update_fields=[
+        "root_cause_analysis",
+        "solving_steps",
+        "status",
+        "updated_at",
+        "updated_by",
+    ])
+
+    CaseAuditLog.objects.create(
+        case=case,
+        action=CaseAuditLog.ActionText.UPDATED,
+        field_name="sso_user_activation",
+        old_value="Active" if old_active else "Inactive",
+        new_value=f"Active ({user_obj.email})",
+        created_by=request.user,
+    )
+    if old_status != case.status:
+        CaseAuditLog.objects.create(
+            case=case,
+            action=CaseAuditLog.ActionText.STATUS_CHANGE,
+            field_name="status",
+            old_value=old_status,
+            new_value=case.status,
+            created_by=request.user,
+        )
+
+    messages.success(request, f"User {user_obj.email} has been activated.")
+    if old_status != case.status:
+        from gateways.tasks import queue_requester_status_email
+        queue_requester_status_email(case.id, case.status)
+    return redirect(URLNAME_CASE_DETAIL, case_id=case.id)
 
 
 @staff_required
@@ -3072,8 +3469,8 @@ def case_close_and_notify(request, case_id):
         return HttpResponse(status=405)
         
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     if case.is_locked:
         return HttpResponseForbidden(
             f"Ticket {case.case_number} is locked — approval workflow is in progress."
@@ -3085,10 +3482,16 @@ def case_close_and_notify(request, case_id):
         return HttpResponse("Message body cannot be empty.", status=400)
 
     # Mark the case as closed
+    old_status = case.status
     case.status = CaseRecord.Status.CLOSED
     case.hold_wa_session = False
     case.updated_by = request.user
     case.save(update_fields=["status", "hold_wa_session", "updated_at", "updated_by"])
+    if old_status != case.status:
+        # closing writes no status audit row, so tell Teams directly (before the note, so they merge)
+        from cases.signals import queue_status_change
+        queue_status_change(case, old_status, request.user)
+        _record_progress_note(case, request.user, request.POST.get("progress_note"), old_status, case.status)
 
     from core.models import AuditLog
     AuditLog.log(AuditLog.Action.TICKET_CLOSE, request=request, target=case,
@@ -3119,18 +3522,26 @@ def case_close_and_notify(request, case_id):
         )
 
         # Trigger appropriate sending mechanisms
+        emailed_via_outbound = False
         if reply_channel == Message.Channel.EMAIL:
             from gateways.tasks import send_outbound_email_task
             send_outbound_email_task.delay(str(msg.id))
+            emailed_via_outbound = True
         elif reply_channel == Message.Channel.WHATSAPP:
             from gateways.tasks import send_outbound_whatsapp_task
             msg.delivery_status = Message.DeliveryStatus.PENDING
             msg.save(update_fields=["delivery_status"])
             send_outbound_whatsapp_task.delay(str(msg.id))
+        if not emailed_via_outbound:
+            from gateways.tasks import queue_requester_status_email
+            queue_requester_status_email(case.id, CaseRecord.Status.CLOSED)
+    else:
+        from gateways.tasks import queue_requester_status_email
+        queue_requester_status_email(case.id, CaseRecord.Status.CLOSED)
                 
     # Return a success script to trigger a reload or update
     return HttpResponse(
-        '<script>window.location.reload();</script>',
+        SCRIPT_RELOAD_HTML,
         content_type="text/html"
     )
 
@@ -3143,8 +3554,8 @@ def case_request_edit(request, case_id):
         return HttpResponse(status=405)
         
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
     reason = request.POST.get("reason", "").strip()
     
     if case.status != CaseRecord.Status.CLOSED:
@@ -3164,7 +3575,7 @@ def case_request_edit(request, case_id):
         created_by=request.user,
     )
     
-    return HttpResponse('<script>window.location.reload();</script>')
+    return HttpResponse(SCRIPT_RELOAD_HTML)
 
 @staff_required
 def case_approve_edit(request, case_id):
@@ -3178,8 +3589,8 @@ def case_approve_edit(request, case_id):
         return HttpResponse("Unauthorized", status=403)
 
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
     case.edit_permission_status = CaseRecord.EditPermissionStatus.APPROVED
     case.save(update_fields=["edit_permission_status"])
@@ -3193,7 +3604,7 @@ def case_approve_edit(request, case_id):
         created_by=request.user,
     )
     
-    return HttpResponse('<script>window.location.reload();</script>')
+    return HttpResponse(SCRIPT_RELOAD_HTML)
 
 @staff_required
 def case_reject_edit(request, case_id):
@@ -3207,8 +3618,8 @@ def case_reject_edit(request, case_id):
         return HttpResponse("Unauthorized", status=403)
 
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
     case.edit_permission_status = CaseRecord.EditPermissionStatus.REJECTED
     case.save(update_fields=["edit_permission_status"])
@@ -3222,7 +3633,7 @@ def case_reject_edit(request, case_id):
         created_by=request.user,
     )
     
-    return HttpResponse('<script>window.location.reload();</script>')
+    return HttpResponse(SCRIPT_RELOAD_HTML)
 
     
 # =====================================================================
@@ -3237,79 +3648,16 @@ def case_calendar(request):
     import json
     from django.utils.timezone import localtime
 
+    request.session["task_management_url"] = request.get_full_path()
+
     cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to"
+        "requester", "requester__unit", "category", "assigned_to", "location"
     ).all()
+    cases = _scope_cases_for_user(cases, request.user)
 
-    folder = request.GET.get("folder", "inbox")
-    source_filter = request.GET.get("source")
-    category_filter = request.GET.get("category")
-    status_filter = request.GET.get("status")
-    assigned_to_filter = request.GET.get("assigned_to")
-    type_filter = request.GET.get("type")
-    tags_filter = request.GET.get("tags", "").strip()
-    followers_filter = request.GET.get("followers")
-    read_filter = request.GET.get("read_status", "")
-    unit_filter = request.GET.get("company_unit")
+    cases, current_filters, _, _ = _filter_case_queryset(request, cases)
+    status_filter = current_filters["status"]
 
-    search_query = request.GET.get("q", "").strip()
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-
-    # Folder specific base filtering
-    if folder == "spam":
-        cases = cases.filter(is_spam=True)
-    elif folder == "archive":
-        cases = cases.filter(is_archived=True)
-    else:  # inbox
-        cases = cases.filter(is_spam=False, is_archived=False, master_ticket__isnull=True)
-
-    if source_filter:
-        cases = cases.filter(source=source_filter)
-    if category_filter:
-        cases = cases.filter(category__slug=category_filter)
-    if status_filter:
-        status_list = [s.strip() for s in status_filter.split(',') if s.strip()]
-        cases = cases.filter(status__in=status_list)
-    if assigned_to_filter:
-        if assigned_to_filter == "unassigned":
-            cases = cases.filter(assigned_to__isnull=True)
-        else:
-            cases = cases.filter(assigned_to_id=assigned_to_filter)
-    if type_filter:
-        cases = cases.filter(case_type=type_filter)
-    if unit_filter:
-        cases = cases.filter(requester__unit_id=unit_filter)
-    if tags_filter:
-        cases = cases.filter(tags__icontains=tags_filter)
-    if followers_filter:
-        cases = cases.filter(followers__id=followers_filter)
-    if read_filter == "unread":
-        cases = cases.filter(has_unread_messages=True)
-    elif read_filter == "unopened":
-        cases = cases.filter(last_viewed_at__isnull=True)
-    elif read_filter == "read":
-        cases = cases.filter(has_unread_messages=False, last_viewed_at__isnull=False)
-
-    if search_query:
-        cases = cases.filter(
-            Q(id__icontains=search_query) |
-            Q(subject__icontains=search_query) |
-            Q(requester_name__icontains=search_query) |
-            Q(requester__full_name__icontains=search_query) |
-            Q(requester_email__icontains=search_query) |
-            Q(requester__email__icontains=search_query) |
-            Q(requester__phone_number__icontains=search_query) |
-            Q(requester_unit_name__icontains=search_query) |
-            Q(requester__unit__name__icontains=search_query)
-        )
-    if date_from:
-        cases = cases.filter(created_at__date__gte=date_from)
-    if date_to:
-        cases = cases.filter(created_at__date__lte=date_to)
-
-    # Annotate confidential access for the current user
-    cases = _annotate_confidential_access(cases, request.user)
 
     # --- Dynamic date source for calendar ---
     date_source = request.GET.get("date_source", "created_at")
@@ -3322,13 +3670,7 @@ def case_calendar(request):
     date_field = DATE_SOURCE_FIELDS.get(date_source, "created_at")
 
     # Build JSON events for the calendar
-    status_colors = {
-        "Open": "#6366f1",
-        "Investigating": "#f59e0b",
-        "PendingInfo": "#0ea5e9",
-        "Resolved": "#10b981",
-        "Closed": "#64748b",
-    }
+    status_colors = {code: meta["color"] for code, meta in CaseRecord.STATUS_META.items()}
 
     events = []
     for c in cases:
@@ -3343,42 +3685,40 @@ def case_calendar(request):
             "url": f"/desk/cases/{c.id}/" if has_access else "",
             "color": "#94a3b8" if not has_access else status_colors.get(c.status, "#6366f1"),
             "status": c.status,
+            "unread": c.has_unread_activity and has_access,
+            "case_number": c.case_number,
             "requester": c.requester.full_name if c.requester else "—",
         })
 
     # Calculate unread counts
-    unread_inbox = CaseRecord.objects.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_messages=True).count()
-    unread_archive = CaseRecord.objects.filter(is_archived=True, has_unread_messages=True).count()
-    unread_spam = CaseRecord.objects.filter(is_spam=True, has_unread_messages=True).count()
+    unread_base = annotate_activity(_scope_cases_for_user(CaseRecord.objects.all(), request.user), request.user)
+    unread_inbox = unread_base.filter(is_spam=False, is_archived=False, master_ticket__isnull=True, has_unread_activity=True).count()
+    unread_archive = unread_base.filter(is_archived=True, has_unread_activity=True).count()
+    unread_spam = unread_base.filter(is_spam=True, has_unread_activity=True).count()
 
     from django.contrib.auth import get_user_model
-    User = get_user_model()
-    
-    assignees = User.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
-    all_followers = User.objects.filter(is_active=True).order_by("first_name", "username")
+    user_model = get_user_model()
+
+    assignees = user_model.objects.filter(is_staff=True, is_active=True).order_by("first_name", "username")
+    all_followers = user_model.objects.filter(is_active=True).order_by("first_name", "username")
 
     return render(request, "admin/case_calendar.html", {
         "events_json": json.dumps(events),
         "statuses": CaseRecord.Status.choices,
-        "sources": CaseRecord.Source.choices,
+        "all_status_columns": [
+            (code, meta["icon"], meta["label"], meta["color"])
+            for code, meta in CaseRecord.STATUS_META.items()
+        ],
+        "sources": [(value, label) for value, label in CaseRecord.Source.choices if value != CaseRecord.Source.EVOLUTION_WA],
         "categories": CaseCategory.objects.all(),
         "types": CaseRecord.Type.choices,
+        "priorities": CaseRecord.Priority.choices,
         "assignees": assignees,
         "all_followers": all_followers,
-        "current_filters": {
-            "folder": folder,
-            "status": status_filter or "",
-            "source": source_filter or "",
-            "category": category_filter or "",
-            "assigned_to": assigned_to_filter or "",
-            "type": type_filter or "",
-            "tags": tags_filter or "",
-            "followers": followers_filter or "",
-            "read_status": read_filter or "",
-            "q": search_query,
-            "date_from": date_from or "",
-            "date_to": date_to or "",
-        },
+        "current_filters": current_filters,
+        "saved_filters": request.user.saved_case_filters.all(),
+        "task_view_url": request.path,
+        "active_filter_chips": _build_active_filter_chips(request, current_filters),
         "unread_inbox": unread_inbox,
         "unread_archive": unread_archive,
         "unread_spam": unread_spam,
@@ -3402,9 +3742,10 @@ def case_export_excel(request):
     from django.utils.timezone import localtime
 
     cases = CaseRecord.objects.select_related(
-        "requester", "requester__unit", "category", "assigned_to",
+        "requester", "requester__unit", "category", "assigned_to", "location",
         "created_by", "updated_by"
     ).prefetch_related("followers").order_by("-created_at")
+    cases = _scope_cases_for_user(cases, request.user)
 
     # Apply filters if provided
     folder = request.GET.get("folder", "inbox")
@@ -3429,7 +3770,7 @@ def case_export_excel(request):
     if source_filter:
         cases = cases.filter(source=source_filter)
     if category_filter:
-        cases = cases.filter(category__slug=category_filter)
+        cases = cases.filter(category_id__in=CaseCategory.subtree_ids(category_filter))
     if unit_filter:
         cases = cases.filter(requester__unit_id=unit_filter)
     if search_query:
@@ -3458,9 +3799,9 @@ def case_export_excel(request):
     )
 
     headers = [
-        "No", "Ticket Number", "Subject", "Status", "Priority", "Type", "Source", "Category",
+        "No", "Ticket Number", "Subject", "Status", "Impact", "Severity", "Priority", "Type", "Source", "Category",
         "Requester Name", "Requester Email", "Requester Phone",
-        "Requester Unit", "Requester Job Role",
+        "Requester Unit", "Requester Job Role", "Location",
         "Problem Description", "Root Cause Analysis", "Solving Steps", "Quick Notes",
         "Tags", "Followers", "Reference Link",
         "Assigned To", "Response SLA", "Resolution SLA",
@@ -3480,11 +3821,14 @@ def case_export_excel(request):
     MASKED = "[Confidential]"
     for row_idx, case in enumerate(cases, 2):
         has_access = getattr(case, "has_confidential_access_flag", True)
+        assigned_to_label = case.assigned_to.username if case.assigned_to else "Unassigned"
         row_data = [
             row_idx - 1,
             safe_cell(case.case_number),
             safe_cell(case.subject) if has_access else MASKED,
             safe_cell(case.get_status_display()),
+            safe_cell(case.get_impact_display()),
+            safe_cell(case.get_severity_display()),
             safe_cell(case.get_priority_display()),
             safe_cell(case.get_case_type_display()),
             safe_cell(case.get_source_display()),
@@ -3494,6 +3838,7 @@ def case_export_excel(request):
             safe_cell(case.requester.phone_number if case.requester else ""),
             safe_cell(case.requester.unit.name if case.requester and case.requester.unit else case.requester_unit_name),
             safe_cell(case.requester.job_role if case.requester else case.requester_job_role),
+            safe_cell(case.location_display),
             safe_cell(case.problem_description or "") if has_access else MASKED,
             safe_cell(case.root_cause_analysis or "") if has_access else MASKED,
             safe_cell(case.solving_steps or "") if has_access else MASKED,
@@ -3501,11 +3846,11 @@ def case_export_excel(request):
             safe_cell(case.tags or ""),
             safe_cell(", ".join([f.username for f in case.followers.all()])) if has_access else MASKED,
             safe_cell(case.link or "") if has_access else MASKED,
-            safe_cell(case.assigned_to.username if case.assigned_to else "Unassigned") if has_access else MASKED,
-            localtime(case.response_due_at).strftime("%d/%m/%Y %H:%M") if case.response_due_at else "",
-            localtime(case.resolution_due_at).strftime("%d/%m/%Y %H:%M") if case.resolution_due_at else "",
-            localtime(case.created_at).strftime("%d/%m/%Y %H:%M") if case.created_at else "",
-            localtime(case.updated_at).strftime("%d/%m/%Y %H:%M") if case.updated_at else "",
+            safe_cell(assigned_to_label) if has_access else MASKED,
+            localtime(case.response_due_at).strftime(DATETIME_DISPLAY_FORMAT) if case.response_due_at else "",
+            localtime(case.resolution_due_at).strftime(DATETIME_DISPLAY_FORMAT) if case.resolution_due_at else "",
+            localtime(case.created_at).strftime(DATETIME_DISPLAY_FORMAT) if case.created_at else "",
+            localtime(case.updated_at).strftime(DATETIME_DISPLAY_FORMAT) if case.updated_at else "",
         ]
 
         for col_idx, value in enumerate(row_data, 1):
@@ -3577,8 +3922,8 @@ def rca_template_create(request):
         messages.error(request, "Template name is required.")
 
     if redirect_case_id:
-        return redirect("desk:case_detail", case_id=redirect_case_id)
-    return redirect("desk:case_list")
+        return redirect(URLNAME_CASE_DETAIL, case_id=redirect_case_id)
+    return redirect(URLNAME_CASE_LIST)
 
 
 @manager_or_admin_required
@@ -3592,60 +3937,51 @@ def rca_template_delete(request, template_id):
 
     redirect_case_id = request.POST.get("redirect_case_id", "").strip()
     if redirect_case_id:
-        return redirect("desk:case_detail", case_id=redirect_case_id)
-    return redirect("desk:case_list")
+        return redirect(URLNAME_CASE_DETAIL, case_id=redirect_case_id)
+    return redirect(URLNAME_CASE_LIST)
 
 
-@staff_required
+@login_required
 def notification_bell(request):
-    """
-    HTMX endpoint — returns a dropdown of recent cases and unread incoming messages (last 24 hours).
-    """
-    from datetime import timedelta
-    from django.utils import timezone
-    
-    time_threshold = timezone.now() - timedelta(hours=24)
-    
-    # Get previously clicked notifications from the session
-    read_notifs = request.session.get("read_notifications", [])
-    read_case_ids = [n.replace("case_", "") for n in read_notifs if n.startswith("case_")]
-    read_msg_ids = [n.replace("msg_", "") for n in read_notifs if n.startswith("msg_")]
-    read_mention_ids = [n.replace("mention_", "") for n in read_notifs if n.startswith("mention_")]
-    
-    # 1. New Tickets in the last 24h (exclude confidential without access)
-    _conf_filter = Q()  # no filter needed
-    if request.user.role_access != "SuperAdmin" and not request.user.can_handle_confidential:
-        _conf_filter = Q(category__is_confidential=False)
-    recent_cases = CaseRecord.objects.select_related("requester").filter(
-        created_at__gte=time_threshold
-    ).filter(_conf_filter).exclude(id__in=read_case_ids).order_by("-created_at")[:10]
-
-    # 2. Unread Incoming Messages in the last 24h (exclude confidential without access)
-    _msg_conf_filter = Q()
-    if request.user.role_access != "SuperAdmin" and not request.user.can_handle_confidential:
-        _msg_conf_filter = Q(case__category__is_confidential=False)
-    recent_unread_messages = Message.objects.select_related(
-        "case", "sender_employee"
-    ).filter(
-        direction=Message.Direction.INBOUND,
-        is_read=False,
-        created_at__gte=time_threshold
-    ).filter(_msg_conf_filter).exclude(id__in=read_msg_ids).order_by("-created_at")[:10]
-    
-    # 3. Recent Mentions in Internal Notes
-    recent_mentions = CaseComment.objects.select_related("case", "author").filter(
-        mentions=request.user,
-        created_at__gte=time_threshold
-    ).exclude(id__in=read_mention_ids).order_by("-created_at")[:10]
-    
-    total_notifications = recent_cases.count() + recent_unread_messages.count() + recent_mentions.count()
-    
+    """Unread ticket activity for the signed-in participant, regardless of age."""
+    import json
+    is_portal = request.user.role_access == User.RoleAccess.PORTALUSER
+    cases = unread_cases(request.user).select_related("category", "assigned_to").order_by("-last_activity_at", "-id")
+    count = cases.count()
+    entries = []
+    for case in cases[:20]:
+        url = reverse("chat:room" if is_portal else URLNAME_CASE_DETAIL, args=[case.id])
+        is_new = not is_portal and case.status == CaseRecord.Status.NEW
+        entries.append({
+            "id": f"activity_{case.id}_{case.last_activity_at.isoformat()}",
+            "kind": "new" if is_new else "update",
+            "title": f"{'New ticket' if is_new else 'New activity'} — {case.case_number}",
+            "body": case.subject,
+            "case_number": case.case_number,
+            "status": case.get_status_display(),
+            "at": case.last_activity_at,
+            "url": url,
+        })
+    metadata = [{k: entry[k] for k in ("id", "kind", "title", "body", "url")} for entry in entries]
     return render(request, "partials/notification_bell.html", {
-        "recent_cases": recent_cases,
-        "recent_unread_messages": recent_unread_messages,
-        "recent_mentions": recent_mentions,
-        "total_notifications": total_notifications,
+        "notification_entries": entries,
+        "total_notifications": count,
+        "notification_metadata": json.dumps({"notifications": metadata}).replace("<", "\\u003c"),
+        "notification_badge_id": "my-tickets-unread-badge" if is_portal else "task-management-unread-badge",
     })
+
+
+@login_required
+@require_POST
+def notification_read_all(request):
+    """'Read all' in the bell — clears every unread ticket for this user, then re-renders the bell."""
+    import json
+    count = mark_all_activity_read(request.user)
+    response = notification_bell(request)
+    response["HX-Trigger"] = json.dumps({"show-toast": {
+        "type": "success", "message": f"Marked {count} ticket{'s' if count != 1 else ''} as read.",
+    }})
+    return response
 
 
 @staff_required
@@ -3677,8 +4013,11 @@ def mark_notification_read(request, notif_type, notif_id):
             target_case_id = None
             
     if target_case_id:
-        return redirect("desk:case_detail", case_id=target_case_id)
-    return redirect("desk:case_list")
+        target = get_object_or_404(CaseRecord, id=target_case_id)
+        if not _check_case_access(target, request.user):
+            return HttpResponseForbidden(ACCESS_DENIED_MSG)
+        return redirect(URLNAME_CASE_DETAIL, case_id=target_case_id)
+    return redirect(URLNAME_CASE_LIST)
 
 
 # =====================================================================
@@ -3695,8 +4034,8 @@ def case_add_comment(request, case_id):
     from core.models import User
     
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
     if request.method == "POST":
         body = request.POST.get("comment_body", "").strip()
@@ -3708,11 +4047,13 @@ def case_add_comment(request, case_id):
             )
             
             # Parse @usernames
-            usernames = set(re.findall(r"@([a-zA-Z0-9_]+)", body))
+            usernames = set(re.findall(r"@(\w+)", body))
             if usernames:
                 mentioned_users = User.objects.filter(username__in=usernames)
                 if mentioned_users.exists():
                     comment.mentions.add(*mentioned_users)
+                    from cases.signals import queue_mention
+                    queue_mention(case, request.user, list(mentioned_users), body)
 
     # Return the refreshed comments partial
     return render(request, "partials/case_comments.html", {
@@ -3758,7 +4099,7 @@ def whatsapp_disconnect_view(request):
         messages.error(request, "Failed to disconnect WhatsApp session. Check the Evolution API logs.")
 
     from django.shortcuts import redirect
-    return redirect("desk:whatsapp_status")
+    return redirect(URLNAME_WHATSAPP_STATUS)
 
 
 def _compute_wa_warnings(cfg) -> dict:
@@ -3852,7 +4193,7 @@ def whatsapp_status_view(request):
         notif_cfg.updated_by = request.user
         notif_cfg.save()
         messages.success(request, "WhatsApp notification settings updated successfully.")
-        return redirect('desk:whatsapp_status')
+        return redirect(URLNAME_WHATSAPP_STATUS)
 
     # Handle WA gateway config save (instance names + business hours)
     if request.method == 'POST' and request.POST.get('form_type') == 'wa_config':
@@ -3874,7 +4215,7 @@ def whatsapp_status_view(request):
         site_cfg.updated_by = request.user
         site_cfg.save()
         messages.success(request, "WhatsApp gateway configuration saved successfully.")
-        return redirect('desk:whatsapp_status')
+        return redirect(URLNAME_WHATSAPP_STATUS)
 
     # Handle rate limits & pacing config save
     if request.method == 'POST' and request.POST.get('form_type') == 'wa_limits':
@@ -3903,7 +4244,7 @@ def whatsapp_status_view(request):
         _djcache.delete("wa_rate_cfg")
         _djcache.delete("wa_pacing_cfg")
         messages.success(request, "Rate limits and pacing configuration saved.")
-        return redirect('desk:whatsapp_status')
+        return redirect(URLNAME_WHATSAPP_STATUS)
 
     svc = EvolutionAPIService()
     state_data = svc.get_instance_state()
@@ -4011,11 +4352,11 @@ def wa_circuit_reset_view(request):
 
     if not (request.user.is_staff or request.user.is_superuser):
         messages.error(request, "Only admins can reset the circuit breaker.")
-        return redirect("desk:whatsapp_status")
+        return redirect(URLNAME_WHATSAPP_STATUS)
 
     reset_circuit()
     messages.success(request, "Circuit breaker reset. Outbound WA sends re-enabled.")
-    return redirect("desk:whatsapp_status")
+    return redirect(URLNAME_WHATSAPP_STATUS)
 
 
 # =====================================================================
@@ -4085,21 +4426,23 @@ def email_settings_view(request):
         else:
             form = EmailConfigForm(request.POST, instance=email_config)
             if form.is_valid():
-                form.save()
+                cfg = form.save(commit=False)
+
+                cfg.save()
                 messages.success(request, "Email configuration updated successfully! Background services will use the new credentials on their next run.")
                 return redirect("desk:email_settings")
             else:
                 messages.error(request, "Please correct the errors below.")
                 notif_cfg = NotificationConfig.get_solo()
-                return render(request, "desk/email_settings.html", _email_settings_ctx(form, email_config, notif_cfg))
+                return render(request, TEMPLATE_EMAIL_SETTINGS, _email_settings_ctx(form, notif_cfg))
     else:
         form = EmailConfigForm(instance=email_config)
 
     notif_cfg = NotificationConfig.get_solo()
-    return render(request, "desk/email_settings.html", _email_settings_ctx(form, email_config, notif_cfg))
+    return render(request, TEMPLATE_EMAIL_SETTINGS, _email_settings_ctx(form, notif_cfg))
 
 
-def _email_settings_ctx(form, email_config, notif_cfg):
+def _email_settings_ctx(form, notif_cfg):
     from core.models import User as UserModel
     selected_emails = {e.strip() for e in (notif_cfg.email_recipients or '').split(',') if e.strip()}
     staff_email_values = set()
@@ -4175,8 +4518,53 @@ def teams_settings_view(request):
                         }],
                     }
                     resp = http_requests.post(webhook_url, json=payload, timeout=10)
-                    if resp.status_code == 200:
+                    if 200 <= resp.status_code < 300:  # Workflows webhooks reply 202 Accepted
                         test_result = {'status': 'success', 'message': 'Success! A test message has been posted to your Teams channel.'}
+                    else:
+                        test_result = {'status': 'error', 'message': f'HTTP {resp.status_code}: {resp.text[:300]}'}
+                except Exception as exc:
+                    test_result = {'status': 'error', 'message': str(exc)[:300]}
+
+        elif action == 'test_personal':
+            from gateways.teams_notify import _not_monitored_note, is_success, post_to_teams
+            from core.models import SiteConfig
+            from django.core.validators import validate_email
+            from django.core.exceptions import ValidationError
+            test_email = (request.POST.get('test_email') or request.user.email or '').strip()
+            try:
+                validate_email(test_email)
+            except ValidationError:
+                test_email = ''
+            if not teams_cfg.personal_webhook_url:
+                test_result = {'status': 'error', 'message': 'Personal Notifications Workflow URL is not configured yet.'}
+            elif not test_email:
+                test_result = {'status': 'error', 'message': 'Enter a valid email address to send the test to.'}
+            else:
+                site_name = SiteConfig.get_solo().site_name
+                payload = {
+                    "recipient": test_email,
+                    "type": "message",
+                    "attachments": [{
+                        "contentType": "application/vnd.microsoft.card.adaptive",
+                        "contentUrl": None,
+                        "content": {
+                            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                            "type": "AdaptiveCard",
+                            "version": "1.4",
+                            "body": [{
+                                "type": "TextBlock", "weight": "Bolder", "size": "Medium", "wrap": True,
+                                "text": f"✅ Personal notifications from {site_name} are working!",
+                            }, {
+                                "type": "TextBlock", "wrap": True, "isSubtle": True,
+                                "text": "Ticket updates for you will appear in this chat.",
+                            }, _not_monitored_note()],
+                        },
+                    }],
+                }
+                try:
+                    resp = post_to_teams(payload, target='personal')
+                    if is_success(resp):
+                        test_result = {'status': 'success', 'message': f'Sent to {test_email}. Check that person\'s Teams chat with “Workflows” (it can take a few seconds). If nothing arrives, open the flow\'s Run history in Power Automate.'}
                     else:
                         test_result = {'status': 'error', 'message': f'HTTP {resp.status_code}: {resp.text[:300]}'}
                 except Exception as exc:
@@ -4187,8 +4575,14 @@ def teams_settings_view(request):
             if form.is_valid():
                 obj = form.save(commit=False)
                 obj.updated_by = request.user
+                obj.personal_webhook_url = request.POST.get('personal_webhook_url', '').strip() or None
+                obj.personal_allowed_domains = request.POST.get('personal_allowed_domains', '').strip()
+                obj.is_personal_enabled = 'is_personal_enabled' in request.POST
                 obj.save()
                 notif_cfg.notify_new_ticket_teams = 'notify_new_ticket_teams' in request.POST
+                for field in ('teams_on_user_reply', 'teams_on_staff_reply',
+                              'teams_on_status_change', 'teams_on_internal_mention'):
+                    setattr(notif_cfg, field, field in request.POST)
                 notif_cfg.updated_by = request.user
                 notif_cfg.save()
                 dj_messages.success(request, "Teams configuration saved successfully.")
@@ -4196,10 +4590,20 @@ def teams_settings_view(request):
             else:
                 dj_messages.error(request, "Please review the form errors below.")
 
+    teams_event_toggles = [
+        (name, label, {'checked': getattr(notif_cfg, name), 'text': text})
+        for name, label, text in (
+            ('teams_on_user_reply', '💬 Requester replied', 'Portal, WhatsApp, or email reply from the requester'),
+            ('teams_on_staff_reply', '↩️ Support desk replied', 'A support agent replied to the requester'),
+            ('teams_on_status_change', '🔄 Status changed', 'Includes the progress note typed with the change'),
+            ('teams_on_internal_mention', '@ Mention in Internal Chat', "Someone was @mentioned in a ticket's internal chat"),
+        )
+    ]
     return render(request, 'desk/teams_settings.html', {
         'form': form,
         'teams_cfg': teams_cfg,
         'notif_cfg': notif_cfg,
+        'teams_event_toggles': teams_event_toggles,
         'test_result': test_result,
     })
 
@@ -4231,7 +4635,50 @@ def api_staff_contacts(request):
 # Dynamic Form Builder
 # =====================================================================
 
-@staff_required
+def _form_creator_required(view_func):
+    """Staff roles always allowed. A PortalUser is allowed through only with
+    the 'form_creator' module grant — each view below still scopes to their
+    own forms via _own_form_or_forbidden()."""
+    @wraps(view_func)
+    @login_required
+    def _wrapped(request, *args, **kwargs):
+        role = getattr(request.user, "role_access", None)
+        if role == User.RoleAccess.PORTALUSER:
+            if "form_creator" not in request.user.get_accessible_modules():
+                return HttpResponseForbidden(ACCESS_DENIED_MSG)
+        elif role not in {
+            User.RoleAccess.SUPERADMIN,
+            User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK,
+            User.RoleAccess.ENGINEER,
+            User.RoleAccess.AUDITOR,
+        }:
+            return HttpResponseForbidden(ACCESS_DENIED_MSG)
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+
+def _own_form_or_forbidden(request, form_obj):
+    """Staff can manage any form. A PortalUser may only manage forms they
+    created or were added to as a collaborator."""
+    if request.user.role_access == User.RoleAccess.PORTALUSER:
+        is_owner = form_obj.created_by_id == request.user.id
+        is_collaborator = form_obj.collaborators.filter(pk=request.user.pk).exists()
+        if not is_owner and not is_collaborator:
+            return HttpResponseForbidden("You do not have permission to manage this form.")
+    return None
+
+
+FORM_FILTERABLE_FIELDS = {
+    "is_published": {
+        "label": "Status", "type": "choice", "lookup": "is_published",
+        "choices": [("true", "Published"), ("false", "Draft")],
+        "python_type": "bool",
+    },
+}
+
+
+@_form_creator_required
 @feature_required('form_builder')
 def form_list_view(request):
     """
@@ -4239,29 +4686,38 @@ def form_list_view(request):
     """
     from core.models import DynamicForm
     from django.db.models import Q
-    from django.core.paginator import Paginator
+    from core.list_pagination import paginate
+    from core.dynamic_filters import apply_dynamic_filters, active_filters_json, fields_json
 
     query = request.GET.get('q', '').strip()
-    
-    forms_qs = DynamicForm.objects.all().order_by('-created_at')
-    
+
+    # Each user sees forms they created, plus forms they've been added to
+    # as a collaborator.
+    forms_qs = DynamicForm.objects.filter(
+        Q(created_by=request.user) | Q(collaborators=request.user),
+        is_archived=False,
+    ).distinct().order_by('-created_at')
+
     if query:
         forms_qs = forms_qs.filter(
-            Q(title__icontains=query) | 
+            Q(title__icontains=query) |
             Q(slug__icontains=query)
         )
+    forms_qs, active_filters = apply_dynamic_filters(forms_qs, request, FORM_FILTERABLE_FIELDS)
 
-    paginator = Paginator(forms_qs, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    context = {
+        "search_query": query,
+        "active_filters": active_filters,
+        "active_filters_json": active_filters_json(active_filters),
+        "dynamic_fields_json": fields_json(FORM_FILTERABLE_FIELDS),
+        "has_active_filters": bool(active_filters),
+    }
+    context.update(paginate(request, forms_qs))
+    context["forms"] = context["object_list"]
+    return render(request, "desk/forms/list.html", context)
 
-    return render(request, "desk/forms/list.html", {
-        "forms": page_obj,
-        "search_query": query
-    })
 
-
-@staff_required
+@_form_creator_required
 @feature_required('form_builder')
 def form_create_view(request):
     """
@@ -4283,14 +4739,14 @@ def form_create_view(request):
                 new_form.slug = str(uuid.uuid4())[:8]
             new_form.save()
             messages.success(request, f"Form '{new_form.title}' created! Now add some fields.")
-            return redirect("desk:form_edit", pk=new_form.pk)
+            return redirect(URLNAME_FORM_EDIT, pk=new_form.pk)
     else:
         form = DynamicFormForm()
 
     return render(request, "desk/forms/create.html", {"form": form})
 
 
-@staff_required
+@_form_creator_required
 @feature_required('form_builder')
 @require_POST
 def form_delete_view(request, pk):
@@ -4299,13 +4755,48 @@ def form_delete_view(request, pk):
     from django.contrib import messages
 
     form = get_object_or_404(DynamicForm, pk=pk)
+    guard = _own_form_or_forbidden(request, form)
+    if guard:
+        return guard
     title = form.title
     form.delete()
     messages.success(request, f"Form '{title}' has been deleted.")
     return redirect("desk:form_list")
 
 
-@staff_required
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_collaborators_update(request, pk):
+    """
+    Replace a form's collaborator set — staff the creator (or another staff
+    member, since staff can already manage any form) wants to share the
+    form builder/responses/settings with. Candidates are restricted to
+    staff roles that can actually use the Form Creator; the creator is
+    always implicitly included and can't be removed via this endpoint.
+    """
+    from core.models import DynamicForm
+    from django.contrib import messages
+
+    form_obj = get_object_or_404(DynamicForm, pk=pk)
+    guard = _own_form_or_forbidden(request, form_obj)
+    if guard:
+        return guard
+
+    ids = request.POST.getlist("collaborators")
+    users = User.objects.filter(
+        pk__in=ids,
+        role_access__in=[
+            User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK, User.RoleAccess.ENGINEER,
+        ],
+    ).exclude(pk=form_obj.created_by_id)
+    form_obj.collaborators.set(users)
+    messages.success(request, "Collaborators updated.")
+    return redirect(URLNAME_FORM_EDIT, pk=form_obj.pk)
+
+
+@_form_creator_required
 @feature_required('form_builder')
 @require_POST
 def form_duplicate_view(request, pk):
@@ -4319,6 +4810,9 @@ def form_duplicate_view(request, pk):
     import uuid
 
     original_form = get_object_or_404(DynamicForm, pk=pk)
+    guard = _own_form_or_forbidden(request, original_form)
+    if guard:
+        return guard
 
     # Clone the form instance
     new_form = DynamicForm.objects.get(pk=pk)
@@ -4344,10 +4838,116 @@ def form_duplicate_view(request, pk):
         field.save()
 
     messages.success(request, f"Form duplicated successfully!")
-    return redirect("desk:form_edit", pk=new_form.pk)
+    return redirect(URLNAME_FORM_EDIT, pk=new_form.pk)
 
 
-@staff_required
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_bulk_archive(request):
+    """Archive the selected DynamicForms. Scoped to the user's own forms, matching form_list_view."""
+    from core.models import DynamicForm
+    from core.list_actions import get_selected, bulk_set_archived
+    base_qs = DynamicForm.objects.filter(created_by=request.user)
+    selected = get_selected(request, base_qs)
+    count = bulk_set_archived(selected, value=True)
+    messages.success(request, f"{count} form(s) archived.")
+    return redirect("desk:form_list")
+
+
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_bulk_unarchive(request):
+    """Unarchive the selected DynamicForms. Scoped to the user's own forms, matching form_list_view."""
+    from core.models import DynamicForm
+    from core.list_actions import get_selected, bulk_set_archived
+    base_qs = DynamicForm.objects.filter(created_by=request.user)
+    selected = get_selected(request, base_qs)
+    count = bulk_set_archived(selected, value=False)
+    messages.success(request, f"{count} form(s) unarchived.")
+    return redirect("desk:form_list")
+
+
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_bulk_delete(request):
+    """Delete the selected DynamicForms and their fields/submissions. Scoped to the user's own forms."""
+    from core.models import DynamicForm
+    from core.list_actions import get_selected, bulk_delete
+    base_qs = DynamicForm.objects.filter(created_by=request.user)
+    selected = get_selected(request, base_qs)
+    count = bulk_delete(selected)
+    messages.success(request, f"{count} form(s) deleted.")
+    return redirect("desk:form_list")
+
+
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_bulk_duplicate(request):
+    """
+    Duplicate a single selected DynamicForm and all its fields (only meaningful
+    for exactly one selection). Adapted from form_duplicate_view to read
+    selected_ids from the shared bulk-action bar instead of a URL pk.
+    Does NOT copy background_image and header_image.
+    """
+    from core.models import DynamicForm
+    from core.list_actions import get_selected
+    import uuid
+
+    base_qs = DynamicForm.objects.filter(created_by=request.user)
+    selected = get_selected(request, base_qs)
+    original_form = selected.first()
+    if not original_form:
+        messages.error(request, "No form selected to duplicate.")
+        return redirect("desk:form_list")
+
+    new_form = DynamicForm.objects.get(pk=original_form.pk)
+    new_form.pk = None
+    new_form.id = uuid.uuid4()
+    new_form.title = f"{original_form.title} (copy)"
+    new_form.slug = str(uuid.uuid4())[:8]
+    new_form.created_by = request.user
+    new_form.is_published = False
+    new_form.is_archived = False
+    new_form.background_image = None
+    new_form.header_image = None
+    new_form.save()
+
+    for field in original_form.fields.all():
+        field.pk = None
+        field.id = uuid.uuid4()
+        field.form = new_form
+        field.save()
+
+    messages.success(request, "Form duplicated successfully!")
+    return redirect(URLNAME_FORM_EDIT, pk=new_form.pk)
+
+
+@_form_creator_required
+@feature_required('form_builder')
+@require_POST
+def form_bulk_export(request):
+    """Export the selected DynamicForms (or all own forms, if none selected) to Excel."""
+    from core.models import DynamicForm
+    from core.excel_utils import export_queryset_xlsx, safe_cell
+
+    base_qs = DynamicForm.objects.filter(created_by=request.user)
+    ids = request.POST.getlist("selected_ids")
+    if ids:
+        base_qs = base_qs.filter(pk__in=ids)
+    columns = [
+        ("Form Name", lambda o: safe_cell(o.title)),
+        ("Status", lambda o: "Published" if o.is_published else "Draft"),
+        ("Response Count", lambda o: o.submissions.count()),
+        ("Created Date", lambda o: o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else ""),
+    ]
+    return export_queryset_xlsx(base_qs, columns, "forms.xlsx", sheet_title="Forms")
+
+
+@_form_creator_required
 @feature_required('form_builder')
 def form_edit_view(request, pk):
     """
@@ -4363,7 +4963,10 @@ def form_edit_view(request, pk):
     import uuid
 
     instance = get_object_or_404(DynamicForm, pk=pk)
-    
+    guard = _own_form_or_forbidden(request, instance)
+    if guard:
+        return guard
+
     # Handle AJAX/HTMX Field updates
     if request.headers.get('HX-Request') == 'true':
         action = request.POST.get('action')
@@ -4421,7 +5024,7 @@ def form_edit_view(request, pk):
                 order=last_order + 1,
                 created_by=request.user
             )
-            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            return render(request, TEMPLATE_FIELD_LIST, {"fields": instance.fields.all(), "dynamic_form": instance})
             
         elif action == 'duplicate_field':
             field_id = request.POST.get('field_id')
@@ -4441,12 +5044,12 @@ def form_edit_view(request, pk):
             new_field.label = f"{original_field.label} (copy)"
             new_field.save()
             
-            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            return render(request, TEMPLATE_FIELD_LIST, {"fields": instance.fields.all(), "dynamic_form": instance})
             
         elif action == 'delete_field':
             field_id = request.POST.get('field_id')
             FormField.objects.filter(id=field_id, form=instance).delete()
-            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            return render(request, TEMPLATE_FIELD_LIST, {"fields": instance.fields.all(), "dynamic_form": instance})
             
         elif action == 'reorder':
             order_data = json.loads(request.POST.get('order_data', '[]'))
@@ -4509,7 +5112,7 @@ def form_edit_view(request, pk):
 
             field.updated_by = request.user
             field.save()
-            return render(request, "desk/forms/partials/field_list.html", {"fields": instance.fields.all(), "dynamic_form": instance})
+            return render(request, TEMPLATE_FIELD_LIST, {"fields": instance.fields.all(), "dynamic_form": instance})
 
         elif action == 'send_invitation':
             from django.core.mail import send_mail
@@ -4544,18 +5147,36 @@ def form_edit_view(request, pk):
             f.updated_by = request.user
             f.save()
             messages.success(request, "Form settings updated successfully.")
-            return redirect("desk:form_edit", pk=instance.pk)
+            return redirect(URLNAME_FORM_EDIT, pk=instance.pk)
     else:
         form = DynamicFormForm(instance=instance)
+
+    collaborator_candidates = User.objects.filter(
+        is_active=True,
+        role_access__in=[
+            User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER,
+            User.RoleAccess.SUPPORTDESK, User.RoleAccess.ENGINEER,
+        ],
+    ).exclude(pk=instance.created_by_id).order_by("first_name", "last_name")
+    collaborator_candidates_json = json.dumps([
+        {"id": str(u.id), "name": u.get_full_name() or u.username, "email": u.email or ""}
+        for u in collaborator_candidates
+    ])
+    collaborators_json = json.dumps([
+        {"id": str(u.id), "name": u.get_full_name() or u.username, "email": u.email or ""}
+        for u in instance.collaborators.all().order_by("first_name", "last_name")
+    ])
 
     return render(request, "desk/forms/builder.html", {
         "dynamic_form": instance,
         "form": form,
-        "fields": instance.fields.all()
+        "fields": instance.fields.all(),
+        "collaborator_candidates_json": collaborator_candidates_json,
+        "collaborators_json": collaborators_json,
     })
 
 
-@staff_required
+@_form_creator_required
 def form_responses_view(request, pk):
     """
     View all submissions for a specific DynamicForm.
@@ -4567,9 +5188,12 @@ def form_responses_view(request, pk):
     import collections
     
     instance = get_object_or_404(DynamicForm, pk=pk)
-    
+    guard = _own_form_or_forbidden(request, instance)
+    if guard:
+        return guard
+
     query = request.GET.get('q', '').strip()
-    
+
     submissions_qs = instance.submissions.all().order_by('-submitted_at')
     
     if query:
@@ -4580,9 +5204,9 @@ def form_responses_view(request, pk):
             Q(submitted_by__username__icontains=query)
         )
         
-    paginator = Paginator(submissions_qs, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    from core.list_pagination import get_page_size, make_paginator, page_size_context
+    page_size = get_page_size(request, default=50)
+    page_obj = make_paginator(submissions_qs, page_size).get_page(request.GET.get('page'))
     
     fields = instance.fields.all()
     
@@ -4632,6 +5256,7 @@ def form_responses_view(request, pk):
                 }
     
     return render(request, "desk/forms/responses.html", {
+        **page_size_context(page_size),
         "dynamic_form": instance,
         "submissions": page_obj,
         "search_query": query,
@@ -4640,7 +5265,7 @@ def form_responses_view(request, pk):
     })
 
 
-@staff_required
+@_form_creator_required
 def form_responses_export(request, pk):
     """
     Export all submissions for a DynamicForm to an Excel (.xlsx) file.
@@ -4648,8 +5273,11 @@ def form_responses_export(request, pk):
     from core.models import DynamicForm
     import openpyxl
     from django.http import HttpResponse
-    
+
     instance = get_object_or_404(DynamicForm, pk=pk)
+    guard = _own_form_or_forbidden(request, instance)
+    if guard:
+        return guard
     submissions = instance.submissions.all()
     fields = instance.fields.all()
     
@@ -4752,8 +5380,8 @@ def toggle_wa_session(request, case_id):
     Toggle the hold_wa_session flag for a specific case via HTMX.
     """
     case = get_object_or_404(CaseRecord, id=case_id)
-    if not _check_confidential_access(case, request.user):
-        return HttpResponseForbidden("You do not have access to this confidential ticket.")
+    if not _check_case_access(case, request.user):
+        return HttpResponseForbidden(CONFIDENTIAL_ACCESS_DENIED_MSG)
 
     # Check permissions
     if request.user.role_access not in ['SuperAdmin', 'Manager', 'SupportDesk']:
@@ -4792,7 +5420,6 @@ def toggle_wa_session(request, case_id):
 # Phase 2 — Document Template CRUD (Admin / SuperAdmin only)
 # =====================================================================
 
-@staff_required
 def _save_template_fields(request, tmpl):
     """Parse fields_json from POST and (re)create all DocumentTemplateField rows."""
     import json as _json
@@ -4817,22 +5444,42 @@ def _save_template_fields(request, tmpl):
             field_type=(fdata.get("field_type") or "richtext").strip(),
             assigned_stage=(fdata.get("assigned_stage") or "").strip(),
             variable_name=(fdata.get("variable_name") or "").strip(),
-            esign_role=(fdata.get("esign_role") or "").strip(),
+            is_signer=bool(fdata.get("is_signer", False)),
             created_by=request.user,
             updated_by=request.user,
         )
 
 
+@staff_required
 def document_template_list(request):
     """List all DocumentTemplates."""
+    from core.list_pagination import paginate
+    from core.dynamic_filters import apply_dynamic_filters, active_filters_json, fields_json
+
     query = request.GET.get("q", "").strip()
-    qs = DocumentTemplate.objects.prefetch_related("categories", "fields").order_by("title")
+    qs = DocumentTemplate.objects.filter(is_archived=False).prefetch_related("categories", "fields").order_by("title")
     if query:
         qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query))
-    return render(request, "desk/document_templates/list.html", {
-        "templates": qs,
+
+    doc_template_filterable_fields = {
+        "category": {
+            "label": "Category", "type": "choice", "lookup": "categories__id",
+            "choices": [(str(c.id), c.name) for c in CaseCategory.objects.all().order_by("name")],
+            "distinct": True,
+        },
+    }
+    qs, active_filters = apply_dynamic_filters(qs, request, doc_template_filterable_fields)
+
+    context = {
         "search_query": query,
-    })
+        "active_filters": active_filters,
+        "active_filters_json": active_filters_json(active_filters),
+        "dynamic_fields_json": fields_json(doc_template_filterable_fields),
+        "has_active_filters": bool(active_filters),
+    }
+    context.update(paginate(request, qs))
+    context["templates"] = context["object_list"]
+    return render(request, "desk/document_templates/list.html", context)
 
 
 @staff_required
@@ -4852,7 +5499,7 @@ def document_template_create(request):
             form.save_m2m()
             _save_template_fields(request, tmpl)
             messages.success(request, f"Template '{tmpl.title}' created successfully.")
-            return redirect("desk:document_template_list")
+            return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
     else:
         form = DocumentTemplateForm()
 
@@ -4882,13 +5529,13 @@ def document_template_edit(request, template_id):
             form.save_m2m()
             _save_template_fields(request, obj)
             messages.success(request, f"Template '{obj.title}' updated.")
-            return redirect("desk:document_template_list")
+            return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
     else:
         form = DocumentTemplateForm(instance=tmpl)
 
     existing_fields = list(
         tmpl.fields.order_by("order").values(
-            "label", "placeholder", "default_content", "is_required", "field_type", "assigned_stage", "variable_name", "esign_role"
+            "label", "placeholder", "default_content", "is_required", "field_type", "assigned_stage", "variable_name", "is_signer"
         )
     )
     return render(request, "desk/document_templates/form.html", {
@@ -4909,8 +5556,105 @@ def document_template_delete(request, template_id):
     title = tmpl.title
     tmpl.delete()
     messages.success(request, f"Template '{title}' deleted.")
-    return redirect("desk:document_template_list")
+    return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
 
+
+@staff_required
+@require_POST
+def document_template_bulk_archive(request):
+    """Archive the selected DocumentTemplates. SuperAdmin/Manager (same gate as Edit)."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Only SuperAdmin and Manager can archive document templates.")
+    from core.list_actions import get_selected, bulk_set_archived
+    selected = get_selected(request, DocumentTemplate.objects.all())
+    count = bulk_set_archived(selected, value=True)
+    messages.success(request, f"{count} template(s) archived.")
+    return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
+
+
+@staff_required
+@require_POST
+def document_template_bulk_unarchive(request):
+    """Unarchive the selected DocumentTemplates. SuperAdmin/Manager (same gate as Edit)."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Only SuperAdmin and Manager can unarchive document templates.")
+    from core.list_actions import get_selected, bulk_set_archived
+    selected = get_selected(request, DocumentTemplate.objects.all())
+    count = bulk_set_archived(selected, value=False)
+    messages.success(request, f"{count} template(s) unarchived.")
+    return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
+
+
+@staff_required
+@require_POST
+def document_template_bulk_delete(request):
+    """Hard-delete the selected DocumentTemplates. SuperAdmin only (same gate as single delete)."""
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return HttpResponseForbidden("Only SuperAdmin can delete document templates.")
+    from core.list_actions import get_selected, bulk_delete
+    selected = get_selected(request, DocumentTemplate.objects.all())
+    count = bulk_delete(selected)
+    messages.success(request, f"{count} template(s) deleted.")
+    return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
+
+
+@staff_required
+@require_POST
+def document_template_bulk_duplicate(request):
+    """Duplicate a single selected DocumentTemplate (only meaningful for exactly one)."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Only SuperAdmin and Manager can duplicate document templates.")
+    import uuid
+    from core.list_actions import get_selected
+    selected = get_selected(request, DocumentTemplate.objects.all())
+    original = selected.first()
+    if not original:
+        messages.error(request, "No template selected to duplicate.")
+        return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
+
+    original_categories = list(original.categories.all())
+    original_fields = list(original.fields.all())
+
+    new_tmpl = DocumentTemplate.objects.get(pk=original.pk)
+    new_tmpl.pk = None
+    new_tmpl.id = uuid.uuid4()
+    new_tmpl.title = f"{original.title} (copy)"
+    new_tmpl.is_archived = False
+    new_tmpl.created_by = request.user
+    new_tmpl.updated_by = request.user
+    new_tmpl.save()
+    new_tmpl.categories.set(original_categories)
+
+    for field in original_fields:
+        field.pk = None
+        field.id = uuid.uuid4()
+        field.template = new_tmpl
+        field.created_by = request.user
+        field.updated_by = request.user
+        field.save()
+
+    messages.success(request, f'Template "{new_tmpl.title}" created as a duplicate.')
+    return redirect(URLNAME_DOCUMENT_TEMPLATE_LIST)
+
+
+@staff_required
+@require_POST
+def document_template_bulk_export(request):
+    """Export the selected DocumentTemplates (or all, if none selected) to Excel."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden("Only SuperAdmin and Manager can export document templates.")
+    from core.excel_utils import export_queryset_xlsx, safe_cell
+    ids = request.POST.getlist("selected_ids")
+    qs = DocumentTemplate.objects.all().order_by("title")
+    if ids:
+        qs = qs.filter(pk__in=ids)
+    columns = [
+        ("Template Name", lambda o: safe_cell(o.title)),
+        ("Field Count", lambda o: o.fields.count()),
+        ("Category", lambda o: safe_cell(", ".join(c.name for c in o.categories.all())) or "-"),
+        ("Status", lambda o: "Archived" if o.is_archived else "Active"),
+    ]
+    return export_queryset_xlsx(qs, columns, "document_templates.xlsx", sheet_title="Document Templates")
 
 
 # =====================================================================
@@ -4919,30 +5663,59 @@ def document_template_delete(request, template_id):
 
 @staff_required
 def category_manage_list(request):
-    """List all ticket categories grouped as parent → children."""
+    """List all ticket categories as a nested tree."""
     if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     q = request.GET.get("q", "").strip()
-    from django.db.models import Prefetch
-    root_qs = CaseCategory.objects.filter(parent__isnull=True).prefetch_related(
-        Prefetch("children", queryset=CaseCategory.objects.prefetch_related("document_templates")),
-        "document_templates",
-    ).order_by("name")
+    all_cats = list(
+        CaseCategory.objects.prefetch_related("document_templates").order_by("name")
+    )
+    by_parent = {}
+    by_id = {}
+    for cat in all_cats:
+        by_parent.setdefault(cat.parent_id, []).append(cat)
+        by_id[cat.pk] = cat
+
+    visible_ids = None
     if q:
-        matched_ids = set(
-            CaseCategory.objects.filter(name__icontains=q).values_list("id", flat=True)
-        )
-        parent_ids = set(
-            CaseCategory.objects.filter(id__in=matched_ids, parent__isnull=False)
-            .values_list("parent_id", flat=True)
-        )
-        root_qs = root_qs.filter(
-            Q(id__in=matched_ids) | Q(id__in=parent_ids)
-        )
+        q_lower = q.lower()
+        matched_ids = {
+            cat.pk for cat in all_cats
+            if q_lower in (cat.name or "").lower()
+            or q_lower in (cat.description or "").lower()
+        }
+        visible_ids = set(matched_ids)
+        for mid in list(matched_ids):
+            node = by_id.get(mid)
+            while node and node.parent_id:
+                visible_ids.add(node.parent_id)
+                node = by_id.get(node.parent_id)
+            stack = list(by_parent.get(mid, []))
+            while stack:
+                child = stack.pop()
+                visible_ids.add(child.pk)
+                stack.extend(by_parent.get(child.pk, []))
+
+    category_rows = []
+
+    def walk(parent_id, depth):
+        for cat in by_parent.get(parent_id, []):
+            if visible_ids is not None and cat.pk not in visible_ids:
+                continue
+            child_count = len(by_parent.get(cat.pk, []))
+            category_rows.append({
+                "category": cat,
+                "depth": depth,
+                "indent_rem": depth * 1.25,
+                "child_count": child_count,
+            })
+            walk(cat.pk, depth + 1)
+
+    walk(None, 0)
 
     return render(request, "desk/categories/list.html", {
-        "root_categories": root_qs,
+        "category_rows": category_rows,
         "search_query": q,
     })
 
@@ -4951,7 +5724,7 @@ def category_manage_list(request):
 def category_manage_create(request):
     """Create a new CaseCategory."""
     if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     from cases.forms import CaseCategoryForm
     if request.method == "POST":
@@ -4962,12 +5735,12 @@ def category_manage_create(request):
             cat.updated_by = request.user
             cat.save()
             messages.success(request, f"Category \"{cat.name}\" created.")
-            return redirect("desk:category_list")
+            return redirect(URLNAME_CATEGORY_LIST)
     else:
         initial = {}
         parent_id = request.GET.get("parent")
         if parent_id:
-            parent_obj = CaseCategory.objects.filter(pk=parent_id, parent__isnull=True).first()
+            parent_obj = CaseCategory.objects.filter(pk=parent_id).first()
             if parent_obj:
                 initial["parent"] = parent_obj
         form = CaseCategoryForm(initial=initial)
@@ -4982,7 +5755,7 @@ def category_manage_create(request):
 def category_manage_edit(request, category_id):
     """Edit an existing CaseCategory."""
     if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     category = get_object_or_404(CaseCategory, id=category_id)
     from cases.forms import CaseCategoryForm
@@ -4993,7 +5766,7 @@ def category_manage_edit(request, category_id):
             cat.updated_by = request.user
             cat.save()
             messages.success(request, f"Category \"{cat.name}\" updated.")
-            return redirect("desk:category_list")
+            return redirect(URLNAME_CATEGORY_LIST)
     else:
         form = CaseCategoryForm(instance=category)
 
@@ -5020,23 +5793,259 @@ def category_manage_delete(request, category_id):
                 request,
                 f'Cannot delete "{category.name}": {ticket_count} ticket(s) use this category.',
             )
-            return redirect("desk:category_list")
+            return redirect(URLNAME_CATEGORY_LIST)
         if children_count > 0:
             messages.error(
                 request,
                 f'Cannot delete "{category.name}": it has {children_count} sub-categor{"y" if children_count == 1 else "ies"}. Delete them first.',
             )
-            return redirect("desk:category_list")
+            return redirect(URLNAME_CATEGORY_LIST)
         name = category.name
         category.delete()
         messages.success(request, f"Category \"{name}\" deleted.")
-        return redirect("desk:category_list")
+        return redirect(URLNAME_CATEGORY_LIST)
 
     return render(request, "desk/categories/confirm_delete.html", {
         "category": category,
         "ticket_count": ticket_count,
         "children_count": children_count,
     })
+
+
+# =====================================================================
+# Ticket Location Management (Desk Admin UI — Master Data)
+# =====================================================================
+
+URLNAME_LOCATION_LIST = "desk:location_list"
+
+LOCATION_FILTERABLE_FIELDS = {
+    "is_active": {
+        "label": "Status", "type": "choice", "lookup": "is_active",
+        "choices": [("true", "Active"), ("false", "Inactive")],
+        "python_type": "bool",
+    },
+}
+
+
+@staff_required
+def location_manage_list(request):
+    """List all ticket locations (flat, ordered by display order)."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+
+    from core.list_pagination import paginate
+    from core.dynamic_filters import apply_dynamic_filters, active_filters_json, fields_json
+
+    q = request.GET.get("q", "").strip()
+    locations = TicketLocation.objects.filter(is_archived=False).order_by("order", "name")
+    if q:
+        locations = locations.filter(name__icontains=q)
+    locations, active_filters = apply_dynamic_filters(locations, request, LOCATION_FILTERABLE_FIELDS)
+
+    context = {
+        "search_query": q,
+        "active_filters": active_filters,
+        "active_filters_json": active_filters_json(active_filters),
+        "dynamic_fields_json": fields_json(LOCATION_FILTERABLE_FIELDS),
+        "has_active_filters": bool(active_filters),
+    }
+    context.update(paginate(request, locations))
+    context["locations"] = context["object_list"]
+    return render(request, "desk/locations/list.html", context)
+
+
+def _generate_location_slug(name, exclude_pk=None):
+    from django.utils.text import slugify
+    base = slugify(name) or "location"
+    candidate = base
+    n = 2
+    while True:
+        qs = TicketLocation.objects.filter(slug=candidate)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        if not qs.exists():
+            return candidate
+        candidate = f"{base}-{n}"
+        n += 1
+
+
+@staff_required
+def location_manage_create(request):
+    """Create a new TicketLocation. Slug is auto-generated from the name."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+
+    from cases.forms import TicketLocationForm
+    if request.method == "POST":
+        form = TicketLocationForm(request.POST)
+        if form.is_valid():
+            loc = form.save(commit=False)
+            loc.slug = _generate_location_slug(loc.name)
+            loc.created_by = request.user
+            loc.updated_by = request.user
+            loc.save()
+            messages.success(request, f'Location "{loc.name}" created.')
+            return redirect(URLNAME_LOCATION_LIST)
+    else:
+        form = TicketLocationForm(initial={"is_active": True})
+
+    return render(request, "desk/locations/form.html", {
+        "form": form,
+        "is_edit": False,
+    })
+
+
+@staff_required
+def location_manage_edit(request, location_id):
+    """Edit an existing TicketLocation."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+
+    location = get_object_or_404(TicketLocation, id=location_id)
+    old_name = location.name
+    from cases.forms import TicketLocationForm
+    if request.method == "POST":
+        form = TicketLocationForm(request.POST, instance=location)
+        if form.is_valid():
+            loc = form.save(commit=False)
+            if loc.name != old_name:
+                loc.slug = _generate_location_slug(loc.name, exclude_pk=loc.pk)
+            loc.updated_by = request.user
+            loc.save()
+            messages.success(request, f'Location "{loc.name}" updated.')
+            return redirect(URLNAME_LOCATION_LIST)
+    else:
+        form = TicketLocationForm(instance=location)
+
+    return render(request, "desk/locations/form.html", {
+        "form": form,
+        "location": location,
+        "is_edit": True,
+    })
+
+
+@staff_required
+def location_manage_delete(request, location_id):
+    """Show confirmation or perform deletion of a TicketLocation."""
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return HttpResponseForbidden("Only SuperAdmin can delete locations.")
+
+    location = get_object_or_404(TicketLocation, id=location_id)
+    ticket_count = CaseRecord.objects.filter(location=location).count()
+
+    if request.method == "POST":
+        if ticket_count > 0:
+            messages.error(
+                request,
+                f'Cannot delete "{location.name}": {ticket_count} ticket(s) use this location.',
+            )
+            return redirect(URLNAME_LOCATION_LIST)
+        name = location.name
+        location.delete()
+        messages.success(request, f'Location "{name}" deleted.')
+        return redirect(URLNAME_LOCATION_LIST)
+
+    return render(request, "desk/locations/confirm_delete.html", {
+        "location": location,
+        "ticket_count": ticket_count,
+    })
+
+
+@staff_required
+@require_POST
+def location_bulk_archive(request):
+    """Archive the selected TicketLocations. SuperAdmin/Manager only."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+    from core.list_actions import get_selected, bulk_set_archived
+    selected = get_selected(request, TicketLocation.objects.all())
+    count = bulk_set_archived(selected, value=True)
+    messages.success(request, f"{count} location(s) archived.")
+    return redirect(URLNAME_LOCATION_LIST)
+
+
+@staff_required
+@require_POST
+def location_bulk_unarchive(request):
+    """Unarchive the selected TicketLocations. SuperAdmin/Manager only."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+    from core.list_actions import get_selected, bulk_set_archived
+    selected = get_selected(request, TicketLocation.objects.all())
+    count = bulk_set_archived(selected, value=False)
+    messages.success(request, f"{count} location(s) unarchived.")
+    return redirect(URLNAME_LOCATION_LIST)
+
+
+@staff_required
+@require_POST
+def location_bulk_delete(request):
+    """Hard-delete the selected TicketLocations. SuperAdmin only (matches single delete)."""
+    if request.user.role_access != User.RoleAccess.SUPERADMIN:
+        return HttpResponseForbidden("Only SuperAdmin can delete locations.")
+    from core.list_actions import get_selected, bulk_delete
+    selected = get_selected(request, TicketLocation.objects.all())
+    # Skip any locations still referenced by tickets, mirroring the single-delete guard.
+    blocked_names = []
+    deletable_ids = []
+    for loc in selected:
+        if CaseRecord.objects.filter(location=loc).exists():
+            blocked_names.append(loc.name)
+        else:
+            deletable_ids.append(loc.pk)
+    count = bulk_delete(TicketLocation.objects.filter(pk__in=deletable_ids))
+    if blocked_names:
+        messages.error(request, f"Skipped {len(blocked_names)} location(s) still in use: {', '.join(blocked_names)}.")
+    if count:
+        messages.success(request, f"{count} location(s) deleted.")
+    return redirect(URLNAME_LOCATION_LIST)
+
+
+@staff_required
+@require_POST
+def location_bulk_duplicate(request):
+    """Duplicate a single selected TicketLocation (only meaningful for exactly one)."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+    from core.list_actions import get_selected
+    selected = get_selected(request, TicketLocation.objects.all())
+    original = selected.first()
+    if not original:
+        messages.error(request, "No location selected to duplicate.")
+        return redirect(URLNAME_LOCATION_LIST)
+    new_name = f"{original.name} (copy)"
+    new_loc = TicketLocation.objects.create(
+        name=new_name,
+        slug=_generate_location_slug(new_name),
+        requires_detail=original.requires_detail,
+        is_active=original.is_active,
+        order=original.order,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    messages.success(request, f'Location "{new_loc.name}" created as a duplicate.')
+    return redirect(URLNAME_LOCATION_LIST)
+
+
+@staff_required
+@require_POST
+def location_bulk_export(request):
+    """Export the selected TicketLocations (or all, if none selected) to Excel."""
+    if request.user.role_access not in [User.RoleAccess.SUPERADMIN, User.RoleAccess.MANAGER]:
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
+    from core.list_actions import get_selected
+    from core.excel_utils import export_queryset_xlsx, safe_cell
+    ids = request.POST.getlist("selected_ids")
+    qs = TicketLocation.objects.all().order_by("order", "name")
+    if ids:
+        qs = qs.filter(pk__in=ids)
+    columns = [
+        ("Name", lambda o: safe_cell(o.name)),
+        ("Order", lambda o: o.order),
+        ("Requires Detail", lambda o: "Yes" if o.requires_detail else "No"),
+        ("Status", lambda o: "Active" if o.is_active else "Inactive"),
+    ]
+    return export_queryset_xlsx(qs, columns, "locations.xlsx", sheet_title="Locations")
 
 
 def document_template_preview_html(request, template_id):
@@ -5107,7 +6116,7 @@ def _finalize_approved_change_request(doc):
         case=case,
         body=(
             f"[Supporting Letter Approved — Rev.{doc.revision_number}]\n"
-            f"The supporting letter has been fully approved and attached."
+            "The supporting letter has been fully approved and attached."
         ),
         direction=Message.Direction.OUTBOUND,
         channel=Message.Channel.WEB,
@@ -5124,7 +6133,7 @@ def _finalize_approved_change_request(doc):
 
     was_pending = case.status == CaseRecord.Status.PENDING_APPROVAL
     if was_pending:
-        case.status = CaseRecord.Status.OPEN
+        case.status = CaseRecord.Status.NEW
         case.save(update_fields=["status"])
         # Now that the ticket is active, dispatch the desk notification that
         # was deferred when the ticket was first submitted with pending approvers.
@@ -5152,7 +6161,7 @@ def portal_change_request_new(request, case_id):
         or (guest_token and case.guest_token == guest_token)
     )
     if not is_owner:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     if not case.category.enable_change_request:
         return HttpResponseForbidden("Supporting letter is not enabled for this category.")
@@ -5177,7 +6186,7 @@ def portal_change_request_new(request, case_id):
     )
 
     def _quill_has_content(html):
-        text = re.sub(r'<[^>]+>', '', html or '').strip()
+        text = re.sub(HTML_TAG_PATTERN, '', html or '').strip()
         return bool(text) or '<img' in (html or '')
 
     def _build_approval_chain(doc, approver_ids):
@@ -5205,7 +6214,7 @@ def portal_change_request_new(request, case_id):
             selected_template = available_templates.filter(id=template_id).first()
             if not selected_template:
                 messages.error(request, "Invalid document template selected.")
-                return render(request, "client/change_request_form.html", {
+                return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                     "case": case, "available_approvers": available_approvers,
                     "available_templates": available_templates, "guest_token": guest_token,
                 })
@@ -5216,7 +6225,7 @@ def portal_change_request_new(request, case_id):
                 val = request.POST.get(f"field_{field.order}", "").strip()
                 if field.is_required and not _quill_has_content(val):
                     messages.error(request, f"Field '{field.label}' is required.")
-                    return render(request, "client/change_request_form.html", {
+                    return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                         "case": case, "available_approvers": available_approvers,
                         "available_templates": available_templates,
                         "selected_template": selected_template,
@@ -5228,7 +6237,7 @@ def portal_change_request_new(request, case_id):
 
             if not has_any_content:
                 messages.error(request, "Please fill in at least one field.")
-                return render(request, "client/change_request_form.html", {
+                return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                     "case": case, "available_approvers": available_approvers,
                     "available_templates": available_templates,
                     "selected_template": selected_template,
@@ -5251,7 +6260,7 @@ def portal_change_request_new(request, case_id):
             chronology = request.POST.get("chronology", "").strip()
             if not _quill_has_content(request_change) or not _quill_has_content(chronology):
                 messages.error(request, "Both fields are required.")
-                return render(request, "client/change_request_form.html", {
+                return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                     "case": case, "available_approvers": available_approvers,
                     "available_templates": available_templates, "guest_token": guest_token,
                 })
@@ -5278,7 +6287,7 @@ def portal_change_request_new(request, case_id):
     elif available_templates.count() == 1:
         selected_template = available_templates.first()
 
-    return render(request, "client/change_request_form.html", {
+    return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
         "case": case,
         "available_approvers": available_approvers,
         "available_templates": available_templates,
@@ -5299,7 +6308,7 @@ def portal_change_request_detail(request, doc_id):
     )
     staff_access = request.user.is_authenticated and hasattr(request.user, "role_access")
     if not is_owner and not staff_access:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     return render(request, "client/change_request_status.html", {
         "doc": doc,
@@ -5323,7 +6332,7 @@ def portal_change_request_revise(request, doc_id):
         or (guest_token and case.guest_token == guest_token)
     )
     if not is_owner:
-        return HttpResponseForbidden("Access denied.")
+        return HttpResponseForbidden(ACCESS_DENIED_MSG)
 
     if doc.status != ChangeRequestDocument.Status.REJECTED:
         messages.error(request, "This change request is not in a rejected state.")
@@ -5333,7 +6342,7 @@ def portal_change_request_revise(request, doc_id):
     selected_template = doc.document_template
 
     def _quill_has_content(html):
-        text = re.sub(r'<[^>]+>', '', html or '').strip()
+        text = re.sub(HTML_TAG_PATTERN, '', html or '').strip()
         return bool(text) or '<img' in (html or '')
 
     if request.method == "POST":
@@ -5345,7 +6354,7 @@ def portal_change_request_revise(request, doc_id):
                 val = request.POST.get(f"field_{field.order}", "").strip()
                 if field.is_required and not _quill_has_content(val):
                     messages.error(request, f"Field '{field.label}' is required.")
-                    return render(request, "client/change_request_form.html", {
+                    return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                         "case": case, "doc": doc, "available_approvers": available_approvers,
                         "selected_template": selected_template, "is_revision": True,
                         "guest_token": guest_token,
@@ -5369,7 +6378,7 @@ def portal_change_request_revise(request, doc_id):
             chronology = request.POST.get("chronology", "").strip()
             if not _quill_has_content(request_change) or not _quill_has_content(chronology):
                 messages.error(request, "Both fields are required.")
-                return render(request, "client/change_request_form.html", {
+                return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
                     "case": case, "doc": doc, "available_approvers": available_approvers,
                     "is_revision": True, "guest_token": guest_token,
                     "prefill_request_change": doc.request_change,
@@ -5409,7 +6418,7 @@ def portal_change_request_revise(request, doc_id):
         .values_list("notes", flat=True)
         .first()
     )
-    return render(request, "client/change_request_form.html", {
+    return render(request, TEMPLATE_CHANGE_REQUEST_FORM, {
         "case": case,
         "doc": doc,
         "available_approvers": available_approvers,
@@ -5439,17 +6448,17 @@ def change_request_approve(request, token):
 
     # Logged-in users who are NOT the assigned approver are denied.
     if request.user.is_authenticated and request.user != approval.approver:
-        return render(request, "client/change_request_approval.html", {
+        return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
             "approval": approval, "doc": doc, "case": case, "access_denied": True,
         })
 
     if approval.status != ChangeRequestApproval.Status.PENDING:
-        return render(request, "client/change_request_approval.html", {
+        return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
             "approval": approval, "doc": doc, "case": case, "already_acted": True,
         })
 
     if approval.is_token_expired:
-        return render(request, "client/change_request_approval.html", {
+        return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
             "approval": approval, "doc": doc, "case": case, "token_expired": True,
         })
 
@@ -5469,7 +6478,7 @@ def change_request_approve(request, token):
             else:
                 _notify_change_request_approvers(doc)
 
-            return render(request, "client/change_request_approval.html", {
+            return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
                 "approval": approval, "doc": doc, "case": case,
                 "success": True, "action_done": "approved",
             })
@@ -5477,7 +6486,7 @@ def change_request_approve(request, token):
         elif action == "reject":
             if not notes:
                 messages.error(request, "Please provide a reason for rejection.")
-                return render(request, "client/change_request_approval.html", {
+                return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
                     "approval": approval, "doc": doc, "case": case,
                 })
 
@@ -5508,11 +6517,11 @@ def change_request_approve(request, token):
             except Exception:
                 pass
 
-            return render(request, "client/change_request_approval.html", {
+            return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
                 "approval": approval, "doc": doc, "case": case,
                 "success": True, "action_done": "rejected",
             })
 
-    return render(request, "client/change_request_approval.html", {
+    return render(request, TEMPLATE_CHANGE_REQUEST_APPROVAL, {
         "approval": approval, "doc": doc, "case": case,
     })

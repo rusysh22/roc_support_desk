@@ -9,10 +9,10 @@
 <div class="max-w-3xl mx-auto space-y-6">
 
     <!-- Header -->
+    <div class="jk-back-row">
+        {% url 'users_desk:user_list' as back_fallback %}{% include "partials/back_button.html" with fallback=back_fallback %}
+    </div>
     <div class="flex items-center gap-4">
-        <a href="{% url 'users_desk:user_list' %}" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 hover:text-slate-800 transition-colors">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-        </a>
         <div>
             <h2 class="text-lg font-bold text-slate-900">{% if is_edit %}Edit User: {{ user_obj.login_username }}{% else %}Create New User{% endif %}</h2>
             <p class="text-sm text-slate-600 mt-1">
@@ -26,7 +26,7 @@
         <div class="p-6 sm:p-8 space-y-6">
 
             <!-- Main Edit Form — closed before Account Status to avoid nested forms -->
-            <form id="user-edit-form" method="post">
+            <form data-unsaved-guard id="user-edit-form" method="post">
                 {% csrf_token %}
 
                 <!-- Validation Errors -->
@@ -93,8 +93,10 @@
                         <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Access & Permissions</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Role Access <span class="text-red-700">*</span></label>
-                                {{ form.role_access }}
+                                <label class="block text-sm font-semibold text-slate-700 mb-1.5" for="{{ form.user_role.id_for_label }}">User Role <span class="text-red-700">*</span></label>
+                                {{ form.user_role }}{{ form.role_access }}
+                                <p class="text-xs text-slate-500 mt-1">Roles and their permissions are managed under <a href="{% url 'users_desk:role_list' %}" class="text-indigo-600 hover:underline">User Roles</a>.</p>
+                                {% for error in form.user_role.errors %}<p class="jk-form-error mt-1">{{ error }}</p>{% endfor %}
                             </div>
                             <div class="flex items-end pb-2">
                                 <label class="flex items-center gap-3 cursor-pointer group p-2 border border-slate-200 rounded-lg w-full hover:bg-slate-50 transition-colors">
@@ -135,35 +137,38 @@
                         <h3 class="text-base font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Module Access</h3>
 
                         <label class="flex items-center gap-3 cursor-pointer mb-4 p-3 border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-all">
-                            <input type="checkbox" name="module_override" value="1" x-model="override"
+                            <input type="checkbox" value="1" x-model="override"
                                 style="width:16px;height:16px;accent-color:#6366f1;flex-shrink:0;">
                             <div>
                                 <span class="block text-sm font-semibold text-slate-800">Override module access</span>
-                                <span class="block text-xs text-slate-500">Customize which modules this user can access instead of using role defaults.</span>
+                                <span class="block text-xs text-slate-500">Grant extra modules beyond <a href="{% url 'users_desk:portal_modules_settings' %}" class="text-indigo-600 hover:underline">Module Defaults</a> for this role. Unchecking a role-default module here does not hide it.</span>
                             </div>
                         </label>
 
                         <div x-show="!override" x-cloak class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-600">
-                            Using <strong class="text-slate-800">role defaults</strong> — modules are determined automatically by this user's role.
+                            Using <strong class="text-slate-800">defaults</strong> — inherit from <a href="{% url 'users_desk:portal_modules_settings' %}" class="text-indigo-600 hover:underline">Module Defaults</a> for this role.
                         </div>
 
-                        <div x-show="override" x-cloak class="space-y-5">
-                            {% for section_name, modules in module_sections.items %}
-                            <div>
-                                <h4 style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">{{ section_name }}</h4>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                                    {% for slug, label, emoji in modules %}
-                                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;transition:all 0.15s;" onmouseover="this.style.background='#eef2ff';this.style.borderColor='#a5b4fc';" onmouseout="this.style.background='';this.style.borderColor='#e2e8f0';">
-                                        <input type="checkbox" name="module_access" value="{{ slug }}"
-                                            {% if slug in checked_modules %}checked{% endif %}
-                                            style="width:15px;height:15px;accent-color:#6366f1;flex-shrink:0;">
-                                        <span style="font-size:13px;color:#334155;">{{ emoji }} {{ label }}</span>
-                                    </label>
-                                    {% endfor %}
+                        <template x-if="override">
+                            <div class="space-y-5">
+                                <input type="hidden" name="module_override" value="1">
+                                {% for section_name, modules in module_sections.items %}
+                                <div>
+                                    <h4 style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">{{ section_name }}</h4>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                        {% for slug, label, emoji in modules %}
+                                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;transition:all 0.15s;" onmouseover="this.style.background='#eef2ff';this.style.borderColor='#a5b4fc';" onmouseout="this.style.background='';this.style.borderColor='#e2e8f0';">
+                                            <input type="checkbox" name="module_access" value="{{ slug }}"
+                                                {% if slug in checked_modules %}checked{% endif %}
+                                                style="width:15px;height:15px;accent-color:#6366f1;flex-shrink:0;">
+                                            <span style="font-size:13px;color:#334155;">{{ emoji }} {{ label }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
                                 </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
-                        </div>
+                        </template>
                     </div>
 
                 </div>

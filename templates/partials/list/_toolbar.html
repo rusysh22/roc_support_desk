@@ -1,0 +1,149 @@
+{% load custom_tags %}
+{% comment %}
+Standardized page header + search/advanced-filter toolbar for list pages.
+The including template supplies:
+- title / subtitle (optional strings — renders the page header row above the
+  toolbar; omit both to keep just the search/filter bar, e.g. pages that put
+  their own title in {% block topbar_actions %} instead)
+- create_url / create_label (optional — renders a "+ New X" button in the
+  header row; an icon-only copy appears inside the toolbar once the header
+  has scrolled out of view)
+- extra_header_template (optional string path to a small partial with extra
+  header-row buttons alongside the create button, e.g. an "Import" link —
+  only shown in the header row, not reproduced in the compact bar)
+- subtitle_extra_template (optional string path to a small partial rendered
+  directly below the subtitle text, e.g. a mode badge or inline link)
+- search_placeholder (string)
+- search_query (current ?q= value)
+- filter_panel_template (optional string path to a small partial with the
+  module's own filter fields, e.g. "desk/forms/_filter_fields.html" — Django
+  {% include %} can't override a block from another include, so each module
+  supplies its fields as its own tiny partial instead of a block override)
+- has_active_filters (bool — shows the Clear link)
+- active_filter_count (optional int — shown as a badge on the Advanced
+  Filter button; when > 0 the filter panel starts open and the button is
+  blue. A plain search never opens it. The red Clear button appears while
+  a search or filter is active)
+- open_filter_count (optional int — when set, decides whether the panel
+  starts open instead of active_filter_count; e.g. filters applied by quick
+  chips above the list count on the badge but keep the panel closed)
+- result_noun (optional, unused — the row count is shown by the
+  pagination footer's "Showing x–y of N" line)
+The filter panel is toggled client-side; both search and filters submit
+as a normal server-side GET so pagination/query params stay in sync.
+
+Scroll behaviour: the title row scrolls away normally; only the search card
+is sticky. Once it sticks (an IntersectionObserver watches the sentinel just
+above it), button labels collapse to icons. That switch changes widths only —
+never the toolbar's height — so the page below can't shift and re-trigger it
+(the old scroll-threshold version collapsed the title inside the sticky bar,
+which moved the scroll position and made the header flicker back and forth).
+{% endcomment %}
+{% if title %}
+<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pt-4 mb-1">
+    <div>
+        <h2 class="text-lg font-bold text-slate-900">{{ title }}</h2>
+        {% if subtitle %}<p class="text-sm text-slate-600 mt-1">{{ subtitle }}</p>{% endif %}
+        {% if subtitle_extra_template %}{% include subtitle_extra_template %}{% endif %}
+    </div>
+    {% if create_url or extra_header_template %}
+    <div class="flex flex-wrap items-center gap-2 shrink-0">
+        {% if extra_header_template %}{% include extra_header_template %}{% endif %}
+        {% if create_url %}
+        <a href="{{ create_url }}" class="jk-btn jk-btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap">
+            {% icon "plus" css_class="h-4 w-4 mr-1.5 inline-block -mt-0.5" %}
+            {{ create_label|default:"New" }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# sentinel: when it passes under the topbar, the toolbar below is stuck → compact #}
+<div aria-hidden="true" class="h-0"></div>
+<div class="sticky z-20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-3 bg-[var(--jk-surface-alt)]"
+     style="top: 4rem;"
+     x-data="{ filtersOpen: {% if open_filter_count is None %}{{ active_filter_count|yesno:'true,false' }}{% else %}{{ open_filter_count|yesno:'true,false' }}{% endif %}, compact: false }"
+     x-init="
+        const sentinel = $el.previousElementSibling;
+        const topOffset = parseFloat(getComputedStyle($el).top) || 64;
+        if (sentinel && 'IntersectionObserver' in window) {
+            new IntersectionObserver(([entry]) => {
+                compact = !entry.isIntersecting && entry.boundingClientRect.top < topOffset;
+            }, { rootMargin: `-${topOffset}px 0px 0px 0px`, threshold: 0 }).observe(sentinel);
+        }
+     ">
+
+    <div class="jk-card">
+        <div class="p-4">
+            <form method="get" class="flex flex-col sm:flex-row gap-3">
+                {% for key, value in request.GET.items %}{% if key != 'q' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+                <div class="flex-1 relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        {% icon "search" css_class="h-5 w-5" %}
+                    </div>
+                    <input type="text" name="q" value="{{ search_query|default:'' }}"
+                           placeholder="{{ search_placeholder|default:'Search…' }}"
+                           class="jk-input w-full pl-10">
+                </div>
+                {# The search box counts as one active filter on the button badge. #}
+                {% with search_count=search_query|yesno:"1,0" %}{% with filter_total=active_filter_count|default:0|add:search_count %}
+                <button type="button" @click="filtersOpen = !filtersOpen"
+                        class="jk-btn whitespace-nowrap flex items-center gap-1.5 {% if filter_total %}jk-btn-primary{% else %}jk-btn-outline{% endif %}"
+                        :class="compact ? 'px-3' : 'px-4'"
+                        title="Advanced Filter{% if filter_total %} ({{ filter_total }} active){% endif %}">
+                    {% icon "filter" css_class="h-4 w-4" %}
+                    <span x-show="!compact">Advanced Filter</span>
+                    {% if filter_total %}
+                    <span class="inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-white/25 text-[11px] font-bold leading-none">{{ filter_total }}</span>
+                    {% endif %}
+                    <span x-show="!compact">
+                        {% icon "chevron-down" css_class="h-4 w-4 transition-transform" %}
+                    </span>
+                </button>
+                {% endwith %}{% endwith %}
+                <button type="submit" class="jk-btn jk-btn-secondary whitespace-nowrap flex items-center justify-center gap-1.5"
+                        :class="compact ? 'px-3' : 'px-5'"
+                        title="Search">
+                    <span x-show="compact">{% icon "search" css_class="h-4 w-4" %}</span>
+                    <span x-show="!compact">Search</span>
+                </button>
+                {% if search_query or has_active_filters %}
+                <a href="{{ clear_url }}" x-show="!compact"
+                   class="jk-btn jk-btn-danger px-4 whitespace-nowrap" title="Clear search and filters">Clear</a>
+                {% endif %}
+                {% if create_url %}
+                <a href="{{ create_url }}" x-show="compact"
+                   class="jk-btn jk-btn-primary !px-2.5 shrink-0 flex items-center justify-center"
+                   title="{{ create_label|default:'New' }}">
+                    {% icon "plus" css_class="h-4 w-4" %}
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        {% if filter_panel_template %}
+        <div x-show="filtersOpen" x-cloak x-collapse class="px-4 pb-4 pt-0 border-t border-slate-100">
+            {% if search_query %}
+            {# The search box counts as an active filter, so list it here too. #}
+            <div class="flex flex-wrap items-center gap-2 pt-4 text-xs">
+                <span class="font-semibold text-slate-500">Active search:</span>
+                <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 font-semibold">
+                    {% icon "search" css_class="h-3.5 w-3.5" %}
+                    <span>Search contains “{{ search_query|truncatechars:60 }}”</span>
+                    <a href="{% without_search_url %}" class="inline-flex items-center justify-center w-5 h-5 rounded-md hover:bg-indigo-100" title="Remove search" aria-label="Remove search">{% icon "close" css_class="h-3.5 w-3.5" %}</a>
+                </span>
+            </div>
+            {% endif %}
+            <form method="get" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end pt-4">
+                <input type="hidden" name="q" value="{{ search_query|default:'' }}">
+                {% include filter_panel_template %}
+                <div class="flex gap-2">
+                    <button type="submit" class="jk-btn jk-btn-primary px-5 whitespace-nowrap">Apply</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>

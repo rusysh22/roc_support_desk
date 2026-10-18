@@ -30,7 +30,7 @@
 
 {% block extra_head %}
 <!-- html2pdf.js for PDF export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
 <style>
     /* ── Language switching ─────────────────────────────────── */
     body.lang-en .lang-id { display: none !important; }
@@ -191,6 +191,7 @@
             <span class="lang-id">Daftar Isi</span><span class="lang-en">Contents</span>
         </div>
         <div class="jk-card-body" style="padding:8px 10px;">
+            {% include "docs/_docs_search_trigger.html" %}
             <nav>
                 <a href="#mengapa" class="docs-toc-link">
                     <span class="lang-id">Mengapa Sistem Ini</span><span class="lang-en">Why This System</span>
@@ -226,6 +227,14 @@
                     <span class="lang-id">Status Tiket</span><span class="lang-en">Ticket Status</span>
                 </a>
                 <a href="#knowledge-base" class="docs-toc-link">Knowledge Base</a>
+                <a href="#app-portal" class="docs-toc-link">App Portal</a>
+                <a href="#user-manual" class="docs-toc-link"><span class="lang-id">User Manual</span><span class="lang-en">User Manual</span></a>
+                <a href="#my-tickets-area" class="docs-toc-link"><span class="lang-id">Area Pribadi Saya</span><span class="lang-en">My Personal Area</span></a>
+                <div class="docs-toc-sub">
+                    <a href="#my-approvals" class="docs-toc-link">↳ My Approvals</a>
+                    <a href="#my-signatures" class="docs-toc-link">↳ My Signatures</a>
+                    <a href="#my-eforms" class="docs-toc-link">↳ My e-Forms</a>
+                </div>
                 <a href="#faq" class="docs-toc-link">
                     <span class="lang-id">FAQ &amp; Kondisi Khusus</span><span class="lang-en">FAQ &amp; Special Conditions</span>
                 </a>
@@ -320,11 +329,31 @@
                     <h3 class="font-semibold text-sm mb-3" style="color:var(--jk-text);">
                         🔑 Login
                     </h3>
-                    <p class="lang-id" style="margin-bottom:10px;">Akses portal menggunakan akun yang telah disiapkan oleh tim support.</p>
-                    <p class="lang-en" style="margin-bottom:10px;">Access the portal using the account prepared by the support team.</p>
+                    <p class="lang-id" style="margin-bottom:10px;">Cara tercepat dan paling aman untuk masuk adalah dengan akun Microsoft kantor Anda (Single Sign-On) — tidak perlu mengingat password terpisah untuk aplikasi ini.</p>
+                    <p class="lang-en" style="margin-bottom:10px;">The fastest and most secure way to log in is with your work Microsoft account (Single Sign-On) — no separate password to remember for this application.</p>
+
+                    <div class="docs-callout docs-callout-tip" style="margin-bottom:14px;">
+                        ⭐ <span class="lang-id"><strong>Direkomendasikan:</strong> gunakan tombol <strong>Continue with Microsoft</strong> di halaman login — bukan username/password.</span>
+                        <span class="lang-en"><strong>Recommended:</strong> use the <strong>Continue with Microsoft</strong> button on the login page — not username/password.</span>
+                    </div>
+
                     <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka browser dan masuk ke URL portal yang diberikan</span><span class="lang-en">Open your browser and go to the portal URL provided</span></div></div>
-                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Masukkan <strong>username</strong> dan <strong>password</strong> Anda</span><span class="lang-en">Enter your <strong>username</strong> and <strong>password</strong></span></div></div>
-                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Klik tombol <strong>Login</strong></span><span class="lang-en">Click the <strong>Login</strong> button</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik tombol <strong>Continue with Microsoft</strong></span><span class="lang-en">Click the <strong>Continue with Microsoft</strong> button</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Masuk menggunakan akun Microsoft / email kantor Anda di halaman login Microsoft</span><span class="lang-en">Sign in with your work Microsoft account / email on the Microsoft login page</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Anda otomatis diarahkan kembali ke portal — selesai, tanpa mengisi password aplikasi</span><span class="lang-en">You're automatically redirected back to the portal — done, no application password needed</span></div></div>
+
+                    <div class="docs-callout docs-callout-info" style="margin:14px 0;">
+                        ℹ️ <span class="lang-id">Tombol <strong>Continue with Microsoft</strong> hanya muncul jika admin sudah mengaktifkan SSO untuk organisasi Anda. Jika tidak terlihat, gunakan metode username/password di bawah, atau hubungi admin untuk mengaktifkan SSO.</span>
+                        <span class="lang-en">The <strong>Continue with Microsoft</strong> button only appears once your admin has enabled SSO for your organization. If it's not showing, use the username/password method below, or ask your admin to enable SSO.</span>
+                    </div>
+
+                    <hr style="border-color:var(--jk-border);margin:16px 0;">
+
+                    <h4 class="font-semibold text-xs mb-2" style="color:var(--jk-text-muted);text-transform:uppercase;letter-spacing:.03em;">
+                        <span class="lang-id">Alternatif: Username &amp; Password</span><span class="lang-en">Alternative: Username &amp; Password</span>
+                    </h4>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Masukkan <strong>username</strong> dan <strong>password</strong> Anda</span><span class="lang-en">Enter your <strong>username</strong> and <strong>password</strong></span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik tombol <strong>Login</strong></span><span class="lang-en">Click the <strong>Login</strong> button</span></div></div>
                     <div class="docs-callout docs-callout-tip">
                         💡 <span class="lang-id">Gunakan <strong>email kantor</strong> atau <strong>username</strong> yang telah didaftarkan. Jika belum memiliki akun, ikuti langkah Request Akun di bawah.</span>
                         <span class="lang-en">Use your <strong>company email</strong> or registered <strong>username</strong>. If you don't have an account yet, follow the Account Request steps below.</span>
@@ -440,8 +469,8 @@
                 <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Di halaman portal, klik <strong>kartu kategori</strong> yang sesuai dengan permintaan Anda</span><span class="lang-en">On the portal page, click the <strong>category card</strong> that matches your request</span></div></div>
                 <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Jika kategori memiliki sub-kategori, pilih sub-layanan yang paling tepat</span><span class="lang-en">If the category has sub-categories, select the most appropriate sub-service</span></div></div>
                 <div class="docs-step"><div class="docs-step-num">3</div><div>
-                    <span class="lang-id">Isi formulir tiket: <strong>Subyek</strong> (ringkasan singkat) + <strong>Deskripsi</strong> (detail masalah) + <strong>Lampiran</strong> (opsional)</span>
-                    <span class="lang-en">Fill in the ticket form: <strong>Subject</strong> (brief summary) + <strong>Description</strong> (detail) + <strong>Attachment</strong> (optional)</span>
+                    <span class="lang-id">Isi <strong>Requestor Info</strong>: <strong>Full Name</strong>, <strong>Email</strong> (atau nomor telepon), <strong>Company Unit</strong>, dan <strong>Job Role</strong> — jika email/telepon sudah terdaftar, data terisi otomatis. Lalu pilih <strong>Location</strong> (jika tersedia) + <strong>Subyek</strong> (ringkasan singkat) + <strong>Deskripsi</strong> (detail masalah) + <strong>Lampiran</strong> (opsional)</span>
+                    <span class="lang-en">Fill in <strong>Requestor Info</strong>: <strong>Full Name</strong>, <strong>Email</strong> (or phone number), <strong>Company Unit</strong>, and <strong>Job Role</strong> — if the email/phone is already registered, the details fill in automatically. Then pick a <strong>Location</strong> (if offered) + <strong>Subject</strong> (brief summary) + <strong>Description</strong> (detail) + <strong>Attachment</strong> (optional)</span>
                 </div></div>
                 <div class="docs-step"><div class="docs-step-num">4</div><div><span class="lang-id">Klik <strong>Submit</strong> — halaman sukses akan menampilkan <strong>nomor tiket</strong> Anda (contoh: <code>IT-00042</code>)</span><span class="lang-en">Click <strong>Submit</strong> — the success page shows your <strong>ticket number</strong> (e.g., <code>IT-00042</code>)</span></div></div>
 
@@ -650,6 +679,96 @@
         </section>
 
         <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #app-portal — App Portal                               -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="app-portal" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🚀 App Portal
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">
+                    <strong>App Portal</strong> adalah halaman kumpulan pintasan ke aplikasi lain milik perusahaan (mis. Sistem Keuangan, HRIS, Absensi) — semua dalam satu tempat, tanpa perlu mengingat banyak alamat website.
+                </p>
+                <p class="lang-en" style="margin-bottom:12px;">
+                    <strong>App Portal</strong> is a page of shortcuts to your company's other applications (e.g. Finance System, HRIS, Attendance) — all in one place, without needing to remember many website addresses.
+                </p>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu <strong>App Portal</strong> 🚀 di sidebar</span><span class="lang-en">Open the <strong>App Portal</strong> 🚀 menu in the sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik kartu aplikasi yang ingin dibuka — akan terbuka di tab baru</span><span class="lang-en">Click the app card you want to open — it opens in a new tab</span></div></div>
+                <div class="docs-callout docs-callout-tip">
+                    💡 <span class="lang-id">Tidak semua kartu tampil untuk semua orang — beberapa aplikasi dibatasi hanya untuk role tertentu oleh SuperAdmin.</span>
+                    <span class="lang-en">Not every card is visible to everyone — some apps are restricted to specific roles by SuperAdmin.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #user-manual — User Manual                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="user-manual" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    📖 User Manual
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:12px;">
+                    Berbeda dari halaman panduan ini — <strong>User Manual</strong> berisi dokumentasi cara pakai aplikasi-aplikasi internal perusahaan lainnya (mis. panduan Finance System atau HRIS), disusun berjenjang seperti daftar bab dan sub-bab buku.
+                </p>
+                <p class="lang-en" style="margin-bottom:12px;">
+                    Different from this guide page — <strong>User Manual</strong> contains how-to documentation for your company's other internal applications (e.g. a Finance System or HRIS guide), organized like a book's chapters and sub-chapters.
+                </p>
+                <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu <strong>User Manual</strong> 📖 di sidebar</span><span class="lang-en">Open the <strong>User Manual</strong> 📖 menu in the sidebar</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Pilih aplikasi yang ingin dipelajari dari halaman utama</span><span class="lang-en">Select the application you want to learn about from the landing page</span></div></div>
+                <div class="docs-step"><div class="docs-step-num">3</div><div><span class="lang-id">Jelajahi bab/sub-bab di panel kiri, atau gunakan kolom pencarian untuk langsung menemukan topik</span><span class="lang-en">Browse chapters/sub-chapters in the left panel, or use the search box to jump straight to a topic</span></div></div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- #my-tickets-area — My Personal Area                    -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="my-tickets-area" class="docs-section jk-card mb-6">
+            <div class="jk-card-header">
+                <h2 class="font-bold text-base">
+                    🎟️ <span class="lang-id">Area Pribadi Saya</span><span class="lang-en">My Personal Area</span>
+                </h2>
+            </div>
+            <div class="jk-card-body" style="font-size:13.5px;color:var(--jk-text-muted);">
+                <p class="lang-id" style="margin-bottom:14px;">Beberapa menu di sidebar khusus menampilkan hal-hal yang berkaitan langsung dengan Anda — tidak semua menu ini tentu tampil, tergantung fitur yang diaktifkan untuk akun Anda.</p>
+                <p class="lang-en" style="margin-bottom:14px;">A few sidebar menus show items that specifically involve you — not every menu below necessarily appears, depending on which features are enabled for your account.</p>
+
+                <div id="my-approvals" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">✅ My Approvals</h3>
+                    <p class="lang-id" style="margin-bottom:8px;">Daftar permintaan yang menunggu persetujuan Anda — misalnya form multi-tahap di mana Anda ditunjuk sebagai salah satu penyetuju.</p>
+                    <p class="lang-en" style="margin-bottom:8px;">A list of requests waiting for your approval — for example, a multi-stage form where you're designated as one of the approvers.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu <strong>My Approvals</strong> di sidebar</span><span class="lang-en">Open the <strong>My Approvals</strong> menu in the sidebar</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik item yang menunggu → tinjau detailnya → Setujui atau Tolak</span><span class="lang-en">Click a pending item → review the details → Approve or Reject</span></div></div>
+                </div>
+
+                <div id="my-signatures" class="docs-section" style="margin-bottom:20px;">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">✍️ My Signatures</h3>
+                    <p class="lang-id" style="margin-bottom:8px;">Daftar dokumen yang perlu Anda tanda tangani secara digital (E-Sign) — misalnya surat tugas atau persetujuan resmi.</p>
+                    <p class="lang-en" style="margin-bottom:8px;">A list of documents that need your digital signature (E-Sign) — e.g. an assignment letter or a formal approval.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu <strong>My Signatures</strong> di sidebar</span><span class="lang-en">Open the <strong>My Signatures</strong> menu in the sidebar</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Buka dokumen yang menunggu → baca isinya → bubuhkan tanda tangan digital pada kotak yang ditandai</span><span class="lang-en">Open the pending document → read its content → apply your digital signature on the marked box</span></div></div>
+                    <div class="docs-callout docs-callout-tip">
+                        💡 <span class="lang-id">Jika Anda menerima dokumen E-Sign lewat email tanpa perlu login (sebagai penanda tangan eksternal), buka link tersebut langsung — tidak perlu akun di sistem ini.</span>
+                        <span class="lang-en">If you receive an E-Sign document via email without needing to log in (as an external signer), open that link directly — no account on this system is required.</span>
+                    </div>
+                </div>
+
+                <div id="my-eforms" class="docs-section">
+                    <h3 class="font-semibold text-sm mb-2" style="color:var(--jk-text);">📝 My e-Forms</h3>
+                    <p class="lang-id" style="margin-bottom:8px;">Daftar formulir dokumen (e-Form) yang pernah Anda ajukan — bisa dari tiket, atau langsung sebagai form standalone tanpa perlu membuat tiket terlebih dahulu.</p>
+                    <p class="lang-en" style="margin-bottom:8px;">A list of document forms (e-Forms) you've submitted — either from a ticket, or directly as a standalone form without needing to create a ticket first.</p>
+                    <div class="docs-step"><div class="docs-step-num">1</div><div><span class="lang-id">Buka menu <strong>My e-Forms</strong> di sidebar untuk melihat riwayat pengajuan Anda</span><span class="lang-en">Open the <strong>My e-Forms</strong> menu in the sidebar to see your submission history</span></div></div>
+                    <div class="docs-step"><div class="docs-step-num">2</div><div><span class="lang-id">Klik salah satu pengajuan untuk melihat status tahapannya — mis. sedang menunggu persetujuan Vendor atau IT Ops</span><span class="lang-en">Click a submission to see its stage status — e.g. currently waiting on Vendor or IT Ops approval</span></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
         <!-- #faq — FAQ & Special Conditions                        -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <section id="faq" class="docs-section jk-card mb-6">
@@ -728,8 +847,8 @@
 
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--jk-radius-sm);padding:12px 14px;">
-                        <div style="font-weight:700;font-size:13px;color:#991b1b;margin-bottom:4px;">🚨 <span class="lang-id">Tiket Kritis (Critical Priority)</span><span class="lang-en">Critical Tickets</span></div>
-                        <div style="font-size:12.5px;color:#7f1d1d;"><span class="lang-id">Tiket dengan prioritas kritis ditangani dengan prioritas tertinggi. Staf mungkin akan langsung menghubungi Anda melalui <strong>telepon</strong> — pastikan nomor Anda dapat dihubungi.</span><span class="lang-en">Critical priority tickets are handled with the highest urgency. Staff may contact you via <strong>phone call</strong> — ensure your number is reachable.</span></div>
+                        <div style="font-weight:700;font-size:13px;color:#991b1b;margin-bottom:4px;">🚨 <span class="lang-id">Tiket Prioritas P1</span><span class="lang-en">P1 Priority Tickets</span></div>
+                        <div style="font-size:12.5px;color:#7f1d1d;"><span class="lang-id">Tiket dengan prioritas P1 ditangani dengan prioritas tertinggi. Staf mungkin akan langsung menghubungi Anda melalui <strong>telepon</strong> — pastikan nomor Anda dapat dihubungi.</span><span class="lang-en">P1 priority tickets are handled with the highest urgency. Staff may contact you via <strong>phone call</strong> — ensure your number is reachable.</span></div>
                     </div>
                     <div style="background:#ede9fe;border:1px solid #c4b5fd;border-radius:var(--jk-radius-sm);padding:12px 14px;">
                         <div style="font-weight:700;font-size:13px;color:#4c1d95;margin-bottom:4px;">🔐 <span class="lang-id">Kategori Confidential</span><span class="lang-en">Confidential Categories</span></div>
@@ -752,6 +871,8 @@
 
     </div>{# end main content #}
 </div>{# end grid #}
+
+{% include "docs/_docs_search_modal.html" %}
 
 {% endblock %}
 

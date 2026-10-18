@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Module Defaults | {{ site_config.site_name|default:"RoC Desk" }}{% endblock %}
+{% block nav_portal_modules %}active{% endblock %}
+{% block page_title %}Module Defaults{% endblock %}
+
+{% block content %}
+{{ role_panels|json_script:"role-panels-data" }}
+<div id="module-defaults-root"
+     class="max-w-3xl mx-auto space-y-6"
+     data-active-role="{{ active_role|escape }}"
+     x-data="roleModuleDefaults()">
+
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="{% url 'users_desk:user_list' %}" class="hover:text-slate-700 transition-colors">User Management</a>
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-slate-800 font-medium">Module Defaults</span>
+    </div>
+
+    {% if messages %}
+    <div class="space-y-2">
+        {% for message in messages %}
+        <div class="flex items-center gap-3 p-4 rounded-xl text-sm border
+            {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-100">
+            <h3 class="text-sm font-bold text-slate-800">Default modules by role</h3>
+            <p class="text-xs text-slate-500 mt-1">Applies to every user of that role. Per-user override in User Management can add extra modules; it cannot remove a module that is checked here.</p>
+        </div>
+
+        <form data-unsaved-guard method="post" class="p-6 space-y-5" @submit="prepareSubmit()">
+            {% csrf_token %}
+            <input type="hidden" name="active_role" :value="role">
+
+            <div class="flex flex-wrap gap-2 pb-2 border-b border-slate-100">
+                <template x-for="panel in panels" :key="panel.role">
+                    <button type="button"
+                            @click="role = panel.role"
+                            class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+                            :class="role === panel.role ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
+                            x-text="panel.label"></button>
+                </template>
+            </div>
+
+            <template x-for="panel in panels" :key="'body-' + panel.role">
+                <div x-show="role === panel.role" class="space-y-5">
+                    <p class="text-xs text-slate-500">Configuring defaults for <strong class="text-slate-800" x-text="panel.label"></strong>
+                        <span class="text-slate-400">· <span x-text="(selected[panel.role] || []).length"></span> selected</span>
+                    </p>
+                    {% for section_name, modules in module_sections.items %}
+                    <div>
+                        <h4 style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">{{ section_name }}</h4>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            {% for slug, mod_label, emoji in modules %}
+                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;transition:all 0.15s;" onmouseover="this.style.background='#eef2ff';this.style.borderColor='#a5b4fc';" onmouseout="this.style.background='';this.style.borderColor='#e2e8f0';">
+                                <input type="checkbox" value="{{ slug }}"
+                                    :name="'modules_' + panel.role"
+                                    :checked="(selected[panel.role] || []).includes('{{ slug|escapejs }}')"
+                                    @change="toggle(panel.role, '{{ slug|escapejs }}', $event.target.checked)"
+                                    style="width:15px;height:15px;accent-color:#6366f1;flex-shrink:0;">
+                                <span style="font-size:13px;color:#334155;">{{ emoji }} {{ mod_label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </template>
+
+            <div id="module-defaults-hidden"></div>
+
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                <a href="{% url 'users_desk:user_list' %}" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</a>
+                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">
+                    Save Defaults
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function roleModuleDefaults() {
+    const raw = document.getElementById('role-panels-data');
+    const panels = raw ? JSON.parse(raw.textContent) : [];
+    const root = document.getElementById('module-defaults-root');
+    const activeRole = (root && root.getAttribute('data-active-role')) || (panels[0] && panels[0].role) || 'PortalUser';
+    const selected = {};
+    panels.forEach(p => { selected[p.role] = Array.isArray(p.checked) ? p.checked.slice() : []; });
+    return {
+        panels,
+        role: activeRole,
+        selected,
+        toggle(role, slug, on) {
+            const cur = new Set(this.selected[role] || []);
+            if (on) cur.add(slug); else cur.delete(slug);
+            this.selected[role] = Array.from(cur);
+        },
+        prepareSubmit() {
+            const box = document.getElementById('module-defaults-hidden');
+            box.innerHTML = '';
+            Object.keys(this.selected).forEach(role => {
+                (this.selected[role] || []).forEach(slug => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'modules_' + role;
+                    input.value = slug;
+                    box.appendChild(input);
+                });
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

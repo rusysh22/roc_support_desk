@@ -1,0 +1,20 @@
+{% load custom_tags %}
+{% comment %}
+"Show 25 / 50 / 75 / 100 / All" rows-per-page picker (core/list_pagination.py).
+Needs `page_size` + `page_size_options` in context (paginate() / PageSizeMixin add them).
+Changing it reloads the list with ?per_page= (other filters kept, back to page 1).
+{% endcomment %}
+{% if page_size_options %}
+<label class="inline-flex items-center gap-2 text-sm text-slate-600 whitespace-nowrap">
+    <span>Show</span>
+    <select onchange="window.location.href = this.value"
+            aria-label="Rows per page"
+            class="h-8 pl-2.5 pr-7 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 cursor-pointer">
+        {% for n in page_size_options %}
+        <option value="{% per_page_url n %}" {% if page_size == n %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+        <option value="{% per_page_url 'all' %}" {% if page_size == 'all' %}selected{% endif %}>All</option>
+    </select>
+    <span class="hidden sm:inline">per page</span>
+</label>
+{% endif %}
