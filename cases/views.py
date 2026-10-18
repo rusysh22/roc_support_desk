@@ -1613,6 +1613,13 @@ def create_case(request, slug=None):
         .exclude(slug__in=["whatsapp-general", "email-general"])
         .exclude(id__in=parent_ids)
     )
+    category_contact_json = json.dumps({
+        str(c.id): c.requester_contact for c in categories_qs
+    })
+    job_role_options = (
+        list(JobRoleModel.objects.filter(is_active=True).values_list("name", flat=True))
+        if _job_role_mode == "master" else []
+    )
     category_templates_json = json.dumps({
         str(c.id): c.template_text for c in categories_qs if c.template_text
     })
@@ -1696,6 +1703,8 @@ def create_case(request, slug=None):
                     "company_units": CompanyUnit.objects.all(),
                     "ticket_locations": ticket_locations,
                     "category_templates_json": category_templates_json,
+                    "category_contact_json": category_contact_json,
+                    "job_role_options": job_role_options,
                     "category_templates_subject_json": category_templates_subject_json,
                     "category_cr_enabled_json": category_cr_enabled_json,
                     "category_document_templates_json": category_document_templates_json,
@@ -1722,8 +1731,9 @@ def create_case(request, slug=None):
                 email = request.user.email
                 phone = ""
 
-            # Auto-link an existing Employee by email OR phone, else create one
-            employee = Employee.find_by_contact(email=email, phone=phone)
+            # Use the requester picked from the directory, else auto-link an
+            # existing Employee by email OR phone, else create one
+            employee = getattr(form, "picked_employee", None) or Employee.find_by_contact(email=email, phone=phone)
             created = employee is None
             if created:
                 employee = Employee.objects.create(
@@ -1749,8 +1759,8 @@ def create_case(request, slug=None):
 
                 # Enrichment: matched by one contact method but missing the
                 # other — fill it in if the visitor chose to add it.
-                additional_phone = form.cleaned_data.get("additional_phone") or ""
-                additional_email = form.cleaned_data.get("additional_email") or ""
+                additional_phone = form.cleaned_data.get("additional_phone") or phone or ""
+                additional_email = form.cleaned_data.get("additional_email") or email or ""
                 if additional_phone and not employee.phone_number:
                     employee.phone_number = additional_phone
                     updated_fields.append("phone_number")
@@ -1927,6 +1937,8 @@ def create_case(request, slug=None):
         "company_units": CompanyUnit.objects.all(),
         "ticket_locations": ticket_locations,
         "category_templates_json": category_templates_json,
+        "category_contact_json": category_contact_json,
+        "job_role_options": job_role_options,
         "category_templates_subject_json": category_templates_subject_json,
         "category_cr_enabled_json": category_cr_enabled_json,
         "category_document_templates_json": category_document_templates_json,

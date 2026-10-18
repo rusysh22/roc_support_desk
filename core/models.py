@@ -1054,11 +1054,11 @@ class SiteConfig(AuditableModel):
     job_role_mode = models.CharField(
         max_length=10,
         choices=JOB_ROLE_MODE_CHOICES,
-        default='freetext',
+        default='master',
         verbose_name="Job Role Input Mode",
         help_text=(
-            "Free Text: users type their job role freely. "
-            "Master Data: users pick from the Job Roles master list."
+            "Master Data: users pick from the Job Roles master list (free text is used while the list is empty). "
+            "Free Text: users type their job role freely."
         ),
     )
 

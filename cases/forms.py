@@ -63,6 +63,9 @@ class CaseCreateForm(forms.Form):
         required=False,
         widget=forms.EmailInput(attrs={"class": "jk-input"}),
     )
+    # Set when the requester was picked from the employee directory; the
+    # server then reads the real email / phone from that Employee record.
+    requester_employee = forms.UUIDField(required=False, widget=forms.HiddenInput())
     requester_name = forms.CharField(
         max_length=255,
         label="Your Full Name",
@@ -124,8 +127,10 @@ class CaseCreateForm(forms.Form):
         super().__init__(*args, **kwargs)
         self._job_role_mode = job_role_mode
 
-        if job_role_mode == 'master':
-            active_roles = JobRole.objects.filter(is_active=True)
+        active_roles = JobRole.objects.filter(is_active=True) if job_role_mode == 'master' else JobRole.objects.none()
+        # Master mode with an empty Job Roles list falls back to free text so
+        # the form never becomes impossible to submit.
+        if job_role_mode == 'master' and active_roles.exists():
             choices = [('', '— Pilih Job Role —')] + [(r.name, r.name) for r in active_roles]
             self.fields['job_role'] = forms.ChoiceField(
                 label="Job Role",
@@ -270,21 +275,58 @@ class CaseCreateForm(forms.Form):
 
     def clean(self):
         """
-        Exactly one of requester_email / requester_phone is authoritative,
-        chosen via contact_mode. The other is discarded even if it has a
-        (stale) value, so switching modes never mixes data.
+        Which contact details are required depends on the category's
+        ``requester_contact`` setting. In "either" mode exactly one of
+        requester_email / requester_phone is authoritative, chosen via
+        contact_mode; the other is discarded so switching never mixes data.
         """
         cleaned = super().clean()
-        mode = cleaned.get("contact_mode") or "email"
+        category = cleaned.get("category")
+        requirement = getattr(category, "requester_contact", None) or CaseCategory.RequesterContact.EITHER
 
-        if mode == "phone":
-            cleaned["requester_email"] = ""
-            if not cleaned.get("requester_phone"):
-                self.add_error("requester_phone", "Phone number is required.")
+        self.picked_employee = None
+        employee_id = cleaned.get("requester_employee")
+        if employee_id:
+            from core.models import Employee
+            self.picked_employee = Employee.objects.select_related("unit").filter(pk=employee_id).first()
+            if self.picked_employee is None:
+                self.add_error(None, "The selected requester no longer exists. Please search again.")
+                return cleaned
+
+        if self.picked_employee is not None:
+            emp = self.picked_employee
+            cleaned["requester_name"] = emp.full_name
+            cleaned["requester_email"] = cleaned.get("requester_email") or (emp.email or "")
+            cleaned["requester_phone"] = cleaned.get("requester_phone") or (emp.phone_number or "")
+            if not cleaned.get("job_role") and emp.job_role:
+                cleaned["job_role"] = emp.job_role
+            self.errors.pop("requester_name", None)
+            if "job_role" in self.errors and cleaned.get("job_role"):
+                self.errors.pop("job_role")
+            if requirement == CaseCategory.RequesterContact.EITHER:
+                if not cleaned["requester_email"] and not cleaned["requester_phone"]:
+                    self.add_error("requester_email", "Please add an email address or phone number.")
+                requirement = None  # both contacts are kept for a picked employee
+
+        if requirement is None:
+            pass
+        elif requirement == CaseCategory.RequesterContact.EITHER:
+            mode = cleaned.get("contact_mode") or "email"
+            if mode == "phone":
+                cleaned["requester_email"] = ""
+                if not cleaned.get("requester_phone"):
+                    self.add_error("requester_phone", "Phone number is required.")
+            else:
+                cleaned["requester_phone"] = ""
+                if not cleaned.get("requester_email"):
+                    self.add_error("requester_email", "Work email is required.")
         else:
-            cleaned["requester_phone"] = ""
-            if not cleaned.get("requester_email"):
-                self.add_error("requester_email", "Work email is required.")
+            needs_email = requirement in (CaseCategory.RequesterContact.EMAIL, CaseCategory.RequesterContact.BOTH)
+            needs_phone = requirement in (CaseCategory.RequesterContact.PHONE, CaseCategory.RequesterContact.BOTH)
+            if needs_email and not cleaned.get("requester_email"):
+                self.add_error("requester_email", "Work email is required for this category.")
+            if needs_phone and not cleaned.get("requester_phone"):
+                self.add_error("requester_phone", "Phone number is required for this category.")
 
         location = cleaned.get("location")
         detail = (cleaned.get("location_detail") or "").strip()
@@ -605,6 +647,7 @@ class CaseCategoryForm(forms.ModelForm):
             'default_case_type', 'default_tags',
             'template_subject', 'template_text',
             'is_confidential', 'is_attachment_mandatory', 'enable_change_request',
+            'requester_contact',
             'is_use_routing_approval', 'is_need_admin_approval',
         ]
         _cb = {'class': 'w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 shrink-0'}
@@ -645,6 +688,7 @@ class CaseCategoryForm(forms.ModelForm):
             'enable_change_request': forms.CheckboxInput(attrs=_cb),
             'is_use_routing_approval': forms.CheckboxInput(attrs=_cb),
             'is_need_admin_approval': forms.CheckboxInput(attrs=_cb),
+            'requester_contact': forms.RadioSelect(),
         }
 
     def __init__(self, *args, **kwargs):

@@ -177,6 +177,20 @@ class CaseCategory(AuditableModel):
         help_text="If checked, users must upload at least one attachment when submitting a ticket in this category.",
     )
 
+    class RequesterContact(models.TextChoices):
+        EITHER = "either", "Email or phone (requester chooses)"
+        EMAIL = "email", "Email required"
+        PHONE = "phone", "Phone number required"
+        BOTH = "both", "Email and phone number required"
+
+    requester_contact = models.CharField(
+        max_length=10,
+        choices=RequesterContact.choices,
+        default=RequesterContact.EITHER,
+        verbose_name="Requester Contact",
+        help_text="Which contact details the requester must provide when submitting a ticket in this category.",
+    )
+
     enable_change_request = models.BooleanField(
         default=False,
         verbose_name="Enable Change Request",

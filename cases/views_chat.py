@@ -543,6 +543,67 @@ def chat_lookup_employee(request):
     })
 
 
+EMPLOYEE_SEARCH_MIN_LEN = 2
+EMPLOYEE_SEARCH_LIMIT = 10
+
+
+def mask_email(email):
+    """jo***@company.com — enough to recognise your own address, not to harvest it."""
+    local, _, domain = (email or "").partition("@")
+    if not local or not domain:
+        return ""
+    return f"{local[:2]}***@{domain}"
+
+
+def mask_phone(phone):
+    """+62812****7890"""
+    phone = phone or ""
+    if len(phone) <= 6:
+        return "****" if phone else ""
+    return f"{phone[:5]}****{phone[-4:]}"
+
+
+@require_GET
+def chat_search_employees(request):
+    """
+    Typeahead for the "Full Name" requester picker on the new-ticket form.
+
+    The form is public, so contact details are returned masked; the form posts
+    the Employee id and the server reads the real email / phone from the record.
+    """
+    client_ip, _ = _get_client_ip(request)
+    rate_key = EMPLOYEE_LOOKUP_RATE_LIMIT_KEY.format(ip=client_ip or "unknown")
+    attempts = cache.get(rate_key, 0)
+    if attempts >= EMPLOYEE_LOOKUP_RATE_LIMIT_MAX * 4:
+        return JsonResponse({"results": [], "error": "Too many requests."}, status=429)
+    cache.set(rate_key, attempts + 1, timeout=EMPLOYEE_LOOKUP_RATE_LIMIT_WINDOW)
+
+    q = " ".join((request.GET.get("q") or "").split())[:100]
+    if len(q) < EMPLOYEE_SEARCH_MIN_LEN:
+        return JsonResponse({"results": []})
+
+    employees = (
+        Employee.objects.filter(is_archived=False)
+        .filter(Q(full_name__icontains=q) | Q(email__iexact=q))
+        .select_related("unit")
+        .order_by("full_name")[:EMPLOYEE_SEARCH_LIMIT]
+    )
+    return JsonResponse({"results": [
+        {
+            "id": str(e.pk),
+            "name": e.full_name,
+            "job_role": e.job_role or "",
+            "unit_id": str(e.unit_id) if e.unit_id else "",
+            "unit_name": e.unit.name if e.unit_id else "",
+            "email_masked": mask_email(e.email),
+            "phone_masked": mask_phone(e.phone_number),
+            "has_email": bool(e.email),
+            "has_phone": bool(e.phone_number),
+        }
+        for e in employees
+    ]})
+
+
 # ---------------------------------------------------------------------------
 # Chat — start (create ticket from widget)
 # ---------------------------------------------------------------------------

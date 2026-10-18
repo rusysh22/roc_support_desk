@@ -155,6 +155,32 @@
                         <p class="text-xs text-slate-400 mt-0.5">Users can attach a supporting document (surat kronologi / change request) when submitting tickets here. Requires a Document Template to be linked to this category.</p>
                     </div>
                 </label>
+
+                <!-- Requester Contact -->
+                <div class="pt-3 border-t border-slate-100">
+                    <span class="text-sm font-medium text-slate-700">Requester Contact</span>
+                    <p class="text-xs text-slate-400 mt-0.5 mb-3">Which contact details the requester must provide on the new-ticket form.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {% for choice in form.requester_contact %}
+                        <label class="relative flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors border-slate-200 hover:border-indigo-200 has-[input:checked]:border-indigo-400 has-[input:checked]:bg-indigo-50/60">
+                            <input type="radio" name="{{ choice.data.name }}" value="{{ choice.data.value }}"
+                                   class="mt-0.5 w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 shrink-0"
+                                   {% if choice.data.selected %}checked{% endif %}>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-semibold text-slate-700">
+                                    {% if choice.data.value == "either" %}📧 / 📱 Email or phone{% elif choice.data.value == "email" %}📧 Email required{% elif choice.data.value == "phone" %}📱 Phone required{% else %}📧 + 📱 Both required{% endif %}
+                                </span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5">
+                                    {% if choice.data.value == "either" %}Requester chooses one (default).{% elif choice.data.value == "email" %}A work email must be filled in.{% elif choice.data.value == "phone" %}A phone number must be filled in, e.g. for WhatsApp updates.{% else %}Both a work email and a phone number.{% endif %}
+                                </span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if form.requester_contact.errors %}
+                    <div class="jk-form-error mt-1">{{ form.requester_contact.errors.0 }}</div>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- Approval Routing -->
